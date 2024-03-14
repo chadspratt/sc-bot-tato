@@ -1,39 +1,110 @@
+from loguru import logger
+
 from typing import List
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.constants import (
-    TERRAN_STRUCTURES_REQUIRE_SCV,
-)
+from sc2.unit import Unit
+from sc2.position import Point2
 from bottato.build_step import BuildStep
 
 
 class BuildOrder:
-    build_steps: List[BuildStep]
-    next_unfinished_step_index: int
+    pending: List[BuildStep] = []
+    requested: List[BuildStep] = []
+    complete: List[BuildStep] = []
+    # next_unfinished_step_index: int
 
     def __init__(self, build_name):
-        self.next_unfinished_step_index = 0
-        self.build_steps = self.get_build_start(build_name)
+        self.pending = self.get_build_start(build_name)
+        self.recently_completed_units: List[Unit] = []
+        self.recently_started_units: List[Unit] = []
+    
+    def update_completed(self) -> None:
+        for completed_unit in self.recently_completed_units:
+            needle = None
+            for idx, in_progress_step in enumerate(self.requested):
+                if in_progress_step.unit_type_id == completed_unit.type_id:
+                    needle = idx
+                    break
+            if needle is not None:
+                self.complete.append(self.requested.pop(needle))
+        self.recently_completed_units = []
+    
+    def update_started(self) -> None:
+        for started_unit in self.recently_started_units:
+            for idx, in_progress_step in enumerate(self.requested):
+                if in_progress_step.unit_being_built is not None:
+                    continue
+                if in_progress_step.unit_type_id == started_unit.type_id:
+                    in_progress_step.unit_being_built = started_unit
+                    break
+        self.recently_started_units = []
 
-    def execute(self, bot: BotAI) -> List[BuildStep]:
-        failed_steps: List[BuildStep] = []
-        step_index = self.next_unfinished_step_index
-        self.next_unfinished_step_index = None
-        while (self.build_steps[step_index].supply_count <= bot.supply_used):
-            next_step: BuildStep = self.build_steps[step_index]
-            if (next_step.is_complete(bot)):
-                step_index += 1
-                continue
-            if (self.next_unfinished_step_index is None):
-                self.next_unfinished_step_index = step_index
-            if (not next_step.execute(bot)):
-                failed_steps.append(next_step)
-            step_index += 1
-        if (self.next_unfinished_step_index is None):
-            self.next_unfinished_step_index = step_index
-        return failed_steps
+    def move_interupted_to_pending(self) -> None:
+        to_promote = []
+        for idx, build_step in enumerate(self.requested):
+            logger.info(f"In progress building {build_step.unit_type_id}")
+            logger.info(f"> Builder {build_step.unit_in_charge}")
+            if build_step.is_interrupted():
+                logger.info("! Is interrupted!")
+                # move back to pending (demote)
+                to_promote.append(idx)
+        for idx in reversed(to_promote):
+            self.pending.insert(0, self.requested.pop(idx))
 
-    def get_build_start(build_name):
+    async def execute_first_pending(self, bot: BotAI) -> None:
+        try:
+            build_step = self.pending[0]
+        except IndexError:
+            return False
+        build_position = await self.find_placement(build_step.unit_type_id, bot)
+        if await build_step.execute(bot, at_position=build_position):
+            self.requested.append(self.pending.pop(0))
+        
+    async def find_placement(
+        self, unit_type_id: UnitTypeId, bot: BotAI
+    ) -> Point2:
+        # depot_position = await self.find_placement(UnitTypeId.SUPPLYDEPOT, near=cc)
+        near_position = None
+        if self.requested:
+            near_position = self.requested[-1].pos
+        elif self.complete:
+            near_position = self.complete[-1].pos
+        else:
+            map_center = bot.game_info.map_center
+            near_position = bot.start_location.towards(
+                map_center, distance=5
+            )
+        if near_position is None:
+            logger.info(self.requested)
+            logger.info(self.complete)
+        return await bot.find_placement(
+            unit_type_id, near=near_position, placement_step=2
+        )
+
+    def build_workers(self, bot: BotAI) -> None:
+        if (
+            bot.can_afford(UnitTypeId.SCV) and bot.supply_left > 0 and bot.supply_workers < 22 and (
+                bot.structures(UnitTypeId.BARRACKS).ready.amount < 1 and bot.townhalls(UnitTypeId.COMMANDCENTER).idle
+                or bot.townhalls(UnitTypeId.ORBITALCOMMAND).idle
+            )
+        ):
+            for th in bot.townhalls.idle:
+                th.train(UnitTypeId.SCV)
+
+    async def execute(self, bot: BotAI) -> None:
+        self.build_workers(bot)
+        self.update_completed()
+        self.move_interupted_to_pending()
+        await self.execute_first_pending(bot)
+
+    def get_next_build(self) -> List[UnitTypeId]:
+        """Figures out what to build next"""
+        # or other stuff?
+        self.build_steps[self.next_unfinished_step_index]
+        return [UnitTypeId.SCV]
+
+    def get_build_start(self, build_name):
         if (build_name == 'tvt1'):
             # https://lotv.spawningtool.com/build/171779/
             # Standard Terran vs Terran (3 Reaper 2 Hellion) (TvT Economic)
