@@ -19,18 +19,21 @@ logger.add("bot_tato.log", level="INFO", format="{message}")
 
 
 class BotTato(BotAI):
-
     async def on_start(self):
         self.build_order: BuildOrder = BuildOrder('tvt1', bot=self)
-        self.micro = Micro()
+        self.micro = Micro(self)
+        for cc in self.townhalls(UnitTypeId.COMMANDCENTER):
+            logger.info(f"Command center located at {cc.position}")
 
     async def on_step(self, iteration):
-        ccs: list[Unit] = self.townhalls(UnitTypeId.COMMANDCENTER)
-        if not ccs:
-            return
-        await self.distribute_workers()
-        self.micro.adjust_supply_depots_for_enemies(self)
+        logger.info("starting step")
+        logger.info("distributing_workers")
+        await self.micro.distribute_workers()
+        logger.info("adjust_supply_depots_for_enemies step")
+        self.micro.adjust_supply_depots_for_enemies()
+        logger.info("executing build order")
         await self.build_order.execute()
+        logger.info("ending step")
 
     async def on_end(self, game_result: Result):
         print("Game ended.")
@@ -52,7 +55,7 @@ class BotTato(BotAI):
         logger.info(f"raising complete! {unit}")
         self.build_order.recently_completed_units.append(unit)
 
-    
+
 def main():
     run_game(
         maps.get("Equilibrium512AIE"),

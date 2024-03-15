@@ -21,7 +21,9 @@ class BuildOrder:
         # self.recently_completed_transformations: List[UnitTypeId] = []
         self.recently_started_units: List[Unit] = []
         self.bot: BotAI = bot
-        self.pending = self.get_build_start(build_name)
+        self.pending = [
+            BuildStep(bot, unit) for unit in self.get_build_start(build_name)
+        ]
 
     def update_completed(self) -> None:
         for completed_unit in self.recently_completed_units:
@@ -39,24 +41,34 @@ class BuildOrder:
         self.recently_completed_units = []
 
     def update_started(self) -> None:
+        logger.info(
+            f"update_started with recently_started_units {self.recently_started_units}"
+        )
         for started_unit in self.recently_started_units:
             for idx, in_progress_step in enumerate(self.requested):
                 if in_progress_step.unit_being_built is not None:
                     continue
                 if in_progress_step.unit_type_id == started_unit.type_id:
+                    logger.info(f"found matching step: {in_progress_step}")
                     in_progress_step.unit_being_built = started_unit
                     break
         self.recently_started_units = []
+
+    def refresh_worker_references(self):
+        for build_step in self.requested:
+            build_step.refresh_worker_reference()
 
     def move_interupted_to_pending(self) -> None:
         to_promote = []
         for idx, build_step in enumerate(self.requested):
             logger.info(f"In progress building {build_step.unit_type_id}")
             logger.info(f"> Builder {build_step.unit_in_charge}")
+            build_step.draw_debug_box()
             if build_step.is_interrupted():
                 logger.info("! Is interrupted!")
                 # move back to pending (demote)
                 to_promote.append(idx)
+                continue
         for idx in reversed(to_promote):
             self.pending.insert(0, self.requested.pop(idx))
 
@@ -66,33 +78,93 @@ class BuildOrder:
         except IndexError:
             return False
         if not self.can_afford(build_step.cost):
+            logger.info(f"Cannot afford {build_step.unit_type_id.name}")
             return False
         build_position = await self.find_placement(build_step.unit_type_id)
-        if await build_step.execute(at_position=build_position):
+        logger.info(f"Executing build step at position {build_position}")
+        execute_response = await build_step.execute(at_position=build_position)
+        logger.info(f"> Got back {execute_response}")
+        if execute_response:
             self.requested.append(self.pending.pop(0))
 
     def can_afford(self, requested_cost: Cost) -> bool:
-        total_requested_cost = requested_cost
+        # PS: non-structure build steps never get their `unit_being_build` populated,
+        #   so they inflate the total_requested_cost
+        prior_requested_cost = Cost(0, 0)
         for build_step in self.requested:
             if build_step.unit_being_built is None:
-                total_requested_cost += build_step.cost
+                logger.info(
+                    f"Build cost for '{build_step.unit_type_id.name}' being added to "
+                    "prior_requested_cost"
+                )
+                prior_requested_cost += build_step.cost
+        logger.info(
+            f"Want to buy unit for {requested_cost.minerals} minerals, "
+            f"and {requested_cost.vespene} vespene."
+        )
+        logger.info(
+            f"> Prior (uncharged) requests account for {prior_requested_cost.minerals} minerals, "
+            f"and {prior_requested_cost.vespene} vespene."
+        )
+        logger.info(
+            f">> Currently have {self.bot.minerals} minerals, "
+            f"and {self.bot.vespene} vespene."
+        )
+        total_requested_cost = requested_cost + prior_requested_cost
         return (
             total_requested_cost.minerals <= self.bot.minerals
             and total_requested_cost.vespene <= self.bot.vespene
         )
 
+    def get_next_town_hall_position(self):
+        _townhall: Unit = self.bot.townhalls[0]
+        min_distance_to_start = None
+        nearest = None
+        for position in self.bot.expansion_locations_list:
+            # check occupied
+            occupied = False
+            for townhall in self.bot.townhalls:
+                if townhall.distance_to(position) < 2:
+                    occupied = True
+                    break
+            if occupied:
+                continue
+            distance_to_start = _townhall.distance_to(position)
+            if (
+                min_distance_to_start is None
+                or distance_to_start < min_distance_to_start
+            ):
+                min_distance_to_start = distance_to_start
+                nearest = position
+        return nearest
+
     async def find_placement(self, unit_type_id: UnitTypeId) -> Point2:
         # depot_position = await self.find_placement(UnitTypeId.SUPPLYDEPOT, near=cc)
-        if self.last_build_position is None:
-            map_center = self.bot.game_info.map_center
-            self.last_build_position = self.bot.start_location.towards(
-                map_center, distance=5
+        if unit_type_id == UnitTypeId.COMMANDCENTER:
+            new_build_position = self.get_next_town_hall_position()
+        else:
+            addon_place = False
+            if unit_type_id in (
+                UnitTypeId.BARRACKS,
+                UnitTypeId.FACTORY,
+                UnitTypeId.STARPORT,
+            ):
+                # account for addon = true
+                addon_place = True
+            if self.last_build_position is None:
+                map_center = self.bot.game_info.map_center
+                self.last_build_position = self.bot.start_location.towards(
+                    map_center, distance=5
+                )
+            new_build_position = await self.bot.find_placement(
+                unit_type_id,
+                near=self.last_build_position,
+                placement_step=2,
+                addon_place=addon_place,
             )
-
-        self.last_build_position = await self.bot.find_placement(
-            unit_type_id, near=self.last_build_position, placement_step=2
-        )
-        return self.last_build_position
+        if new_build_position is not None:
+            self.last_build_position = new_build_position
+        return new_build_position
 
     def queue_worker(self) -> None:
         requested_worker_count = 0
@@ -117,7 +189,9 @@ class BuildOrder:
             f"requested={','.join([step.unit_type_id.name for step in self.requested])}"
         )
         self.queue_worker()
+        self.refresh_worker_references()
         self.update_completed()
+        self.update_started()
         self.move_interupted_to_pending()
         await self.execute_first_pending()
 
@@ -133,41 +207,41 @@ class BuildOrder:
             # Standard Terran vs Terran (3 Reaper 2 Hellion) (TvT Economic)
             # Very Standard Reaper Hellion Opening that transitions into Marine-Tank-Raven. As solid it as it gets
             return [
-                BuildStep(self.bot, UnitTypeId.SUPPLYDEPOT),
-                BuildStep(self.bot, UnitTypeId.BARRACKS),
-                BuildStep(self.bot, UnitTypeId.REFINERY),
-                BuildStep(self.bot, UnitTypeId.REFINERY),
-                BuildStep(self.bot, UnitTypeId.REAPER),
-                BuildStep(self.bot, UnitTypeId.ORBITALCOMMAND),
-                BuildStep(self.bot, UnitTypeId.SUPPLYDEPOT),
-                BuildStep(self.bot, UnitTypeId.FACTORY),
-                BuildStep(self.bot, UnitTypeId.REAPER),
-                BuildStep(self.bot, UnitTypeId.COMMANDCENTER),
-                BuildStep(self.bot, UnitTypeId.HELLION),
-                BuildStep(self.bot, UnitTypeId.SUPPLYDEPOT),
-                BuildStep(self.bot, UnitTypeId.REAPER),
-                BuildStep(self.bot, UnitTypeId.STARPORT),
-                BuildStep(self.bot, UnitTypeId.HELLION),
-                BuildStep(self.bot, UnitTypeId.BARRACKSREACTOR),
-                BuildStep(self.bot, UnitTypeId.REFINERY),
-                BuildStep(self.bot, UnitTypeId.FACTORYTECHLAB),
-                BuildStep(self.bot, UnitTypeId.STARPORTTECHLAB),
-                BuildStep(self.bot, UnitTypeId.ORBITALCOMMAND),
-                BuildStep(self.bot, UnitTypeId.CYCLONE),
-                BuildStep(self.bot, UnitTypeId.MARINE),
-                BuildStep(self.bot, UnitTypeId.MARINE),
-                BuildStep(self.bot, UnitTypeId.RAVEN),
-                BuildStep(self.bot, UnitTypeId.SUPPLYDEPOT),
-                BuildStep(self.bot, UnitTypeId.MARINE),
-                BuildStep(self.bot, UnitTypeId.MARINE),
-                BuildStep(self.bot, UnitTypeId.SIEGETANK),
-                BuildStep(self.bot, UnitTypeId.SUPPLYDEPOT),
-                BuildStep(self.bot, UnitTypeId.MARINE),
-                BuildStep(self.bot, UnitTypeId.MARINE),
-                BuildStep(self.bot, UnitTypeId.RAVEN),
-                BuildStep(self.bot, UnitTypeId.MARINE),
-                BuildStep(self.bot, UnitTypeId.MARINE),
-                BuildStep(self.bot, UnitTypeId.SIEGETANK),
-                BuildStep(self.bot, UnitTypeId.MARINE),
-                BuildStep(self.bot, UnitTypeId.MARINE),
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.BARRACKS,
+                UnitTypeId.REFINERY,
+                UnitTypeId.REFINERY,
+                UnitTypeId.REAPER,
+                UnitTypeId.ORBITALCOMMAND,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.FACTORY,
+                UnitTypeId.REAPER,
+                UnitTypeId.COMMANDCENTER,
+                UnitTypeId.HELLION,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.REAPER,
+                UnitTypeId.STARPORT,
+                UnitTypeId.HELLION,
+                UnitTypeId.BARRACKSREACTOR,
+                UnitTypeId.REFINERY,
+                UnitTypeId.FACTORYTECHLAB,
+                UnitTypeId.STARPORTTECHLAB,
+                UnitTypeId.ORBITALCOMMAND,
+                UnitTypeId.CYCLONE,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.RAVEN,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.SIEGETANK,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.RAVEN,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.SIEGETANK,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
             ]

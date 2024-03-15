@@ -5,7 +5,7 @@ from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
-from sc2.position import Point2
+from sc2.position import Point2, Point3
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
@@ -32,9 +32,44 @@ class BuildStep:
     def __repr__(self) -> str:
         return f"BuildStep({self.unit_type_id}, {self.unit_in_charge}, {self.unit_being_built}, {self.pos})"
 
-    async def execute(self, at_position: Point2) -> bool:
-        self.pos = at_position
-        builder_type = UNIT_TRAINED_FROM[self.unit_type_id]
+    def convert_point2_to_3(self, point2: Point2) -> Point3:
+        height: float = self.bot.get_terrain_z_height(point2)
+        return Point3((point2.x, point2.y, height))
+
+    def draw_debug_box(self):
+        if self.unit_in_charge is not None:
+            self.bot.client.debug_sphere_out(self.unit_in_charge, 2)
+            self.bot.client.debug_box2_out(self.unit_in_charge)
+        if self.pos is not None:
+            self.bot.client.debug_box2_out(self.convert_point2_to_3(self.pos), 0.5)
+        if self.unit_being_built is not None and self.unit_being_built is not True:
+            self.bot.client.debug_box2_out(self.unit_being_built, 0.75)
+
+    def refresh_worker_reference(self):
+        logger.info(f"unit in charge: {self.unit_in_charge}")
+        try:
+            _unit_in_charge = self.bot.all_units.by_tag(self.unit_in_charge.tag)
+        except KeyError:
+            _unit_in_charge = None
+        self.unit_in_charge = _unit_in_charge
+
+    def get_builder_type(self, unit_type_id):
+        if self.unit_type_id in {
+            UnitTypeId.BARRACKSREACTOR,
+            UnitTypeId.BARRACKSTECHLAB,
+        }:
+            return {UnitTypeId.BARRACKS}
+        if self.unit_type_id in {UnitTypeId.FACTORYREACTOR, UnitTypeId.FACTORYTECHLAB}:
+            return {UnitTypeId.FACTORY}
+        if self.unit_type_id in {
+            UnitTypeId.STARPORTREACTOR,
+            UnitTypeId.STARPORTTECHLAB,
+        }:
+            return {UnitTypeId.STARPORT}
+        return UNIT_TRAINED_FROM[self.unit_type_id]
+
+    async def execute(self, at_position: Point2 = None) -> bool:
+        builder_type = self.get_builder_type(self.unit_type_id)
         if UnitTypeId.SCV in builder_type:
             # this is a structure built by an scv
             logger.info(f"Trying to build structure {self.unit_type_id}")
@@ -42,15 +77,23 @@ class BuildStep:
             if self.unit_type_id == UnitTypeId.REFINERY:
                 self.build_gas()
             else:
+                self.pos = at_position or self.pos
                 if self.unit_in_charge is None or self.unit_in_charge.health == 0:
                     self.unit_in_charge = self.bot.workers.filter(
-                        lambda worker: worker.is_collecting or worker.is_idle
+                        lambda worker: worker.is_idle or worker.is_gathering
                     ).closest_to(at_position)
                     logger.info(f"Found my builder {self.unit_in_charge}")
                 if self.unit_being_built is None:
-                    self.unit_in_charge.build(self.unit_type_id, at_position)
+                    build_response = self.unit_in_charge.build(
+                        self.unit_type_id, at_position
+                    )
                 else:
-                    self.unit_in_charge.smart(self.unit_being_built)
+                    build_response = self.unit_in_charge.smart(self.unit_being_built)
+                logger.info(f"build_response: {build_response}")
+                logger.info(f"Unit in charge is doing {self.unit_in_charge.orders}")
+
+                if not build_response:
+                    return False
         else:
             # not built by scv
             try:
@@ -58,13 +101,29 @@ class BuildStep:
             except IndexError:
                 # no available build structure
                 return False
-            build_ability: AbilityId = TRAIN_INFO[self.unit_in_charge.type_id][
-                self.unit_type_id
-            ]["ability"]
+            build_ability: AbilityId = self.get_build_ability()
             self.unit_in_charge(build_ability)
             # self.unit_in_charge.train(self.unit_type_id)
+            # PS: BotAI doesn't provide a callback method for `on_unit_create_started`
+            self.unit_being_built = True
+        self.draw_debug_box()
         self.is_in_progress = True
         return True
+
+    def get_build_ability(self) -> AbilityId:
+        if self.unit_type_id in {
+            UnitTypeId.BARRACKSREACTOR,
+            UnitTypeId.FACTORYREACTOR,
+            UnitTypeId.STARPORTREACTOR,
+        }:
+            return AbilityId.BUILD_REACTOR
+        if self.unit_type_id in {
+            UnitTypeId.BARRACKSTECHLAB,
+            UnitTypeId.FACTORYTECHLAB,
+            UnitTypeId.STARPORTTECHLAB,
+        }:
+            return AbilityId.BUILD_TECHLAB
+        return TRAIN_INFO[self.unit_in_charge.type_id][self.unit_type_id]["ability"]
 
     def build_gas(self) -> bool:
         # All the vespene geysirs nearby, including ones with a refinery on top of it
@@ -90,6 +149,9 @@ class BuildStep:
             return True
 
     def is_interrupted(self) -> bool:
+        if self.unit_in_charge is None:
+            return True
+        logger.info(f"Unit in charge is doing {self.unit_in_charge.orders}")
         self.check_idle: bool = self.check_idle or (
             self.unit_in_charge.is_active and not self.unit_in_charge.is_gathering
         )
@@ -106,9 +168,9 @@ class BuildStep:
                 logger.info(f"unit_in_charge.health {self.unit_in_charge.health}")
                 logger.info(f"unit_in_charge.is_idle {self.unit_in_charge.is_idle}")
                 logger.info(
-                    f"unit_in_charge.is_collecting {self.unit_in_charge.is_collecting}"
+                    f"unit_in_charge.is_gathering {self.unit_in_charge.is_gathering}"
                 )
                 logger.info(
-                    f"unit_in_charge.is_gathering {self.unit_in_charge.is_gathering}"
+                    f"unit_in_charge.is_collecting {self.unit_in_charge.is_collecting}"
                 )
             return True
