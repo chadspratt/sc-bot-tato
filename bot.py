@@ -15,13 +15,13 @@ from bottato.build_order import BuildOrder
 from bottato.micro import Micro
 
 # logger.add(f"bot_tato-{datetime.now().timestamp()}.log", level="INFO")
-logger.add("bot_tato.log", level="INFO")
+logger.add("bot_tato.log", level="INFO", format="{message}")
 
 
 class BotTato(BotAI):
 
     async def on_start(self):
-        self.build_order: BuildOrder = BuildOrder('tvt1')
+        self.build_order: BuildOrder = BuildOrder('tvt1', bot=self)
         self.micro = Micro()
 
     async def on_step(self, iteration):
@@ -30,7 +30,7 @@ class BotTato(BotAI):
             return
         await self.distribute_workers()
         self.micro.adjust_supply_depots_for_enemies(self)
-        await self.build_order.execute(self)
+        await self.build_order.execute()
 
     async def on_end(self, game_result: Result):
         print("Game ended.")
@@ -42,6 +42,10 @@ class BotTato(BotAI):
 
     async def on_building_construction_complete(self, unit: Unit):
         logger.info(f"building complete! {unit}")
+        self.build_order.recently_completed_units.append(unit)
+
+    async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
+        logger.info(f"transformation complete! {previous_type} to {unit.type_id}")
         self.build_order.recently_completed_units.append(unit)
 
     async def on_unit_created(self, unit: Unit):
