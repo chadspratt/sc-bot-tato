@@ -27,16 +27,19 @@ class BotTato(BotAI):
 
     async def on_step(self, iteration):
         logger.info("starting step")
-        logger.info("distributing_workers")
-        await self.micro.distribute_workers()
-        logger.info("adjust_supply_depots_for_enemies step")
+        # logger.info("adjust_supply_depots_for_enemies step")
         self.micro.adjust_supply_depots_for_enemies()
-        logger.info("executing build order")
+        self.micro.manage_squads()
+        # logger.info("executing build order")
         await self.build_order.execute()
+        # CS: "This will speed up our overall velocity"
+        # logger.info("distributing_workers")
+        await self.micro.distribute_workers(self.build_order.pending)
         logger.info("ending step")
 
     async def on_end(self, game_result: Result):
         print("Game ended.")
+        logger.info(self.build_order.complete)
         # Do things here after the game ends
 
     async def on_building_construction_started(self, unit: Unit):
@@ -54,6 +57,10 @@ class BotTato(BotAI):
     async def on_unit_created(self, unit: Unit):
         logger.info(f"raising complete! {unit}")
         self.build_order.recently_completed_units.append(unit)
+        if unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE):
+            logger.info(f"assigned to {self.micro.unassigned_army.name}")
+
+            self.micro.unassigned_army.recruit(unit)
 
 
 def main():

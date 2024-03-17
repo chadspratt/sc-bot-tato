@@ -28,9 +28,10 @@ class BuildStep:
         self.cost = bot.calculate_cost(unit_type_id)
         self.pos = None
         self.unit_in_charge: Unit = None
+        self.completed_time: int = None
 
     def __repr__(self) -> str:
-        return f"BuildStep({self.unit_type_id}, {self.unit_in_charge}, {self.unit_being_built}, {self.pos})"
+        return f"BuildStep({self.unit_type_id}, {self.unit_in_charge}, {self.unit_being_built}, {self.pos}, {self.completed_time})"
 
     def convert_point2_to_3(self, point2: Point2) -> Point3:
         height: float = self.bot.get_terrain_z_height(point2)
@@ -46,7 +47,7 @@ class BuildStep:
             self.bot.client.debug_box2_out(self.unit_being_built, 0.75)
 
     def refresh_worker_reference(self):
-        logger.info(f"unit in charge: {self.unit_in_charge}")
+        logger.debug(f"unit in charge: {self.unit_in_charge}")
         try:
             _unit_in_charge = self.bot.all_units.by_tag(self.unit_in_charge.tag)
         except KeyError:
@@ -72,7 +73,7 @@ class BuildStep:
         builder_type = self.get_builder_type(self.unit_type_id)
         if UnitTypeId.SCV in builder_type:
             # this is a structure built by an scv
-            logger.info(f"Trying to build structure {self.unit_type_id}")
+            logger.debug(f"Trying to build structure {self.unit_type_id}")
             # Vespene targets unit to build instead of position
             if self.unit_type_id == UnitTypeId.REFINERY:
                 self.build_gas()
@@ -82,15 +83,15 @@ class BuildStep:
                     self.unit_in_charge = self.bot.workers.filter(
                         lambda worker: worker.is_idle or worker.is_gathering
                     ).closest_to(at_position)
-                    logger.info(f"Found my builder {self.unit_in_charge}")
+                    logger.debug(f"Found my builder {self.unit_in_charge}")
                 if self.unit_being_built is None:
                     build_response = self.unit_in_charge.build(
                         self.unit_type_id, at_position
                     )
                 else:
                     build_response = self.unit_in_charge.smart(self.unit_being_built)
-                logger.info(f"build_response: {build_response}")
-                logger.info(f"Unit in charge is doing {self.unit_in_charge.orders}")
+                logger.debug(f"build_response: {build_response}")
+                logger.debug(f"Unit in charge is doing {self.unit_in_charge.orders}")
 
                 if not build_response:
                     return False
@@ -142,7 +143,7 @@ class BuildStep:
             # Worker can be none in cases where all workers are dead
             # or 'select_build_worker' function only selects from workers which carry no minerals
             if self.unit_in_charge is None:
-                logger.info("No worker found for refinery build")
+                logger.debug("No worker found for refinery build")
                 return False
             # Issue the build command to the worker, important: vespene_geysir has to be a Unit, not a position
             self.unit_in_charge.build_gas(vespene_geysir)
@@ -151,7 +152,7 @@ class BuildStep:
     def is_interrupted(self) -> bool:
         if self.unit_in_charge is None:
             return True
-        logger.info(f"Unit in charge is doing {self.unit_in_charge.orders}")
+        logger.debug(f"Unit in charge is doing {self.unit_in_charge.orders}")
         self.check_idle: bool = self.check_idle or (
             self.unit_in_charge.is_active and not self.unit_in_charge.is_gathering
         )
@@ -163,14 +164,14 @@ class BuildStep:
         )
         if builder_is_missing or (self.check_idle and builder_is_distracted):
 
-            logger.info(f"unit_in_charge {self.unit_in_charge}")
+            logger.debug(f"unit_in_charge {self.unit_in_charge}")
             if self.unit_in_charge is not None:
-                logger.info(f"unit_in_charge.health {self.unit_in_charge.health}")
-                logger.info(f"unit_in_charge.is_idle {self.unit_in_charge.is_idle}")
-                logger.info(
+                logger.debug(f"unit_in_charge.health {self.unit_in_charge.health}")
+                logger.debug(f"unit_in_charge.is_idle {self.unit_in_charge.is_idle}")
+                logger.debug(
                     f"unit_in_charge.is_gathering {self.unit_in_charge.is_gathering}"
                 )
-                logger.info(
+                logger.debug(
                     f"unit_in_charge.is_collecting {self.unit_in_charge.is_collecting}"
                 )
             return True

@@ -27,21 +27,22 @@ class BuildOrder:
 
     def update_completed(self) -> None:
         for completed_unit in self.recently_completed_units:
-            logger.info(f"update_completed for {completed_unit}")
+            logger.debug(f"update_completed for {completed_unit}")
             needle = None
             for idx, in_progress_step in enumerate(self.requested):
-                logger.info(
+                logger.debug(
                     f"{in_progress_step.unit_type_id}, {completed_unit.type_id}"
                 )
                 if in_progress_step.unit_type_id == completed_unit.type_id:
                     needle = idx
+                    in_progress_step.completed_time = self.bot.time
                     break
             if needle is not None:
                 self.complete.append(self.requested.pop(needle))
         self.recently_completed_units = []
 
     def update_started(self) -> None:
-        logger.info(
+        logger.debug(
             f"update_started with recently_started_units {self.recently_started_units}"
         )
         for started_unit in self.recently_started_units:
@@ -49,7 +50,7 @@ class BuildOrder:
                 if in_progress_step.unit_being_built is not None:
                     continue
                 if in_progress_step.unit_type_id == started_unit.type_id:
-                    logger.info(f"found matching step: {in_progress_step}")
+                    logger.debug(f"found matching step: {in_progress_step}")
                     in_progress_step.unit_being_built = started_unit
                     break
         self.recently_started_units = []
@@ -61,11 +62,11 @@ class BuildOrder:
     def move_interupted_to_pending(self) -> None:
         to_promote = []
         for idx, build_step in enumerate(self.requested):
-            logger.info(f"In progress building {build_step.unit_type_id}")
-            logger.info(f"> Builder {build_step.unit_in_charge}")
+            logger.debug(f"In progress building {build_step.unit_type_id}")
+            logger.debug(f"> Builder {build_step.unit_in_charge}")
             build_step.draw_debug_box()
             if build_step.is_interrupted():
-                logger.info("! Is interrupted!")
+                logger.debug("! Is interrupted!")
                 # move back to pending (demote)
                 to_promote.append(idx)
                 continue
@@ -78,12 +79,12 @@ class BuildOrder:
         except IndexError:
             return False
         if not self.can_afford(build_step.cost):
-            logger.info(f"Cannot afford {build_step.unit_type_id.name}")
+            logger.debug(f"Cannot afford {build_step.unit_type_id.name}")
             return False
         build_position = await self.find_placement(build_step.unit_type_id)
-        logger.info(f"Executing build step at position {build_position}")
+        logger.debug(f"Executing build step at position {build_position}")
         execute_response = await build_step.execute(at_position=build_position)
-        logger.info(f"> Got back {execute_response}")
+        logger.debug(f"> Got back {execute_response}")
         if execute_response:
             self.requested.append(self.pending.pop(0))
 
@@ -93,20 +94,20 @@ class BuildOrder:
         prior_requested_cost = Cost(0, 0)
         for build_step in self.requested:
             if build_step.unit_being_built is None:
-                logger.info(
+                logger.debug(
                     f"Build cost for '{build_step.unit_type_id.name}' being added to "
                     "prior_requested_cost"
                 )
                 prior_requested_cost += build_step.cost
-        logger.info(
+        logger.debug(
             f"Want to buy unit for {requested_cost.minerals} minerals, "
             f"and {requested_cost.vespene} vespene."
         )
-        logger.info(
+        logger.debug(
             f"> Prior (uncharged) requests account for {prior_requested_cost.minerals} minerals, "
             f"and {prior_requested_cost.vespene} vespene."
         )
-        logger.info(
+        logger.debug(
             f">> Currently have {self.bot.minerals} minerals, "
             f"and {self.bot.vespene} vespene."
         )
@@ -173,8 +174,8 @@ class BuildOrder:
                 requested_worker_count += 1
         worker_build_capacity: int = len(self.bot.townhalls)
         desired_worker_count = worker_build_capacity * 14
-        logger.info(f"requested_worker_count={requested_worker_count}")
-        logger.info(f"worker_build_capacity={worker_build_capacity}")
+        logger.debug(f"requested_worker_count={requested_worker_count}")
+        logger.debug(f"worker_build_capacity={worker_build_capacity}")
         if (
             requested_worker_count < worker_build_capacity
             and requested_worker_count + len(self.bot.workers) < desired_worker_count
@@ -182,10 +183,10 @@ class BuildOrder:
             self.pending.insert(1, BuildStep(self.bot, UnitTypeId.SCV))
 
     async def execute(self) -> None:
-        logger.info(
+        logger.debug(
             f"pending={','.join([step.unit_type_id.name for step in self.pending])}"
         )
-        logger.info(
+        logger.debug(
             f"requested={','.join([step.unit_type_id.name for step in self.requested])}"
         )
         self.queue_worker()
@@ -244,4 +245,5 @@ class BuildOrder:
                 UnitTypeId.SIEGETANK,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
+                UnitTypeId.RAVEN,
             ]
