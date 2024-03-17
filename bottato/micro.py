@@ -7,67 +7,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from .build_step import BuildStep
-
-
-class Squad:
-    def __init__(
-        self,
-        bot: BotAI,
-        composition: dict[UnitTypeId, int] = None,
-        color: tuple[int] = (0, 255, 0),
-        name: str = "fuckwits",
-    ):
-        self.bot = bot
-        self.name = name
-        self.composition = composition or {}
-        self.color = color
-        self._units: list[Unit] = []
-
-    def wants(self, unit_type_id: UnitTypeId) -> int:
-        _wants = self.composition.get(unit_type_id, 0)
-        logger.info(f"{self.name} squad wants {_wants} {unit_type_id.name}")
-        return _wants
-
-    def has(self, unit_type_id: UnitTypeId) -> int:
-        _has = sum([1 for u in self._units if u.type_id is unit_type_id])
-        logger.info(f"{self.name} squad wants {_has} {unit_type_id.name}")
-        return _has
-
-    def needs(self, unit_type_id: UnitTypeId) -> bool:
-        return 0 < self.wants(unit_type_id) < self.has(unit_type_id)
-
-    def refresh_unit_references(self):
-        logger.info("So refreshing!")
-        _units = []
-        for unit in self.units:
-            try:
-                _units.append(self.bot.all_units.by_tag(unit.tag))
-            except KeyError:
-                logger.info(f"Couldn't find unit {unit}!")
-        self._units = _units
-
-    def draw_debug_box(self):
-        for unit in self._units:
-            self.bot.client.debug_box2_out(unit, color=self.color)
-
-    def recruit(self, unit: Unit):
-        logger.info(f"Recruiting {unit} into {self.name} squad")
-        self._units.append(unit)
-
-    @property
-    def units(self):
-        return list(self._units)
-
-    def remove(self, unit: Unit):
-        logger.info(f"Removing {unit} from {self.name} squad")
-        try:
-            self._units.remove(unit)
-        except ValueError:
-            logger.info("Unit not found in squad")
-
-    def transfer(self, unit: Unit, to_squad: "Squad"):
-        self.remove(unit)
-        to_squad.recruit(unit)
+from .squad import Squad
 
 
 class Formation:
@@ -98,6 +38,7 @@ class Micro:
             for squad in self.squads:
                 if squad.needs(unassigned):
                     self.unassigned_army.transfer(unassigned, squad)
+                    break
         for squad in self.squads:
             squad.refresh_unit_references()
             squad.draw_debug_box()
