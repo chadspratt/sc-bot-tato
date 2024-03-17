@@ -17,9 +17,8 @@ class Formation:
         self.front = front
 
 
-class Micro:
+class Military:
     def __init__(self, bot: BotAI) -> None:
-        self.last_worker_stop = 0
         self.bot: BotAI = bot
         self.unassigned_army = Squad(bot, )
         self.squads = [
@@ -29,10 +28,12 @@ class Micro:
             Squad(bot, composition={UnitTypeId.SIEGETANK: 1, UnitTypeId.MARINE: 4, UnitTypeId.RAVEN: 1}, color=(255, 0, 0), name="destroy"),
             Squad(bot, composition={UnitTypeId.SIEGETANK: 1, UnitTypeId.MARINE: 2, UnitTypeId.RAVEN: 1}, color=(0, 255, 255), name="defend"),
         ]
-        self.formations = []
 
-    def manage_squads(self):
-        self.unassigned_army.refresh_unit_references()
+    def muster_workers(self, position: Point2, count: int = 5):
+        pass
+        
+    def manage_squads(self, enemies_in_view: list[Unit]):
+        self.unassigned_army.manage_paperwork()
         self.unassigned_army.draw_debug_box()
         for unassigned in self.unassigned_army.units:
             for squad in self.squads:
@@ -40,14 +41,39 @@ class Micro:
                     self.unassigned_army.transfer(unassigned, squad)
                     break
         for squad in self.squads:
-            squad.refresh_unit_references()
+            squad.manage_paperwork()
             squad.draw_debug_box()
-
+            if squad.is_full:
+                logger.info(f"squad {squad.name} is full")
+                map_center = self.bot.game_info.map_center
+                staging_location = self.bot.start_location.towards(
+                    map_center, distance=10
+                )
+                squad.move(staging_location)
+        for squad in self.squads:
+            if squad.is_full:
+                squad.attack(enemies_in_view, is_priority=True)
+        # if not alpha_squad.has_orders and self.enemies_in_view:
+        #     alpha_squad.attack(self.enemies_in_view[0])
+    
     def manage_formations(self):
         # create formation if there are none
         if not self.formations:
             self
         # gather unassigned units to formations
+
+
+class Micro:
+    def __init__(self, bot: BotAI) -> None:
+        self.last_worker_stop = 0
+        self.bot: BotAI = bot
+        self.military = Military(bot)
+        self.formations = []
+        self.enemies_in_view = []
+
+    def manage_squads(self):
+        self.military.manage_squads(self.enemies_in_view)
+        self.enemies_in_view = []
 
     def adjust_supply_depots_for_enemies(self):
         # Raise depos when enemies are nearby
@@ -64,24 +90,32 @@ class Micro:
             else:
                 depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)
 
-    def get_mineral_gatherer(self, for_building: Unit):
+    def get_mineral_gatherer_near_building(self, for_building: Unit):
+        if not self.bot.workers:
+            return None
         local_minerals_tags = {
             mineral.tag
-            for mineral in self.mineral_field if mineral.distance_to(for_building) <= 12
+            for mineral in self.bot.mineral_field if mineral.distance_to(for_building) <= 12
         }
         return self.bot.workers.filter(
             lambda unit: unit.order_target in local_minerals_tags and not unit.is_carrying_minerals
         ).closest_to(for_building)
 
-    def get_vespene_gatherer(self, for_building: Unit):
+    def get_vespene_gatherer_near_building(self, for_building: Unit):
+        if not self.bot.workers:
+            return None
         gas_building_tags = [b.tag for b in self.bot.gas_buildings.ready]
-        return self.bot.workers.filter(
+        vespene_workers = self.bot.workers.filter(
             lambda unit: unit.order_target in gas_building_tags and not unit.is_carrying_vespene
-        ).closest_to(for_building)
+        )
+        if vespene_workers:
+            return vespene_workers.closest_to(for_building)
 
     async def _distribute_workers(self, pending_build_steps: list[BuildStep]):
+        if not pending_build_steps:
+            return
         cooldown = 3
-        if self.bot.time - self.last_worker_stop > cooldown:
+        if self.bot.time - self.last_worker_stop <= cooldown:
             logger.info("Distribute workers is on cooldown")
             return
         minerals_needed = -self.bot.minerals
@@ -103,11 +137,14 @@ class Micro:
             for building in self.bot.gas_buildings.ready:
                 _surplus_harvesters = building.surplus_harvesters
                 if _surplus_harvesters > 0:
+                    # no space for more workers
                     continue
+                logger.info(f"need {-_surplus_harvesters} harvesters at {building}")
                 for _ in range(-_surplus_harvesters):
-                    gatherer = self.get_mineral_gatherer(building)
+                    gatherer = self.get_mineral_gatherer_near_building(building)
+                    logger.info(f"found mineral gatherer near {building}")
                     if gatherer is not None:
-                        logger.info("switching worker")
+                        logger.info("switching worker to vespene")
                         gatherer.smart(building)
                         self.last_worker_stop = self.bot.time
         elif vespene_needed < 0:
@@ -115,13 +152,27 @@ class Micro:
             for building in self.bot.townhalls.ready:
                 _surplus_harvesters = building.surplus_harvesters
                 if _surplus_harvesters > 0:
+                    # no space for more workers
                     continue
-                for _ in range(-_surplus_harvesters):
-                    gatherer = self.get_vespene_gatherer(building)
-                    if gatherer is not None:
-                        logger.info("switching worker")
-                        gatherer.smart(building)
+                logger.info(f"need {-_surplus_harvesters} harvesters at {building}")
+                local_minerals = {
+                    mineral
+                    for mineral in self.bot.mineral_field if mineral.distance_to(building) <= 12
+                }
+                logger.info(f"local minerals {local_minerals}")
+
+                target_mineral = max(local_minerals, key=lambda mineral: mineral.mineral_contents, default=None)
+                logger.info(f"mineral patch {target_mineral}")
+                if target_mineral:
+                    for _ in range(-_surplus_harvesters):
+                        gatherer = self.get_vespene_gatherer_near_building(building)
+                        if gatherer is None:
+                            break
+                        logger.info(f"moving vespene gatherer near {building} to minerals {target_mineral}")
+                        gatherer.gather(target_mineral)
                         self.last_worker_stop = self.bot.time
+                        break
+
         else:
             # both positive
             # balance ratio

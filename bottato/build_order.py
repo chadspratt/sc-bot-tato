@@ -25,6 +25,35 @@ class BuildOrder:
             BuildStep(bot, unit) for unit in self.get_build_start(build_name)
         ]
 
+    async def execute(self) -> None:
+        logger.info(
+            f"pending={','.join([step.unit_type_id.name for step in self.pending])}"
+        )
+        logger.info(
+            f"requested={','.join([step.unit_type_id.name for step in self.requested])}"
+        )
+        self.queue_worker()
+        self.refresh_worker_references()
+        self.update_completed()
+        self.update_started()
+        self.move_interupted_to_pending()
+        await self.execute_first_pending()
+
+    def queue_worker(self) -> None:
+        requested_worker_count = 0
+        for build_step in self.requested + self.pending:
+            if build_step.unit_type_id == UnitTypeId.SCV:
+                requested_worker_count += 1
+        worker_build_capacity: int = len(self.bot.townhalls)
+        desired_worker_count = worker_build_capacity * 14
+        logger.debug(f"requested_worker_count={requested_worker_count}")
+        logger.debug(f"worker_build_capacity={worker_build_capacity}")
+        if (
+            requested_worker_count < worker_build_capacity
+            and requested_worker_count + len(self.bot.workers) < desired_worker_count
+        ):
+            self.pending.insert(1, BuildStep(self.bot, UnitTypeId.SCV))
+
     def update_completed(self) -> None:
         for completed_unit in self.recently_completed_units:
             logger.debug(f"update_completed for {completed_unit}")
@@ -117,32 +146,10 @@ class BuildOrder:
             and total_requested_cost.vespene <= self.bot.vespene
         )
 
-    def get_next_town_hall_position(self):
-        _townhall: Unit = self.bot.townhalls[0]
-        min_distance_to_start = None
-        nearest = None
-        for position in self.bot.expansion_locations_list:
-            # check occupied
-            occupied = False
-            for townhall in self.bot.townhalls:
-                if townhall.distance_to(position) < 2:
-                    occupied = True
-                    break
-            if occupied:
-                continue
-            distance_to_start = _townhall.distance_to(position)
-            if (
-                min_distance_to_start is None
-                or distance_to_start < min_distance_to_start
-            ):
-                min_distance_to_start = distance_to_start
-                nearest = position
-        return nearest
-
     async def find_placement(self, unit_type_id: UnitTypeId) -> Point2:
         # depot_position = await self.find_placement(UnitTypeId.SUPPLYDEPOT, near=cc)
         if unit_type_id == UnitTypeId.COMMANDCENTER:
-            new_build_position = self.get_next_town_hall_position()
+            new_build_position = await self.bot.get_next_expansion()
         else:
             addon_place = False
             if unit_type_id in (
@@ -166,35 +173,6 @@ class BuildOrder:
         if new_build_position is not None:
             self.last_build_position = new_build_position
         return new_build_position
-
-    def queue_worker(self) -> None:
-        requested_worker_count = 0
-        for build_step in self.requested + self.pending:
-            if build_step.unit_type_id == UnitTypeId.SCV:
-                requested_worker_count += 1
-        worker_build_capacity: int = len(self.bot.townhalls)
-        desired_worker_count = worker_build_capacity * 14
-        logger.debug(f"requested_worker_count={requested_worker_count}")
-        logger.debug(f"worker_build_capacity={worker_build_capacity}")
-        if (
-            requested_worker_count < worker_build_capacity
-            and requested_worker_count + len(self.bot.workers) < desired_worker_count
-        ):
-            self.pending.insert(1, BuildStep(self.bot, UnitTypeId.SCV))
-
-    async def execute(self) -> None:
-        logger.debug(
-            f"pending={','.join([step.unit_type_id.name for step in self.pending])}"
-        )
-        logger.debug(
-            f"requested={','.join([step.unit_type_id.name for step in self.requested])}"
-        )
-        self.queue_worker()
-        self.refresh_worker_references()
-        self.update_completed()
-        self.update_started()
-        self.move_interupted_to_pending()
-        await self.execute_first_pending()
 
     def get_next_build(self) -> List[UnitTypeId]:
         """Figures out what to build next"""

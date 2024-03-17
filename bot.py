@@ -38,6 +38,8 @@ class BotTato(BotAI):
 
     async def on_step(self, iteration):
         logger.info("starting step")
+        if (len(self.units) == 0 or len(self.townhalls) == 0):
+            await self.client.leave()
         # logger.info("adjust_supply_depots_for_enemies step")
         self.micro.adjust_supply_depots_for_enemies()
         self.micro.manage_squads()
@@ -69,9 +71,12 @@ class BotTato(BotAI):
         logger.info(f"raising complete! {unit}")
         self.build_order.recently_completed_units.append(unit)
         if unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE):
-            logger.info(f"assigned to {self.micro.unassigned_army.name}")
+            logger.info(f"assigned to {self.micro.military.unassigned_army.name}")
+            self.micro.military.unassigned_army.recruit(unit)
 
-            self.micro.unassigned_army.recruit(unit)
+    async def on_enemy_unit_entered_vision(self, unit: Unit):
+        logger.info(f"Enemy unit seen {unit}")
+        self.micro.enemies_in_view.append(unit)
 
 
 def main():
