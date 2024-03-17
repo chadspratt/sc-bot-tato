@@ -47,7 +47,7 @@ class BotTato(BotAI):
         await self.build_order.execute()
         # CS: "This will speed up our overall velocity"
         # logger.info("distributing_workers")
-        await self.micro.distribute_workers(self.build_order.pending)
+        await self.micro.workers.distribute_workers(self.build_order.pending)
         logger.info("ending step")
 
     async def on_end(self, game_result: Result):

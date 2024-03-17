@@ -27,7 +27,7 @@ class SquadOrder:
         self.order = order
         self.targets = targets
         self.priority = priority
-    
+
 
 class Squad:
     def __init__(
@@ -70,7 +70,9 @@ class Squad:
             if unit != self.slowest_unit:
                 unit.move(self.slowest_unit.position)
             else:
-                logger.info(f"{self.name} Squad leader {self.slowest_unit} moving to {self._destination}")
+                logger.info(
+                    f"{self.name} Squad leader {self.slowest_unit} moving to {self._destination}"
+                )
                 unit.move(self._destination)
 
     def continue_attack(self):
@@ -115,23 +117,33 @@ class Squad:
 
     def draw_debug_box(self):
         for unit in self._units:
-            self.bot.client.debug_box2_out(unit, half_vertex_length=unit.radius, color=self.color)
+            self.bot.client.debug_box2_out(
+                unit, half_vertex_length=unit.radius, color=self.color
+            )
 
     def recruit(self, unit: Unit):
         logger.info(f"Recruiting {unit} into {self.name} squad")
-        if self.slowest_unit is None or unit.movement_speed < self.slowest_unit.movement_speed:
+        if (
+            self.slowest_unit is None
+            or unit.movement_speed < self.slowest_unit.movement_speed
+        ):
             self.slowest_unit = unit
         self._units.append(unit)
 
     def attack(self, targets: Units, is_priority: bool = False):
         if not targets:
             return
-        if is_priority or self.current_order in (SquadOrderEnum.IDLE, SquadOrderEnum.MOVE):
+        if is_priority or self.current_order in (
+            SquadOrderEnum.IDLE,
+            SquadOrderEnum.MOVE,
+        ):
             self.targets = Units(targets, self.bot)
             self.current_order = SquadOrderEnum.ATTACK
 
             closest_target = self.targets.closest_to(self.slowest_unit)
-            logger.info(f"{self.name} Squad attacking {closest_target}; is_priority: {is_priority}")
+            logger.info(
+                f"{self.name} Squad attacking {closest_target}; is_priority: {is_priority}"
+            )
             for unit in self.units:
                 unit.attack(closest_target)
 
@@ -140,13 +152,17 @@ class Squad:
             logger.info(f"{self.name} Squad arrived at {position}")
             return
         if self.current_order == SquadOrderEnum.IDLE or is_priority:
-            logger.info(f"{self.name} Squad moving to {position}; is_priority: {is_priority}")
+            logger.info(
+                f"{self.name} Squad moving to {position}; is_priority: {is_priority}"
+            )
             self.current_order = SquadOrderEnum.MOVE
             self._destination = position
 
             for unit in self.units:
                 if unit == self.slowest_unit:
-                    logger.info(f"{self.name} Squad leader {self.slowest_unit} moving to {position}")
+                    logger.info(
+                        f"{self.name} Squad leader {self.slowest_unit} moving to {position}"
+                    )
                     self.slowest_unit.move(position)
                     break
 
