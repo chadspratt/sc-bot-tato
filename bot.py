@@ -1,7 +1,7 @@
-# import sys
-# from datetime import datetime
-from loguru import logger
+import os
 
+
+from loguru import logger
 from sc2 import maps
 from sc2.bot_ai import BotAI
 from sc2.data import Difficulty, Race
@@ -14,13 +14,24 @@ from sc2.player import Bot, Computer
 from bottato.build_order import BuildOrder
 from bottato.micro import Micro
 
-# logger.add(f"bot_tato-{datetime.now().timestamp()}.log", level="INFO")
-logger.add("bot_tato.log", level="INFO", format="{message}")
+
+HAS_ROTATED_LOG = False
+
+
+def rotate_at_start(message, file):
+    global HAS_ROTATED_LOG
+    try:
+        return not HAS_ROTATED_LOG
+    finally:
+        HAS_ROTATED_LOG = True
+
+
+logger.add("bot_tato.log", level="INFO", format="{message}", rotation=rotate_at_start)
 
 
 class BotTato(BotAI):
     async def on_start(self):
-        self.build_order: BuildOrder = BuildOrder('tvt1', bot=self)
+        self.build_order: BuildOrder = BuildOrder("tvt1", bot=self)
         self.micro = Micro(self)
         for cc in self.townhalls(UnitTypeId.COMMANDCENTER):
             logger.info(f"Command center located at {cc.position}")
@@ -65,9 +76,11 @@ class BotTato(BotAI):
 
 def main():
     run_game(
-        maps.get("Equilibrium512AIE"),
-        [Bot(Race.Terran, BotTato(), name="BotTato"),
-         Computer(Race.Protoss, Difficulty.Medium)],
+        maps.get(os.environ.get("SCII_MAP", "Equilibrium512AIE")),
+        [
+            Bot(Race.Terran, BotTato(), name="BotTato"),
+            Computer(Race.Protoss, Difficulty.Medium),
+        ],
         realtime=False,
     )
 
