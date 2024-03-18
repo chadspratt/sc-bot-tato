@@ -37,8 +37,8 @@ class BotTato(BotAI):
             logger.info(f"Command center located at {cc.position}")
 
     async def on_step(self, iteration):
-        logger.info("starting step")
-        if (len(self.units) == 0 or len(self.townhalls) == 0):
+        logger.info(f"starting step, iteration: {iteration}, time: {self.time}")
+        if len(self.units) == 0 or len(self.townhalls) == 0:
             await self.client.leave()
         # logger.info("executing build order")
         await self.build_order.execute()
@@ -77,6 +77,15 @@ class BotTato(BotAI):
     async def on_enemy_unit_entered_vision(self, unit: Unit):
         logger.info(f"Enemy unit seen {unit}")
         self.micro.enemies_in_view.append(unit)
+
+    async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
+        logger.info(
+            f"Unit taking damage {unit}, "
+            f"current health: {unit.health}/{unit.health_max})"
+        )
+
+    async def on_unit_destroyed(self, unit_tag: int):
+        logger.info(f"Unit {unit_tag} destroyed. Condolences.")
 
 
 def main():
