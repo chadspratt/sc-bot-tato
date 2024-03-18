@@ -66,6 +66,13 @@ class Military:
     def muster_workers(self, position: Point2, count: int = 5):
         pass
 
+    def report(self):
+        _report = "Military: "
+        for squad in self.squads:
+            _report += squad.get_report() + ", "
+        _report += self.unassigned_army.get_report()
+        logger.info(_report)
+
     def manage_squads(self, enemies_in_view: list[Unit]):
         self.unassigned_army.manage_paperwork()
         self.unassigned_army.draw_debug_box()
@@ -87,6 +94,7 @@ class Military:
         for squad in self.squads:
             if squad.is_full:
                 squad.attack(enemies_in_view, is_priority=True)
+        self.report()
         # if not alpha_squad.has_orders and self.enemies_in_view:
         #     alpha_squad.attack(self.enemies_in_view[0])
 

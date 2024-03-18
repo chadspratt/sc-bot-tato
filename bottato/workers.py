@@ -6,10 +6,10 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from .build_step import BuildStep
-from .util import get_refresh_references
+from .mixins import UnitReferenceMixin
 
 
-class Workers:
+class Workers(UnitReferenceMixin):
     def __init__(self, bot: BotAI) -> None:
         self.last_worker_stop = 0
         self.bot: BotAI = bot
@@ -19,28 +19,58 @@ class Workers:
         self.repairers = Units([], bot)
         self.known_townhall_tags = []
         self.mineral_fields = Units([], bot)
+        # self.local_mineral_field_tags = []
+        # self.local_vespene_field_tags = []
+        self.vespene_fields = Units([], bot)
         self.worker_tags_by_mineral_field_tag = {}
 
     async def distribute_workers(self, pending_build_steps: List[BuildStep]):
         logger.info(
-            f"workers: minerals({len(self.mineral_gatherers)}), vespene({len(self.vespene_gatherers)}), idle({len(self.bot.workers.idle)})"
+            f"workers: minerals({len(self.mineral_gatherers)}), "
+            f"vespene({len(self.vespene_gatherers)}), "
+            f"idle({len(self.bot.workers.idle)}), "
+            f"total({len(self.bot.workers)})"
         )
         self.update_references()
         self.add_mineral_fields_for_townhalls()
+        self.catalog_workers()
         self.distribute_idle()
         await self._distribute_workers(pending_build_steps)
         # await self.bot.distribute_workers()
 
+    def catalog_workers(self):
+        # put workers into correct bins (this may supercede `update_references`)
+        self.mineral_gatherers = self.bot.workers.filter(
+            lambda unit: unit.order_target in [m.tag for m in self.mineral_fields]
+            or unit.is_carrying_minerals
+        )
+        self.vespene_gatherers = self.bot.workers.filter(
+            lambda unit: unit.order_target
+            in [v.tag for v in self.bot.gas_buildings.ready]
+            or unit.is_carrying_vespene
+        )
+        self.repairers = self.bot.workers.filter(lambda unit: unit.is_repairing)
+        # PS: This one is hard... maybe when we assign a worker to build
+        #   something we could flag it? (with a little cross-talk between objects)
+        # self.builders = self.bot.workers.filter(lambad unit: unit.is_using_ability())
+
     def update_references(self):
-        self.mineral_gatherers = get_refresh_references(
-            self.mineral_gatherers, self.bot
-        )
-        self.vespene_gatherers = get_refresh_references(
-            self.vespene_gatherers, self.bot
-        )
-        self.builders = get_refresh_references(self.builders, self.bot)
-        self.repairers = get_refresh_references(self.repairers, self.bot)
-        self.mineral_fields = get_refresh_references(self.mineral_fields, self.bot)
+        # PS: we're getting fresh references for all SCVs from `catalog_workers`.
+        # self.mineral_gatherers = self.get_updated_units_references(
+        #     self.mineral_gatherers
+        # )
+        # logger.info(
+        #     f"There are currently {len(self.mineral_gatherers)} mineral gatherers"
+        # )
+        # self.vespene_gatherers = self.get_updated_units_references(
+        #     self.vespene_gatherers
+        # )
+        # logger.info(
+        #     f"There are currently {len(self.vespene_gatherers)} vespene gatherers"
+        # )
+        self.builders = self.get_updated_units_references(self.builders)
+        # self.repairers = self.get_updated_units_references(self.repairers)
+        self.mineral_fields = self.get_updated_units_references(self.mineral_fields)
 
         # update mineral field worker counts
         current_worker_tags = [worker.tag for worker in self.mineral_gatherers]

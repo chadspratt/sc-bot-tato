@@ -7,7 +7,8 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
-from .util import get_refresh_references
+
+from .mixins import UnitReferenceMixin
 
 
 class SquadOrderEnum(enum.Enum):
@@ -30,7 +31,7 @@ class SquadOrder:
         self.priority = priority
 
 
-class Squad:
+class Squad(UnitReferenceMixin):
     def __init__(
         self,
         bot: BotAI,
@@ -85,8 +86,8 @@ class Squad:
     def refresh_slowest_unit(self):
         if self.slowest_unit is not None:
             try:
-                self.slowest_unit = self.bot.all_units.by_tag(self.slowest_unit.tag)
-            except KeyError:
+                self.slowest_unit = sel.get_updated_unit_reference(self.slowest_unit)
+            except self.UnitNotFound:
                 self.slowest_unit = self.find_slowest_unit()
 
     def find_slowest_unit(self):
@@ -97,9 +98,9 @@ class Squad:
         return slowest
 
     def manage_paperwork(self):
-        self._units = get_refresh_references(self.units, self.bot)
+        self._units = self.get_updated_units_references(self.units)
         self.refresh_slowest_unit()
-        self.targets = get_refresh_references(self.targets, self.bot)
+        self.targets = self.get_updated_units_references(self.targets)
         # calc front and position
         # move continuation
         if self.current_order == SquadOrderEnum.MOVE:
@@ -177,8 +178,12 @@ class Squad:
     def is_full(self) -> bool:
         has = len(self._units)
         wants = sum([v for v in self.composition.values()])
-        logger.info(f"{self.name} has {has} units, wants {wants}")
         return has >= wants
+
+    def get_report(self) -> str:
+        has = len(self._units)
+        wants = sum([v for v in self.composition.values()])
+        return f"{self.name}({has}/{wants})"
 
     @property
     def units(self):

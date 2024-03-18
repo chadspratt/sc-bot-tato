@@ -9,8 +9,10 @@ from sc2.position import Point2, Point3
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
+from .mixins import UnitReferenceMixin
 
-class BuildStep:
+
+class BuildStep(UnitReferenceMixin):
     supply_count: int
     unit_type_id: UnitTypeId
     unit_in_charge: Optional[Unit] = None
@@ -49,10 +51,9 @@ class BuildStep:
     def refresh_worker_reference(self):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
         try:
-            _unit_in_charge = self.bot.all_units.by_tag(self.unit_in_charge.tag)
-        except KeyError:
-            _unit_in_charge = None
-        self.unit_in_charge = _unit_in_charge
+            self._unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge)
+        except self.UnitNotFound:
+            self._unit_in_charge = None
 
     def get_builder_type(self, unit_type_id):
         if self.unit_type_id in {
@@ -163,7 +164,6 @@ class BuildStep:
             self.unit_in_charge.is_idle or self.unit_in_charge.is_gathering
         )
         if builder_is_missing or (self.check_idle and builder_is_distracted):
-
             logger.debug(f"unit_in_charge {self.unit_in_charge}")
             if self.unit_in_charge is not None:
                 logger.debug(f"unit_in_charge.health {self.unit_in_charge.health}")
