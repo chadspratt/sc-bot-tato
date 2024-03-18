@@ -7,6 +7,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
+from .util import get_refresh_references
 
 
 class SquadOrderEnum(enum.Enum):
@@ -81,15 +82,6 @@ class Squad:
             for unit in self.units:
                 unit.attack(closest_target)
 
-    def get_refresh_references(self, _pool: Units) -> Units:
-        _units = []
-        for unit in _pool:
-            try:
-                _units.append(self.bot.all_units.by_tag(unit.tag))
-            except KeyError:
-                logger.info(f"Couldn't find unit {unit}!")
-        return Units(_units, bot_object=self.bot)
-
     def refresh_slowest_unit(self):
         if self.slowest_unit is not None:
             try:
@@ -105,9 +97,9 @@ class Squad:
         return slowest
 
     def manage_paperwork(self):
-        self._units = self.get_refresh_references(self.units)
+        self._units = get_refresh_references(self.units, self.bot)
         self.refresh_slowest_unit()
-        self.targets = self.get_refresh_references(self.targets)
+        self.targets = get_refresh_references(self.targets, self.bot)
         # calc front and position
         # move continuation
         if self.current_order == SquadOrderEnum.MOVE:

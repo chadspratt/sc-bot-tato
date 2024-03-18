@@ -40,11 +40,11 @@ class BotTato(BotAI):
         logger.info("starting step")
         if (len(self.units) == 0 or len(self.townhalls) == 0):
             await self.client.leave()
+        # logger.info("executing build order")
+        await self.build_order.execute()
         # logger.info("adjust_supply_depots_for_enemies step")
         self.micro.adjust_supply_depots_for_enemies()
         self.micro.manage_squads()
-        # logger.info("executing build order")
-        await self.build_order.execute()
         # CS: "This will speed up our overall velocity"
         # logger.info("distributing_workers")
         await self.micro.workers.distribute_workers(self.build_order.pending)

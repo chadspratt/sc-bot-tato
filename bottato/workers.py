@@ -1,23 +1,104 @@
 from loguru import logger
+from typing import List
 
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.units import Units
 
 from .build_step import BuildStep
+from .util import get_refresh_references
 
 
 class Workers:
     def __init__(self, bot: BotAI) -> None:
         self.last_worker_stop = 0
         self.bot: BotAI = bot
+        self.mineral_gatherers = Units([], bot)
+        self.vespene_gatherers = Units([], bot)
+        self.builders = Units([], bot)
+        self.repairers = Units([], bot)
+        self.known_townhall_tags = []
+        self.mineral_fields = Units([], bot)
+        self.worker_tags_by_mineral_field_tag = {}
 
-    async def distribute_workers(self, pending_build_steps: list[BuildStep]):
-        await self._distribute_workers(pending_build_steps)
-        await self.bot.distribute_workers()
+    async def distribute_workers(self, pending_build_steps: List[BuildStep]):
         logger.info(
-            [worker.order_target for worker in self.bot.workers if worker.order_target]
+            f"workers: minerals({len(self.mineral_gatherers)}), vespene({len(self.vespene_gatherers)}), idle({len(self.bot.workers.idle)})"
         )
+        self.update_references()
+        self.add_mineral_fields_for_townhalls()
+        self.distribute_idle()
+        await self._distribute_workers(pending_build_steps)
+        # await self.bot.distribute_workers()
+
+    def update_references(self):
+        self.mineral_gatherers = get_refresh_references(
+            self.mineral_gatherers, self.bot
+        )
+        self.vespene_gatherers = get_refresh_references(
+            self.vespene_gatherers, self.bot
+        )
+        self.builders = get_refresh_references(self.builders, self.bot)
+        self.repairers = get_refresh_references(self.repairers, self.bot)
+        self.mineral_fields = get_refresh_references(self.mineral_fields, self.bot)
+
+        # update mineral field worker counts
+        current_worker_tags = [worker.tag for worker in self.mineral_gatherers]
+        for worker_tags in self.worker_tags_by_mineral_field_tag.values():
+            for worker_tag in worker_tags:
+                if worker_tag not in current_worker_tags:
+                    worker_tags.remove(worker_tag)
+
+    def add_mineral_field_mapping(self, mineral_field: Unit, worker: Unit):
+        self.worker_tags_by_mineral_field_tag[mineral_field.tag].append(worker.tag)
+
+    def remove_mineral_field_mapping(self, worker: Unit):
+        for worker_tags in self.worker_tags_by_mineral_field_tag.values():
+            for worker_tag in worker_tags:
+                if worker_tag == worker.tag:
+                    worker_tags.remove(worker_tag)
+                    return
+
+    def needed_workers_for_minerals(self, mineral_field: Unit):
+        return 2 - len(self.worker_tags_by_mineral_field_tag[mineral_field.tag])
+
+    def add_mineral_fields_for_townhalls(self):
+        for townhall in self.bot.townhalls.ready:
+            if townhall.tag not in self.known_townhall_tags:
+                for mineral in self.bot.mineral_field.closer_than(8, townhall):
+                    self.mineral_fields.append(mineral)
+                    # assuming no long-distance miners
+                    self.worker_tags_by_mineral_field_tag[mineral.tag] = []
+                self.known_townhall_tags.append(townhall.tag)
+
+    def distribute_idle(self):
+        if len(self.bot.workers.idle) == 0:
+            return
+
+        deficient_mineral_fields = self.mineral_fields.filter(
+            lambda field: self.needed_workers_for_minerals(field) > 0
+        )
+        deficient_gas = self.bot.gas_buildings.ready.filter(
+            lambda gas: gas.surplus_harvesters < 0
+        )
+
+        for worker in self.bot.workers.idle:
+            nearest_mineral_field = deficient_mineral_fields.closest_to(worker)
+            if nearest_mineral_field:
+                worker.gather(nearest_mineral_field)
+                self.worker_tags_by_mineral_field_tag[nearest_mineral_field.tag].append(
+                    worker.tag
+                )
+                if self.needed_workers_for_minerals(nearest_mineral_field) == 0:
+                    deficient_mineral_fields.remove(nearest_mineral_field)
+                continue
+
+            nearest_gas_building = deficient_gas.closest_to(worker)
+            if nearest_gas_building:
+                worker.smart(nearest_gas_building)
+                # not sure how many it still needs so just add one and remove
+                deficient_gas.remove(nearest_gas_building)
+                continue
 
     async def _distribute_workers(self, pending_build_steps: list[BuildStep]):
         max_workers_to_move = 10
@@ -30,11 +111,11 @@ class Workers:
         minerals_needed = -self.bot.minerals
         vespene_needed = -self.bot.vespene
 
+        # find first shortage
         for idx, build_step in enumerate(pending_build_steps):
-            # how much _more_ do we need for the next three steps of each resource
             minerals_needed += build_step.cost.minerals
             vespene_needed += build_step.cost.vespene
-            if idx > 2 and (minerals_needed > 0 or vespene_needed > 0):
+            if minerals_needed > 0 or vespene_needed > 0:
                 break
         logger.info(
             f"next {idx} builds need {vespene_needed} vespene, {minerals_needed} minerals"
@@ -49,7 +130,7 @@ class Workers:
         else:
             # both positive
             workers_to_move = abs(minerals_needed - vespene_needed) / 100.0
-            if workers_to_move > 2:
+            if workers_to_move > 1:
                 if minerals_needed > vespene_needed:
                     # move workers to minerals
                     self.move_workers_to_minerals(workers_to_move)
@@ -57,84 +138,57 @@ class Workers:
                     # move workers to vespene
                     self.move_workers_to_vespene(workers_to_move)
 
-    def move_workers_to_vespene(self, number_of_workers: int):
+    def move_workers_to_minerals(self, number_of_workers: int):
         workers_moved = 0
+
+        for mineral_field in self.mineral_fields:
+            needed_harvesters = self.needed_workers_for_minerals(mineral_field)
+            if needed_harvesters < 0:
+                # no space for more workers
+                continue
+            logger.info(
+                f"need {needed_harvesters} mineral harvesters at {mineral_field}"
+            )
+
+            for worker in self.vespene_gatherers.closest_n_units(
+                mineral_field, needed_harvesters
+            ):
+                logger.info("switching worker to minerals")
+                worker.gather(mineral_field)
+
+                self.mineral_gatherers.append(worker)
+                self.vespene_gatherers.remove(worker)
+
+                self.add_mineral_field_mapping(mineral_field, worker)
+
+                self.last_worker_stop = self.bot.time
+                workers_moved += 1
+                if workers_moved == number_of_workers:
+                    return
+                continue
+
+    def move_workers_to_vespene(self, number_to_move: int):
+        workers_moved = 0
+
         for building in self.bot.gas_buildings.ready:
             needed_harvesters = -building.surplus_harvesters
             if needed_harvesters < 0:
                 # no space for more workers
                 continue
             logger.info(f"need {needed_harvesters} vespene harvesters at {building}")
-            gatherers = self.get_mineral_gatherers_near_building(
+
+            for worker in self.mineral_gatherers.closest_n_units(
                 building, needed_harvesters
-            )
-            if gatherers is not None:
-                for gatherer in gatherers:
-                    logger.info("switching worker to vespene")
-                    gatherer.smart(building)
-                    self.last_worker_stop = self.bot.time
-                    workers_moved += 1
-                    if workers_moved >= number_of_workers:
-                        return
+            ):
+                logger.info("switching worker to vespene")
+                worker.smart(building)
 
-    def move_workers_to_minerals(self, number_of_workers: int):
-        workers_moved = 0
-        for building in self.bot.townhalls.ready:
-            needed_harvesters = -building.surplus_harvesters
-            if needed_harvesters < 0:
-                # no space for more workers
-                continue
-            logger.info(f"need {needed_harvesters} mineral harvesters at {building}")
+                self.vespene_gatherers.append(worker)
+                self.mineral_gatherers.remove(worker)
 
-            local_minerals = {
-                mineral
-                for mineral in self.bot.mineral_field
-                if mineral.distance_to(building) <= 12
-            }
-            target_mineral = max(
-                local_minerals,
-                key=lambda mineral: mineral.mineral_contents,
-                default=None,
-            )
-            logger.info(f"target mineral patch {target_mineral}")
+                self.remove_mineral_field_mapping(worker)
 
-            if target_mineral:
-                gatherers = self.get_vespene_gatherers_near_building(
-                    building, needed_harvesters
-                )
-                if gatherers is not None:
-                    for gatherer in gatherers:
-                        logger.info("switching worker to minerals")
-                        gatherer.gather(target_mineral)
-                        self.last_worker_stop = self.bot.time
-                        workers_moved += 1
-                        if workers_moved >= number_of_workers:
-                            return
-
-    def get_mineral_gatherers_near_building(
-        self, for_building: Unit, count: int
-    ) -> Units:
-        if not self.bot.workers:
-            return None
-        local_minerals_tags = {
-            mineral.tag
-            for mineral in self.bot.mineral_field
-            if mineral.distance_to(for_building) <= 12
-        }
-        return self.bot.workers.filter(
-            lambda unit: unit.order_target in local_minerals_tags
-            and not unit.is_carrying_minerals
-        ).closest_n_units(for_building, count)
-
-    def get_vespene_gatherers_near_building(
-        self, for_building: Unit, count: int
-    ) -> Units:
-        if not self.bot.workers:
-            return None
-        gas_building_tags = [b.tag for b in self.bot.gas_buildings.ready]
-        vespene_workers = self.bot.workers.filter(
-            lambda unit: unit.order_target in gas_building_tags
-            and not unit.is_carrying_vespene
-        )
-        if vespene_workers:
-            return vespene_workers.closest_n_units(for_building, count)
+                self.last_worker_stop = self.bot.time
+                workers_moved += 1
+                if workers_moved == number_to_move:
+                    return
