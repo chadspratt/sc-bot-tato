@@ -1,12 +1,14 @@
 from loguru import logger
-
 from typing import List
+
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.game_data import Cost
 from sc2.position import Point2
+
 from bottato.build_step import BuildStep
+from bottato.workers import Workers
 
 
 class BuildOrder:
@@ -16,13 +18,14 @@ class BuildOrder:
     # next_unfinished_step_index: int
     last_build_position: Point2 = None
 
-    def __init__(self, build_name: str, bot: BotAI):
+    def __init__(self, build_name: str, bot: BotAI, workers: Workers):
         self.recently_completed_units: List[Unit] = []
         # self.recently_completed_transformations: List[UnitTypeId] = []
         self.recently_started_units: List[Unit] = []
         self.bot: BotAI = bot
+        self.workers: Workers = workers
         self.pending = [
-            BuildStep(bot, unit) for unit in self.get_build_start(build_name)
+            BuildStep(unit, bot, workers) for unit in self.get_build_start(build_name)
         ]
 
     async def execute(self) -> None:
@@ -52,7 +55,7 @@ class BuildOrder:
             requested_worker_count < worker_build_capacity
             and requested_worker_count + len(self.bot.workers) < desired_worker_count
         ):
-            self.pending.insert(1, BuildStep(self.bot, UnitTypeId.SCV))
+            self.pending.insert(1, BuildStep(UnitTypeId.SCV, self.bot, self.workers))
 
     def update_completed(self) -> None:
         for completed_unit in self.recently_completed_units:
@@ -180,7 +183,7 @@ class BuildOrder:
         self.build_steps[self.next_unfinished_step_index]
         return [UnitTypeId.SCV]
 
-    def get_build_start(self, build_name: str) -> list[BuildStep]:
+    def get_build_start(self, build_name: str) -> list[UnitTypeId]:
         if build_name == "tvt1":
             # https://lotv.spawningtool.com/build/171779/
             # Standard Terran vs Terran (3 Reaper 2 Hellion) (TvT Economic)

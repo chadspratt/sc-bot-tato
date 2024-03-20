@@ -1,6 +1,6 @@
 from loguru import logger
-
 from typing import Optional, Union
+
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
@@ -10,6 +10,7 @@ from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
 from .mixins import UnitReferenceMixin
+from bottato.workers import Workers
 
 
 class BuildStep(UnitReferenceMixin):
@@ -22,11 +23,13 @@ class BuildStep(UnitReferenceMixin):
 
     def __init__(
         self,
-        bot: BotAI,
         unit_type_id: UnitTypeId,
+        bot: BotAI,
+        workers: Workers
     ):
         self.unit_type_id = unit_type_id
         self.bot: BotAI = bot
+        self.workers: Workers = workers
         self.cost = bot.calculate_cost(unit_type_id)
         self.pos = None
         self.unit_in_charge: Unit = None
@@ -74,25 +77,28 @@ class BuildStep(UnitReferenceMixin):
         builder_type = self.get_builder_type(self.unit_type_id)
         if UnitTypeId.SCV in builder_type:
             # this is a structure built by an scv
-            logger.debug(f"Trying to build structure {self.unit_type_id}")
+            logger.info(f"Trying to build structure {self.unit_type_id}")
             # Vespene targets unit to build instead of position
             if self.unit_type_id == UnitTypeId.REFINERY:
                 self.build_gas()
             else:
                 self.pos = at_position or self.pos
                 if self.unit_in_charge is None or self.unit_in_charge.health == 0:
-                    self.unit_in_charge = self.bot.workers.filter(
-                        lambda worker: worker.is_idle or worker.is_gathering
-                    ).closest_to(at_position)
-                    logger.debug(f"Found my builder {self.unit_in_charge}")
+                    self.unit_in_charge = self.workers.get_builder(self.pos)
+                    # self.unit_in_charge = self.bot.workers.filter(
+                    #     lambda worker: worker.is_idle or worker.is_gathering
+                    # ).closest_to(at_position)
+                    logger.info(f"Found my builder {self.unit_in_charge}")
+                    if self.unit_in_charge is None:
+                        return False
                 if self.unit_being_built is None:
                     build_response = self.unit_in_charge.build(
                         self.unit_type_id, at_position
                     )
                 else:
                     build_response = self.unit_in_charge.smart(self.unit_being_built)
-                logger.debug(f"build_response: {build_response}")
-                logger.debug(f"Unit in charge is doing {self.unit_in_charge.orders}")
+                logger.info(f"build_response: {build_response}")
+                logger.info(f"Unit in charge is doing {self.unit_in_charge.orders}")
 
                 if not build_response:
                     return False
