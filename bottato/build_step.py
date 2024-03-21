@@ -21,12 +21,7 @@ class BuildStep(UnitReferenceMixin):
     pos: Union[Unit, Point2]
     check_idle: bool = False
 
-    def __init__(
-        self,
-        unit_type_id: UnitTypeId,
-        bot: BotAI,
-        workers: Workers
-    ):
+    def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers):
         self.unit_type_id = unit_type_id
         self.bot: BotAI = bot
         self.workers: Workers = workers
@@ -48,6 +43,9 @@ class BuildStep(UnitReferenceMixin):
             self.bot.client.debug_box2_out(self.unit_in_charge)
         if self.pos is not None:
             self.bot.client.debug_box2_out(self.convert_point2_to_3(self.pos), 0.5)
+            self.bot.client.debug_text_world(
+                self.unit_type_id.name, Point3((*self.pos, 10))
+            )
         if self.unit_being_built is not None and self.unit_being_built is not True:
             self.bot.client.debug_box2_out(self.unit_being_built, 0.75)
 
@@ -77,7 +75,9 @@ class BuildStep(UnitReferenceMixin):
         builder_type = self.get_builder_type(self.unit_type_id)
         if UnitTypeId.SCV in builder_type:
             # this is a structure built by an scv
-            logger.info(f"Trying to build structure {self.unit_type_id}")
+            logger.info(
+                f"Trying to build structure {self.unit_type_id} at {at_position}"
+            )
             # Vespene targets unit to build instead of position
             if self.unit_type_id == UnitTypeId.REFINERY:
                 self.build_gas()

@@ -2,7 +2,7 @@ from loguru import logger
 
 from sc2.bot_ai import BotAI
 from sc2.data import Result
-from sc2.units import Unit
+from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.build_order import BuildOrder
@@ -12,7 +12,9 @@ from bottato.micro import Micro
 class BotTato(BotAI):
     async def on_start(self):
         self.micro = Micro(self)
-        self.build_order: BuildOrder = BuildOrder("tvt1", bot=self, workers=self.micro.workers)
+        self.build_order: BuildOrder = BuildOrder(
+            "tvt1", bot=self, workers=self.micro.workers
+        )
 
     async def on_step(self, iteration):
         logger.info(f"starting step, iteration: {iteration}, time: {self.time}")

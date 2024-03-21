@@ -86,7 +86,7 @@ class Squad(UnitReferenceMixin):
     def refresh_slowest_unit(self):
         if self.slowest_unit is not None:
             try:
-                self.slowest_unit = sel.get_updated_unit_reference(self.slowest_unit)
+                self.slowest_unit = self.get_updated_unit_reference(self.slowest_unit)
             except self.UnitNotFound:
                 self.slowest_unit = self.find_slowest_unit()
 

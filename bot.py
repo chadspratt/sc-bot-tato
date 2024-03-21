@@ -20,7 +20,7 @@ def rotate_at_start(message, file):
         HAS_ROTATED_LOG = True
 
 
-logger.add("bot_tato.log", level="INFO", format="{message}", rotation=rotate_at_start)
+logger.add("logs/bot_tato.log", level="INFO", format="{message}", rotation=rotate_at_start)
 
 
 def main():
