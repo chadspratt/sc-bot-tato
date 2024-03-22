@@ -39,22 +39,24 @@ class BuildStep(UnitReferenceMixin):
 
     def draw_debug_box(self):
         if self.unit_in_charge is not None:
-            self.bot.client.debug_sphere_out(self.unit_in_charge, 2)
-            self.bot.client.debug_box2_out(self.unit_in_charge)
+            self.bot.client.debug_sphere_out(self.unit_in_charge, 1)
+            self.bot.client.debug_text_world(
+                str(self.unit_in_charge.tag), self.unit_in_charge.position3d)
         if self.pos is not None:
             self.bot.client.debug_box2_out(self.convert_point2_to_3(self.pos), 0.5)
             self.bot.client.debug_text_world(
                 self.unit_type_id.name, Point3((*self.pos, 10))
             )
         if self.unit_being_built is not None and self.unit_being_built is not True:
+            logger.debug(f"unit being built {self.unit_being_built}")
             self.bot.client.debug_box2_out(self.unit_being_built, 0.75)
 
     def refresh_worker_reference(self):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
         try:
-            self._unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge)
+            self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge)
         except self.UnitNotFound:
-            self._unit_in_charge = None
+            self.unit_in_charge = None
 
     def get_builder_type(self, unit_type_id):
         if self.unit_type_id in {
@@ -159,7 +161,7 @@ class BuildStep(UnitReferenceMixin):
     def is_interrupted(self) -> bool:
         if self.unit_in_charge is None:
             return True
-        logger.debug(f"Unit in charge is doing {self.unit_in_charge.orders}")
+        logger.info(f"Unit in charge is doing {self.unit_in_charge.orders}")
         self.check_idle: bool = self.check_idle or (
             self.unit_in_charge.is_active and not self.unit_in_charge.is_gathering
         )
@@ -170,14 +172,14 @@ class BuildStep(UnitReferenceMixin):
             self.unit_in_charge.is_idle or self.unit_in_charge.is_gathering
         )
         if builder_is_missing or (self.check_idle and builder_is_distracted):
-            logger.debug(f"unit_in_charge {self.unit_in_charge}")
+            logger.info(f"unit_in_charge {self.unit_in_charge}")
             if self.unit_in_charge is not None:
-                logger.debug(f"unit_in_charge.health {self.unit_in_charge.health}")
-                logger.debug(f"unit_in_charge.is_idle {self.unit_in_charge.is_idle}")
-                logger.debug(
+                logger.info(f"unit_in_charge.health {self.unit_in_charge.health}")
+                logger.info(f"unit_in_charge.is_idle {self.unit_in_charge.is_idle}")
+                logger.info(
                     f"unit_in_charge.is_gathering {self.unit_in_charge.is_gathering}"
                 )
-                logger.debug(
+                logger.info(
                     f"unit_in_charge.is_collecting {self.unit_in_charge.is_collecting}"
                 )
             return True

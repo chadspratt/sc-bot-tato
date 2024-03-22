@@ -31,14 +31,17 @@ class Workers(UnitReferenceMixin):
             f"vespene_gatherers {self.vespene.worker_count}, "
             f"build position {building_position}"
         )
-        if self.minerals_needed > self.vespene_needed and self.vespene.worker_count:
+        if self.minerals_needed > self.vespene_needed and self.vespene.available_worker_count:
             builder = self.vespene.take_worker_closest_to(building_position)
         elif self.minerals.worker_count:
             builder = self.minerals.take_worker_closest_to(building_position)
         elif self.repairers:
             builder = self.repairers.closest_to(building_position)
             self.repairers.remove(builder)
-        self.builders.append(builder)
+        else:
+            logger.info("FAILED TO GET BUILDER")
+        if builder is not None:
+            self.builders.append(builder)
         return builder
 
     async def distribute_workers(self):

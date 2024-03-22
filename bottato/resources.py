@@ -24,6 +24,11 @@ class Resources(UnitReferenceMixin):
         return len(self.assigned_workers_tags)
 
     @property
+    def available_worker_count(self):
+        # some vespene harvesters might not be available if they're in the gas building
+        return len(self.assigned_workers)
+
+    @property
     def has_unused_capacity(self):
         for node in self.nodes:
             if self.needed_workers_for_node(node) > 0:
@@ -36,7 +41,7 @@ class Resources(UnitReferenceMixin):
         self.worker_tags_by_node_tag[node.tag] = []
 
     def needed_workers_for_node(self, node: Unit):
-        logger.info(
+        logger.debug(
             f"resource node {node} has "
             f"{len(self.worker_tags_by_node_tag[node.tag])}: "
             f"{self.worker_tags_by_node_tag[node.tag]}"
@@ -93,7 +98,7 @@ class Resources(UnitReferenceMixin):
         return exiting_worker
 
     def update_references(self):
-        logger.info(f"workers before refresh {self.assigned_workers}")
+        logger.debug(f"workers before refresh {self.assigned_workers}")
         self.assigned_workers = self.get_updated_units_references_by_tags(self.assigned_workers_tags)
-        logger.info(f"workers after refresh {self.assigned_workers}")
+        logger.debug(f"workers after refresh {self.assigned_workers}")
         self.nodes = self.get_updated_units_references(self.nodes)

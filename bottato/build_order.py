@@ -94,8 +94,8 @@ class BuildOrder:
     def move_interupted_to_pending(self) -> None:
         to_promote = []
         for idx, build_step in enumerate(self.requested):
-            logger.debug(f"In progress building {build_step.unit_type_id}")
-            logger.debug(f"> Builder {build_step.unit_in_charge}")
+            logger.debug(f"In progress {build_step.unit_type_id}"
+                         f"> Builder {build_step.unit_in_charge}")
             build_step.draw_debug_box()
             if build_step.is_interrupted():
                 logger.debug("! Is interrupted!")
