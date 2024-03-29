@@ -4,17 +4,24 @@ from sc2.bot_ai import BotAI
 from sc2.data import Result
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.game_data import Cost
 
 from bottato.build_order import BuildOrder
 from bottato.micro import Micro
+from bottato.enemy import Enemy
+from .workers import Workers
+from .military import Military
 
 
 class BotTato(BotAI):
     async def on_start(self):
-        self.micro = Micro(self)
+        self._workers: Workers = Workers(self)
+        self.military: Military = Military(self)
+        self.micro: Micro = Micro(self)
         self.build_order: BuildOrder = BuildOrder(
-            "tvt1", bot=self, workers=self.micro.workers
+            "tvt1", bot=self, workers=self._workers
         )
+        self.enemy: Enemy = Enemy(self)
 
     async def on_step(self, iteration):
         logger.info(f"starting step, iteration: {iteration}, time: {self.time}")
@@ -24,7 +31,11 @@ class BotTato(BotAI):
         # to avoid circular dependencies, need to pass some information between modules here
         # e.g. build_order -> build_step -> workers -> build_step
         # logger.info("executing micro")
-        await self.micro.execute(self.build_order.pending)
+        await self.micro.execute()
+        needed_resources: Cost = self.build_order.get_first_resource_shortage()
+        await self._workers.distribute_workers(needed_resources)
+
+        self.military.manage_squads(self.enemy)
 
         # logger.info("executing build order")
         await self.build_order.execute()
@@ -51,12 +62,12 @@ class BotTato(BotAI):
         logger.info(f"raising complete! {unit}")
         self.build_order.recently_completed_units.append(unit)
         if unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE):
-            logger.info(f"assigned to {self.micro.military.unassigned_army.name}")
-            self.micro.military.unassigned_army.recruit(unit)
+            logger.info(f"assigned to {self.military.unassigned_army.name}")
+            self.military.unassigned_army.recruit(unit)
 
     async def on_enemy_unit_entered_vision(self, unit: Unit):
         logger.info(f"Enemy unit seen {unit}")
-        self.micro.enemies_in_view.append(unit)
+        self.enemy.enemies_in_view.append(unit)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         logger.info(

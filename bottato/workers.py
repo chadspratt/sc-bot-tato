@@ -4,6 +4,7 @@ from loguru import logger
 from sc2.bot_ai import BotAI
 from sc2.units import Units
 from sc2.position import Point2
+from sc2.game_data import Cost
 
 from .mixins import UnitReferenceMixin
 from .minerals import Minerals
@@ -44,7 +45,11 @@ class Workers(UnitReferenceMixin):
             self.builders.append(builder)
         return builder
 
-    async def distribute_workers(self):
+    async def distribute_workers(self, needed_resources: Cost):
+        self.update_references()
+        # self.catalog_workers()
+        self.distribute_idle()
+        await self.redistribute_workers(needed_resources)
         logger.info(
             f"workers: minerals({self.minerals.worker_count}), "
             f"vespene({self.vespene.worker_count}), "
@@ -53,10 +58,6 @@ class Workers(UnitReferenceMixin):
             f"idle({len(self.bot.workers.idle)}), "
             f"total({len(self.bot.workers)})"
         )
-        self.update_references()
-        # self.catalog_workers()
-        self.distribute_idle()
-        await self.redistribute_workers()
 
     def catalog_workers(self):
         # put workers into correct bins (this may supercede `update_references`)
@@ -104,26 +105,26 @@ class Workers(UnitReferenceMixin):
             if self.vespene.has_unused_capacity:
                 self.vespene.add_worker(worker)
 
-    async def redistribute_workers(self):
+    async def redistribute_workers(self, needed_resources: Cost):
         cooldown = 3
         if self.bot.time - self.last_worker_stop <= cooldown:
             logger.info("Distribute workers is on cooldown")
             return
 
         max_workers_to_move = 10
-        if self.minerals_needed <= 0:
+        if needed_resources.minerals <= 0:
             logger.info("saturate vespene")
             self.move_workers_to_vespene(max_workers_to_move)
-        elif self.vespene_needed <= 0:
+        elif needed_resources.vespene <= 0:
             logger.info("saturate minerals")
             self.move_workers_to_minerals(max_workers_to_move)
         else:
             # both positive
             workers_to_move = math.floor(
-                abs(self.minerals_needed - self.vespene_needed) / 100.0
+                abs(needed_resources.minerals - needed_resources.vespene) / 100.0
             )
             if workers_to_move > 0:
-                if self.minerals_needed > self.vespene_needed:
+                if needed_resources.minerals > needed_resources.vespene:
                     # move workers to minerals
                     self.move_workers_to_minerals(workers_to_move)
                 else:

@@ -57,6 +57,39 @@ class BuildOrder:
         ):
             self.pending.insert(1, BuildStep(UnitTypeId.SCV, self.bot, self.workers))
 
+    def queue_command_center(self) -> None:
+        requested_worker_count = 0
+        for build_step in self.requested + self.pending:
+            if build_step.unit_type_id == UnitTypeId.SCV:
+                requested_worker_count += 1
+            elif build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
+                return
+        # expand if running out of room for workers at current bases
+        if requested_worker_count + len(self.bot.workers) > len(self.bot.townhalls) * 14 - 4:
+            self.pending.insert(1, BuildStep)
+        # should also build a new one if current bases run out of resources
+
+    def get_first_resource_shortage(self) -> Cost:
+        needed_resources: Cost = Cost(0, 0)
+        if not self.pending:
+            return needed_resources
+
+        needed_resources.minerals = -self.bot.minerals
+        needed_resources.vespene = -self.bot.vespene
+
+        # find first shortage
+        for idx, build_step in enumerate(self.pending):
+            needed_resources.minerals += build_step.cost.minerals
+            needed_resources.vespene += build_step.cost.vespene
+            if needed_resources.minerals > 0 or needed_resources.vespene > 0:
+                break
+        logger.info(
+            f"next {idx + 1} builds "
+            f"vespene: {self.bot.vespene}/{needed_resources.vespene + self.bot.vespene}, "
+            f"minerals: {self.bot.minerals}/{needed_resources.minerals + self.bot.minerals}"
+        )
+        return needed_resources
+
     def update_completed(self) -> None:
         for completed_unit in self.recently_completed_units:
             logger.debug(f"update_completed for {completed_unit}")
@@ -119,6 +152,8 @@ class BuildOrder:
         logger.debug(f"> Got back {execute_response}")
         if execute_response:
             self.requested.append(self.pending.pop(0))
+        else:
+            logger.info(f"{build_step.unit_type_id} failed to start building")
 
     def can_afford(self, requested_cost: Cost) -> bool:
         # PS: non-structure build steps never get their `unit_being_build` populated,

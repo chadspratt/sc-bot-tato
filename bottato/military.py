@@ -6,6 +6,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from .squad import Squad
+from .enemy import Enemy
 
 
 class Formation:
@@ -73,7 +74,7 @@ class Military:
         _report += self.unassigned_army.get_report()
         logger.info(_report)
 
-    def manage_squads(self, enemies_in_view: list[Unit]):
+    def manage_squads(self, enemy: Enemy):
         self.unassigned_army.manage_paperwork()
         self.unassigned_army.draw_debug_box()
         for unassigned in self.unassigned_army.units:
@@ -85,7 +86,7 @@ class Military:
             squad.manage_paperwork()
             squad.draw_debug_box()
             if squad.is_full:
-                logger.info(f"squad {squad.name} is full")
+                logger.debug(f"squad {squad.name} is full")
                 map_center = self.bot.game_info.map_center
                 staging_location = self.bot.start_location.towards(
                     map_center, distance=10
@@ -93,7 +94,7 @@ class Military:
                 squad.move(staging_location)
         for squad in self.squads:
             if squad.is_full:
-                squad.attack(enemies_in_view, is_priority=True)
+                squad.attack(enemy.enemies_in_view, is_priority=True)
         self.report()
         # if not alpha_squad.has_orders and self.enemies_in_view:
         #     alpha_squad.attack(self.enemies_in_view[0])
