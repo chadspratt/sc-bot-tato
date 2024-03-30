@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import List
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -16,7 +17,7 @@ class Resources(UnitReferenceMixin):
         self.worker_tags_by_node_tag = {}
         self.assigned_workers = Units([], bot)
         # workers sometimes disappear (gas) so this is more permanent
-        self.assigned_workers_tags = Units([], bot)
+        self.assigned_workers_tags = List[int]
         self.max_workers_per_node = 0
 
     @property
@@ -99,6 +100,6 @@ class Resources(UnitReferenceMixin):
 
     def update_references(self):
         logger.debug(f"workers before refresh {self.assigned_workers}")
-        self.assigned_workers = self.get_updated_units_references_by_tags(self.assigned_workers_tags)
+        self.assigned_workers = self.get_updated_unit_references_by_tags(self.assigned_workers_tags)
         logger.debug(f"workers after refresh {self.assigned_workers}")
-        self.nodes = self.get_updated_units_references(self.nodes)
+        self.nodes = self.get_updated_unit_references(self.nodes)

@@ -46,7 +46,6 @@ class Workers(UnitReferenceMixin):
         return builder
 
     async def distribute_workers(self, needed_resources: Cost):
-        self.update_references()
         # self.catalog_workers()
         self.distribute_idle()
         await self.redistribute_workers(needed_resources)
@@ -79,8 +78,8 @@ class Workers(UnitReferenceMixin):
         # PS: we're getting fresh references for all SCVs from `catalog_workers`.
         self.minerals.update_references()
         self.vespene.update_references()
-        self.builders = self.get_updated_units_references(self.builders)
-        self.repairers = self.get_updated_units_references(self.repairers)
+        self.builders = self.get_updated_unit_references(self.builders)
+        self.repairers = self.get_updated_unit_references(self.repairers)
 
     def distribute_idle(self):
         logger.info(f"idle workers {self.bot.workers.idle}")

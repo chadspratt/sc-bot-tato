@@ -15,6 +15,7 @@ from .military import Military
 
 class BotTato(BotAI):
     async def on_start(self):
+        # name clash with BotAI.workers
         self._workers: Workers = Workers(self)
         self.military: Military = Military(self)
         self.micro: Micro = Micro(self)
@@ -28,9 +29,10 @@ class BotTato(BotAI):
         if len(self.units) == 0 or len(self.townhalls) == 0:
             await self.client.leave()
 
-        # to avoid circular dependencies, need to pass some information between modules here
-        # e.g. build_order -> build_step -> workers -> build_step
-        # logger.info("executing micro")
+        self.update_unit_references()
+        # needed_units: list[UnitTypeId] = self.military.get_units_needed_to_counter(self.enemy)
+        # self.build_order.request_military(needed_units)
+
         await self.micro.execute()
         needed_resources: Cost = self.build_order.get_first_resource_shortage()
         await self._workers.distribute_workers(needed_resources)
@@ -45,6 +47,11 @@ class BotTato(BotAI):
         print("Game ended.")
         logger.info(self.build_order.complete)
         # Do things here after the game ends
+
+    def update_unit_references(self):
+        self._workers.update_references()
+        self.military.update_references()
+        self.enemy.update_references()
 
     async def on_building_construction_started(self, unit: Unit):
         logger.info(f"building started! {unit}")

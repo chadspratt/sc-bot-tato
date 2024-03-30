@@ -74,8 +74,12 @@ class Military:
         _report += self.unassigned_army.get_report()
         logger.info(_report)
 
+    def update_references(self):
+        self.unassigned_army.continue_order()
+        for squad in self.squads:
+            squad.update_references()
+
     def manage_squads(self, enemy: Enemy):
-        self.unassigned_army.manage_paperwork()
         self.unassigned_army.draw_debug_box()
         for unassigned in self.unassigned_army.units:
             for squad in self.squads:
@@ -83,10 +87,9 @@ class Military:
                     self.unassigned_army.transfer(unassigned, squad)
                     break
         for squad in self.squads:
-            squad.manage_paperwork()
+            squad.continue_order()
             squad.draw_debug_box()
-            if squad.is_full:
-                logger.debug(f"squad {squad.name} is full")
+            if not squad.is_full:
                 map_center = self.bot.game_info.map_center
                 staging_location = self.bot.start_location.towards(
                     map_center, distance=10
@@ -94,6 +97,7 @@ class Military:
                 squad.move(staging_location)
         for squad in self.squads:
             if squad.is_full:
+                logger.debug(f"squad {squad.name} is full")
                 squad.attack(enemy.enemies_in_view, is_priority=True)
         self.report()
         # if not alpha_squad.has_orders and self.enemies_in_view:

@@ -20,7 +20,7 @@ class UnitReferenceMixin:
                 f"Cannot find unit with tag {tag}; maybe they died"
             )
 
-    def get_updated_units_references(self, units: Units) -> Units:
+    def get_updated_unit_references(self, units: Units) -> Units:
         _units = Units([], bot_object=self.bot)
         for unit in units:
             try:
@@ -29,7 +29,7 @@ class UnitReferenceMixin:
                 logger.info(f"Couldn't find unit {unit}!")
         return _units
 
-    def get_updated_units_references_by_tags(self, tags: List[int]) -> Units:
+    def get_updated_unit_references_by_tags(self, tags: List[int]) -> Units:
         _units = Units([], bot_object=self.bot)
         for tag in tags:
             try:

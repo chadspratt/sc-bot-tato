@@ -9,6 +9,7 @@ from sc2.units import Units
 from sc2.position import Point2
 
 from .mixins import UnitReferenceMixin
+from .formation import Formation, FormationType, ParentFormation
 
 
 class SquadOrderEnum(enum.Enum):
@@ -50,6 +51,16 @@ class Squad(UnitReferenceMixin):
         self._position: Point2 = None
         self._destination: Point2 = None
         self.targets: Units = Units([], bot_object=bot)
+        self.parent_formation : ParentFormation = ParentFormation()
+
+    def update_formation(self):
+        # decide formation(s)
+        if not self.parent_formation.formations:
+            self.parent_formation.add_formation(FormationType.LINE, self._units)
+
+        if self.bot.enemy_units.closer_than(8.0, self._position):
+            self.parent_formation.clear()
+            self.parent_formation.add_formation(FormationType.HOLLOW_CIRCLE, self._units)
 
     def execute(self, squad_order: SquadOrder):
         self.orders.append(squad_order)
@@ -70,12 +81,12 @@ class Squad(UnitReferenceMixin):
     def continue_movement(self):
         for unit in self.units:
             if unit != self.slowest_unit:
-                unit.move(self.slowest_unit.position)
+                unit.attack(self.slowest_unit.position)
             else:
                 logger.info(
                     f"{self.name} Squad leader {self.slowest_unit} moving to {self._destination}"
                 )
-                unit.move(self._destination)
+                unit.attack(self._destination)
 
     def continue_attack(self):
         if self.targets and self.slowest_unit is not None:
@@ -96,11 +107,13 @@ class Squad(UnitReferenceMixin):
             if slowest is None or unit.movement_speed < slowest.movement_speed:
                 slowest = unit
         return slowest
-
-    def manage_paperwork(self):
-        self._units = self.get_updated_units_references(self.units)
+    
+    def update_references(self):
+        self._units = self.get_updated_unit_references(self.units)
+        self.targets = self.get_updated_unit_references(self.targets)
         self.refresh_slowest_unit()
-        self.targets = self.get_updated_units_references(self.targets)
+
+    def continue_order(self):
         # calc front and position
         # move continuation
         if self.current_order == SquadOrderEnum.MOVE:
@@ -156,7 +169,7 @@ class Squad(UnitReferenceMixin):
                     logger.info(
                         f"{self.name} Squad leader {self.slowest_unit} moving to {position}"
                     )
-                    self.slowest_unit.move(position)
+                    self.slowest_unit.attack(position)
                     break
 
     def check_order_complete(self):
@@ -199,3 +212,6 @@ class Squad(UnitReferenceMixin):
     def transfer(self, unit: Unit, to_squad: Squad):
         self.remove(unit)
         to_squad.recruit(unit)
+
+    def new_move(self, to_point: Point2):
+        game_positions = self.parent_formation.get_game_positions()
