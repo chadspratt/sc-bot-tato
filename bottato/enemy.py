@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import Dict
 
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit

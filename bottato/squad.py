@@ -9,7 +9,7 @@ from sc2.units import Units
 from sc2.position import Point2
 
 from .mixins import UnitReferenceMixin
-from .formation import Formation, FormationType, ParentFormation
+from .formation import FormationType, ParentFormation
 
 
 class SquadOrderEnum(enum.Enum):
@@ -69,6 +69,7 @@ class Squad(BaseSquad):
     def __init__(
         self,
         *,
+        bot,
         composition: dict[UnitTypeId, int] = None,
         name: str = "fuckwits",
         **kwargs,
