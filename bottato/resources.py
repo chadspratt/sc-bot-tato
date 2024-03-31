@@ -17,7 +17,7 @@ class Resources(UnitReferenceMixin):
         self.worker_tags_by_node_tag = {}
         self.assigned_workers = Units([], bot)
         # workers sometimes disappear (gas) so this is more permanent
-        self.assigned_workers_tags = List[int]
+        self.assigned_workers_tags: List[int] = []
         self.max_workers_per_node = 0
 
     @property

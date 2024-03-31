@@ -23,6 +23,7 @@ class BotTato(BotAI):
             "tvt1", bot=self, workers=self._workers
         )
         self.enemy: Enemy = Enemy(self)
+        await self.client.debug_fast_build()
 
     async def on_step(self, iteration):
         logger.info(f"starting step, iteration: {iteration}, time: {self.time}")

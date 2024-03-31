@@ -79,21 +79,10 @@ class Squad(BaseSquad):
         self.composition = composition or {}
         self.current_order = SquadOrderEnum.IDLE
         self.slowest_unit: Unit = None
-        self._position: Point2 = None
         self._destination: Point2 = None
         self.targets: Units = Units([], bot_object=self.bot)
-        self.parent_formation: ParentFormation = ParentFormation()
-
-    def update_formation(self):
-        # decide formation(s)
-        if not self.parent_formation.formations:
-            self.parent_formation.add_formation(FormationType.LINE, self._units.tags)
-
-        if self.bot.enemy_units.closer_than(8.0, self._position):
-            self.parent_formation.clear()
-            self.parent_formation.add_formation(
-                FormationType.HOLLOW_CIRCLE, self._units.tags
-            )
+        self.targets: Units = Units([], bot_object=self.bot)
+        self.parent_formation: ParentFormation = ParentFormation(self.bot)
 
     def execute(self, squad_order: SquadOrder):
         self.orders.append(squad_order)
@@ -111,21 +100,26 @@ class Squad(BaseSquad):
     def needs(self, unit: Unit) -> bool:
         return self.unit_count(unit) < self.desired_unit_count(unit)
 
-    def continue_movement(self):
-        for unit in self.units:
-            if unit != self.slowest_unit:
-                unit.attack(self.slowest_unit.position)
-            else:
-                logger.info(
-                    f"{self.name} Squad leader {self.slowest_unit} moving to {self._destination}"
-                )
-                unit.attack(self._destination)
+    @property
+    def is_full(self) -> bool:
+        has = len(self._units)
+        wants = sum([v for v in self.composition.values()])
+        return has >= wants
 
-    def continue_attack(self):
-        if self.targets and self.slowest_unit is not None:
-            closest_target = self.targets.closest_to(self.slowest_unit)
-            for unit in self.units:
-                unit.attack(closest_target)
+    def recruit(self, unit: Unit):
+        logger.info(f"Recruiting {unit} into {self.name} squad")
+        if (
+            self.slowest_unit is None
+            or unit.movement_speed < self.slowest_unit.movement_speed
+        ):
+            self.slowest_unit = unit
+        self._units.append(unit)
+        self.update_formation(reset=True)
+
+    def get_report(self) -> str:
+        has = len(self._units)
+        wants = sum([v for v in self.composition.values()])
+        return f"{self.name}({has}/{wants})"
 
     def refresh_slowest_unit(self):
         if self.slowest_unit is not None:
@@ -146,84 +140,76 @@ class Squad(BaseSquad):
         self.targets = self.get_updated_unit_references(self.targets)
         self.refresh_slowest_unit()
 
+    def update_formation(self, reset=False):
+        # decide formation(s)
+        if self.slowest_unit is None:
+            return
+        if reset:
+            self.parent_formation.clear()
+        if not self.parent_formation.formations:
+            self.parent_formation.add_formation(FormationType.LINE, self._units.tags)
+        if self.bot.enemy_units.closer_than(8.0, self.parent_formation.game_position):
+            self.parent_formation.clear()
+            self.parent_formation.add_formation(
+                FormationType.HOLLOW_CIRCLE, self._units.tags
+            )
+        logger.info(f"squad {self.name} formation: {self.parent_formation}")
+
     def continue_order(self):
+        if not self._units:
+            return
         # calc front and position
         # move continuation
         if self.current_order == SquadOrderEnum.MOVE:
-            self.continue_movement()
+            self.continue_move()
         if self.current_order == SquadOrderEnum.ATTACK:
             self.continue_attack()
 
-    def recruit(self, unit: Unit):
-        logger.info(f"Recruiting {unit} into {self.name} squad")
-        if (
-            self.slowest_unit is None
-            or unit.movement_speed < self.slowest_unit.movement_speed
-        ):
-            self.slowest_unit = unit
-        self._units.append(unit)
-
-    def attack(self, targets: Units, is_priority: bool = False):
+    def attack(self, targets: Units):
         if not targets:
             return
-        if is_priority or self.current_order in (
-            SquadOrderEnum.IDLE,
-            SquadOrderEnum.MOVE,
-        ):
-            self.targets = Units(targets, self.bot)
-            self.current_order = SquadOrderEnum.ATTACK
 
+        self.targets = Units(targets, self.bot)
+        self.current_order = SquadOrderEnum.ATTACK
+
+        closest_target = self.targets.closest_to(self.slowest_unit)
+        logger.info(
+            f"{self.name} Squad attacking {closest_target};"
+        )
+        for unit in self.units:
+            unit.attack(closest_target)
+
+    def continue_attack(self):
+        if self.targets:
             closest_target = self.targets.closest_to(self.slowest_unit)
-            logger.info(
-                f"{self.name} Squad attacking {closest_target}; is_priority: {is_priority}"
-            )
             for unit in self.units:
                 unit.attack(closest_target)
+        else:
+            self.current_order = SquadOrderEnum.IDLE
 
-    def move(self, position: Point2, is_priority: bool = False):
-        if self.slowest_unit.distance_to(position) < 1:
-            logger.info(f"{self.name} Squad arrived at {position}")
+    def move(self, position: Point2):
+        logger.info(
+            f"{self.name} Squad moving to {position};"
+        )
+        self.current_order = SquadOrderEnum.MOVE
+        self._destination = position
+
+        for unit in self.units:
+            if unit == self.slowest_unit:
+                logger.info(
+                    f"{self.name} Squad leader {self.slowest_unit} moving to {position}"
+                )
+                self.slowest_unit.attack(position)
+                break
+
+    def continue_move(self):
+        if self.parent_formation.game_position.distance_to(self._destination) < 1:
+            logger.info(f"{self.name} Squad arrived at {self._destination}")
+            self.current_order = SquadOrderEnum.IDLE
             return
-        if self.current_order == SquadOrderEnum.IDLE or is_priority:
-            logger.info(
-                f"{self.name} Squad moving to {position}; is_priority: {is_priority}"
-            )
-            self.current_order = SquadOrderEnum.MOVE
-            self._destination = position
-
-            for unit in self.units:
-                if unit == self.slowest_unit:
-                    logger.info(
-                        f"{self.name} Squad leader {self.slowest_unit} moving to {position}"
-                    )
-                    self.slowest_unit.attack(position)
-                    break
-
-    def check_order_complete(self):
-        min_distance = 5
-        if self.current_order == SquadOrderEnum.ATTACK:
-            for target in self.targets:
-                if target.health > 0:
-                    break
-            else:
-                self.current_order = SquadOrderEnum.IDLE
-        elif self.current_order == SquadOrderEnum.MOVE:
-            for unit in self.units:
-                if unit.distance_to(self._destination) > min_distance:
-                    break
-            else:
-                self.current_order = SquadOrderEnum.IDLE
-
-    @property
-    def is_full(self) -> bool:
-        has = len(self._units)
-        wants = sum([v for v in self.composition.values()])
-        return has >= wants
-
-    def get_report(self) -> str:
-        has = len(self._units)
-        wants = sum([v for v in self.composition.values()])
-        return f"{self.name}({has}/{wants})"
-
-    def new_move(self, to_point: Point2):
-        game_positions = self.parent_formation.get_game_positions()
+        game_positions = self.parent_formation.get_unit_destinations(self._destination, self.slowest_unit)
+        logger.info(f"squad {self.name} moving to {self._destination} with {game_positions.values()}")
+        for unit in self.units:
+            if unit.tag in self.bot.unit_tags_received_action:
+                continue
+            unit.attack(game_positions[unit.tag])

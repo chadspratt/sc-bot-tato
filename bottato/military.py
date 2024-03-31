@@ -3,17 +3,9 @@ from loguru import logger
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
-from sc2.unit import Unit
 
 from .squad import Squad
 from .enemy import Enemy
-
-
-class Formation:
-    def __init__(self, position: Point2, front: Point2, units: list[Unit] = []):
-        self.units = units
-        self.position = position
-        self.front = front
 
 
 class Military:
@@ -90,6 +82,7 @@ class Military:
                     self.unassigned_army.transfer(unassigned, squad)
                     break
         for squad in self.squads:
+            squad.update_formation()
             squad.continue_order()
             squad.draw_debug_box()
             if not squad.is_full:
@@ -101,7 +94,7 @@ class Military:
         for squad in self.squads:
             if squad.is_full:
                 logger.debug(f"squad {squad.name} is full")
-                squad.attack(enemy.enemies_in_view, is_priority=True)
+                squad.attack(enemy.enemies_in_view)
         self.report()
         # if not alpha_squad.has_orders and self.enemies_in_view:
         #     alpha_squad.attack(self.enemies_in_view[0])

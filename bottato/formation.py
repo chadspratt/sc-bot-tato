@@ -2,9 +2,11 @@ from __future__ import annotations
 import enum
 import math
 
+from loguru import logger
+from sc2.bot_ai import BotAI
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2.units import Units
+# from sc2.units import Units
 
 
 class FormationType(enum.Enum):
@@ -90,16 +92,21 @@ class Formation:
         # self.unit_count = unit_count
         # self.slowest_unit = None
         self.positions: list[FormationPosition] = self.get_formation_positions()
+        logger.info(self.positions)
+
+    def __repr__(self):
+        buffer = ""
+        for position in self.positions:
+            buffer += f"{position}, "
+        return buffer
 
     def get_unit_attack_range(self, unit: Unit) -> float:
         # PS: this might belong in the `Bottato` class, but it goes here for now
         #   The code itself is taken from `sc2.unit.target_in_range
-        if self.can_attack_ground and not target.is_flying:
-            unit_attack_range = self.ground_range
-        elif self.can_attack_air and (
-            target.is_flying or target.type_id == UNIT_COLOSSUS
-        ):
-            unit_attack_range = self.air_range
+        if unit.can_attack_ground:
+            unit_attack_range = unit.ground_range
+        elif unit.can_attack_air:
+            unit_attack_range = unit.air_range
         else:
             unit_attack_range = False
         return unit_attack_range
@@ -107,12 +114,12 @@ class Formation:
     def get_unit_demographics(self) -> UnitDemographics:
         demographics = UnitDemographics()
         for unit_tag in self.unit_tags:
-            unit = self.bot.units.by_tag(unit_tag)
+            unit: Unit = self.bot.units.by_tag(unit_tag)
             unit_attack_range = self.get_unit_attack_range(unit)
-            maximum_unit_radius = max(unit_radius, maximum_unit_radius)
+            demographics.maximum_unit_radius = max(unit.radius, demographics.maximum_unit_radius)
             if not unit_attack_range:
                 continue
-            minimum_attack_range = min(radius, unit_attack_range)
+            demographics.minimum_attack_range = min(unit_attack_range, demographics.minimum_attack_range)
         return demographics
 
     def get_formation_positions(self):
@@ -130,7 +137,6 @@ class Formation:
             circumference = demographics.maximum_unit_radius * len(self.unit_tags)
             radius = circumference / math.tau
             angular_separation = math.tau / len(self.unit_tags)
-            positions = []
             for idx, unit_tag in enumerate(self.unit_tags):
                 positions.append(
                     FormationPosition(
@@ -149,7 +155,6 @@ class Formation:
             max_units_in_radius = swept_arc_length // demographics.maximum_unit_radius
             angular_separation = math.pi / max_units_in_radius
             rank = 0
-            positions = []
             for idx, unit_tag in enumerate(self.unit_tags, start=1):
                 if idx > (rank + 1) * max_units_in_radius:
                     rank += 1
@@ -190,9 +195,15 @@ class Formation:
 class ParentFormation:
     """Collection of formations which are offset from each other. tracks slowest unit as leader"""
 
-    def __init__(self):
-        self.game_position: Point2 = None  # of the front-center of the formations
+    def __init__(self, bot: BotAI):
+        self.bot = bot
         self.formations: list[Formation] = []
+
+    def __repr__(self):
+        buffer = ""
+        for formation in self.formations:
+            buffer += f"{formation}, "
+        return buffer
 
     def clear(self):
         self.formations = []
@@ -200,31 +211,58 @@ class ParentFormation:
     def add_formation(
         self,
         formation_type: FormationType,
-        units: Units,
+        unit_tags: list[int],
         offset: Point2 = Point2((0, 0)),
     ):
-        self.formations.append(Formation(formation_type, units, offset))
+        if not unit_tags:
+            return
+        logger.info(f"Adding formation {formation_type.name} with unit tags {unit_tags}")
+        self.formations.append(Formation(formation_type, unit_tags, offset))
 
-    def get_leader_offset(self, leader: Unit) -> Point2:
+    @property
+    def game_position(self) -> Point2:
+        if not self.formations:
+            return None
+        formation = self.formations[0]
+        if not formation.positions:
+            return None
+        unit_position: FormationPosition = formation.positions[0]
+        unit_offset = unit_position.offset + formation.offset
+        unit = self.bot.units.by_tag(unit_position.unit_tag)
+        unit_position = self.apply_rotation(unit.facing, point=unit_position.offset)
+        return unit_position + unit_offset
+
+    def get_unit_offset(self, unit: Unit) -> Point2:
         for formation in self.formations:
-            for postion in formation.positions:
-                if postion.unit_tag == leader.tag:
-                    return postion.offset + formation.offset
+            logger.info(formation)
+            for position in formation.positions:
+                logger.info(position)
+                if position.unit_tag == unit.tag:
+                    return position.offset + formation.offset
 
-    def apply_rotation(self, positions: dict[int, Point2], angle: float):
+    def apply_rotation(self, angle: float, point: Point2) -> Point2:
         s_theta = math.sin(angle)
         c_theta = math.cos(angle)
-        for position in positions.values():
-            new_x = position.x * c_theta + position.y * s_theta
-            new_y = -position.x * s_theta + position.y * c_theta
-            position.x = new_x
-            position.y = new_y
+        return self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
+
+    def _apply_rotation(self, *, s_theta: float, c_theta: float, point: Point2) -> Point2:
+        new_x = point.x * c_theta + point.y * s_theta
+        new_y = -point.x * s_theta + point.y * c_theta
+        return Point2((new_x, new_y))
+
+    def apply_rotations(self, angle: float, points: dict[int, Point2] = None):
+        s_theta = math.sin(angle)
+        c_theta = math.cos(angle)
+        new_positions = {}
+        for unit_tag, point in points.items():
+            new_positions[unit_tag] = self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
+        return new_positions
 
     def get_unit_destinations(
         self, formation_destination: Point2, leader: Unit
     ) -> dict[int, Point2]:
         unit_destinations = {}
-        leader_offset = self.get_leader_offset(leader)
+        leader_offset = self.get_unit_offset(leader)
         # leader destination
         for formation in self.formations:
             unit_destinations.update(
@@ -233,5 +271,5 @@ class ParentFormation:
         leader_destination = formation_destination - leader_offset
         unit_destinations[leader.tag] = leader_destination
         # TODO: apply rotation matrix
-        self.apply_rotation(unit_destinations, leader.facing)
+        unit_destinations = self.apply_rotations(leader.facing, unit_destinations)
         return unit_destinations
