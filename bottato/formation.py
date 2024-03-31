@@ -83,8 +83,9 @@ class FormationPosition:
 
 class Formation:
     def __init__(
-        self, formation_type: FormationType, unit_tags: list[int], offset: Point2
+        self, bot: BotAI, formation_type: FormationType, unit_tags: list[int], offset: Point2
     ):
+        self.bot = bot
         # generate specific formation positions
         self.formation_type = formation_type
         self.unit_tags = unit_tags
@@ -180,14 +181,14 @@ class Formation:
                 )
         return positions
 
-    def get_unit_position_from_leader(
-        self, leader_offset: Point2, leader_position: Point2
+    def get_unit_offset_from_leader(
+        self, leader_offset: Point2
     ) -> dict[int, Point2]:
         """positions for all formation members by tag"""
         unit_positions = {}
         for position in self.positions:
             unit_positions[position.unit_tag] = (
-                position.offset + self.offset - leader_offset + leader_position
+                position.offset + self.offset - leader_offset
             )
         return unit_positions
 
@@ -217,20 +218,19 @@ class ParentFormation:
         if not unit_tags:
             return
         logger.info(f"Adding formation {formation_type.name} with unit tags {unit_tags}")
-        self.formations.append(Formation(formation_type, unit_tags, offset))
+        self.formations.append(Formation(self.bot, formation_type, unit_tags, offset))
 
     @property
     def game_position(self) -> Point2:
-        if not self.formations:
-            return None
-        formation = self.formations[0]
-        if not formation.positions:
-            return None
-        unit_position: FormationPosition = formation.positions[0]
-        unit_offset = unit_position.offset + formation.offset
-        unit = self.bot.units.by_tag(unit_position.unit_tag)
-        unit_position = self.apply_rotation(unit.facing, point=unit_position.offset)
-        return unit_position + unit_offset
+        for formation in self.formations:
+            for position in formation.positions:
+                try:
+                    reference_unit = self.bot.units.by_tag(position.unit_tag)
+                    unit_offset = position.offset + formation.offset
+                    rotated_offset = self.apply_rotation(reference_unit.facing, point=unit_offset)
+                    return reference_unit.position + rotated_offset
+                except KeyError:
+                    continue
 
     def get_unit_offset(self, unit: Unit) -> Point2:
         for formation in self.formations:
@@ -241,13 +241,15 @@ class ParentFormation:
                     return position.offset + formation.offset
 
     def apply_rotation(self, angle: float, point: Point2) -> Point2:
-        s_theta = math.sin(angle)
-        c_theta = math.cos(angle)
+        # rotations default to facing along the y-axis, with a facing of pi/2
+        rotation_needed = angle - math.pi / 2
+        s_theta = math.sin(rotation_needed)
+        c_theta = math.cos(rotation_needed)
         return self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
 
     def _apply_rotation(self, *, s_theta: float, c_theta: float, point: Point2) -> Point2:
-        new_x = point.x * c_theta + point.y * s_theta
-        new_y = -point.x * s_theta + point.y * c_theta
+        new_x = point.x * c_theta - point.y * s_theta
+        new_y = point.x * s_theta + point.y * c_theta
         return Point2((new_x, new_y))
 
     def apply_rotations(self, angle: float, points: dict[int, Point2] = None):
@@ -261,15 +263,16 @@ class ParentFormation:
     def get_unit_destinations(
         self, formation_destination: Point2, leader: Unit
     ) -> dict[int, Point2]:
-        unit_destinations = {}
+        unit_offsets = {}
         leader_offset = self.get_unit_offset(leader)
         # leader destination
         for formation in self.formations:
-            unit_destinations.update(
-                formation.get_unit_position_from_leader(leader_offset, leader.position)
+            unit_offsets.update(
+                formation.get_unit_offset_from_leader(leader_offset)
             )
-        leader_destination = formation_destination - leader_offset
-        unit_destinations[leader.tag] = leader_destination
+
+        unit_offsets = self.apply_rotations(leader.facing, unit_offsets)
+        unit_destinations = dict([(unit_tag, offset + leader.position) for unit_tag, offset in unit_offsets.items()])
+        unit_destinations[leader.tag] = formation_destination - unit_offsets[leader.tag]
         # TODO: apply rotation matrix
-        unit_destinations = self.apply_rotations(leader.facing, unit_destinations)
         return unit_destinations

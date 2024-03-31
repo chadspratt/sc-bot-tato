@@ -185,7 +185,7 @@ class Squad(BaseSquad):
             for unit in self.units:
                 unit.attack(closest_target)
         else:
-            self.current_order = SquadOrderEnum.IDLE
+            self.move(self.slowest_unit.position)
 
     def move(self, position: Point2):
         logger.info(
@@ -208,7 +208,7 @@ class Squad(BaseSquad):
             self.current_order = SquadOrderEnum.IDLE
             return
         game_positions = self.parent_formation.get_unit_destinations(self._destination, self.slowest_unit)
-        logger.info(f"squad {self.name} moving to {self._destination} with {game_positions.values()}")
+        logger.info(f"squad {self.name} moving from {self.parent_formation.game_position}/{self.slowest_unit.position} to {self._destination} with {game_positions.values()}")
         for unit in self.units:
             if unit.tag in self.bot.unit_tags_received_action:
                 continue
