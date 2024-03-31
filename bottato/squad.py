@@ -69,7 +69,6 @@ class Squad(BaseSquad):
     def __init__(
         self,
         *,
-        bot,
         composition: dict[UnitTypeId, int] = None,
         name: str = "fuckwits",
         **kwargs,
@@ -82,18 +81,18 @@ class Squad(BaseSquad):
         self.slowest_unit: Unit = None
         self._position: Point2 = None
         self._destination: Point2 = None
-        self.targets: Units = Units([], bot_object=bot)
+        self.targets: Units = Units([], bot_object=self.bot)
         self.parent_formation: ParentFormation = ParentFormation()
 
     def update_formation(self):
         # decide formation(s)
         if not self.parent_formation.formations:
-            self.parent_formation.add_formation(FormationType.LINE, self._units)
+            self.parent_formation.add_formation(FormationType.LINE, self._units.tags)
 
         if self.bot.enemy_units.closer_than(8.0, self._position):
             self.parent_formation.clear()
             self.parent_formation.add_formation(
-                FormationType.HOLLOW_CIRCLE, self._units
+                FormationType.HOLLOW_CIRCLE, self._units.tags
             )
 
     def execute(self, squad_order: SquadOrder):
