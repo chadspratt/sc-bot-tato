@@ -20,20 +20,23 @@ class Military:
     def __init__(self, bot: BotAI) -> None:
         self.bot: BotAI = bot
         self.unassigned_army = Squad(
-            bot,
+            bot=bot,
         )
         self.squads = [
             Squad(
-                bot, composition={UnitTypeId.REAPER: 2}, color=(0, 0, 255), name="alpha"
+                bot=bot,
+                composition={UnitTypeId.REAPER: 2},
+                color=(0, 0, 255),
+                name="alpha",
             ),
             Squad(
-                bot,
+                bot=bot,
                 composition={UnitTypeId.HELLION: 2, UnitTypeId.REAPER: 1},
                 color=(255, 255, 0),
                 name="burninate",
             ),
             Squad(
-                bot,
+                bot=bot,
                 composition={
                     UnitTypeId.CYCLONE: 1,
                     UnitTypeId.MARINE: 4,
@@ -43,7 +46,7 @@ class Military:
                 name="seek",
             ),
             Squad(
-                bot,
+                bot=bot,
                 composition={
                     UnitTypeId.SIEGETANK: 1,
                     UnitTypeId.MARINE: 4,
@@ -53,7 +56,7 @@ class Military:
                 name="destroy",
             ),
             Squad(
-                bot,
+                bot=bot,
                 composition={
                     UnitTypeId.SIEGETANK: 1,
                     UnitTypeId.MARINE: 2,
@@ -75,7 +78,7 @@ class Military:
         logger.info(_report)
 
     def update_references(self):
-        self.unassigned_army.continue_order()
+        self.unassigned_army.update_references()
         for squad in self.squads:
             squad.update_references()
 

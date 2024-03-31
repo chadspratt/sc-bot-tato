@@ -32,22 +32,53 @@ class SquadOrder:
         self.priority = priority
 
 
-class Squad(UnitReferenceMixin):
+class BaseSquad(UnitReferenceMixin):
     def __init__(
         self,
+        *,
         bot: BotAI,
-        composition: dict[UnitTypeId, int] = None,
         color: tuple[int] = (0, 255, 0),
-        name: str = "fuckwits",
     ):
-        self.orders = []
         self.bot = bot
+        self.color = color
+        self._units: Units = Units([], bot_object=bot)
+
+    @property
+    def units(self):
+        return self._units.copy()
+
+    def draw_debug_box(self):
+        for unit in self._units:
+            self.bot.client.debug_box2_out(
+                unit, half_vertex_length=unit.radius, color=self.color
+            )
+
+    def remove(self, unit: Unit):
+        logger.info(f"Removing {unit} from {self.name} squad")
+        try:
+            self._units.remove(unit)
+        except ValueError:
+            logger.info("Unit not found in squad")
+
+    def transfer(self, unit: Unit, to_squad: Squad):
+        self.remove(unit)
+        to_squad.recruit(unit)
+
+
+class Squad(BaseSquad):
+    def __init__(
+        self,
+        *,
+        composition: dict[UnitTypeId, int] = None,
+        name: str = "fuckwits",
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.orders = []
         self.name = name
         self.composition = composition or {}
-        self.color = color
         self.current_order = SquadOrderEnum.IDLE
         self.slowest_unit: Unit = None
-        self._units: Units = Units([], bot_object=bot)
         self._position: Point2 = None
         self._destination: Point2 = None
         self.targets: Units = Units([], bot_object=bot)
@@ -123,12 +154,6 @@ class Squad(UnitReferenceMixin):
         if self.current_order == SquadOrderEnum.ATTACK:
             self.continue_attack()
 
-    def draw_debug_box(self):
-        for unit in self._units:
-            self.bot.client.debug_box2_out(
-                unit, half_vertex_length=unit.radius, color=self.color
-            )
-
     def recruit(self, unit: Unit):
         logger.info(f"Recruiting {unit} into {self.name} squad")
         if (
@@ -199,21 +224,6 @@ class Squad(UnitReferenceMixin):
         has = len(self._units)
         wants = sum([v for v in self.composition.values()])
         return f"{self.name}({has}/{wants})"
-
-    @property
-    def units(self):
-        return self._units.copy()
-
-    def remove(self, unit: Unit):
-        logger.info(f"Removing {unit} from {self.name} squad")
-        try:
-            self._units.remove(unit)
-        except ValueError:
-            logger.info("Unit not found in squad")
-
-    def transfer(self, unit: Unit, to_squad: Squad):
-        self.remove(unit)
-        to_squad.recruit(unit)
 
     def new_move(self, to_point: Point2):
         game_positions = self.parent_formation.get_game_positions()
