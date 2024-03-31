@@ -85,20 +85,26 @@ class Formation:
             positions = [
                 FormationPosition(
                     x_offset=i - len(self.units), y_offset=0, unit_tag=unit_tag
-                ) for i, unit_tag in enumerate(self.unit_tags)
+                )
+                for i, unit_tag in enumerate(self.unit_tags)
             ]
         return positions
 
-    def get_unit_position_from_leader(self, leader_offset: Point2, leader_position: Point2) -> dict[int, Point2]:
+    def get_unit_position_from_leader(
+        self, leader_offset: Point2, leader_position: Point2
+    ) -> dict[int, Point2]:
         """positions for all formation members by tag"""
         unit_positions = {}
         for position in self.positions:
-            unit_positions[position.unit_tag] = position.offset + self.offset - leader_offset + leader_position
+            unit_positions[position.unit_tag] = (
+                position.offset + self.offset - leader_offset + leader_position
+            )
         return unit_positions
 
 
 class ParentFormation:
     """Collection of formations which are offset from each other. tracks slowest unit as leader"""
+
     def __init__(self):
         self.game_position: Point2 = None  # of the front-center of the formations
         self.formations: list[Formation] = []
@@ -106,7 +112,12 @@ class ParentFormation:
     def clear(self):
         self.formations = []
 
-    def add_formation(self, formation_type: FormationType, units: Units, offset: Point2 = Point2(0, 0)):
+    def add_formation(
+        self,
+        formation_type: FormationType,
+        units: Units,
+        offset: Point2 = Point2((0, 0)),
+    ):
         self.formations.append(Formation(formation_type, units, offset))
 
     def get_leader_offset(self, leader: Unit) -> Point2:
@@ -120,16 +131,20 @@ class ParentFormation:
         c_theta = math.cos(angle)
         for position in positions.values():
             new_x = position.x * c_theta + position.y * s_theta
-            new_y = position.x * s_theta - position.x * s_theta
+            new_y = -position.x * s_theta + position.y * c_theta
             position.x = new_x
             position.y = new_y
 
-    def get_unit_destinations(self, formation_destination: Point2, leader: Unit) -> dict[int, Point2]:
+    def get_unit_destinations(
+        self, formation_destination: Point2, leader: Unit
+    ) -> dict[int, Point2]:
         unit_destinations = {}
         leader_offset = self.get_leader_offset(leader)
         # leader destination
         for formation in self.formations:
-            unit_destinations.update(formation.get_unit_position_from_leader(leader_offset, leader.position))
+            unit_destinations.update(
+                formation.get_unit_position_from_leader(leader_offset, leader.position)
+            )
         leader_destination = formation_destination - leader_offset
         unit_destinations[leader.tag] = leader_destination
         # TODO: apply rotation matrix

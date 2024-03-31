@@ -51,7 +51,7 @@ class Squad(UnitReferenceMixin):
         self._position: Point2 = None
         self._destination: Point2 = None
         self.targets: Units = Units([], bot_object=bot)
-        self.parent_formation : ParentFormation = ParentFormation()
+        self.parent_formation: ParentFormation = ParentFormation()
 
     def update_formation(self):
         # decide formation(s)
@@ -60,7 +60,9 @@ class Squad(UnitReferenceMixin):
 
         if self.bot.enemy_units.closer_than(8.0, self._position):
             self.parent_formation.clear()
-            self.parent_formation.add_formation(FormationType.HOLLOW_CIRCLE, self._units)
+            self.parent_formation.add_formation(
+                FormationType.HOLLOW_CIRCLE, self._units
+            )
 
     def execute(self, squad_order: SquadOrder):
         self.orders.append(squad_order)
@@ -107,7 +109,7 @@ class Squad(UnitReferenceMixin):
             if slowest is None or unit.movement_speed < slowest.movement_speed:
                 slowest = unit
         return slowest
-    
+
     def update_references(self):
         self._units = self.get_updated_unit_references(self.units)
         self.targets = self.get_updated_unit_references(self.targets)
