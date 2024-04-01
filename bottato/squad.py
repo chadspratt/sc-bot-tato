@@ -132,24 +132,20 @@ class Squad(BaseSquad):
         wants = sum([v for v in self.composition.values()])
         return f"{self.name}({has}/{wants})"
 
-    def refresh_slowest_unit(self):
-        if self.slowest_unit is not None:
-            try:
-                self.slowest_unit = self.get_updated_unit_reference(self.slowest_unit)
-            except self.UnitNotFound:
-                self.slowest_unit = self.find_slowest_unit()
-
-    def find_slowest_unit(self):
+    def update_slowest_unit(self):
         slowest: Unit = None
         for unit in self.units:
             if slowest is None or unit.movement_speed < slowest.movement_speed:
                 slowest = unit
-        return slowest
+        if self._destination is not None:
+            slowest = self.units.of_type(slowest.type_id).furthest_to(self._destination)
+
+        self.slowest_unit = slowest
 
     def update_references(self):
         self._units = self.get_updated_unit_references(self.units)
         self.targets = self.get_updated_unit_references(self.targets)
-        self.refresh_slowest_unit()
+        self.update_slowest_unit()
 
     def update_formation(self, reset=False):
         # decide formation(s)
