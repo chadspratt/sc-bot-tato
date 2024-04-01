@@ -189,7 +189,7 @@ class Formation:
         for position in self.positions:
             unit_positions[position.unit_tag] = (
                 position.offset + self.offset - leader_offset
-            )
+            ) * 1.3
         return unit_positions
 
 
@@ -261,7 +261,7 @@ class ParentFormation:
         return new_positions
 
     def get_unit_destinations(
-        self, formation_destination: Point2, leader: Unit
+        self, formation_destination: Point2, leader: Unit, facing: float = None
     ) -> dict[int, Point2]:
         unit_offsets = {}
         leader_offset = self.get_unit_offset(leader)
@@ -271,7 +271,9 @@ class ParentFormation:
                 formation.get_unit_offset_from_leader(leader_offset)
             )
 
-        unit_offsets = self.apply_rotations(leader.facing, unit_offsets)
+        if facing is None:
+            facing = leader.facing
+        unit_offsets = self.apply_rotations(facing, unit_offsets)
         unit_destinations = dict([(unit_tag, offset + leader.position) for unit_tag, offset in unit_offsets.items()])
         unit_destinations[leader.tag] = formation_destination - unit_offsets[leader.tag]
         # TODO: apply rotation matrix

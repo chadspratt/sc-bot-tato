@@ -1,5 +1,6 @@
 from __future__ import annotations
 import enum
+import math
 
 from loguru import logger
 from sc2.bot_ai import BotAI
@@ -80,6 +81,7 @@ class Squad(BaseSquad):
         self.current_order = SquadOrderEnum.IDLE
         self.slowest_unit: Unit = None
         self._destination: Point2 = None
+        self.previous_position: Point2 = None
         self.targets: Units = Units([], bot_object=self.bot)
         self.targets: Units = Units([], bot_object=self.bot)
         self.parent_formation: ParentFormation = ParentFormation(self.bot)
@@ -105,6 +107,15 @@ class Squad(BaseSquad):
         has = len(self._units)
         wants = sum([v for v in self.composition.values()])
         return has >= wants
+
+    @property
+    def facing(self) -> float:
+        angle = math.atan2(
+            self._destination.y - self.previous_position.y, self._destination.x - self.previous_position.x
+        )
+        if angle < 0:
+            angle += math.pi * 2
+        return angle
 
     def recruit(self, unit: Unit):
         logger.info(f"Recruiting {unit} into {self.name} squad")
@@ -184,32 +195,28 @@ class Squad(BaseSquad):
             closest_target = self.targets.closest_to(self.slowest_unit)
             for unit in self.units:
                 unit.attack(closest_target)
-        else:
-            self.move(self.slowest_unit.position)
 
     def move(self, position: Point2):
         logger.info(
             f"{self.name} Squad moving to {position};"
         )
         self.current_order = SquadOrderEnum.MOVE
+        self.previous_position = self.parent_formation.game_position
         self._destination = position
 
-        for unit in self.units:
-            if unit == self.slowest_unit:
-                logger.info(
-                    f"{self.name} Squad leader {self.slowest_unit} moving to {position}"
-                )
-                self.slowest_unit.attack(position)
-                break
+        self.continue_move()
 
     def continue_move(self):
-        if self.parent_formation.game_position.distance_to(self._destination) < 1:
-            logger.info(f"{self.name} Squad arrived at {self._destination}")
-            self.current_order = SquadOrderEnum.IDLE
-            return
-        game_positions = self.parent_formation.get_unit_destinations(self._destination, self.slowest_unit)
+        facing = None
+        distance_moved = (self.parent_formation.game_position - self.previous_position).length
+        if distance_moved < 5:
+            facing = self.facing
+        game_positions = self.parent_formation.get_unit_destinations(self._destination, self.slowest_unit, facing)
         logger.info(f"squad {self.name} moving from {self.parent_formation.game_position}/{self.slowest_unit.position} to {self._destination} with {game_positions.values()}")
         for unit in self.units:
             if unit.tag in self.bot.unit_tags_received_action:
                 continue
             unit.attack(game_positions[unit.tag])
+
+    def regroup(self):
+        self.move(self.parent_formation.game_position)

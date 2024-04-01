@@ -81,26 +81,21 @@ class Military:
                 if squad.needs(unassigned):
                     self.unassigned_army.transfer(unassigned, squad)
                     break
-        for squad in self.squads:
+        for i, squad in enumerate(self.squads):
+            if not squad.units:
+                continue
+            squad.draw_debug_box()
             squad.update_formation()
             squad.continue_order()
-            squad.draw_debug_box()
             if not squad.is_full:
                 map_center = self.bot.game_info.map_center
                 staging_location = self.bot.start_location.towards(
-                    map_center, distance=10
+                    map_center, distance=10 + i * 5
                 )
                 squad.move(staging_location)
-        for squad in self.squads:
-            if squad.is_full:
+            elif enemy.enemies_in_view:
                 logger.debug(f"squad {squad.name} is full")
                 squad.attack(enemy.enemies_in_view)
+            else:
+                squad.regroup()
         self.report()
-        # if not alpha_squad.has_orders and self.enemies_in_view:
-        #     alpha_squad.attack(self.enemies_in_view[0])
-
-    def manage_formations(self):
-        # create formation if there are none
-        if not self.formations:
-            self
-        # gather unassigned units to formations
