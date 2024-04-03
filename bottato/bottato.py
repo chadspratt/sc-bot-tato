@@ -73,10 +73,6 @@ class BotTato(BotAI):
             logger.info(f"assigned to {self.military.unassigned_army.name}")
             self.military.unassigned_army.recruit(unit)
 
-    async def on_enemy_unit_entered_vision(self, unit: Unit):
-        logger.info(f"Enemy unit seen {unit}")
-        self.enemy.enemies_in_view.append(unit)
-
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         logger.info(
             f"Unit taking damage {unit}, "

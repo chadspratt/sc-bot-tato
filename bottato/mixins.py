@@ -10,6 +10,10 @@ class UnitReferenceMixin:
         pass
 
     def get_updated_unit_reference(self, unit: Unit) -> Unit:
+        if unit is None:
+            raise self.UnitNotFound(
+                "unit is None"
+            )
         return self.get_updated_unit_reference_by_tag(unit.tag)
 
     def get_updated_unit_reference_by_tag(self, tag: int) -> Unit:

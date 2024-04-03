@@ -86,16 +86,18 @@ class Military:
                 continue
             squad.draw_debug_box()
             squad.update_formation()
-            squad.continue_order()
-            if not squad.is_full:
+            if enemy.enemies_in_view:
+                logger.debug(f"squad {squad.name} is full")
+                squad.attack(enemy.enemies_in_view)
+            elif not squad.is_full:
                 map_center = self.bot.game_info.map_center
                 staging_location = self.bot.start_location.towards(
                     map_center, distance=10 + i * 5
                 )
                 squad.move(staging_location)
-            elif enemy.enemies_in_view:
+            elif self.bot.enemy_structures:
                 logger.debug(f"squad {squad.name} is full")
-                squad.attack(enemy.enemies_in_view)
+                squad.attack(self.bot.enemy_structures)
             else:
-                squad.regroup()
+                squad.continue_order()
         self.report()

@@ -133,14 +133,30 @@ class Squad(BaseSquad):
         return f"{self.name}({has}/{wants})"
 
     def update_slowest_unit(self):
-        slowest: Unit = None
-        for unit in self.units:
-            if slowest is None or unit.movement_speed < slowest.movement_speed:
-                slowest = unit
-        if self._destination is not None:
-            slowest = self.units.of_type(slowest.type_id).furthest_to(self._destination)
+        new_slowest: Unit = None
+    
+        try:
+            self.slowest_unit = self.get_updated_unit_reference(self.slowest_unit)
+        except self.UnitNotFound:
+            self.slowest_unit = None
 
-        self.slowest_unit = slowest
+        # find slowest type of unit in squad
+        for unit in self.units:
+            if new_slowest is None or unit.movement_speed < new_slowest.movement_speed:
+                new_slowest = unit
+    
+        # find instance of slowest type that is furthest from destination
+        if self._destination is not None and new_slowest is not None:
+            candidates: Units = self.units.of_type(new_slowest.type_id)
+            # make the slowest assignment stickier by only looking at distant units
+            # unless current slowest is missing
+            if self.slowest_unit is not None:
+                candidates = candidates.further_than(10, self._destination)
+            if candidates:
+                new_slowest = candidates.furthest_to(self._destination)
+
+        if new_slowest is not None:
+            self.slowest_unit = new_slowest
 
     def update_references(self):
         self._units = self.get_updated_unit_references(self.units)
@@ -205,6 +221,7 @@ class Squad(BaseSquad):
     def continue_move(self):
         facing = None
         distance_moved = (self.parent_formation.game_position - self.previous_position).length
+        logger.info(f"distance moved {distance_moved} from {self.parent_formation.game_position} to {self.previous_position}")
         if distance_moved < 5:
             facing = self.facing
         game_positions = self.parent_formation.get_unit_destinations(self._destination, self.slowest_unit, facing)

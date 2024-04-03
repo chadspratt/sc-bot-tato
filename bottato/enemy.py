@@ -18,7 +18,8 @@ class Enemy(UnitReferenceMixin):
 
     def update_references(self):
         for squad in self.enemy_squads:
-            squad.update_unit_references()
+            squad.update_references()
+        self.enemies_in_view = self.bot.enemy_units
 
     def find_nearby_squad(self, enemy_unit: Unit) -> EnemySquad:
         for enemy_squad in self.enemy_squads:
