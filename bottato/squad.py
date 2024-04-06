@@ -1,6 +1,7 @@
 from __future__ import annotations
 import enum
 import math
+from typing import Set
 
 from loguru import logger
 from sc2.bot_ai import BotAI
@@ -9,7 +10,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
 
-from .mixins import UnitReferenceMixin
+from .mixins import UnitReferenceMixin, VectorFacingMixin
 from .formation import FormationType, ParentFormation
 
 
@@ -19,6 +20,7 @@ class SquadOrderEnum(enum.Enum):
     ATTACK = 2
     DEFEND = 3
     RETREAT = 4
+    REGROUP = 5
 
 
 class SquadOrder:
@@ -42,14 +44,10 @@ class BaseSquad(UnitReferenceMixin):
     ):
         self.bot = bot
         self.color = color
-        self._units: Units = Units([], bot_object=bot)
-
-    @property
-    def units(self):
-        return self._units.copy()
+        self.units: Units = Units([], bot_object=bot)
 
     def draw_debug_box(self):
-        for unit in self._units:
+        for unit in self.units:
             self.bot.client.debug_box2_out(
                 unit, half_vertex_length=unit.radius, color=self.color
             )
@@ -57,7 +55,7 @@ class BaseSquad(UnitReferenceMixin):
     def remove(self, unit: Unit):
         logger.info(f"Removing {unit} from {self.name} squad")
         try:
-            self._units.remove(unit)
+            self.units.remove(unit)
         except ValueError:
             logger.info("Unit not found in squad")
 
@@ -66,7 +64,7 @@ class BaseSquad(UnitReferenceMixin):
         to_squad.recruit(unit)
 
 
-class Squad(BaseSquad):
+class Squad(BaseSquad, VectorFacingMixin):
     def __init__(
         self,
         *,
@@ -83,8 +81,9 @@ class Squad(BaseSquad):
         self._destination: Point2 = None
         self.previous_position: Point2 = None
         self.targets: Units = Units([], bot_object=self.bot)
-        self.targets: Units = Units([], bot_object=self.bot)
         self.parent_formation: ParentFormation = ParentFormation(self.bot)
+        self.units_in_formation_position: Set[int] = set()
+        self.previous_facing: float = None
 
     def execute(self, squad_order: SquadOrder):
         self.orders.append(squad_order)
@@ -95,7 +94,7 @@ class Squad(BaseSquad):
         return _wants
 
     def unit_count(self, unit: Unit) -> int:
-        _has = sum([1 for u in self._units if u.type_id is unit.type_id])
+        _has = sum([1 for u in self.units if u.type_id is unit.type_id])
         logger.info(f"{self.name} squad has {_has} {unit.type_id.name}")
         return _has
 
@@ -104,7 +103,7 @@ class Squad(BaseSquad):
 
     @property
     def is_full(self) -> bool:
-        has = len(self._units)
+        has = len(self.units)
         wants = sum([v for v in self.composition.values()])
         return has >= wants
 
@@ -117,6 +116,10 @@ class Squad(BaseSquad):
             angle += math.pi * 2
         return angle
 
+    @property
+    def position(self) -> Point2:
+        return self.parent_formation.game_position
+
     def recruit(self, unit: Unit):
         logger.info(f"Recruiting {unit} into {self.name} squad")
         if (
@@ -124,17 +127,17 @@ class Squad(BaseSquad):
             or unit.movement_speed < self.slowest_unit.movement_speed
         ):
             self.slowest_unit = unit
-        self._units.append(unit)
+        self.units.append(unit)
         self.update_formation(reset=True)
 
     def get_report(self) -> str:
-        has = len(self._units)
+        has = len(self.units)
         wants = sum([v for v in self.composition.values()])
         return f"{self.name}({has}/{wants})"
 
     def update_slowest_unit(self):
         new_slowest: Unit = None
-    
+
         try:
             self.slowest_unit = self.get_updated_unit_reference(self.slowest_unit)
         except self.UnitNotFound:
@@ -144,7 +147,7 @@ class Squad(BaseSquad):
         for unit in self.units:
             if new_slowest is None or unit.movement_speed < new_slowest.movement_speed:
                 new_slowest = unit
-    
+
         # find instance of slowest type that is furthest from destination
         if self._destination is not None and new_slowest is not None:
             candidates: Units = self.units.of_type(new_slowest.type_id)
@@ -159,7 +162,7 @@ class Squad(BaseSquad):
             self.slowest_unit = new_slowest
 
     def update_references(self):
-        self._units = self.get_updated_unit_references(self.units)
+        self.units = self.get_updated_unit_references(self.units)
         self.targets = self.get_updated_unit_references(self.targets)
         self.update_slowest_unit()
 
@@ -170,23 +173,13 @@ class Squad(BaseSquad):
         if reset:
             self.parent_formation.clear()
         if not self.parent_formation.formations:
-            self.parent_formation.add_formation(FormationType.LINE, self._units.tags)
+            self.parent_formation.add_formation(FormationType.LINE, self.units.tags)
         if self.bot.enemy_units.closer_than(8.0, self.parent_formation.game_position):
             self.parent_formation.clear()
             self.parent_formation.add_formation(
-                FormationType.HOLLOW_CIRCLE, self._units.tags
+                FormationType.HOLLOW_CIRCLE, self.units.tags
             )
         logger.info(f"squad {self.name} formation: {self.parent_formation}")
-
-    def continue_order(self):
-        if not self._units:
-            return
-        # calc front and position
-        # move continuation
-        if self.current_order == SquadOrderEnum.MOVE:
-            self.continue_move()
-        if self.current_order == SquadOrderEnum.ATTACK:
-            self.continue_attack()
 
     def attack(self, targets: Units):
         if not targets:
@@ -199,37 +192,60 @@ class Squad(BaseSquad):
         logger.info(
             f"{self.name} Squad attacking {closest_target};"
         )
-        for unit in self.units:
-            unit.attack(closest_target)
 
-    def continue_attack(self):
-        if self.targets:
-            closest_target = self.targets.closest_to(self.slowest_unit)
-            for unit in self.units:
+        for unit in self.units:
+            if unit.target_in_range(closest_target):
                 unit.attack(closest_target)
 
-    def move(self, position: Point2):
-        logger.info(
-            f"{self.name} Squad moving to {position};"
-        )
+        self.move(closest_target.position, self.get_facing(self.position, closest_target.position))
+
+    def move(self, destination: Point2, destination_facing: float):
         self.current_order = SquadOrderEnum.MOVE
-        self.previous_position = self.parent_formation.game_position
-        self._destination = position
+        self._destination = destination
 
-        self.continue_move()
+        formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.slowest_unit, destination_facing)
+        # check if squad is in formation
+        self.update_units_in_formation_position(formation_positions)
+        if self.formation_completion < 0.5:
+            # if not, regroup
+            self._destination = self.get_regroup_destination()
+            logger.info(f"squad {self.name} regrouping at {self._destination}")
+            formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.slowest_unit)
+        elif self.formation_completion < 0.9:
+            # pause the leader
+            formation_positions[self.slowest_unit.tag] = self.slowest_unit.position
 
-    def continue_move(self):
-        facing = None
-        distance_moved = (self.parent_formation.game_position - self.previous_position).length
-        logger.info(f"distance moved {distance_moved} from {self.parent_formation.game_position} to {self.previous_position}")
-        if distance_moved < 5:
-            facing = self.facing
-        game_positions = self.parent_formation.get_unit_destinations(self._destination, self.slowest_unit, facing)
-        logger.info(f"squad {self.name} moving from {self.parent_formation.game_position}/{self.slowest_unit.position} to {self._destination} with {game_positions.values()}")
+        logger.info(f"squad {self.name} moving from {self.parent_formation.game_position}/{self.slowest_unit.position} to {self._destination} with {formation_positions.values()}")
         for unit in self.units:
             if unit.tag in self.bot.unit_tags_received_action:
                 continue
-            unit.attack(game_positions[unit.tag])
+            unit.attack(formation_positions[unit.tag])
+        # TODO add leader movement vector to positions so they aren't playing catch up
 
-    def regroup(self):
-        self.move(self.parent_formation.game_position)
+    def update_units_in_formation_position(self, formation_positions: dict[int, Point2]):
+        self.units_in_formation_position.clear()
+        self.units_in_formation_position.add(self.slowest_unit.tag)
+        for unit in self.units:
+            if unit.distance_to(formation_positions[unit.tag]) < 2:
+                self.units_in_formation_position.add(unit.tag)
+
+    @property
+    def formation_completion(self) -> float:
+        return len(self.units_in_formation_position) / len(self.units)
+
+    def get_regroup_destination(self) -> Point2:
+        self.current_order = SquadOrderEnum.REGROUP
+        # find a midpoint
+        max_x = max_y = min_x = min_y = None
+        for unit in self.units:
+            unit.facing
+            if max_x is None or unit.position.x > max_x:
+                max_x = unit.position.x
+            if max_y is None or unit.position.y > max_y:
+                max_y = unit.position.y
+            if min_x is None or unit.position.x < min_x:
+                min_x = unit.position.x
+            if min_y is None or unit.position.y < min_y:
+                min_y = unit.position.y
+
+        return Point2(((min_x + max_x) / 2, (min_y + max_y) / 2))

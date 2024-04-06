@@ -7,8 +7,10 @@ from sc2.position import Point2
 from .squad import Squad
 from .enemy import Enemy
 
+from .mixins import VectorFacingMixin
 
-class Military:
+
+class Military(VectorFacingMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot: BotAI = bot
         self.unassigned_army = Squad(
@@ -94,10 +96,9 @@ class Military:
                 staging_location = self.bot.start_location.towards(
                     map_center, distance=10 + i * 5
                 )
-                squad.move(staging_location)
+                squad.move(staging_location, self.get_facing(squad.position, staging_location))
             elif self.bot.enemy_structures:
                 logger.debug(f"squad {squad.name} is full")
                 squad.attack(self.bot.enemy_structures)
-            else:
-                squad.continue_order()
+
         self.report()

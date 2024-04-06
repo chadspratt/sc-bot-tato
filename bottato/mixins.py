@@ -1,8 +1,10 @@
+import math
 from loguru import logger
 from typing import List
 
 from sc2.unit import Unit
 from sc2.units import Units
+from sc2.position import Point2
 
 
 class UnitReferenceMixin:
@@ -41,3 +43,13 @@ class UnitReferenceMixin:
             except self.UnitNotFound:
                 logger.info(f"Couldn't find unit {tag}!")
         return _units
+
+
+class VectorFacingMixin:
+    def get_facing(self, start_position: Point2, end_position: Point2):
+        angle = math.atan2(
+            end_position.y - start_position.y, end_position.x - start_position.x
+        )
+        if angle < 0:
+            angle += math.pi * 2
+        return angle

@@ -261,7 +261,7 @@ class ParentFormation:
         return new_positions
 
     def get_unit_destinations(
-        self, formation_destination: Point2, leader: Unit, facing: float = None
+        self, formation_destination: Point2, leader: Unit, destination_facing: float = None
     ) -> dict[int, Point2]:
         unit_offsets = {}
         leader_offset = self.get_unit_offset(leader)
@@ -271,10 +271,13 @@ class ParentFormation:
                 formation.get_unit_offset_from_leader(leader_offset)
             )
 
-        if facing is None:
-            facing = leader.facing
-        unit_offsets = self.apply_rotations(facing, unit_offsets)
-        unit_destinations = dict([(unit_tag, offset + leader.position) for unit_tag, offset in unit_offsets.items()])
-        unit_destinations[leader.tag] = formation_destination - unit_offsets[leader.tag]
-        # TODO: apply rotation matrix
+        distance_remaining = (self.game_position - formation_destination).length
+        formation_facing = destination_facing if distance_remaining < 5 and destination_facing else leader.facing
+
+        rotated_offsets = self.apply_rotations(formation_facing, unit_offsets)
+        if destination_facing:
+            rotated_offsets[leader.tag] = self.apply_rotation(destination_facing, unit_offsets[leader.tag])
+        unit_destinations = dict([(unit_tag, offset + leader.position) for unit_tag, offset in rotated_offsets.items()])
+        unit_destinations[leader.tag] = formation_destination - leader_offset
+
         return unit_destinations

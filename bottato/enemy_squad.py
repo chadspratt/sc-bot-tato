@@ -2,9 +2,7 @@ from __future__ import annotations
 from typing import Dict
 
 from loguru import logger
-from sc2.bot_ai import BotAI
 from sc2.unit import Unit
-from sc2.units import Units
 from sc2.position import Point2
 
 from .squad import BaseSquad
@@ -24,20 +22,20 @@ class EnemySquad(BaseSquad):
         self.last_known_position: Point2 = None
 
     def update_references(self):
-        self._units = self.get_updated_unit_references_by_tags(
+        self.units = self.get_updated_unit_references_by_tags(
             self.last_seen_time_by_unit_tag.keys()
         )
 
     def near(self, unit: Unit) -> bool:
-        return len(self._units.closer_than(NEARBY_THRESHOLD, unit)) > 0
+        return len(self.units.closer_than(NEARBY_THRESHOLD, unit)) > 0
 
     def recruit(self, unit: Unit):
         logger.info(f"adding {unit} into {self.name} squad")
-        self._units.append(unit)
+        self.units.append(unit)
 
     def get_report(self) -> str:
         composition = {}
-        for unit in self._units:
+        for unit in self.units:
             composition.setdefault(unit.type_id, []).append(unit)
         buffer = ""
         for unit_type_id, units in composition.items():
