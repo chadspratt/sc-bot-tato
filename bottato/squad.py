@@ -1,6 +1,5 @@
 from __future__ import annotations
 import enum
-import math
 from typing import Set
 
 from loguru import logger
@@ -83,7 +82,7 @@ class Squad(BaseSquad, VectorFacingMixin):
         self.targets: Units = Units([], bot_object=self.bot)
         self.parent_formation: ParentFormation = ParentFormation(self.bot)
         self.units_in_formation_position: Set[int] = set()
-        self.previous_facing: float = None
+        self.destination_facing: float = None
 
     def execute(self, squad_order: SquadOrder):
         self.orders.append(squad_order)
@@ -108,25 +107,14 @@ class Squad(BaseSquad, VectorFacingMixin):
         return has >= wants
 
     @property
-    def facing(self) -> float:
-        angle = math.atan2(
-            self._destination.y - self.previous_position.y, self._destination.x - self.previous_position.x
-        )
-        if angle < 0:
-            angle += math.pi * 2
-        return angle
-
-    @property
     def position(self) -> Point2:
         return self.parent_formation.game_position
 
     def recruit(self, unit: Unit):
         logger.info(f"Recruiting {unit} into {self.name} squad")
-        if (
-            self.slowest_unit is None
-            or unit.movement_speed < self.slowest_unit.movement_speed
-        ):
+        if self.slowest_unit is None:
             self.slowest_unit = unit
+            self.units_in_formation_position.add(unit.tag)
         self.units.append(unit)
         self.update_formation(reset=True)
 
@@ -138,28 +126,23 @@ class Squad(BaseSquad, VectorFacingMixin):
     def update_slowest_unit(self):
         new_slowest: Unit = None
 
-        try:
-            self.slowest_unit = self.get_updated_unit_reference(self.slowest_unit)
-        except self.UnitNotFound:
-            self.slowest_unit = None
+        candidates: Units = Units([
+            unit for unit in self.units
+            if unit.tag in self.units_in_formation_position
+        ], self.bot)
 
         # find slowest type of unit in squad
-        for unit in self.units:
+        for unit in candidates:
             if new_slowest is None or unit.movement_speed < new_slowest.movement_speed:
                 new_slowest = unit
 
-        # find instance of slowest type that is furthest from destination
-        if self._destination is not None and new_slowest is not None:
-            candidates: Units = self.units.of_type(new_slowest.type_id)
-            # make the slowest assignment stickier by only looking at distant units
-            # unless current slowest is missing
-            if self.slowest_unit is not None:
-                candidates = candidates.further_than(10, self._destination)
-            if candidates:
-                new_slowest = candidates.furthest_to(self._destination)
-
         if new_slowest is not None:
             self.slowest_unit = new_slowest
+        else:
+            try:
+                self.slowest_unit = self.get_updated_unit_reference(self.slowest_unit)
+            except self.UnitNotFound:
+                self.slowest_unit = None
 
     def update_references(self):
         self.units = self.get_updated_unit_references(self.units)
@@ -174,7 +157,7 @@ class Squad(BaseSquad, VectorFacingMixin):
             self.parent_formation.clear()
         if not self.parent_formation.formations:
             self.parent_formation.add_formation(FormationType.LINE, self.units.tags)
-        if self.bot.enemy_units.closer_than(8.0, self.parent_formation.game_position):
+        if self.bot.enemy_units.closer_than(8.0, self.position):
             self.parent_formation.clear()
             self.parent_formation.add_formation(
                 FormationType.HOLLOW_CIRCLE, self.units.tags
@@ -202,20 +185,22 @@ class Squad(BaseSquad, VectorFacingMixin):
     def move(self, destination: Point2, destination_facing: float):
         self.current_order = SquadOrderEnum.MOVE
         self._destination = destination
+        self.destination_facing = destination_facing
 
         formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.slowest_unit, destination_facing)
         # check if squad is in formation
         self.update_units_in_formation_position(formation_positions)
-        if self.formation_completion < 0.5:
+        if self.formation_completion < 0.4:
             # if not, regroup
-            self._destination = self.get_regroup_destination()
-            logger.info(f"squad {self.name} regrouping at {self._destination}")
-            formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.slowest_unit)
-        elif self.formation_completion < 0.9:
+            regroup_point = self.get_regroup_destination()
+            logger.info(f"squad {self.name} regrouping at {regroup_point}")
+            formation_positions = self.parent_formation.get_unit_destinations(regroup_point, self.slowest_unit)
+        elif self.formation_completion < 0.6:
+            logger.info(f"squad {self.name} pausing leader {self.slowest_unit} for squad to catch up")
             # pause the leader
             formation_positions[self.slowest_unit.tag] = self.slowest_unit.position
 
-        logger.info(f"squad {self.name} moving from {self.parent_formation.game_position}/{self.slowest_unit.position} to {self._destination} with {formation_positions.values()}")
+        logger.info(f"squad {self.name} moving from {self.position}/{self.slowest_unit.position} to {self._destination} with {formation_positions.values()}")
         for unit in self.units:
             if unit.tag in self.bot.unit_tags_received_action:
                 continue

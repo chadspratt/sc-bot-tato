@@ -96,9 +96,12 @@ class Military(VectorFacingMixin):
                 staging_location = self.bot.start_location.towards(
                     map_center, distance=10 + i * 5
                 )
+                # facing = self.get_facing(squad.position, staging_location) if squad.position else squad.slowest_unit.facing
                 squad.move(staging_location, self.get_facing(squad.position, staging_location))
             elif self.bot.enemy_structures:
                 logger.debug(f"squad {squad.name} is full")
                 squad.attack(self.bot.enemy_structures)
+            else:
+                squad.move(squad._destination, squad.destination_facing)
 
         self.report()

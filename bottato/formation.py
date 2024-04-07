@@ -1,6 +1,7 @@
 from __future__ import annotations
 import enum
 import math
+from typing import List
 
 from loguru import logger
 from sc2.bot_ai import BotAI
@@ -15,48 +16,6 @@ class FormationType(enum.Enum):
     LINE = 3
     SQUARE = 4
     HOLLOW_HALF_CIRCLE = 5
-
-
-line = [[[0]]] * 9
-
-# fan_out = [
-#     [[1], [ ], [ ], [ ], [1]],
-#     [[ ], [ ], [1], [ ], [ ]],
-# ]
-
-# marine_diamond = [
-#     [[ ], [ ], [ ], [ ], [ ], [1], [ ], [ ], [ ], [ ], [ ]],
-#     [[ ], [ ], [ ], [ ], [1], [ ], [1], [ ], [ ], [ ], [ ]],
-#     [[ ], [ ], [ ], [1], [ ], [ ], [ ], [1], [ ], [ ], [ ]],
-#     [[ ], [ ], [1], [ ], [ ], [ ], [ ], [ ], [1], [ ], [ ]],
-#     [[ ], [1], [ ], [ ], [ ], [ ], [ ], [ ], [ ], [1], [ ]],
-#     [[1], [ ], [ ], [ ], [ ], [ ], [ ], [ ], [ ], [ ], [1]],
-#     [[ ], [1], [ ], [ ], [ ], [ ], [ ], [ ], [ ], [1], [ ]],
-#     [[ ], [ ], [1], [ ], [ ], [ ], [ ], [ ], [1], [ ], [ ]],
-#     [[ ], [ ], [ ], [1], [ ], [ ], [ ], [1], [ ], [ ], [ ]],
-#     [[ ], [ ], [ ], [ ], [1], [ ], [1], [ ], [ ], [ ], [ ]],
-#     [[ ], [ ], [ ], [ ], [ ], [1], [ ], [ ], [ ], [ ], [ ]],
-# ]
-# marine_diamond = [
-#     [[marine_diamond], [ ], [ ], [ ], [ ], [marine_diamond]],
-# ]
-# diamonds = [
-#     [[], [      ], [marine_line, raven_line], [      ], [diamond]],
-#     [[      ], [      ], [diamond], [      ], [      ]],
-# ]
-column = [
-    [[1], [1]],
-    [[1], [1]],
-    [[1], [1]],
-    [[1], [1]],
-    [[1], [1]],
-    [[1], [1]],
-    [[1], [1]],
-    [[1], [1]],
-    [[1], [1]],
-    [[1], [1]],
-    [[1], [1]],
-]
 
 
 class UnitDemographics:
@@ -93,7 +52,7 @@ class Formation:
         # self.unit_count = unit_count
         # self.slowest_unit = None
         self.positions: list[FormationPosition] = self.get_formation_positions()
-        logger.info(self.positions)
+        logger.info(f"created formation {self.positions}")
 
     def __repr__(self):
         buffer = ""
@@ -123,62 +82,75 @@ class Formation:
             demographics.minimum_attack_range = min(unit_attack_range, demographics.minimum_attack_range)
         return demographics
 
-    def get_formation_positions(self):
+    def get_formation_positions(self) -> List[FormationPosition]:
         positions = []
         if self.formation_type == FormationType.LINE:
-            positions = [
-                FormationPosition(
-                    x_offset=i - len(self.unit_tags), y_offset=0, unit_tag=unit_tag
-                )
-                for i, unit_tag in enumerate(self.unit_tags)
-            ]
+            positions = self.get_line_positions()
         elif self.formation_type == FormationType.HOLLOW_CIRCLE:
-            # pack units shoulder to shoulder
-            demographics = self.get_unit_demographics()
-            circumference = demographics.maximum_unit_radius * len(self.unit_tags)
-            radius = circumference / math.tau
-            angular_separation = math.tau / len(self.unit_tags)
-            for idx, unit_tag in enumerate(self.unit_tags):
-                positions.append(
-                    FormationPosition(
-                        x_offset=math.sin(idx * angular_separation) * radius,
-                        y_offset=math.cos(idx * angular_separation) * radius + radius,
-                        unit_tag=unit_tag,
-                    )
-                )
+            positions = self.get_hollow_circle_positions()
         elif self.formation_type == FormationType.HOLLOW_HALF_CIRCLE:
-            # use minimum unit attack radius as radius of circle (should
-            #   fill from bottom up)
-            # place units shoulder to shoulder, and form extra half circles
-            #   (radial pattern) behind first rank with extra units
-            demographics = self.get_unit_demographics()
-            swept_arc_length = math.pi * demographics.minimum_attack_range
-            max_units_in_radius = swept_arc_length // demographics.maximum_unit_radius
-            angular_separation = math.pi / max_units_in_radius
-            rank = 0
-            for idx, unit_tag in enumerate(self.unit_tags, start=1):
-                if idx > (rank + 1) * max_units_in_radius:
-                    rank += 1
-                _idx = idx - (rank * max_units_in_radius)
-                signum = -1
-                if _idx % 2 == 1:
-                    signum = 1
-                half_idx = _idx // 2
-                positions.append(
-                    FormationPosition(
-                        x_offset=math.sin(signum * half_idx * angular_separation)
-                        * (
-                            demographics.minimum_attack_range
-                            + demographics.maximum_unit_radius * rank
-                        ),
-                        y_offset=math.cos(signum * half_idx * angular_separation)
-                        * (
-                            demographics.minimum_attack_range
-                            + demographics.maximum_unit_radius * rank
-                        ),
-                        unit_tag=unit_tag,
-                    )
+            positions = self.get_hollow_half_circle_positions()
+        return positions
+
+    def get_line_positions(self) -> List[FormationPosition]:
+        return [
+            FormationPosition(
+                x_offset=i - len(self.unit_tags) / 2.0 + 0.5, y_offset=0.5, unit_tag=unit_tag
+            )
+            for i, unit_tag in enumerate(self.unit_tags)
+        ]
+
+    def get_hollow_circle_positions(self) -> List[FormationPosition]:
+        positions: List[FormationPosition] = list()
+        # pack units shoulder to shoulder
+        demographics = self.get_unit_demographics()
+        circumference = demographics.maximum_unit_radius * len(self.unit_tags)
+        radius = circumference / math.tau
+        angular_separation = math.tau / len(self.unit_tags)
+        for idx, unit_tag in enumerate(self.unit_tags):
+            positions.append(
+                FormationPosition(
+                    x_offset=math.sin(idx * angular_separation) * radius,
+                    y_offset=math.cos(idx * angular_separation) * radius + radius,
+                    unit_tag=unit_tag,
                 )
+            )
+        return positions
+
+    def get_hollow_half_circle_positions(self) -> List[FormationPosition]:
+        positions: List[FormationPosition] = list()
+        # use minimum unit attack radius as radius of circle (should
+        #   fill from bottom up)
+        # place units shoulder to shoulder, and form extra half circles
+        #   (radial pattern) behind first rank with extra units
+        demographics = self.get_unit_demographics()
+        swept_arc_length = math.pi * demographics.minimum_attack_range
+        max_units_in_radius = swept_arc_length // demographics.maximum_unit_radius
+        angular_separation = math.pi / max_units_in_radius
+        rank = 0
+        for idx, unit_tag in enumerate(self.unit_tags, start=1):
+            if idx > (rank + 1) * max_units_in_radius:
+                rank += 1
+            _idx = idx - (rank * max_units_in_radius)
+            signum = -1
+            if _idx % 2 == 1:
+                signum = 1
+            half_idx = _idx // 2
+            positions.append(
+                FormationPosition(
+                    x_offset=math.sin(signum * half_idx * angular_separation)
+                    * (
+                        demographics.minimum_attack_range
+                        + demographics.maximum_unit_radius * rank
+                    ),
+                    y_offset=math.cos(signum * half_idx * angular_separation)
+                    * (
+                        demographics.minimum_attack_range
+                        + demographics.maximum_unit_radius * rank
+                    ),
+                    unit_tag=unit_tag,
+                )
+            )
         return positions
 
     def get_unit_offset_from_leader(
@@ -194,7 +166,7 @@ class Formation:
 
 
 class ParentFormation:
-    """Collection of formations which are offset from each other. tracks slowest unit as leader"""
+    """Collection of formations which are offset from each other. Translates between formation coords and game coords"""
 
     def __init__(self, bot: BotAI):
         self.bot = bot
@@ -234,9 +206,7 @@ class ParentFormation:
 
     def get_unit_offset(self, unit: Unit) -> Point2:
         for formation in self.formations:
-            logger.info(formation)
             for position in formation.positions:
-                logger.info(position)
                 if position.unit_tag == unit.tag:
                     return position.offset + formation.offset
 
