@@ -31,11 +31,12 @@ class BuildStep(UnitReferenceMixin):
         self.completed_time: int = None
 
     def __repr__(self) -> str:
-        return f"BuildStep({self.unit_type_id}, {self.unit_in_charge}, {self.unit_being_built}, {self.pos}, {self.completed_time})"
-
-    def convert_point2_to_3(self, point2: Point2) -> Point3:
-        height: float = self.bot.get_terrain_z_height(point2)
-        return Point3((point2.x, point2.y, height))
+        unit_name = (
+            self.unit_being_built.name
+            if self.unit_being_built and self.unit_being_built is not True
+            else self.unit_type_id
+        )
+        return f"BuildStep({unit_name}, {self.completed_time})"
 
     def draw_debug_box(self):
         if self.unit_in_charge is not None:

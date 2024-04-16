@@ -4,12 +4,16 @@ from typing import List
 
 from sc2.unit import Unit
 from sc2.units import Units
-from sc2.position import Point2
+from sc2.position import Point2, Point3
 
 
 class UnitReferenceMixin:
     class UnitNotFound(Exception):
         pass
+
+    def convert_point2_to_3(self, point2: Point2) -> Point3:
+        height: float = self.bot.get_terrain_z_height(point2)
+        return Point3((point2.x, point2.y, height))
 
     def get_updated_unit_reference(self, unit: Unit) -> Unit:
         if unit is None:

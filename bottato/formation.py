@@ -32,8 +32,11 @@ class FormationPosition:
         self.y_offset = y_offset
         self.unit_tag: int = unit_tag
 
-    def __str__(self):
+    def __repr__(self):
         return f"{self.unit_tag}: ({self.x_offset}, {self.y_offset})"
+
+    def __str__(self):
+        return self.__repr__()
 
     @property
     def offset(self):
@@ -55,10 +58,10 @@ class Formation:
         logger.info(f"created formation {self.positions}")
 
     def __repr__(self):
-        buffer = ""
-        for position in self.positions:
-            buffer += f"{position}, "
-        return buffer
+        return ", ".join([str(position) for position in self.positions])
+
+    def __str__(self):
+        return self.__repr__()
 
     def get_unit_attack_range(self, unit: Unit) -> float:
         # PS: this might belong in the `Bottato` class, but it goes here for now
@@ -95,7 +98,7 @@ class Formation:
     def get_line_positions(self) -> List[FormationPosition]:
         return [
             FormationPosition(
-                x_offset=i - len(self.unit_tags) / 2.0 + 0.5, y_offset=0.5, unit_tag=unit_tag
+                x_offset=i - len(self.unit_tags) / 2.0 + 0.5, y_offset=-0.5, unit_tag=unit_tag
             )
             for i, unit_tag in enumerate(self.unit_tags)
         ]
@@ -173,10 +176,7 @@ class ParentFormation:
         self.formations: list[Formation] = []
 
     def __repr__(self):
-        buffer = ""
-        for formation in self.formations:
-            buffer += f"{formation}, "
-        return buffer
+        return ", ".join([str(formation) for formation in self.formations])
 
     def clear(self):
         self.formations = []
@@ -212,10 +212,14 @@ class ParentFormation:
 
     def apply_rotation(self, angle: float, point: Point2) -> Point2:
         # rotations default to facing along the y-axis, with a facing of pi/2
+        logger.debug(f"apply_rotation at angle {angle}")
         rotation_needed = angle - math.pi / 2
+        logger.debug(f">> adjusted to {rotation_needed}")
         s_theta = math.sin(rotation_needed)
         c_theta = math.cos(rotation_needed)
-        return self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
+        rotated = self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
+        logger.debug(f"rotation calculated from {point} to {rotated}")
+        return rotated
 
     def _apply_rotation(self, *, s_theta: float, c_theta: float, point: Point2) -> Point2:
         new_x = point.x * c_theta - point.y * s_theta
@@ -223,8 +227,10 @@ class ParentFormation:
         return Point2((new_x, new_y))
 
     def apply_rotations(self, angle: float, points: dict[int, Point2] = None):
-        s_theta = math.sin(angle)
-        c_theta = math.cos(angle)
+        # rotations default to facing along the y-axis, with a facing of pi/2
+        rotation_needed = angle - math.pi / 2
+        s_theta = math.sin(rotation_needed)
+        c_theta = math.cos(rotation_needed)
         new_positions = {}
         for unit_tag, point in points.items():
             new_positions[unit_tag] = self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
@@ -242,9 +248,13 @@ class ParentFormation:
             )
 
         distance_remaining = (self.game_position - formation_destination).length
+        logger.info(f"formation distance remaining {distance_remaining}")
         formation_facing = destination_facing if distance_remaining < 5 and destination_facing else leader.facing
+        logger.info(f"formation facing {formation_facing}")
 
+        logger.info(f"unit offsets {unit_offsets}")
         rotated_offsets = self.apply_rotations(formation_facing, unit_offsets)
+        logger.info(f"rotated offsets {rotated_offsets}")
         if destination_facing:
             rotated_offsets[leader.tag] = self.apply_rotation(destination_facing, unit_offsets[leader.tag])
         unit_destinations = dict([(unit_tag, offset + leader.position) for unit_tag, offset in rotated_offsets.items()])

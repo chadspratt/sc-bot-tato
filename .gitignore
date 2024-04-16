@@ -2,3 +2,4 @@
 *.pyc
 bot_tato.log
 *.log
+*.sc2replay

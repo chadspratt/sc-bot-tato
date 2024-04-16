@@ -1,4 +1,5 @@
 from loguru import logger
+import os
 
 from sc2.bot_ai import BotAI
 from sc2.data import Result
@@ -17,17 +18,24 @@ class BotTato(BotAI):
     async def on_start(self):
         # name clash with BotAI.workers
         self._workers: Workers = Workers(self)
-        self.military: Military = Military(self)
+        self.enemy: Enemy = Enemy(self)
+        self.military: Military = Military(self, self.enemy)
         self.micro: Micro = Micro(self)
         self.build_order: BuildOrder = BuildOrder(
             "tvt1", bot=self, workers=self._workers
         )
-        self.enemy: Enemy = Enemy(self)
         await self.client.debug_fast_build()
+        # self.client.save_replay_path = "..\replays\bottato.mpq"
+        self.last_replay_save_time = 0
+        logger.info(os.getcwd())
 
     async def on_step(self, iteration):
         logger.info(f"starting step, iteration: {iteration}, time: {self.time}")
+        if self.time - self.last_replay_save_time > 5:
+            await self.client.save_replay(".\\replays\\bottato.sc2replay")
+            
         if len(self.units) == 0 or len(self.townhalls) == 0:
+            await self.client.save_replay(".\\replays\\bottato.sc2replay")
             await self.client.leave()
 
         self.update_unit_references()
@@ -38,7 +46,7 @@ class BotTato(BotAI):
         needed_resources: Cost = self.build_order.get_first_resource_shortage()
         await self._workers.distribute_workers(needed_resources)
 
-        self.military.manage_squads(self.enemy)
+        self.military.manage_squads()
 
         # logger.info("executing build order")
         await self.build_order.execute()
@@ -47,6 +55,7 @@ class BotTato(BotAI):
     async def on_end(self, game_result: Result):
         print("Game ended.")
         logger.info(self.build_order.complete)
+        # await self.client.save_replay("..\replays\bottato.mpq")
         # Do things here after the game ends
 
     def update_unit_references(self):
@@ -78,6 +87,7 @@ class BotTato(BotAI):
             f"Unit taking damage {unit}, "
             f"current health: {unit.health}/{unit.health_max})"
         )
+        self.military.report_damage(unit, amount_damage_taken)
 
     async def on_unit_destroyed(self, unit_tag: int):
         logger.info(f"Unit {unit_tag} destroyed. Condolences.")
