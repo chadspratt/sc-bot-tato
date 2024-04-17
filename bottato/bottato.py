@@ -31,9 +31,9 @@ class BotTato(BotAI):
 
     async def on_step(self, iteration):
         logger.info(f"starting step, iteration: {iteration}, time: {self.time}")
-        if self.time - self.last_replay_save_time > 5:
+        if self.time - self.last_replay_save_time > 10:
             await self.client.save_replay(".\\replays\\bottato.sc2replay")
-            
+
         if len(self.units) == 0 or len(self.townhalls) == 0:
             await self.client.save_replay(".\\replays\\bottato.sc2replay")
             await self.client.leave()

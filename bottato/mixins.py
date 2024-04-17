@@ -2,6 +2,7 @@ import math
 from loguru import logger
 from typing import List
 
+from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2, Point3
@@ -57,3 +58,37 @@ class VectorFacingMixin:
         if angle < 0:
             angle += math.pi * 2
         return angle
+
+
+class UnitMicroMixin:
+    def retreat(self, unit: Unit):
+        bot: BotAI = self.bot
+        attack_range_buffer = 2
+        if unit.is_flying:
+            threats = [enemy_unit for enemy_unit in bot.all_enemy_units
+                       if enemy_unit.can_attack_air
+                       and enemy_unit.air_range + attack_range_buffer > unit.distance_to(enemy_unit)]
+        else:
+            threats = [enemy_unit for enemy_unit in bot.all_enemy_units
+                       if enemy_unit.can_attack_ground
+                       and enemy_unit.ground_range + attack_range_buffer > unit.distance_to(enemy_unit)]
+        retreat_vector = Point2([0, 0])
+        map_center_vector = bot.game_info.map_center - unit.position
+        if threats:
+            for threat in threats:
+                retreat_vector += unit.position - threat.position
+            retreat_vector = retreat_vector.normalized * 2 + (map_center_vector).normalized
+        else:
+            retreat_vector = map_center_vector
+        unit.move(unit.position + retreat_vector)
+
+    def attack_something(self, unit: Unit):
+        bot: BotAI = self.bot
+        if unit.weapon_cooldown == 0:
+            targets = bot.all_enemy_units.in_attack_range_of(unit)
+            if targets:
+                target = targets.sorted(key=lambda enemy_unit: enemy_unit.health).first
+                unit.attack(target)
+                logger.info(f"unit {unit} attacking enemy {target}")
+                return target
+        return None
