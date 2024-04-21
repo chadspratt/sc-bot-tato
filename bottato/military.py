@@ -91,6 +91,7 @@ class Military(VectorFacingMixin):
     def manage_squads(self):
         self.unassigned_army.draw_debug_box()
         for unassigned in self.unassigned_army.units:
+            logger.info(f"scouts needed: {self.scouting.scouts_needed}")
             if self.scouting.scouts_needed > 0:
                 self.unassigned_army.transfer(unassigned, self.scouting)
                 continue

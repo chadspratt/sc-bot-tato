@@ -80,6 +80,7 @@ class UnitMicroMixin:
             retreat_vector = retreat_vector.normalized * 2 + (map_center_vector).normalized
         else:
             retreat_vector = map_center_vector
+        logger.info(f"unit {unit} retreating from {threats} in direction {retreat_vector}")
         unit.move(unit.position + retreat_vector)
 
     def attack_something(self, unit: Unit):

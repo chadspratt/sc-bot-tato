@@ -31,7 +31,7 @@ class BotTato(BotAI):
 
     async def on_step(self, iteration):
         logger.info(f"starting step, iteration: {iteration}, time: {self.time}")
-        if self.time - self.last_replay_save_time > 10:
+        if self.time - self.last_replay_save_time > 20:
             await self.client.save_replay(".\\replays\\bottato.sc2replay")
 
         if len(self.units) == 0 or len(self.townhalls) == 0:
@@ -54,7 +54,10 @@ class BotTato(BotAI):
 
     async def on_end(self, game_result: Result):
         print("Game ended.")
-        logger.info(self.build_order.complete)
+        try:
+            logger.info(self.build_order.complete)
+        except AttributeError:
+            pass
         # await self.client.save_replay("..\replays\bottato.mpq")
         # Do things here after the game ends
 
