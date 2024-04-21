@@ -8,7 +8,7 @@ from sc2.units import Units
 
 from .squad import BaseSquad
 from .enemy import Enemy
-from .mixins import UnitMicroMixin
+from .mixins import UnitMicroMixin, UnitReferenceMixin
 
 
 class ScoutingLocation:
@@ -21,7 +21,76 @@ class ScoutingLocation:
         return f"ScoutingLocation({self.position}, {self.last_seen})"
 
 
-class Scouting(BaseSquad, UnitMicroMixin):
+class Scout(UnitReferenceMixin, UnitMicroMixin):
+    def __init__(self, name, bot: BotAI):
+        self.name: str = name
+        self.bot: BotAI = bot
+        self.unit: Unit = None
+        self.scouting_locations: List[ScoutingLocation] = list()
+        self.scouting_locations_index: int = 0
+
+    def __repr__(self):
+        return f"{self.name} scouts: {self.unit}, locations: {self.scouting_locations}"
+
+    def add_location(self, scouting_location: ScoutingLocation):
+        self.scouting_locations.append(scouting_location)
+
+    def contains_location(self, scouting_location: ScoutingLocation):
+        return scouting_location in self.scouting_locations
+    
+    @property
+    def scouts_needed(self) -> int:
+        return 0 if self.unit else 1
+
+    def update_scout(self, new_damage_taken: dict[int, float]):
+        if self.unit:
+            try:
+                self.unit = self.get_updated_unit_reference(self.unit)
+                logger.info(f"{self.name} scout {self.unit}")
+                self.move_scout(new_damage_taken)
+            except self.UnitNotFound:
+                self.unit = None
+                pass
+
+    def move_scout(self, new_damage_taken: dict[int, float]):
+        assignment: ScoutingLocation = self.scouting_locations[self.scouting_locations_index]
+        logger.info(f"scout {self.unit} previous assignment: {assignment}")
+
+        # move to next location if taking damage
+        next_index = self.scouting_locations_index
+        if self.unit.tag in new_damage_taken:
+            next_index = (next_index + 1) % len(self.scouting_locations)
+            assignment: ScoutingLocation = self.scouting_locations[next_index]
+            logger.info(f"scout {self.unit} took damage, changing assignment")
+
+        while assignment.last_seen and self.bot.time - assignment.last_seen < 10:
+            next_index = (next_index + 1) % len(self.scouting_locations)
+            if next_index == self.scouting_locations_index:
+                # full cycle, none need scouting
+                break
+            assignment: ScoutingLocation = self.scouting_locations[next_index]
+        logger.info(f"scout {self.unit} new assignment: {assignment}")
+
+        logger.info(f"scout {self.unit} health {self.unit.health}/{self.unit.health_max} ({self.unit.health_percentage}) health")
+        if self.unit.health_percentage < 0.5:
+            logger.info(f"scout {self.unit} below 50%, retreating")
+            self.retreat(self.unit)
+            return next_index
+
+        if self.attack_something(self.unit):
+            return next_index
+
+        if self.unit.health_percentage < 0.8:
+            logger.info(f"scout {self.unit} below 80%, retreating")
+            self.retreat(self.unit)
+        else:
+            logger.info(f"scout {self.unit} moving to updated assignment {assignment}")
+            self.unit.move(assignment.position)
+
+        self.scouting_locations_index = next_index
+
+
+class Scouting(BaseSquad):
     """finds enemy town halls, and tracks last time it saw them.
     Must find enemy. Includes structures and units.
     Must cover map
@@ -33,37 +102,36 @@ class Scouting(BaseSquad, UnitMicroMixin):
         self.bot = bot
         self.enemy = enemy
         self.scouting_locations: List[ScoutingLocation] = list()
-        self.scouting_assignments: dict[Unit, ScoutingLocation] = {}
         self.units: Units = []
-        self.last_scouted = {}
-        self.nearest_locations: List[ScoutingLocation] = list()
-        self.enemy_nearest_locations: List[ScoutingLocation] = list()
-        self.nearest_index = 0
-        self.enemy_nearest_index = 0
+
+        self.friendly_territory = Scout("friendly territory", self.bot)
+        self.enemy_territory = Scout("enemy territory", self.bot)
+
+        # assign all expansions locations to either friendly or enemy territory
         for expansion_location in self.bot.expansion_locations_list:
             self.scouting_locations.append(ScoutingLocation(expansion_location))
         nearest_locations_temp = sorted(self.scouting_locations, key=lambda location: (location.position - self.bot.start_location).length)
         enemy_nearest_locations_temp = sorted(self.scouting_locations, key=lambda location: (location.position - self.bot.enemy_start_locations[0]).length)
-        # self.enemy_nearest_locations.append(self.bot.enemy_start_locations[0])
         for i in range(len(nearest_locations_temp)):
-            if nearest_locations_temp[i] not in self.enemy_nearest_locations:
-                self.nearest_locations.append(nearest_locations_temp[i])
-            if enemy_nearest_locations_temp[i] not in self.nearest_locations:
-                self.enemy_nearest_locations.append(enemy_nearest_locations_temp[i])
+            if not self.enemy_territory.contains_location(nearest_locations_temp[i]):
+                self.friendly_territory.add_location(nearest_locations_temp[i])
+            if not self.friendly_territory.contains_location(enemy_nearest_locations_temp[i]):
+                self.enemy_territory.add_location(enemy_nearest_locations_temp[i])
 
-        logger.debug(f"nearest locations {self.nearest_locations}")
-        logger.debug(f"enemy locations {self.enemy_nearest_locations}")
-
-    def report(self):
-        logger.info("I'm scouting damnit")
+        logger.info(f"friendly_territory {self.friendly_territory}")
+        logger.info(f"enemy_territory {self.enemy_territory}")
 
     @property
     def scouts_needed(self):
-        return 2 - len(self.units)
+        return self.friendly_territory.scouts_needed + self.enemy_territory.scouts_needed
 
     def recruit(self, unit: Unit):
-        logger.info(f"Assigning scout {unit}")
-        self.units.append(unit)
+        if self.enemy_territory.scouts_needed > 0:
+            logger.info(f"Assigning scout {unit} to enemy_territory")
+            self.enemy_territory.unit = unit
+        elif self.friendly_territory.scouts_needed > 0:
+            logger.info(f"Assigning scout {unit} to friendly_territory")
+            self.friendly_territory.unit = unit
 
     def update_visibility(self):
         for location in self.scouting_locations:
@@ -71,65 +139,5 @@ class Scouting(BaseSquad, UnitMicroMixin):
                 location.last_seen = self.bot.time
 
     def move_scouts(self, new_damage_taken: dict[int, float]):
-        if len(self.units) > 0:
-            try:
-                scout: Unit = self.get_updated_unit_reference(self.units[0])
-                logger.info(f"first scout {scout}")
-                self.enemy_nearest_index = self.move_scout(scout, self.enemy_nearest_locations,
-                                                           self.enemy_nearest_index, new_damage_taken)
-            except self.UnitNotFound:
-                pass
-
-        if len(self.units) > 1:
-            try:
-                scout: Unit = self.get_updated_unit_reference(self.units[1])
-                logger.info(f"second scout {scout}")
-                self.nearest_index = self.move_scout(scout, self.nearest_locations,
-                                                     self.nearest_index, new_damage_taken)
-            except self.UnitNotFound:
-                pass
-
-    def move_scout(self, scout: Unit,
-                   locations: list[ScoutingLocation],
-                   location_index: int,
-                   new_damage_taken: dict[int, float]) -> int:
-        assignment: ScoutingLocation = (
-            self.scouting_assignments[scout]
-            if scout in self.scouting_assignments
-            else locations[location_index]
-        )
-        logger.info(f"scout {scout} previous assignment: {assignment}")
-
-        # move to next location if taking damage
-        next_index = location_index
-        if scout.tag in new_damage_taken:
-            next_index = (next_index + 1) % len(locations)
-            assignment: ScoutingLocation = locations[next_index]
-            logger.info(f"scout {scout} took damage, changing assignment")
-
-        while assignment.last_seen and self.bot.time - assignment.last_seen < 10:
-            next_index = (next_index + 1) % len(locations)
-            if next_index == location_index:
-                # full cycle, none need scouting
-                break
-            assignment: ScoutingLocation = locations[next_index]
-        logger.info(f"scout {scout} new assignment: {assignment}")
-        self.scouting_assignments[scout] = assignment
-
-        logger.info(f"scout {scout} health {scout.health}/{scout.health_max} ({scout.health_percentage}) health")
-        if scout.health_percentage < 0.5:
-            logger.info(f"scout {scout} below 50%, retreating")
-            self.retreat(scout)
-            return next_index
-
-        if self.attack_something(scout):
-            return next_index
-
-        if scout.health_percentage < 0.8:
-            logger.info(f"scout {scout} below 80%, retreating")
-            self.retreat(scout)
-        else:
-            logger.info(f"scout {scout} moving to updated assignment {assignment}")
-            scout.move(assignment.position)
-
-        return next_index
+        self.friendly_territory.update_scout(new_damage_taken)
+        self.enemy_territory.update_scout(new_damage_taken)
