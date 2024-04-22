@@ -7,9 +7,9 @@ from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.game_data import Cost
 
-from bottato.build_order import BuildOrder
-from bottato.micro import Micro
-from bottato.enemy import Enemy
+from .build_order import BuildOrder
+from .micro.structures import Structures
+from .enemy import Enemy
 from .workers import Workers
 from .military import Military
 
@@ -20,7 +20,7 @@ class BotTato(BotAI):
         self._workers: Workers = Workers(self)
         self.enemy: Enemy = Enemy(self)
         self.military: Military = Military(self, self.enemy)
-        self.micro: Micro = Micro(self)
+        self.structure_micro: Structures = Structures(self)
         self.build_order: BuildOrder = BuildOrder(
             "tvt1", bot=self, workers=self._workers
         )
@@ -42,7 +42,7 @@ class BotTato(BotAI):
         # needed_units: list[UnitTypeId] = self.military.get_units_needed_to_counter(self.enemy)
         # self.build_order.request_military(needed_units)
 
-        await self.micro.execute()
+        await self.structure_micro.execute()
         needed_resources: Cost = self.build_order.get_first_resource_shortage()
         await self._workers.distribute_workers(needed_resources)
 

@@ -8,7 +8,8 @@ from sc2.units import Units
 
 from .squad import BaseSquad
 from .enemy import Enemy
-from .mixins import UnitMicroMixin, UnitReferenceMixin
+from .mixins import UnitReferenceMixin
+from .micro.base import BaseUnitMicro
 
 
 class ScoutingLocation:
@@ -21,7 +22,7 @@ class ScoutingLocation:
         return f"ScoutingLocation({self.position}, {self.last_seen})"
 
 
-class Scout(UnitReferenceMixin, UnitMicroMixin):
+class Scout(UnitReferenceMixin):
     def __init__(self, name, bot: BotAI):
         self.name: str = name
         self.bot: BotAI = bot
@@ -37,7 +38,7 @@ class Scout(UnitReferenceMixin, UnitMicroMixin):
 
     def contains_location(self, scouting_location: ScoutingLocation):
         return scouting_location in self.scouting_locations
-    
+
     @property
     def scouts_needed(self) -> int:
         return 0 if self.unit else 1
@@ -55,6 +56,8 @@ class Scout(UnitReferenceMixin, UnitMicroMixin):
     def move_scout(self, new_damage_taken: dict[int, float]):
         assignment: ScoutingLocation = self.scouting_locations[self.scouting_locations_index]
         logger.info(f"scout {self.unit} previous assignment: {assignment}")
+
+        micro: BaseUnitMicro = BaseUnitMicro.get_unit_micro(self.unit, self.bot)
 
         # move to next location if taking damage
         next_index = self.scouting_locations_index
@@ -74,15 +77,15 @@ class Scout(UnitReferenceMixin, UnitMicroMixin):
         logger.info(f"scout {self.unit} health {self.unit.health}/{self.unit.health_max} ({self.unit.health_percentage}) health")
         if self.unit.health_percentage < 0.5:
             logger.info(f"scout {self.unit} below 50%, retreating")
-            self.retreat(self.unit)
+            micro.retreat()
             return next_index
 
-        if self.attack_something(self.unit):
+        if micro.attack_something():
             return next_index
 
         if self.unit.health_percentage < 0.8:
             logger.info(f"scout {self.unit} below 80%, retreating")
-            self.retreat(self.unit)
+            micro.retreat()
         else:
             logger.info(f"scout {self.unit} moving to updated assignment {assignment}")
             self.unit.move(assignment.position)
