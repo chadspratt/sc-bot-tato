@@ -10,10 +10,10 @@ from .scouting import Scouting
 from .squad import Squad
 from .enemy import Enemy
 
-from .mixins import VectorFacingMixin
+from .mixins import GeometryMixin
 
 
-class Military(VectorFacingMixin):
+class Military(GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy) -> None:
         self.bot: BotAI = bot
         self.enemy = enemy

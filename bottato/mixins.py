@@ -49,7 +49,7 @@ class UnitReferenceMixin:
         return _units
 
 
-class VectorFacingMixin:
+class GeometryMixin:
     def get_facing(self, start_position: Point2, end_position: Point2):
         angle = math.atan2(
             end_position.y - start_position.y, end_position.x - start_position.x
@@ -58,4 +58,28 @@ class VectorFacingMixin:
             angle += math.pi * 2
         return angle
 
+    def apply_rotation(self, angle: float, point: Point2) -> Point2:
+        # rotations default to facing along the y-axis, with a facing of pi/2
+        logger.debug(f"apply_rotation at angle {angle}")
+        rotation_needed = angle - math.pi / 2
+        logger.debug(f">> adjusted to {rotation_needed}")
+        s_theta = math.sin(rotation_needed)
+        c_theta = math.cos(rotation_needed)
+        rotated = self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
+        logger.debug(f"rotation calculated from {point} to {rotated}")
+        return rotated
 
+    def _apply_rotation(self, *, s_theta: float, c_theta: float, point: Point2) -> Point2:
+        new_x = point.x * c_theta - point.y * s_theta
+        new_y = point.x * s_theta + point.y * c_theta
+        return Point2((new_x, new_y))
+
+    def apply_rotations(self, angle: float, points: dict[int, Point2] = None):
+        # rotations default to facing along the y-axis, with a facing of pi/2
+        rotation_needed = angle - math.pi / 2
+        s_theta = math.sin(rotation_needed)
+        c_theta = math.cos(rotation_needed)
+        new_positions = {}
+        for unit_tag, point in points.items():
+            new_positions[unit_tag] = self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
+        return new_positions

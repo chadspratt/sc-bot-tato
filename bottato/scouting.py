@@ -10,6 +10,7 @@ from .squad import BaseSquad
 from .enemy import Enemy
 from .mixins import UnitReferenceMixin
 from .micro.base import BaseUnitMicro
+from .micro.micro_factory import MicroFactory
 
 
 class ScoutingLocation:
@@ -57,7 +58,7 @@ class Scout(UnitReferenceMixin):
         assignment: ScoutingLocation = self.scouting_locations[self.scouting_locations_index]
         logger.info(f"scout {self.unit} previous assignment: {assignment}")
 
-        micro: BaseUnitMicro = BaseUnitMicro.get_unit_micro(self.unit, self.bot)
+        micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot)
 
         # move to next location if taking damage
         next_index = self.scouting_locations_index
@@ -72,25 +73,10 @@ class Scout(UnitReferenceMixin):
                 # full cycle, none need scouting
                 break
             assignment: ScoutingLocation = self.scouting_locations[next_index]
+        self.scouting_locations_index = next_index
         logger.info(f"scout {self.unit} new assignment: {assignment}")
 
-        logger.info(f"scout {self.unit} health {self.unit.health}/{self.unit.health_max} ({self.unit.health_percentage}) health")
-        if self.unit.health_percentage < 0.5:
-            logger.info(f"scout {self.unit} below 50%, retreating")
-            micro.retreat()
-            return next_index
-
-        if micro.attack_something():
-            return next_index
-
-        if self.unit.health_percentage < 0.8:
-            logger.info(f"scout {self.unit} below 80%, retreating")
-            micro.retreat()
-        else:
-            logger.info(f"scout {self.unit} moving to updated assignment {assignment}")
-            self.unit.move(assignment.position)
-
-        self.scouting_locations_index = next_index
+        micro.scout(assignment.position)
 
 
 class Scouting(BaseSquad):

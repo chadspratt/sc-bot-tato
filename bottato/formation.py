@@ -9,6 +9,8 @@ from sc2.position import Point2
 from sc2.unit import Unit
 # from sc2.units import Units
 
+from .mixins import GeometryMixin
+
 
 class FormationType(enum.Enum):
     SOLID_CIRCLE = 0
@@ -168,7 +170,7 @@ class Formation:
         return unit_positions
 
 
-class ParentFormation:
+class ParentFormation(GeometryMixin):
     """Collection of formations which are offset from each other. Translates between formation coords and game coords"""
 
     def __init__(self, bot: BotAI):
@@ -209,32 +211,6 @@ class ParentFormation:
             for position in formation.positions:
                 if position.unit_tag == unit.tag:
                     return position.offset + formation.offset
-
-    def apply_rotation(self, angle: float, point: Point2) -> Point2:
-        # rotations default to facing along the y-axis, with a facing of pi/2
-        logger.debug(f"apply_rotation at angle {angle}")
-        rotation_needed = angle - math.pi / 2
-        logger.debug(f">> adjusted to {rotation_needed}")
-        s_theta = math.sin(rotation_needed)
-        c_theta = math.cos(rotation_needed)
-        rotated = self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
-        logger.debug(f"rotation calculated from {point} to {rotated}")
-        return rotated
-
-    def _apply_rotation(self, *, s_theta: float, c_theta: float, point: Point2) -> Point2:
-        new_x = point.x * c_theta - point.y * s_theta
-        new_y = point.x * s_theta + point.y * c_theta
-        return Point2((new_x, new_y))
-
-    def apply_rotations(self, angle: float, points: dict[int, Point2] = None):
-        # rotations default to facing along the y-axis, with a facing of pi/2
-        rotation_needed = angle - math.pi / 2
-        s_theta = math.sin(rotation_needed)
-        c_theta = math.cos(rotation_needed)
-        new_positions = {}
-        for unit_tag, point in points.items():
-            new_positions[unit_tag] = self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
-        return new_positions
 
     def get_unit_destinations(
         self, formation_destination: Point2, leader: Unit, destination_facing: float = None

@@ -9,7 +9,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
 
-from .mixins import UnitReferenceMixin, VectorFacingMixin
+from .mixins import UnitReferenceMixin, GeometryMixin
 from .formation import FormationType, ParentFormation
 
 
@@ -64,7 +64,7 @@ class BaseSquad(UnitReferenceMixin):
         to_squad.recruit(unit)
 
 
-class Squad(BaseSquad, VectorFacingMixin):
+class Squad(BaseSquad, GeometryMixin):
     def __init__(
         self,
         *,
