@@ -1,5 +1,5 @@
 from __future__ import annotations
-import math
+# import math
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -7,6 +7,7 @@ from sc2.unit import Unit
 from sc2.position import Point2
 
 from ..mixins import GeometryMixin
+from ..enemy import Enemy
 
 
 class BaseUnitMicro(GeometryMixin):
@@ -14,40 +15,48 @@ class BaseUnitMicro(GeometryMixin):
         self.unit = unit
         self.bot: BotAI = bot
 
-    def retreat(self, health_threshold: float) -> bool:
+    def retreat(self, enemy: Enemy, health_threshold: float) -> bool:
         if self.unit.health_percentage > health_threshold:
             return False
 
-        attack_range_buffer = 2
-        threats = [enemy_unit for enemy_unit in self.bot.all_enemy_units
-                   if enemy_unit.target_in_range(self.unit, attack_range_buffer)]
+        threats = enemy.threats_to(self.unit)
+        # threats = [enemy_unit for enemy_unit in self.bot.all_enemy_units
+        #            if enemy_unit.target_in_range(self.unit)]
         if not threats:
             return False
 
-        retreat_vector = Point2([0, 0])
+        # retreat_vector = Point2([0, 0])
 
         total_potential_damage = 0.0
         for threat in threats:
-            total_potential_damage += threat.calculate_damage_vs_target(self.unit)[0]
-            retreat_vector += (self.unit.position - threat.position).normalized
+            threat_damage = threat.calculate_damage_vs_target(self.unit)[0]
+            total_potential_damage += threat_damage
+            # retreat_vector += (self.unit.position - threat.position).normalized * threat_damage
         # check if incoming damage will bring unit below health threshold
         if (self.unit.health - total_potential_damage) / self.unit.health_max > health_threshold:
             return False
-        map_center_vector = self.bot.game_info.map_center - self.unit.position
-        retreat_vector = retreat_vector + map_center_vector.normalized
+        # map_center_vector = self.bot.game_info.map_center - self.unit.position
+        # retreat_vector = retreat_vector + map_center_vector.normalized
 
-        logger.info(f"unit {self.unit} retreating from {threats} in direction {retreat_vector}")
-        retreat_position = self.unit.position + retreat_vector
-        is_pathable = self.bot.in_map_bounds if self.unit.is_flying else self.bot.in_pathing_grid
-        position_attempts = 0
-        while not is_pathable(retreat_position):
-            position_attempts += 1
-            if position_attempts > 10:
-                # can't find a position to retreat to
-                return False
-            retreat_position = self.unit.position.towards_with_random_angle(retreat_position, 1, math.pi / 3)
+        # logger.info(f"unit {self.unit} retreating from {threats} in direction {retreat_vector}")
+        # desired_position = self.unit.position + retreat_vector
+        # attempted_position = self.unit.position.towards(desired_position, 5)
+        # is_pathable = self.bot.in_map_bounds if self.unit.is_flying else self.bot.in_pathing_grid
+        # position_attempts = 0
+        # max_attempts = 10
+        # min_deflection = math.pi / 5
+        # max_deflection = math.pi / 2
+        # deflection_range = max_deflection - min_deflection
+        # while not is_pathable(attempted_position):
+        #     deflection = min_deflection + deflection_range * position_attempts / max_attempts
+        #     position_attempts += 1
+        #     if position_attempts > max_attempts:
+        #         # can't find a position to retreat to
+        #         return False
+        #     attempted_position = self.unit.position.towards_with_random_angle(desired_position, 5, deflection)
+        # self.unit.move(self.unit.position + retreat_vector)
+        self.unit.move(self.bot.game_info.player_start_location)
 
-        self.unit.move(self.unit.position + retreat_vector)
         return True
 
     def attack_something(self):
@@ -60,14 +69,14 @@ class BaseUnitMicro(GeometryMixin):
                 return target
         return None
 
-    def scout(self, scouting_location: Point2):
+    def scout(self, scouting_location: Point2, enemy: Enemy):
         logger.info(f"scout {self.unit} health {self.unit.health}/{self.unit.health_max} ({self.unit.health_percentage}) health")
 
-        if self.retreat(health_threshold=1.0):
+        if self.retreat(enemy, health_threshold=1.0):
             pass
         elif self.attack_something():
             pass
-        elif self.retreat(health_threshold=0.75):
+        elif self.retreat(enemy, health_threshold=0.75):
             pass
         else:
             logger.info(f"scout {self.unit} moving to updated assignment {scouting_location}")

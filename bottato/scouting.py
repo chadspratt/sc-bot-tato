@@ -24,9 +24,10 @@ class ScoutingLocation:
 
 
 class Scout(UnitReferenceMixin):
-    def __init__(self, name, bot: BotAI):
+    def __init__(self, name, bot: BotAI, enemy: Enemy):
         self.name: str = name
         self.bot: BotAI = bot
+        self.enemy: Enemy = enemy
         self.unit: Unit = None
         self.scouting_locations: List[ScoutingLocation] = list()
         self.scouting_locations_index: int = 0
@@ -76,7 +77,7 @@ class Scout(UnitReferenceMixin):
         self.scouting_locations_index = next_index
         logger.info(f"scout {self.unit} new assignment: {assignment}")
 
-        micro.scout(assignment.position)
+        micro.scout(assignment.position, self.enemy)
 
 
 class Scouting(BaseSquad):
@@ -93,8 +94,8 @@ class Scouting(BaseSquad):
         self.scouting_locations: List[ScoutingLocation] = list()
         self.units: Units = []
 
-        self.friendly_territory = Scout("friendly territory", self.bot)
-        self.enemy_territory = Scout("enemy territory", self.bot)
+        self.friendly_territory = Scout("friendly territory", self.bot, enemy)
+        self.enemy_territory = Scout("enemy territory", self.bot, enemy)
 
         # assign all expansions locations to either friendly or enemy territory
         for expansion_location in self.bot.expansion_locations_list:
