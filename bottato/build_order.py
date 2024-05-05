@@ -5,10 +5,49 @@ from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.game_data import Cost
+from sc2.game_info import Ramp
 from sc2.position import Point2
 
 from bottato.build_step import BuildStep
 from bottato.workers import Workers
+
+
+class RampBlocker:
+    def __init__(self, unit_type_id: UnitTypeId, position: Point2):
+        self.is_started: bool = False
+        self.is_complete: bool = False
+        self.unit_tag: int | None = None
+        self.unit_type_id = unit_type_id
+        self.position = position
+        logger.info(f"Will build {unit_type_id} at {position} to block ramp")
+
+    def __eq__(self, other):
+        return self.unit_type_id == other.type_id and self.position == other.position
+
+
+class RampBlock:
+    def __init__(self, ramp: Ramp):
+        self.is_blocked: bool = False
+        self.ramps = []
+        self.ramp_blockers = []
+        self.add_ramp(ramp)
+
+    def add_ramp(self, ramp: Ramp):
+        ramp_blockers: list[RampBlocker] = []
+        for corner_position in ramp.corner_depots:
+            ramp_blockers.append(RampBlocker(UnitTypeId.SUPPLYDEPOT, corner_position))
+        ramp_blockers.append(
+            RampBlocker(UnitTypeId.BARRACKS, ramp.barracks_correct_placement)
+        )
+        self.ramp_blockers.extend(ramp_blockers)
+
+    def find_placement(self, unit_type_id: UnitTypeId) -> Point2:
+        for ramp_blocker in self.ramp_blockers:
+            if ramp_blocker.is_started:
+                continue
+            if unit_type_id == ramp_blocker.unit_type_id:
+                return ramp_blocker.position
+        return None
 
 
 class BuildOrder:
@@ -27,6 +66,8 @@ class BuildOrder:
         self.pending = [
             BuildStep(unit, bot, workers) for unit in self.get_build_start(build_name)
         ]
+        self.ramp_block = RampBlock(ramp=self.bot.main_base_ramp)
+        logger.info(f"Starting position: {self.bot.start_location}")
 
     async def execute(self) -> None:
         logger.info(
@@ -65,7 +106,10 @@ class BuildOrder:
             elif build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
                 return
         # expand if running out of room for workers at current bases
-        if requested_worker_count + len(self.bot.workers) > len(self.bot.townhalls) * 14 - 4:
+        if (
+            requested_worker_count + len(self.bot.workers)
+            > len(self.bot.townhalls) * 14 - 4
+        ):
             self.pending.insert(1, BuildStep)
         # should also build a new one if current bases run out of resources
 
@@ -92,7 +136,9 @@ class BuildOrder:
 
     def update_completed(self) -> None:
         for completed_unit in self.recently_completed_units:
-            logger.debug(f"update_completed for {completed_unit}")
+            logger.info(
+                f"construction of {completed_unit.type_id} completed at {completed_unit.position}"
+            )
             needle = None
             for idx, in_progress_step in enumerate(self.requested):
                 logger.debug(
@@ -102,8 +148,27 @@ class BuildOrder:
                     needle = idx
                     in_progress_step.completed_time = self.bot.time
                     break
+            for ramp_blocker in self.ramp_block.ramp_blockers:
+                if ramp_blocker == completed_unit:
+                    logger.info(">> is ramp blocker")
+                    ramp_blocker.tag = completed_unit.tag
+                    ramp_blocker.is_complete = True
             if needle is not None:
                 self.complete.append(self.requested.pop(needle))
+            # if completed_unit.type_id == UnitTypeId.COMMANDCENTER:
+            #     # generate ramp blocking positions for newly created command centers
+            #     # not working... It keeps finding the original ramp location
+            #     ramp = min(
+            #         (
+            #             _ramp
+            #             for _ramp in self.bot.game_info.map_ramps
+            #             if len(_ramp.upper) in {2, 5}
+            #             and _ramp.top_center
+            #             not in [r.top_center for r in self.ramp_block.ramps]
+            #         ),
+            #         key=lambda r: completed_unit.position.distance_to(r.top_center),
+            #     )
+            #     self.ramp_block.add_ramp(ramp)
         self.recently_completed_units = []
 
     def update_started(self) -> None:
@@ -111,13 +176,22 @@ class BuildOrder:
             f"update_started with recently_started_units {self.recently_started_units}"
         )
         for started_unit in self.recently_started_units:
-            for idx, in_progress_step in enumerate(self.requested):
+            logger.info(
+                f"construction of {started_unit.type_id} started at {started_unit.position}"
+            )
+            for in_progress_step in self.requested:
                 if in_progress_step.unit_being_built is not None:
                     continue
                 if in_progress_step.unit_type_id == started_unit.type_id:
                     logger.debug(f"found matching step: {in_progress_step}")
                     in_progress_step.unit_being_built = started_unit
                     break
+            # see if this is a ramp blocker
+            for ramp_blocker in self.ramp_block.ramp_blockers:
+                if ramp_blocker == started_unit:
+                    logger.info(">> is ramp blocker")
+                    ramp_blocker.tag = started_unit.tag
+                    ramp_blocker.is_started = True
         self.recently_started_units = []
 
     def refresh_worker_references(self):
@@ -127,8 +201,10 @@ class BuildOrder:
     def move_interupted_to_pending(self) -> None:
         to_promote = []
         for idx, build_step in enumerate(self.requested):
-            logger.debug(f"In progress {build_step.unit_type_id}"
-                         f"> Builder {build_step.unit_in_charge}")
+            logger.debug(
+                f"In progress {build_step.unit_type_id}"
+                f"> Builder {build_step.unit_in_charge}"
+            )
             build_step.draw_debug_box()
             if build_step.is_interrupted():
                 logger.debug("! Is interrupted!")
@@ -189,25 +265,28 @@ class BuildOrder:
         if unit_type_id == UnitTypeId.COMMANDCENTER:
             new_build_position = await self.bot.get_next_expansion()
         else:
-            addon_place = False
-            if unit_type_id in (
-                UnitTypeId.BARRACKS,
-                UnitTypeId.FACTORY,
-                UnitTypeId.STARPORT,
-            ):
-                # account for addon = true
-                addon_place = True
-            if self.last_build_position is None:
-                map_center = self.bot.game_info.map_center
-                self.last_build_position = self.bot.start_location.towards(
-                    map_center, distance=5
+            if not self.ramp_block.is_blocked:
+                new_build_position = self.ramp_block.find_placement(unit_type_id)
+            if new_build_position is None:
+                addon_place = False
+                if unit_type_id in (
+                    UnitTypeId.BARRACKS,
+                    UnitTypeId.FACTORY,
+                    UnitTypeId.STARPORT,
+                ):
+                    # account for addon = true
+                    addon_place = True
+                if self.last_build_position is None:
+                    map_center = self.bot.game_info.map_center
+                    self.last_build_position = self.bot.start_location.towards(
+                        map_center, distance=5
+                    )
+                new_build_position = await self.bot.find_placement(
+                    unit_type_id,
+                    near=self.last_build_position,
+                    placement_step=2,
+                    addon_place=addon_place,
                 )
-            new_build_position = await self.bot.find_placement(
-                unit_type_id,
-                near=self.last_build_position,
-                placement_step=2,
-                addon_place=addon_place,
-            )
         if new_build_position is not None:
             self.last_build_position = new_build_position
         return new_build_position
@@ -237,8 +316,10 @@ class BuildOrder:
                 UnitTypeId.HELLION,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.REAPER,
+                UnitTypeId.BARRACKS,
                 UnitTypeId.STARPORT,
                 UnitTypeId.HELLION,
+                UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.BARRACKSREACTOR,
                 UnitTypeId.REFINERY,
                 UnitTypeId.FACTORYTECHLAB,
