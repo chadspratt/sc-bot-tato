@@ -15,7 +15,7 @@ class BaseUnitMicro(GeometryMixin):
         self.unit = unit
         self.bot: BotAI = bot
 
-    def retreat(self, enemy: Enemy, health_threshold: float) -> bool:
+    async def retreat(self, enemy: Enemy, health_threshold: float) -> bool:
         if self.unit.health_percentage > health_threshold:
             return False
 
@@ -55,6 +55,7 @@ class BaseUnitMicro(GeometryMixin):
         #         return False
         #     attempted_position = self.unit.position.towards_with_random_angle(desired_position, 5, deflection)
         # self.unit.move(self.unit.position + retreat_vector)
+        logger.info(f"{self.unit} retreating")
         self.unit.move(self.bot.game_info.player_start_location)
 
         return True
@@ -69,14 +70,14 @@ class BaseUnitMicro(GeometryMixin):
                 return target
         return None
 
-    def scout(self, scouting_location: Point2, enemy: Enemy):
+    async def scout(self, scouting_location: Point2, enemy: Enemy):
         logger.info(f"scout {self.unit} health {self.unit.health}/{self.unit.health_max} ({self.unit.health_percentage}) health")
 
-        if self.retreat(enemy, health_threshold=1.0):
+        if await self.retreat(enemy, health_threshold=1.0):
             pass
         elif self.attack_something():
             pass
-        elif self.retreat(enemy, health_threshold=0.75):
+        elif await self.retreat(enemy, health_threshold=0.75):
             pass
         else:
             logger.info(f"scout {self.unit} moving to updated assignment {scouting_location}")

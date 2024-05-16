@@ -83,3 +83,32 @@ class GeometryMixin:
         for unit_tag, point in points.items():
             new_positions[unit_tag] = self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
         return new_positions
+
+    def predict_future_unit_position(self,
+                                     unit: Unit,
+                                     seconds_ahead: float,
+                                     check_pathable: bool = True,
+                                     ) -> Point2:
+        unit_speed = unit.calculate_speed()
+
+        remaining_distance = unit_speed * seconds_ahead
+
+        forward_unit_vector = self.apply_rotation(unit.facing, Point2([0, 1]))
+
+        if not check_pathable:
+            return unit.position + forward_unit_vector * remaining_distance
+
+        future_position = unit.position
+        while True:
+            if remaining_distance < 1:
+                forward_unit_vector *= remaining_distance
+            potential_position = future_position + forward_unit_vector
+            if not self.bot.in_pathing_grid(potential_position):
+                return future_position
+
+            future_position = potential_position
+
+            remaining_distance -= 1
+            if remaining_distance <= 0:
+                return future_position
+

@@ -45,17 +45,17 @@ class Scout(UnitReferenceMixin):
     def scouts_needed(self) -> int:
         return 0 if self.unit else 1
 
-    def update_scout(self, new_damage_taken: dict[int, float]):
+    async def update_scout(self, new_damage_taken: dict[int, float]):
         if self.unit:
             try:
                 self.unit = self.get_updated_unit_reference(self.unit)
                 logger.info(f"{self.name} scout {self.unit}")
-                self.move_scout(new_damage_taken)
+                await self.move_scout(new_damage_taken)
             except self.UnitNotFound:
                 self.unit = None
                 pass
 
-    def move_scout(self, new_damage_taken: dict[int, float]):
+    async def move_scout(self, new_damage_taken: dict[int, float]):
         assignment: ScoutingLocation = self.scouting_locations[self.scouting_locations_index]
         logger.info(f"scout {self.unit} previous assignment: {assignment}")
 
@@ -77,7 +77,7 @@ class Scout(UnitReferenceMixin):
         self.scouting_locations_index = next_index
         logger.info(f"scout {self.unit} new assignment: {assignment}")
 
-        micro.scout(assignment.position, self.enemy)
+        await micro.scout(assignment.position, self.enemy)
 
 
 class Scouting(BaseSquad):
@@ -128,6 +128,6 @@ class Scouting(BaseSquad):
             if self.bot.is_visible(location.position):
                 location.last_seen = self.bot.time
 
-    def move_scouts(self, new_damage_taken: dict[int, float]):
-        self.friendly_territory.update_scout(new_damage_taken)
-        self.enemy_territory.update_scout(new_damage_taken)
+    async def move_scouts(self, new_damage_taken: dict[int, float]):
+        await self.friendly_territory.update_scout(new_damage_taken)
+        await self.enemy_territory.update_scout(new_damage_taken)

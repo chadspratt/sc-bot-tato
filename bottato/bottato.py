@@ -25,13 +25,15 @@ class BotTato(BotAI):
             "tvt1", bot=self, workers=self._workers
         )
         await self.client.debug_fast_build()
+        await self.client.debug_gas()
+        await self.client.debug_minerals()
         # self.client.save_replay_path = "..\replays\bottato.mpq"
         self.last_replay_save_time = 0
         logger.info(os.getcwd())
 
     async def on_step(self, iteration):
         logger.info(f"starting step, iteration: {iteration}, time: {self.time}")
-        if self.time - self.last_replay_save_time > 20:
+        if self.time - self.last_replay_save_time > 30:
             await self.client.save_replay(".\\replays\\bottato.sc2replay")
 
         if len(self.units) == 0 or len(self.townhalls) == 0:
@@ -46,7 +48,7 @@ class BotTato(BotAI):
         needed_resources: Cost = self.build_order.get_first_resource_shortage()
         await self._workers.distribute_workers(needed_resources)
 
-        self.military.manage_squads()
+        await self.military.manage_squads()
 
         # logger.info("executing build order")
         await self.build_order.execute()

@@ -88,7 +88,7 @@ class Military(GeometryMixin):
         for squad in self.squads:
             squad.update_references()
 
-    def manage_squads(self):
+    async def manage_squads(self):
         self.unassigned_army.draw_debug_box()
         for unassigned in self.unassigned_army.units:
             logger.info(f"scouts needed: {self.scouting.scouts_needed}")
@@ -101,7 +101,7 @@ class Military(GeometryMixin):
                     break
 
         self.scouting.update_visibility()
-        self.scouting.move_scouts(self.new_damage_taken)
+        await self.scouting.move_scouts(self.new_damage_taken)
 
         for i, squad in enumerate(self.squads):
             if not squad.units:
