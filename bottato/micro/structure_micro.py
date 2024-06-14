@@ -3,7 +3,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 
 
-class Structures:
+class StructureMicro:
     def __init__(self, bot: BotAI) -> None:
         self.bot: BotAI = bot
         self.formations = []

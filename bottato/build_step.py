@@ -10,7 +10,7 @@ from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
 from .mixins import UnitReferenceMixin
-from bottato.workers import Workers
+from bottato.economy.workers import Workers
 
 
 class BuildStep(UnitReferenceMixin):
@@ -21,7 +21,7 @@ class BuildStep(UnitReferenceMixin):
     pos: Union[Unit, Point2]
     check_idle: bool = False
 
-    def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers):
+    def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers = None):
         self.unit_type_id = unit_type_id
         self.bot: BotAI = bot
         self.workers: Workers = workers

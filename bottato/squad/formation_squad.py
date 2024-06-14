@@ -3,14 +3,14 @@ import enum
 from typing import Set
 
 from loguru import logger
-from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
 
-from .mixins import UnitReferenceMixin, GeometryMixin
+from ..mixins import GeometryMixin
 from .formation import FormationType, ParentFormation
+from .base_squad import BaseSquad
 
 
 class SquadOrderEnum(enum.Enum):
@@ -34,37 +34,7 @@ class SquadOrder:
         self.priority = priority
 
 
-class BaseSquad(UnitReferenceMixin):
-    def __init__(
-        self,
-        *,
-        bot: BotAI,
-        color: tuple[int] = (0, 255, 0),
-    ):
-        self.bot = bot
-        self.color = color
-        self.units: Units = Units([], bot_object=bot)
-
-    def draw_debug_box(self):
-        for unit in self.units:
-            self.bot.client.debug_box2_out(
-                unit, half_vertex_length=unit.radius, color=self.color
-            )
-            self.bot.client.debug_text_world(f"{unit.position}", self.convert_point2_to_3(unit.position))
-
-    def remove(self, unit: Unit):
-        logger.info(f"Removing {unit} from {self.name} squad")
-        try:
-            self.units.remove(unit)
-        except ValueError:
-            logger.info("Unit not found in squad")
-
-    def transfer(self, unit: Unit, to_squad: Squad):
-        self.remove(unit)
-        to_squad.recruit(unit)
-
-
-class Squad(BaseSquad, GeometryMixin):
+class FormationSquad(BaseSquad, GeometryMixin):
     def __init__(
         self,
         *,
@@ -72,10 +42,9 @@ class Squad(BaseSquad, GeometryMixin):
         name: str = "fuckwits",
         **kwargs,
     ):
-        super().__init__(**kwargs)
+        super().__init__(composition, **kwargs)
         self.orders = []
         self.name = name
-        self.composition = composition or {}
         self.current_order = SquadOrderEnum.IDLE
         self.leader: Unit = None
         self._destination: Point2 = None
@@ -87,25 +56,6 @@ class Squad(BaseSquad, GeometryMixin):
 
     def execute(self, squad_order: SquadOrder):
         self.orders.append(squad_order)
-
-    def desired_unit_count(self, unit: Unit) -> int:
-        _wants = self.composition.get(unit.type_id, 0)
-        logger.info(f"{self.name} squad wants {_wants} {unit.type_id.name}")
-        return _wants
-
-    def unit_count(self, unit: Unit) -> int:
-        _has = sum([1 for u in self.units if u.type_id is unit.type_id])
-        logger.info(f"{self.name} squad has {_has} {unit.type_id.name}")
-        return _has
-
-    def needs(self, unit: Unit) -> bool:
-        return self.unit_count(unit) < self.desired_unit_count(unit)
-
-    @property
-    def is_full(self) -> bool:
-        has = len(self.units)
-        wants = sum([v for v in self.composition.values()])
-        return has >= wants
 
     @property
     def position(self) -> Point2:

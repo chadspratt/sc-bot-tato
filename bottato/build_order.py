@@ -4,12 +4,13 @@ from typing import List
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
+from sc2.units import Units
 from sc2.game_data import Cost
 from sc2.game_info import Ramp
 from sc2.position import Point2
 
 from bottato.build_step import BuildStep
-from bottato.workers import Workers
+from bottato.economy.workers import Workers
 
 
 class RampBlocker:
@@ -110,8 +111,38 @@ class BuildOrder:
             requested_worker_count + len(self.bot.workers)
             > len(self.bot.townhalls) * 14 - 4
         ):
-            self.pending.insert(1, BuildStep)
+            self.pending.insert(1, BuildStep(UnitTypeId.COMMANDCENTER, self.bot, self.workers))
         # should also build a new one if current bases run out of resources
+
+    def request_military(self, units: Units):
+        pending_copy: List[BuildStep] = [step for step in self.pending]
+        requested_military: List[BuildStep] = [
+            step for step in self.requested
+            if step.unit_type_id not in [UnitTypeId.COMMANDCENTER, UnitTypeId.SCV]
+        ]
+        new_requested: List[BuildStep] = [
+            step for step in self.requested
+            if step.unit_type_id in [UnitTypeId.COMMANDCENTER, UnitTypeId.SCV]
+        ]
+
+        for unit in units:
+            for build_step in pending_copy:
+                # match to pending but don't cancel anything
+                if unit.type_id == build_step.unit_type_id:
+                    pending_copy.remove(build_step)
+                    break
+            else:
+                for build_step in requested_military:
+                    if unit.type_id == build_step.unit_type_id:
+                        requested_military.remove(build_step)
+                        new_requested.append(build_step)
+                        break
+                else:
+                    # didn't find a match
+                    # XXX also add tech requirements
+                    new_requested.append(BuildStep(unit.type_id, self.bot))
+        # add any unmatched existing requests back to end of queue
+        self.requested = new_requested + requested_military
 
     def get_first_resource_shortage(self) -> Cost:
         needed_resources: Cost = Cost(0, 0)

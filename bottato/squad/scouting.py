@@ -6,11 +6,11 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from .squad import BaseSquad
-from .enemy import Enemy
-from .mixins import UnitReferenceMixin
-from .micro.base import BaseUnitMicro
-from .micro.micro_factory import MicroFactory
+from .base_squad import BaseSquad
+from ..enemy import Enemy
+from ..mixins import UnitReferenceMixin
+from ..micro.base_unit_micro import BaseUnitMicro
+from ..micro.micro_factory import MicroFactory
 
 
 class ScoutingLocation:

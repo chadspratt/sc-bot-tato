@@ -8,9 +8,9 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.game_data import Cost
 
 from .build_order import BuildOrder
-from .micro.structures import Structures
+from .micro.structure_micro import StructureMicro
 from .enemy import Enemy
-from .workers import Workers
+from .economy.workers import Workers
 from .military import Military
 
 
@@ -20,7 +20,7 @@ class BotTato(BotAI):
         self._workers: Workers = Workers(self)
         self.enemy: Enemy = Enemy(self)
         self.military: Military = Military(self, self.enemy)
-        self.structure_micro: Structures = Structures(self)
+        self.structure_micro: StructureMicro = StructureMicro(self)
         self.build_order: BuildOrder = BuildOrder(
             "tvt1", bot=self, workers=self._workers
         )
@@ -41,14 +41,14 @@ class BotTato(BotAI):
             await self.client.leave()
 
         self.update_unit_references()
-        # needed_units: list[UnitTypeId] = self.military.get_units_needed_to_counter(self.enemy)
-        # self.build_order.request_military(needed_units)
+
+        await self.military.manage_squads()
+        needed_units: list[UnitTypeId] = self.military.get_unit_wishlist()
+        self.build_order.request_military(needed_units)
 
         await self.structure_micro.execute()
         needed_resources: Cost = self.build_order.get_first_resource_shortage()
         await self._workers.distribute_workers(needed_resources)
-
-        await self.military.manage_squads()
 
         # logger.info("executing build order")
         await self.build_order.execute()
@@ -95,4 +95,6 @@ class BotTato(BotAI):
         self.military.report_damage(unit, amount_damage_taken)
 
     async def on_unit_destroyed(self, unit_tag: int):
+        self.enemy.record_death(unit_tag)
+        self.military.record_death(unit_tag)
         logger.info(f"Unit {unit_tag} destroyed. Condolences.")

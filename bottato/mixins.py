@@ -111,4 +111,3 @@ class GeometryMixin:
             remaining_distance -= 1
             if remaining_distance <= 0:
                 return future_position
-

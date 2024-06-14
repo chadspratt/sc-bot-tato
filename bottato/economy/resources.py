@@ -7,7 +7,7 @@ from sc2.units import Units
 from sc2.unit import Unit
 from sc2.position import Point2
 
-from .mixins import UnitReferenceMixin
+from ..mixins import UnitReferenceMixin
 
 
 class Resources(UnitReferenceMixin):

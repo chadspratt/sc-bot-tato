@@ -4,7 +4,7 @@ from loguru import logger
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
-from .base import BaseUnitMicro
+from .base_unit_micro import BaseUnitMicro
 from .reaper_micro import ReaperMicro
 
 
