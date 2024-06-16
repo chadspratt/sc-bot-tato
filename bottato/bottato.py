@@ -16,12 +16,12 @@ from .military import Military
 class BotTato(BotAI):
     async def on_start(self):
         # name clash with BotAI.workers
-        self._workers: Workers = Workers(self)
+        self.my_workers: Workers = Workers(self)
         self.enemy: Enemy = Enemy(self)
         self.military: Military = Military(self, self.enemy)
         self.structure_micro: StructureMicro = StructureMicro(self)
         self.build_order: BuildOrder = BuildOrder(
-            "tvt1", bot=self, workers=self._workers
+            "tvt1", bot=self, workers=self.my_workers
         )
         await self.client.debug_fast_build()
         await self.client.debug_gas()
@@ -40,15 +40,14 @@ class BotTato(BotAI):
             await self.client.leave()
 
         self.update_unit_references()
+        self.my_workers.distribute_idle()
 
         await self.military.manage_squads()
         needed_units: list[UnitTypeId] = self.military.get_unit_wishlist()
         self.build_order.queue_military(needed_units)
 
         await self.structure_micro.execute()
-        await self.build_order.manage_resources()
 
-        # logger.info("executing build order")
         await self.build_order.execute()
 
     async def on_end(self, game_result: Result):
@@ -57,13 +56,12 @@ class BotTato(BotAI):
             logger.info(self.build_order.complete)
         except AttributeError:
             pass
-        # await self.client.save_replay("..\replays\bottato.mpq")
-        # Do things here after the game ends
 
     def update_unit_references(self):
-        self._workers.update_references()
+        self.my_workers.update_references()
         self.military.update_references()
         self.enemy.update_references()
+        self.build_order.update_references()
 
     async def on_building_construction_started(self, unit: Unit):
         logger.info(f"building started! {unit}")

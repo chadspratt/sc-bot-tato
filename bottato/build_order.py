@@ -71,7 +71,7 @@ class BuildOrder:
         self.ramp_block = RampBlock(ramp=self.bot.main_base_ramp)
         logger.info(f"Starting position: {self.bot.start_location}")
 
-    async def execute(self) -> None:
+    def update_references(self) -> None:
         logger.info(
             f"pending={','.join([step.unit_type_id.name for step in self.pending])}"
         )
@@ -82,6 +82,16 @@ class BuildOrder:
         self.update_completed()
         self.update_started()
         self.move_interupted_to_pending()
+
+    async def execute(self):
+        self.queue_command_center()
+        self.queue_supply()
+        self.queue_worker()
+        needed_resources: Cost = self.get_first_resource_shortage()
+        moved_workers = await self.workers.redistribute_workers(needed_resources)
+        logger.info(f"needed gas {needed_resources.vespene}, minerals {needed_resources.minerals}, moved workers {moved_workers}")
+        if needed_resources.vespene > 0 and moved_workers == 0:
+            self.queue_refinery()
         await self.execute_first_pending()
 
     def queue_worker(self) -> None:
@@ -135,7 +145,6 @@ class BuildOrder:
 
     def queue_military(self, unit_types: list[UnitTypeId]):
         in_progress = self.started + self.pending
-        logger.info(f"in progress: {in_progress}")
 
         for unit_type in unit_types:
             build_list = self.build_order_with_prereqs(unit_type)
@@ -144,7 +153,7 @@ class BuildOrder:
             for build_item in build_list:
                 for build_step in in_progress:
                     if build_item == build_step.unit_type_id:
-                        logger.info(f"{build_item} already in progress")
+                        logger.info(f"already in progress {build_item}")
                         in_progress.remove(build_step)
                         break
                 else:
@@ -172,18 +181,6 @@ class BuildOrder:
             build_order.extend(self.build_order_with_prereqs(TERRAN_TECH_REQUIREMENT[unit_type]))
 
         return build_order
-
-    async def manage_resources(self):
-        self.queue_command_center()
-        self.workers.distribute_idle()
-        self.queue_worker()
-        needed_resources: Cost = self.get_first_resource_shortage()
-        moved_workers = await self.workers.redistribute_workers(needed_resources)
-        logger.info(f"needed gas {needed_resources.vespene}, minerals {needed_resources.minerals}, moved workers {moved_workers}")
-        if needed_resources.vespene > 0 and moved_workers == 0:
-            logger.info("maybe queuing refinery")
-            self.queue_refinery()
-        self.queue_supply()
 
     def get_first_resource_shortage(self) -> Cost:
         needed_resources: Cost = Cost(0, 0)

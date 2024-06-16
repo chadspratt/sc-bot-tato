@@ -8,14 +8,14 @@ from sc2.ids.unit_typeid import UnitTypeId
 
 from ..mixins import UnitReferenceMixin
 from .composition import Composition
-from .squad_type import SquadType
+from .squad_type import SquadType, SquadTypeDefinitions
 
 
 class BaseSquad(UnitReferenceMixin):
     def __init__(
         self,
         *,
-        type: SquadType,
+        type: SquadType = SquadTypeDefinitions['none'],
         bot: BotAI,
         color: tuple[int] = (0, 255, 0),
     ):

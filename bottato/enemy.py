@@ -5,7 +5,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
 from .mixins import UnitReferenceMixin, GeometryMixin
-from .enemy_squad import EnemySquad
+from .squad.enemy_squad import EnemySquad
 
 
 class Enemy(UnitReferenceMixin, GeometryMixin):
@@ -59,6 +59,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 self.enemies_out_of_view.append(enemy_unit)
                 self.predicted_position[enemy_unit.tag] = enemy_unit.position
         self.enemies_in_view = self.bot.enemy_units
+        self.update_squads()
 
     def record_death(self, unit_tag):
         found = False
@@ -81,14 +82,14 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             enemy_squad = self.squads_by_unit_tag[unit_tag]
             enemy_squad.remove_by_tag(unit_tag)
             del self.squads_by_unit_tag[unit_tag]
-            if enemy_squad.is_empty():
+            if enemy_squad.is_empty:
                 self.enemy_squads.remove(enemy_squad)
 
     def _find_nearby_squad(self, enemy_unit: Unit) -> EnemySquad:
         for enemy_squad in self.enemy_squads:
             if enemy_squad.near(enemy_unit):
                 return enemy_squad
-        return EnemySquad(self.bot)
+        return EnemySquad(bot=self.bot)
 
     def update_squads(self):
         for enemy_unit in self.enemies_in_view:
@@ -101,7 +102,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 if not current_squad.near(enemy_unit):
                     # reassign
                     nearby_squad: EnemySquad = self._find_nearby_squad(enemy_unit)
-                    nearby_squad.transfer(enemy_unit)
+                    current_squad.transfer(enemy_unit, nearby_squad)
                     self.squads_by_unit_tag[enemy_unit.tag] = nearby_squad
 
     def threats_to(self, friendly_unit: Unit, attack_range_buffer=2) -> list[Unit]:

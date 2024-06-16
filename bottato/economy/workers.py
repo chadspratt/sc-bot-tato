@@ -90,6 +90,7 @@ class Workers(UnitReferenceMixin):
 
                 if self.vespene.has_unused_capacity:
                     self.vespene.add_worker(worker)
+
         logger.info(
             f"workers: minerals({self.minerals.worker_count}), "
             f"vespene({self.vespene.worker_count}), "
