@@ -30,7 +30,7 @@ class BaseSquad(UnitReferenceMixin):
             self.bot.client.debug_box2_out(
                 unit, half_vertex_length=unit.radius, color=self.color
             )
-            self.bot.client.debug_text_world(f"{unit.position}", self.convert_point2_to_3(unit.position))
+            # self.bot.client.debug_text_world(f"{unit.position}", self.convert_point2_to_3(unit.position))
 
     @property
     def is_full(self) -> bool:

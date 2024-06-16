@@ -24,8 +24,8 @@ class BotTato(BotAI):
             "tvt1", bot=self, workers=self.my_workers
         )
         await self.client.debug_fast_build()
-        await self.client.debug_gas()
-        await self.client.debug_minerals()
+        # await self.client.debug_gas()
+        # await self.client.debug_minerals()
         # self.client.save_replay_path = "..\replays\bottato.mpq"
         self.last_replay_save_time = 0
         logger.info(os.getcwd())

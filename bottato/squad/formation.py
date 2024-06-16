@@ -18,6 +18,7 @@ class FormationType(enum.Enum):
     LINE = 3
     SQUARE = 4
     HOLLOW_HALF_CIRCLE = 5
+    COLUMNS = 6
 
 
 class UnitDemographics:
@@ -91,10 +92,14 @@ class Formation:
         positions = []
         if self.formation_type == FormationType.LINE:
             positions = self.get_line_positions()
+        elif self.formation_type == FormationType.COLUMNS:
+            positions = self.get_column_positions()
         elif self.formation_type == FormationType.HOLLOW_CIRCLE:
             positions = self.get_hollow_circle_positions()
         elif self.formation_type == FormationType.HOLLOW_HALF_CIRCLE:
             positions = self.get_hollow_half_circle_positions()
+        elif self.formation_type == FormationType.SOLID_CIRCLE:
+            positions = self.get_solid_circle_positions()
         return positions
 
     def get_line_positions(self) -> List[FormationPosition]:
@@ -104,6 +109,25 @@ class Formation:
             )
             for i, unit_tag in enumerate(self.unit_tags)
         ]
+
+    def get_column_positions(self) -> List[FormationPosition]:
+        unit_count = len(self.unit_tags)
+        width = length = min(1, math.floor(math.sqrt(unit_count)))
+        while width * 2 > length and width > 1:
+            width -= 1
+            length = unit_count / width
+        fill_pattern = []
+        for i in range(width):
+            adjustment = i // 2 if i % 2 == 0 else -i // 2
+            fill_pattern.append(adjustment)
+
+        positions = []
+        row = column = 0
+        for unit_tag in self.unit_tags:
+            positions.append(FormationPosition(
+                x_offset=fill_pattern[column], y_offset=row - 0.5, unit_tag=unit_tag
+            ))
+        return positions
 
     def get_hollow_circle_positions(self) -> List[FormationPosition]:
         positions: List[FormationPosition] = list()
@@ -153,6 +177,23 @@ class Formation:
                         demographics.minimum_attack_range
                         + demographics.maximum_unit_radius * rank
                     ),
+                    unit_tag=unit_tag,
+                )
+            )
+        return positions
+
+    def get_solid_circle_positions(self) -> List[FormationPosition]:
+        positions: List[FormationPosition] = list()
+        # pack units shoulder to shoulder
+        demographics = self.get_unit_demographics()
+        circumference = demographics.maximum_unit_radius * len(self.unit_tags)
+        radius = circumference / math.tau
+        angular_separation = math.tau / len(self.unit_tags)
+        for idx, unit_tag in enumerate(self.unit_tags):
+            positions.append(
+                FormationPosition(
+                    x_offset=math.sin(idx * angular_separation) * radius,
+                    y_offset=math.cos(idx * angular_separation) * radius + radius,
                     unit_tag=unit_tag,
                 )
             )

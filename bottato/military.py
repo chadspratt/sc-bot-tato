@@ -141,7 +141,7 @@ class Military(GeometryMixin):
                         if nearest_friendly.tag not in remaining_dps:
                             # approximation since dps will differ by target
                             remaining_dps[nearest_friendly.tag] = nearest_friendly.calculate_dps_vs_target(enemy_unit)
-                        smaller_amount = math.min(remaining_health[enemy_unit.tag], remaining_dps[nearest_friendly.tag])
+                        smaller_amount = min(remaining_health[enemy_unit.tag], remaining_dps[nearest_friendly.tag])
                         remaining_health[enemy_unit.tag] -= smaller_amount
                         remaining_dps[nearest_friendly.tag] -= smaller_amount
 
@@ -150,7 +150,7 @@ class Military(GeometryMixin):
                             if enemy_unit.tag not in remaining_dps:
                                 # approximation since dps will differ by target
                                 remaining_dps[enemy_unit.tag] = enemy_unit.calculate_dps_vs_target(nearest_friendly)
-                            smaller_amount = math.min(remaining_health[nearest_friendly.tag], remaining_dps[enemy_unit.tag])
+                            smaller_amount = min(remaining_health[nearest_friendly.tag], remaining_dps[enemy_unit.tag])
                             remaining_health[nearest_friendly.tag] -= smaller_amount
                             remaining_dps[enemy_unit.tag] -= smaller_amount
 
@@ -240,8 +240,8 @@ class Military(GeometryMixin):
     async def manage_squads(self):
         self.unassigned_army.draw_debug_box()
         for unassigned in self.unassigned_army.units:
-            logger.info(f"scouts needed: {self.scouting.scouts_needed}")
             if self.scouting.scouts_needed > 0:
+                logger.info(f"scouts needed: {self.scouting.scouts_needed}")
                 self.unassigned_army.transfer(unassigned, self.scouting)
                 self.squads_by_unit_tag[unassigned.tag] = self.scouting
                 continue
@@ -273,13 +273,16 @@ class Military(GeometryMixin):
                 squad.attack(self.bot.enemy_structures)
             else:
                 squad.move(squad._destination, squad.destination_facing)
+        if self.enemy.enemies_in_view:
+            self.unassigned_army.attack(self.enemy.enemies_in_view)
 
         self.report()
         self.new_damage_taken.clear()
 
     def record_death(self, unit_tag):
-        squad = self.squads_by_unit_tag[unit_tag]
-        squad.remove_by_tag(unit_tag)
-        del self.squads_by_unit_tag[unit_tag]
-        if squad.is_empty and not isinstance(squad, Scouting):
-            self.squads.remove(squad)
+        if unit_tag in self.squads_by_unit_tag:
+            squad = self.squads_by_unit_tag[unit_tag]
+            squad.remove_by_tag(unit_tag)
+            del self.squads_by_unit_tag[unit_tag]
+            if squad.is_empty and not isinstance(squad, Scouting):
+                self.squads.remove(squad)

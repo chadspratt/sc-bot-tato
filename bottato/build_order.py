@@ -100,7 +100,7 @@ class BuildOrder:
             if build_step.unit_type_id == UnitTypeId.SCV:
                 requested_worker_count += 1
         worker_build_capacity: int = len(self.bot.townhalls)
-        desired_worker_count = worker_build_capacity * 14
+        desired_worker_count = min(worker_build_capacity * 14, self.workers.max_workers)
         logger.debug(f"requested_worker_count={requested_worker_count}")
         logger.debug(f"worker_build_capacity={worker_build_capacity}")
         if (
@@ -119,7 +119,7 @@ class BuildOrder:
         # expand if running out of room for workers at current bases
         if (
             requested_worker_count + len(self.bot.workers)
-            > len(self.bot.townhalls) * 14 - 4
+            > len(self.bot.townhalls) * 14 - 3
         ):
             self.pending.insert(1, BuildStep(UnitTypeId.COMMANDCENTER, self.bot, self.workers))
         # should also build a new one if current bases run out of resources
@@ -133,7 +133,7 @@ class BuildOrder:
         logger.info(f"refineries: {refinery_count}, townhalls: {len(self.bot.townhalls)}")
         if refinery_count < len(self.bot.townhalls) * 2:
             logger.info("adding refinery to build order")
-            self.pending.insert(1, BuildStep(UnitTypeId.REFINERY, self.bot, self.workers))
+            self.pending.insert(0, BuildStep(UnitTypeId.REFINERY, self.bot, self.workers))
         # should also build a new one if current bases run out of resources
 
     def queue_supply(self) -> None:

@@ -78,7 +78,8 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             del self.first_seen[unit_tag]
             del self.last_seen[unit_tag]
             del self.last_seen_position[unit_tag]
-            del self.predicted_position[unit_tag]
+            if unit_tag in self.predicted_position:
+                del self.predicted_position[unit_tag]
             enemy_squad = self.squads_by_unit_tag[unit_tag]
             enemy_squad.remove_by_tag(unit_tag)
             del self.squads_by_unit_tag[unit_tag]
@@ -87,9 +88,11 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
 
     def _find_nearby_squad(self, enemy_unit: Unit) -> EnemySquad:
         for enemy_squad in self.enemy_squads:
-            if enemy_squad.near(enemy_unit):
+            if enemy_squad.near(enemy_unit, self.predicted_position):
                 return enemy_squad
-        return EnemySquad(bot=self.bot)
+        new_squad = EnemySquad(bot=self.bot)
+        self.enemy_squads.append(new_squad)
+        return new_squad
 
     def update_squads(self):
         for enemy_unit in self.enemies_in_view:
@@ -99,7 +102,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 self.squads_by_unit_tag[enemy_unit.tag] = nearby_squad
             else:
                 current_squad = self.squads_by_unit_tag[enemy_unit.tag]
-                if not current_squad.near(enemy_unit):
+                if not current_squad.near(enemy_unit, self.predicted_position):
                     # reassign
                     nearby_squad: EnemySquad = self._find_nearby_squad(enemy_unit)
                     current_squad.transfer(enemy_unit, nearby_squad)

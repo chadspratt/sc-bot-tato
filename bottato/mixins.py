@@ -45,7 +45,7 @@ class UnitReferenceMixin:
             try:
                 _units.append(self.get_updated_unit_reference_by_tag(tag))
             except self.UnitNotFound:
-                logger.info(f"Couldn't find unit {tag}!")
+                logger.debug(f"Couldn't find unit {tag}!")
         return _units
 
 

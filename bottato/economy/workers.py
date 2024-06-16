@@ -22,6 +22,7 @@ class Workers(UnitReferenceMixin):
         self.builders = Units([], bot)
         self.repairers = Units([], bot)
         self.known_worker_tags = []
+        self.max_workers = 120
 
     def get_builder(self, building_position: Point2):
         builder = None
@@ -71,7 +72,7 @@ class Workers(UnitReferenceMixin):
     def distribute_idle(self):
         if self.bot.workers.idle:
             logger.info(f"idle workers {self.bot.workers.idle}")
-        workers_to_assign = []
+        workers_to_assign = self.bot.workers.idle
         if len(self.bot.workers) != len(self.known_worker_tags):
             for worker in self.bot.workers:
                 if worker.tag not in self.known_worker_tags:

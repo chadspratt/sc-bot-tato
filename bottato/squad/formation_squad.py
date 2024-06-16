@@ -109,7 +109,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         if reset:
             self.parent_formation.clear()
         if not self.parent_formation.formations:
-            self.parent_formation.add_formation(FormationType.LINE, self.units.tags)
+            self.parent_formation.add_formation(FormationType.COLUMNS, self.units.tags)
         if self.bot.enemy_units.closer_than(8.0, self.position):
             self.parent_formation.clear()
             self.parent_formation.add_formation(
@@ -118,7 +118,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         logger.info(f"squad {self.name} formation: {self.parent_formation}")
 
     def attack(self, targets: Units):
-        if not targets:
+        if not targets or not self.units:
             return
 
         self.targets = Units(targets, self.bot)
