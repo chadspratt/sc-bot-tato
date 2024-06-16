@@ -38,6 +38,10 @@ class BaseSquad(UnitReferenceMixin):
         wants = sum([v for v in self.composition.current_units])
         return has >= wants
 
+    @property
+    def is_empty(self) -> bool:
+        return len(self.units) == 0
+
     def remove(self, unit: Unit):
         logger.info(f"Removing {unit} from {self.name} squad")
         try:

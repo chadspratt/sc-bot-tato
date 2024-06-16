@@ -106,9 +106,13 @@ class BuildStep(UnitReferenceMixin):
                 if not build_response:
                     return False
         else:
+            logger.info(
+                f"Trying to train unit {self.unit_type_id} with {builder_type}"
+            )
             # not built by scv
             try:
                 self.unit_in_charge = self.bot.structures(builder_type).idle[0]
+                logger.info(f"Found training facility {self.unit_in_charge}")
             except IndexError:
                 # no available build structure
                 return False
@@ -162,7 +166,7 @@ class BuildStep(UnitReferenceMixin):
     def is_interrupted(self) -> bool:
         if self.unit_in_charge is None:
             return True
-        logger.info(f"Unit in charge is doing {self.unit_in_charge.orders}")
+        logger.info(f"{self.unit_in_charge} is doing {self.unit_in_charge.orders}")
         self.check_idle: bool = self.check_idle or (
             self.unit_in_charge.is_active and not self.unit_in_charge.is_gathering
         )

@@ -5,7 +5,6 @@ from sc2.bot_ai import BotAI
 from sc2.data import Result
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.game_data import Cost
 
 from .build_order import BuildOrder
 from .micro.structure_micro import StructureMicro
@@ -32,7 +31,7 @@ class BotTato(BotAI):
         logger.info(os.getcwd())
 
     async def on_step(self, iteration):
-        logger.info(f"starting step, iteration: {iteration}, time: {self.time}")
+        logger.info(f"======starting step {iteration} ({self.time}s)======")
         if self.time - self.last_replay_save_time > 30:
             await self.client.save_replay(".\\replays\\bottato.sc2replay")
 
@@ -44,15 +43,13 @@ class BotTato(BotAI):
 
         await self.military.manage_squads()
         needed_units: list[UnitTypeId] = self.military.get_unit_wishlist()
-        self.build_order.request_military(needed_units)
+        self.build_order.queue_military(needed_units)
 
         await self.structure_micro.execute()
-        needed_resources: Cost = self.build_order.get_first_resource_shortage()
-        await self._workers.distribute_workers(needed_resources)
+        await self.build_order.manage_resources()
 
         # logger.info("executing build order")
         await self.build_order.execute()
-        logger.info("ending step")
 
     async def on_end(self, game_result: Result):
         print("Game ended.")

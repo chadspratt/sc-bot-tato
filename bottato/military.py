@@ -8,7 +8,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from .squad.squad_type import SquadType, SquadTypeDefinition
+from .squad.squad_type import SquadType, SquadTypeDefinitions
 from .squad.base_squad import BaseSquad
 from .squad.scouting import Scouting
 from .squad.formation_squad import FormationSquad
@@ -23,10 +23,13 @@ class Military(GeometryMixin):
         self.enemy = enemy
         self.unassigned_army = FormationSquad(
             bot=bot,
+            type=SquadTypeDefinitions['none'],
+            color=self.random_color(),
+            name='unassigned'
         )
-        self.scouting = Scouting(self.bot, enemy)
+        self.scouting = Scouting(self.bot, enemy, self.random_color())
         self.new_damage_taken: dict[int, float] = {}
-        self.squads_by_unit_tag: dict[int, FormationSquad] = {}
+        self.squads_by_unit_tag: dict[int, BaseSquad] = {}
         self.squads: list[BaseSquad] = []
         self.created_squad_type_counts: dict[int, int] = {}
 
@@ -36,7 +39,7 @@ class Military(GeometryMixin):
                                           color=self.random_color(),
                                           name=self.create_squad_name(squad_type)))
 
-    def random_color(self):
+    def random_color(self) -> tuple[int, int, int]:
         rgb = [0, 0, 0]
         highlow_index = random.randint(0, 2)
         high_or_low = random.randint(0, 1) > 0
@@ -72,36 +75,38 @@ class Military(GeometryMixin):
 
         scouts_needed = self.scouting.needed_unit_types()
         if scouts_needed:
-            return scouts_needed
-
-        squad_type: SquadType = None
-        unmatched_friendlies, unmatched_enemies = self.simulate_battle()
-        if unmatched_friendlies:
-            # seem to be ahead,
-            squad_type = SquadTypeDefinition.get('tanks with support')
-        if unmatched_enemies:
-            # type_summary = self.count_units_by_type(unmatched_enemies)
-            property_summary = self.count_units_by_property(unmatched_enemies)
-            # pick a squad type
-            if property_summary['flying'] >= property_summary['ground']:
-                squad_type = SquadTypeDefinition.get('anti air')
-            else:
-                squad_type = SquadTypeDefinition.get('tanks with support')
-
-        for squad in self.squads:
-            if squad.type.name == squad_type.name:
-                wishlist = squad.needed_unit_types
-                break
+            wishlist = scouts_needed
         else:
-            self.add_squad(squad_type)
-            wishlist = squad_type.composition.current_units
+            squad_type: SquadType = None
+            unmatched_friendlies, unmatched_enemies = self.simulate_battle()
+            if unmatched_friendlies:
+                # seem to be ahead,
+                squad_type = SquadTypeDefinitions['tanks with support']
+            if unmatched_enemies:
+                # type_summary = self.count_units_by_type(unmatched_enemies)
+                property_summary = self.count_units_by_property(unmatched_enemies)
+                # pick a squad type
+                if property_summary['flying'] >= property_summary['ground']:
+                    squad_type = SquadTypeDefinitions['anti air']
+                else:
+                    squad_type = SquadTypeDefinitions['tanks with support']
+
+            for squad in self.squads:
+                if squad.type.name == squad_type.name:
+                    wishlist = squad.needed_unit_types
+                    break
+            else:
+                self.add_squad(squad_type)
+                wishlist = squad_type.composition.current_units
+
+        logger.info(f"military requesting {wishlist}")
         return wishlist
 
     def simulate_battle(self):
         remaining_dps: dict[int, float] = {}
         remaining_health: dict[int, float] = {}
 
-        all_enemies: Units = self.enemy.get_units()
+        all_enemies: Units = self.enemy.get_enemies()
         unmatched_enemies: Units = all_enemies
         unmatched_friendlies: Units = self.bot.units
 
@@ -238,6 +243,7 @@ class Military(GeometryMixin):
             logger.info(f"scouts needed: {self.scouting.scouts_needed}")
             if self.scouting.scouts_needed > 0:
                 self.unassigned_army.transfer(unassigned, self.scouting)
+                self.squads_by_unit_tag[unassigned.tag] = self.scouting
                 continue
             for squad in self.squads:
                 if squad.needs(unassigned):
@@ -275,5 +281,5 @@ class Military(GeometryMixin):
         squad = self.squads_by_unit_tag[unit_tag]
         squad.remove_by_tag(unit_tag)
         del self.squads_by_unit_tag[unit_tag]
-        if squad.is_empty():
+        if squad.is_empty and not isinstance(squad, Scouting):
             self.squads.remove(squad)

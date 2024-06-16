@@ -3,7 +3,6 @@ import enum
 from typing import Set
 
 from loguru import logger
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
@@ -38,11 +37,10 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def __init__(
         self,
         *,
-        composition: dict[UnitTypeId, int] = None,
-        name: str = "fuckwits",
+        name: str = None,
         **kwargs,
     ):
-        super().__init__(composition, **kwargs)
+        super().__init__(**kwargs)
         self.orders = []
         self.name = name
         self.current_order = SquadOrderEnum.IDLE
@@ -71,7 +69,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
 
     def get_report(self) -> str:
         has = len(self.units)
-        wants = sum([v for v in self.composition.values()])
+        wants = len(self.composition.current_units)
         return f"{self.name}({has}/{wants})"
 
     def update_leader(self):

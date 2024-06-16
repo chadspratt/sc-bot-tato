@@ -4,10 +4,11 @@ from typing import List
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
-from sc2.units import Units
 from sc2.game_data import Cost
 from sc2.game_info import Ramp
 from sc2.position import Point2
+from sc2.constants import TERRAN_TECH_REQUIREMENT
+from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 
 from bottato.build_step import BuildStep
 from bottato.economy.workers import Workers
@@ -53,7 +54,7 @@ class RampBlock:
 
 class BuildOrder:
     pending: List[BuildStep] = []
-    requested: List[BuildStep] = []
+    started: List[BuildStep] = []
     complete: List[BuildStep] = []
     # next_unfinished_step_index: int
     last_build_position: Point2 = None
@@ -65,7 +66,7 @@ class BuildOrder:
         self.bot: BotAI = bot
         self.workers: Workers = workers
         self.pending = [
-            BuildStep(unit, bot, workers) for unit in self.get_build_start(build_name)
+            # BuildStep(unit, bot, workers) for unit in self.get_build_start(build_name)
         ]
         self.ramp_block = RampBlock(ramp=self.bot.main_base_ramp)
         logger.info(f"Starting position: {self.bot.start_location}")
@@ -75,9 +76,8 @@ class BuildOrder:
             f"pending={','.join([step.unit_type_id.name for step in self.pending])}"
         )
         logger.info(
-            f"requested={','.join([step.unit_type_id.name for step in self.requested])}"
+            f"requested={','.join([step.unit_type_id.name for step in self.started])}"
         )
-        self.queue_worker()
         self.refresh_worker_references()
         self.update_completed()
         self.update_started()
@@ -86,7 +86,7 @@ class BuildOrder:
 
     def queue_worker(self) -> None:
         requested_worker_count = 0
-        for build_step in self.requested + self.pending:
+        for build_step in self.started + self.pending:
             if build_step.unit_type_id == UnitTypeId.SCV:
                 requested_worker_count += 1
         worker_build_capacity: int = len(self.bot.townhalls)
@@ -101,7 +101,7 @@ class BuildOrder:
 
     def queue_command_center(self) -> None:
         requested_worker_count = 0
-        for build_step in self.requested + self.pending:
+        for build_step in self.started + self.pending:
             if build_step.unit_type_id == UnitTypeId.SCV:
                 requested_worker_count += 1
             elif build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
@@ -114,35 +114,76 @@ class BuildOrder:
             self.pending.insert(1, BuildStep(UnitTypeId.COMMANDCENTER, self.bot, self.workers))
         # should also build a new one if current bases run out of resources
 
-    def request_military(self, units: Units):
-        pending_copy: List[BuildStep] = [step for step in self.pending]
-        requested_military: List[BuildStep] = [
-            step for step in self.requested
-            if step.unit_type_id not in [UnitTypeId.COMMANDCENTER, UnitTypeId.SCV]
-        ]
-        new_requested: List[BuildStep] = [
-            step for step in self.requested
-            if step.unit_type_id in [UnitTypeId.COMMANDCENTER, UnitTypeId.SCV]
-        ]
+    def queue_refinery(self) -> None:
+        refinery_count = len(self.bot.gas_buildings)
+        for build_step in self.started + self.pending:
+            if build_step.unit_type_id == UnitTypeId.REFINERY:
+                refinery_count += 1
+        # build refinery if less than 2 per town hall (function is only called if gas is needed but no room to move workers)
+        logger.info(f"refineries: {refinery_count}, townhalls: {len(self.bot.townhalls)}")
+        if refinery_count < len(self.bot.townhalls) * 2:
+            logger.info("adding refinery to build order")
+            self.pending.insert(1, BuildStep(UnitTypeId.REFINERY, self.bot, self.workers))
+        # should also build a new one if current bases run out of resources
 
-        for unit in units:
-            for build_step in pending_copy:
-                # match to pending but don't cancel anything
-                if unit.type_id == build_step.unit_type_id:
-                    pending_copy.remove(build_step)
-                    break
-            else:
-                for build_step in requested_military:
-                    if unit.type_id == build_step.unit_type_id:
-                        requested_military.remove(build_step)
-                        new_requested.append(build_step)
+    def queue_supply(self) -> None:
+        for build_step in self.started + self.pending:
+            if build_step.unit_type_id == UnitTypeId.SUPPLYDEPOT:
+                return
+        if self.bot.supply_left < 10 and self.bot.supply_cap < 200:
+            self.pending.insert(1, BuildStep(UnitTypeId.SUPPLYDEPOT, self.bot, self.workers))
+
+    def queue_military(self, unit_types: list[UnitTypeId]):
+        in_progress = self.started + self.pending
+        logger.info(f"in progress: {in_progress}")
+
+        for unit_type in unit_types:
+            build_list = self.build_order_with_prereqs(unit_type)
+            build_list.reverse()
+            logger.info(f"build list with prereqs {build_list}")
+            for build_item in build_list:
+                for build_step in in_progress:
+                    if build_item == build_step.unit_type_id:
+                        logger.info(f"{build_item} already in progress")
+                        in_progress.remove(build_step)
                         break
                 else:
-                    # didn't find a match
-                    # XXX also add tech requirements
-                    new_requested.append(BuildStep(unit.type_id, self.bot))
-        # add any unmatched existing requests back to end of queue
-        self.requested = new_requested + requested_military
+                    # not already started or pending
+                    logger.info(f"adding to build order: {build_item}")
+                    self.pending.append(BuildStep(build_item, self.bot, self.workers))
+
+    def build_order_with_prereqs(self, unit_type: UnitTypeId) -> list[UnitTypeId]:
+        build_order = [unit_type]
+
+        training_facilities = UNIT_TRAINED_FROM[unit_type]
+        for training_facility in training_facilities:
+            if self.bot.structure_type_build_progress(training_facility) > 0:
+                break
+            if training_facility == UnitTypeId.SCV:
+                # queue workers elsewhere
+                break
+        else:
+            for training_facility in training_facilities:
+                # should only be one thing in the set for terran, but won't work for z or p
+                build_order.extend(self.build_order_with_prereqs(training_facility))
+                break
+
+        if self.bot.tech_requirement_progress(unit_type) == 0:
+            build_order.extend(self.build_order_with_prereqs(TERRAN_TECH_REQUIREMENT[unit_type]))
+
+        return build_order
+
+    async def manage_resources(self):
+        self.queue_command_center()
+        self.workers.distribute_idle()
+        self.queue_worker()
+        needed_resources: Cost = self.get_first_resource_shortage()
+        moved_workers = await self.workers.redistribute_workers(needed_resources)
+        logger.info(f"needed gas {needed_resources.vespene}, minerals {needed_resources.minerals}, moved workers {moved_workers}")
+        if needed_resources.vespene > 0 and moved_workers == 0:
+            logger.info("maybe queuing refinery")
+            self.queue_refinery()
+        self.queue_supply()
 
     def get_first_resource_shortage(self) -> Cost:
         needed_resources: Cost = Cost(0, 0)
@@ -171,7 +212,7 @@ class BuildOrder:
                 f"construction of {completed_unit.type_id} completed at {completed_unit.position}"
             )
             needle = None
-            for idx, in_progress_step in enumerate(self.requested):
+            for idx, in_progress_step in enumerate(self.started):
                 logger.debug(
                     f"{in_progress_step.unit_type_id}, {completed_unit.type_id}"
                 )
@@ -185,7 +226,7 @@ class BuildOrder:
                     ramp_blocker.tag = completed_unit.tag
                     ramp_blocker.is_complete = True
             if needle is not None:
-                self.complete.append(self.requested.pop(needle))
+                self.complete.append(self.started.pop(needle))
             # if completed_unit.type_id == UnitTypeId.COMMANDCENTER:
             #     # generate ramp blocking positions for newly created command centers
             #     # not working... It keeps finding the original ramp location
@@ -210,7 +251,7 @@ class BuildOrder:
             logger.info(
                 f"construction of {started_unit.type_id} started at {started_unit.position}"
             )
-            for in_progress_step in self.requested:
+            for in_progress_step in self.started:
                 if in_progress_step.unit_being_built is not None:
                     continue
                 if in_progress_step.unit_type_id == started_unit.type_id:
@@ -226,12 +267,12 @@ class BuildOrder:
         self.recently_started_units = []
 
     def refresh_worker_references(self):
-        for build_step in self.requested:
+        for build_step in self.started:
             build_step.refresh_worker_reference()
 
     def move_interupted_to_pending(self) -> None:
         to_promote = []
-        for idx, build_step in enumerate(self.requested):
+        for idx, build_step in enumerate(self.started):
             logger.debug(
                 f"In progress {build_step.unit_type_id}"
                 f"> Builder {build_step.unit_in_charge}"
@@ -243,7 +284,7 @@ class BuildOrder:
                 to_promote.append(idx)
                 continue
         for idx in reversed(to_promote):
-            self.pending.insert(0, self.requested.pop(idx))
+            self.pending.insert(0, self.started.pop(idx))
 
     async def execute_first_pending(self) -> None:
         try:
@@ -258,15 +299,15 @@ class BuildOrder:
         execute_response = await build_step.execute(at_position=build_position)
         logger.debug(f"> Got back {execute_response}")
         if execute_response:
-            self.requested.append(self.pending.pop(0))
+            self.started.append(self.pending.pop(0))
         else:
-            logger.info(f"{build_step.unit_type_id} failed to start building")
+            logger.info(f"!!! {build_step.unit_type_id} failed to start building")
 
     def can_afford(self, requested_cost: Cost) -> bool:
         # PS: non-structure build steps never get their `unit_being_build` populated,
         #   so they inflate the total_requested_cost
         prior_requested_cost = Cost(0, 0)
-        for build_step in self.requested:
+        for build_step in self.started:
             if build_step.unit_being_built is None:
                 logger.debug(
                     f"Build cost for '{build_step.unit_type_id.name}' being added to "

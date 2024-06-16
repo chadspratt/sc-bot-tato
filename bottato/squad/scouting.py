@@ -7,6 +7,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from .base_squad import BaseSquad
+from .squad_type import SquadTypeDefinitions
 from ..enemy import Enemy
 from ..mixins import UnitReferenceMixin
 from ..micro.base_unit_micro import BaseUnitMicro
@@ -88,7 +89,8 @@ class Scouting(BaseSquad):
     Initially looks for base positions
     assign first two reapers as they are built to immediately start scouting
     """
-    def __init__(self, bot: BotAI, enemy: Enemy):
+    def __init__(self, bot: BotAI, enemy: Enemy, color):
+        super().__init__(bot=bot, type=SquadTypeDefinitions['reaper scouts'], color=color)
         self.bot = bot
         self.enemy = enemy
         self.scouting_locations: List[ScoutingLocation] = list()
