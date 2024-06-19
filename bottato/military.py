@@ -79,9 +79,7 @@ class Military(GeometryMixin):
         else:
             squad_type: SquadType = None
             unmatched_friendlies, unmatched_enemies = self.simulate_battle()
-            if unmatched_friendlies:
-                # seem to be ahead,
-                squad_type = SquadTypeDefinitions['tanks with support']
+            logger.info(f"simulated battle results: friendlies {self.count_units_by_type(unmatched_friendlies)}, enemies {self.count_units_by_type(unmatched_enemies)}")
             if unmatched_enemies:
                 # type_summary = self.count_units_by_type(unmatched_enemies)
                 property_summary = self.count_units_by_property(unmatched_enemies)
@@ -90,10 +88,15 @@ class Military(GeometryMixin):
                     squad_type = SquadTypeDefinitions['anti air']
                 else:
                     squad_type = SquadTypeDefinitions['tanks with support']
+            elif unmatched_friendlies:
+                # seem to be ahead,
+                squad_type = SquadTypeDefinitions['banshee harass']
+            else:
+                squad_type = SquadTypeDefinitions['defensive tank']
 
             for squad in self.squads:
                 if squad.type.name == squad_type.name:
-                    wishlist = squad.needed_unit_types
+                    wishlist = squad.needed_unit_types()
                     break
             else:
                 self.add_squad(squad_type)
@@ -159,8 +162,8 @@ class Military(GeometryMixin):
                 else:
                     unmatched_enemies.append(enemy_unit)
 
-            for nearest_friendly in nearest_friendlies:
-                if remaining_health[nearest_friendly.tag] > 0:
+            for friendly in self.bot.units:
+                if remaining_health[friendly.tag] > 0:
                     unmatched_friendlies.append(enemy_unit)
                     if unmatched_enemies:
                         # only care about full list if no remaining enemies

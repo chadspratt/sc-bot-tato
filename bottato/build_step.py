@@ -8,6 +8,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2, Point3
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
+from sc2.game_data import Cost
 
 from .mixins import UnitReferenceMixin
 from bottato.economy.workers import Workers
@@ -74,7 +75,7 @@ class BuildStep(UnitReferenceMixin):
             return {UnitTypeId.STARPORT}
         return UNIT_TRAINED_FROM[self.unit_type_id]
 
-    async def execute(self, at_position: Point2 = None) -> bool:
+    async def execute(self, at_position: Point2 = None, needed_resources: Cost = None) -> bool:
         builder_type = self.get_builder_type(self.unit_type_id)
         if UnitTypeId.SCV in builder_type:
             # this is a structure built by an scv
@@ -87,7 +88,7 @@ class BuildStep(UnitReferenceMixin):
             else:
                 self.pos = at_position or self.pos
                 if self.unit_in_charge is None or self.unit_in_charge.health == 0:
-                    self.unit_in_charge = self.workers.get_builder(self.pos)
+                    self.unit_in_charge = self.workers.get_builder(self.pos, needed_resources)
                     # self.unit_in_charge = self.bot.workers.filter(
                     #     lambda worker: worker.is_idle or worker.is_gathering
                     # ).closest_to(at_position)
@@ -111,10 +112,15 @@ class BuildStep(UnitReferenceMixin):
             )
             # not built by scv
             try:
-                self.unit_in_charge = self.bot.structures(builder_type).idle[0]
+                facility_candidates = self.bot.structures(builder_type)
+                logger.info(f"training facility candidates {facility_candidates}")
+                for facility in facility_candidates:
+                    logger.info(f"{facility}, ready={facility.is_ready}, idle={facility.is_idle}, orders={facility.orders}")
+                self.unit_in_charge = facility_candidates.ready.idle[0]
                 logger.info(f"Found training facility {self.unit_in_charge}")
             except IndexError:
                 # no available build structure
+                logger.info("no idle training facility")
                 return False
             build_ability: AbilityId = self.get_build_ability()
             self.unit_in_charge(build_ability)

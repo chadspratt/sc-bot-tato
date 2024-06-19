@@ -23,7 +23,7 @@ class BotTato(BotAI):
         self.build_order: BuildOrder = BuildOrder(
             "tvt1", bot=self, workers=self.my_workers
         )
-        await self.client.debug_fast_build()
+        # await self.client.debug_fast_build()
         # await self.client.debug_gas()
         # await self.client.debug_minerals()
         # self.client.save_replay_path = "..\replays\bottato.mpq"

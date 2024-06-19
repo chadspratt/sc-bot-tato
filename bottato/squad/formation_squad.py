@@ -36,13 +36,10 @@ class SquadOrder:
 class FormationSquad(BaseSquad, GeometryMixin):
     def __init__(
         self,
-        *,
-        name: str = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.orders = []
-        self.name = name
         self.current_order = SquadOrderEnum.IDLE
         self.leader: Unit = None
         self._destination: Point2 = None

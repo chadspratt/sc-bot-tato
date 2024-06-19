@@ -18,11 +18,13 @@ class BaseSquad(UnitReferenceMixin):
         type: SquadType = SquadTypeDefinitions['none'],
         bot: BotAI,
         color: tuple[int] = (0, 255, 0),
+        name: str = None,
     ):
+        self.type = type
         self.bot = bot
         self.color = color
+        self.name = name
         self.units: Units = Units([], bot_object=bot)
-        self.type = type
         self.composition: Composition = type.composition
 
     def draw_debug_box(self):
@@ -35,7 +37,7 @@ class BaseSquad(UnitReferenceMixin):
     @property
     def is_full(self) -> bool:
         has = len(self.units)
-        wants = sum([v for v in self.composition.current_units])
+        wants = len(self.composition.current_units)
         return has >= wants
 
     @property
@@ -78,13 +80,17 @@ class BaseSquad(UnitReferenceMixin):
     def needed_unit_types(self) -> list[UnitTypeId]:
         needed_types: list[UnitTypeId] = []
         counted_unit_tags: list[int] = []
+        logger.info(f"target composition {self.composition.current_units}")
+        logger.info(f"current units {[u.type_id for u in self.units]}")
         for unit_type in self.composition.current_units:
             for unit in self.units:
                 if unit.tag in counted_unit_tags:
                     continue
                 if unit.type_id == unit_type:
+                    logger.info(f"match for {unit_type}")
                     counted_unit_tags.append(unit.tag)
                     break
             else:
+                logger.info(f"no match for {unit_type}")
                 needed_types.append(unit_type)
         return needed_types

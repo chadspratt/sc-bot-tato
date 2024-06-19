@@ -90,7 +90,7 @@ class Scouting(BaseSquad):
     assign first two reapers as they are built to immediately start scouting
     """
     def __init__(self, bot: BotAI, enemy: Enemy, color):
-        super().__init__(bot=bot, type=SquadTypeDefinitions['reaper scouts'], color=color)
+        super().__init__(bot=bot, type=SquadTypeDefinitions["reaper scouts"], color=color, name="scouting")
         self.bot = bot
         self.enemy = enemy
         self.scouting_locations: List[ScoutingLocation] = list()
@@ -118,6 +118,7 @@ class Scouting(BaseSquad):
         return self.friendly_territory.scouts_needed + self.enemy_territory.scouts_needed
 
     def recruit(self, unit: Unit):
+        self.units.append(unit)
         if self.enemy_territory.scouts_needed > 0:
             logger.info(f"Assigning scout {unit} to enemy_territory")
             self.enemy_territory.unit = unit
@@ -131,5 +132,6 @@ class Scouting(BaseSquad):
                 location.last_seen = self.bot.time
 
     async def move_scouts(self, new_damage_taken: dict[int, float]):
+        self.units = self.get_updated_unit_references(self.units)
         await self.friendly_territory.update_scout(new_damage_taken)
         await self.enemy_territory.update_scout(new_damage_taken)

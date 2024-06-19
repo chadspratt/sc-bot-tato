@@ -17,23 +17,22 @@ class Workers(UnitReferenceMixin):
         self.bot: BotAI = bot
         self.minerals = Minerals(bot)
         self.vespene = Vespene(bot)
-        self.minerals_needed = 0
-        self.vespene_needed = 0
         self.builders = Units([], bot)
         self.repairers = Units([], bot)
         self.known_worker_tags = []
         self.max_workers = 120
 
-    def get_builder(self, building_position: Point2):
+    def get_builder(self, building_position: Point2, needed_resources: Cost):
         builder = None
         logger.info(
-            f"minerals_needed {self.minerals_needed}, "
-            f"vespene_needed {self.vespene_needed}, "
+            "selecting builder: "
+            f"minerals_needed {needed_resources.minerals}, "
+            f"vespene_needed {needed_resources.vespene}, "
             f"mineral_gatherers {self.minerals.worker_count}, "
             f"vespene_gatherers {self.vespene.worker_count}, "
             f"build position {building_position}"
         )
-        if self.minerals_needed > self.vespene_needed and self.vespene.available_worker_count:
+        if needed_resources.minerals > needed_resources.vespene and self.vespene.available_worker_count:
             builder = self.vespene.take_worker_closest_to(building_position)
         elif self.minerals.worker_count:
             builder = self.minerals.take_worker_closest_to(building_position)
