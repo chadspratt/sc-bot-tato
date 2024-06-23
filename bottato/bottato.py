@@ -43,7 +43,7 @@ class BotTato(BotAI):
         self.my_workers.distribute_idle()
 
         await self.military.manage_squads()
-        needed_units: list[UnitTypeId] = self.military.get_unit_wishlist()
+        needed_units: list[UnitTypeId] = self.military.get_squad_request()
         self.build_order.queue_military(needed_units)
 
         await self.structure_micro.execute()

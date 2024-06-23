@@ -9,7 +9,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from .squad.squad_type import SquadType, SquadTypeDefinitions
-from .squad.base_squad import BaseSquad
+from .squad.base_squad import BaseSquad, SquadState
 from .squad.scouting import Scouting
 from .squad.formation_squad import FormationSquad
 from .enemy import Enemy
@@ -70,7 +70,7 @@ class Military(GeometryMixin):
     def get_counter(enemy_unit: Unit):
         return []
 
-    def get_unit_wishlist(self) -> list[UnitTypeId]:
+    def get_squad_request(self) -> list[UnitTypeId]:
         wishlist = []
 
         scouts_needed = self.scouting.needed_unit_types()
@@ -94,10 +94,12 @@ class Military(GeometryMixin):
             else:
                 squad_type = SquadTypeDefinitions['defensive tank']
 
+            # look for incomplete squad
             for squad in self.squads:
                 if squad.type.name == squad_type.name:
                     wishlist = squad.needed_unit_types()
-                    break
+                    if wishlist:
+                        break
             else:
                 self.add_squad(squad_type)
                 wishlist = squad_type.composition.current_units
@@ -258,7 +260,7 @@ class Military(GeometryMixin):
         await self.scouting.move_scouts(self.new_damage_taken)
 
         for i, squad in enumerate(self.squads):
-            if not squad.units:
+            if squad.state in (SquadState.FILLING, SquadState.DESTROYED, SquadState.RESUPPLYING):
                 continue
             squad.draw_debug_box()
             squad.update_formation()

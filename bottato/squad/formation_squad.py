@@ -57,11 +57,10 @@ class FormationSquad(BaseSquad, GeometryMixin):
         return self.parent_formation.game_position
 
     def recruit(self, unit: Unit):
-        logger.info(f"Recruiting {unit} into {self.name} squad")
+        super().recruit(unit)
         if self.leader is None:
             self.leader = unit
             self.units_in_formation_position.add(unit.tag)
-        self.units.append(unit)
         self.update_formation(reset=True)
 
     def get_report(self) -> str:

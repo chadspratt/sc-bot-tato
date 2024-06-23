@@ -1,4 +1,5 @@
 from __future__ import annotations
+import enum
 
 from loguru import logger
 from sc2.bot_ai import BotAI
@@ -9,6 +10,15 @@ from sc2.ids.unit_typeid import UnitTypeId
 from ..mixins import UnitReferenceMixin
 from .composition import Composition
 from .squad_type import SquadType, SquadTypeDefinitions
+
+
+class SquadState(enum.Enum):
+    FILLING = 0
+    FULL = 1
+    REDUCED = 3
+    CRIPPLED = 4
+    RESUPPLYING = 5
+    DESTROYED = 6
 
 
 class BaseSquad(UnitReferenceMixin):
@@ -26,6 +36,7 @@ class BaseSquad(UnitReferenceMixin):
         self.name = name
         self.units: Units = Units([], bot_object=bot)
         self.composition: Composition = type.composition
+        self.state: SquadState = SquadState.FILLING
 
     def draw_debug_box(self):
         for unit in self.units:
@@ -36,9 +47,7 @@ class BaseSquad(UnitReferenceMixin):
 
     @property
     def is_full(self) -> bool:
-        has = len(self.units)
-        wants = len(self.composition.current_units)
-        return has >= wants
+        return self.state == SquadState.FULL
 
     @property
     def is_empty(self) -> bool:
@@ -48,6 +57,15 @@ class BaseSquad(UnitReferenceMixin):
         logger.info(f"Removing {unit} from {self.name} squad")
         try:
             self.units.remove(unit)
+            if not self.units:
+                self.state = SquadState.DESTROYED
+            elif self.state == SquadState.FULL:
+                self.state = SquadState.REDUCED
+            elif self.state == SquadState.REDUCED:
+                has = len(self.units)
+                wants = len(self.composition.current_units)
+                if has / wants < 0.5:
+                    self.state = SquadState.CRIPPLED
         except ValueError:
             logger.info("Unit not found in squad")
 
@@ -56,6 +74,14 @@ class BaseSquad(UnitReferenceMixin):
             if unit.tag == unit_tag:
                 self.remove(unit)
                 break
+
+    def recruit(self, unit: Unit):
+        logger.info(f"Recruiting {unit} into {self.name} squad")
+        self.units.append(unit)
+        has = len(self.units)
+        wants = len(self.composition.current_units)
+        if has >= wants:
+            self.state = SquadState.FULL
 
     def transfer(self, unit: Unit, to_squad: BaseSquad):
         self.remove(unit)
