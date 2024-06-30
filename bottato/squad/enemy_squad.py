@@ -14,10 +14,11 @@ NEARBY_THRESHOLD = 5
 class EnemySquad(BaseSquad):
     def __init__(
         self,
+        number: int = 0,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.name = "enemy"
+        self.name = "enemy" + str(number)
         self.last_seen_time_by_unit_tag: Dict[int, int] = {}
         self.last_known_position: Point2 = None
 

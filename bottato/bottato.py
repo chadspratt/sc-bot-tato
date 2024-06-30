@@ -10,6 +10,7 @@ from .build_order import BuildOrder
 from .micro.structure_micro import StructureMicro
 from .enemy import Enemy
 from .economy.workers import Workers
+from .economy.production import Production
 from .military import Military
 
 
@@ -20,8 +21,9 @@ class BotTato(BotAI):
         self.enemy: Enemy = Enemy(self)
         self.military: Military = Military(self, self.enemy)
         self.structure_micro: StructureMicro = StructureMicro(self)
+        self.production: Production = Production(self)
         self.build_order: BuildOrder = BuildOrder(
-            "tvt1", bot=self, workers=self.my_workers
+            "tvt1", bot=self, workers=self.my_workers, production=self.production
         )
         # await self.client.debug_fast_build()
         # await self.client.debug_gas()
@@ -32,12 +34,7 @@ class BotTato(BotAI):
 
     async def on_step(self, iteration):
         logger.info(f"======starting step {iteration} ({self.time}s)======")
-        if self.time - self.last_replay_save_time > 30:
-            await self.client.save_replay(".\\replays\\bottato.sc2replay")
-
-        if len(self.units) == 0 or len(self.townhalls) == 0:
-            await self.client.save_replay(".\\replays\\bottato.sc2replay")
-            await self.client.leave()
+        # await self.save_replay()
 
         self.update_unit_references()
         self.my_workers.distribute_idle()
@@ -62,6 +59,15 @@ class BotTato(BotAI):
         self.military.update_references()
         self.enemy.update_references()
         self.build_order.update_references()
+        self.production.update_references()
+
+    async def save_replay(self):
+        if self.time - self.last_replay_save_time > 30:
+            await self.client.save_replay(".\\replays\\bottato.sc2replay")
+
+        if len(self.units) == 0 or len(self.townhalls) == 0:
+            await self.client.save_replay(".\\replays\\bottato.sc2replay")
+            await self.client.leave()
 
     async def on_building_construction_started(self, unit: Unit):
         logger.info(f"building started! {unit}")
@@ -70,6 +76,7 @@ class BotTato(BotAI):
     async def on_building_construction_complete(self, unit: Unit):
         logger.info(f"building complete! {unit}")
         self.build_order.recently_completed_units.append(unit)
+        self.production.add_builder(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         logger.info(f"transformation complete! {previous_type} to {unit.type_id}")

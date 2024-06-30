@@ -80,6 +80,8 @@ class Military(GeometryMixin):
             squad_type: SquadType = None
             unmatched_friendlies, unmatched_enemies = self.simulate_battle()
             logger.info(f"simulated battle results: friendlies {self.count_units_by_type(unmatched_friendlies)}, enemies {self.count_units_by_type(unmatched_enemies)}")
+            if self.bot.time < 250:
+                squad_type = SquadTypeDefinitions["early marines"]
             if unmatched_enemies:
                 # type_summary = self.count_units_by_type(unmatched_enemies)
                 property_summary = self.count_units_by_property(unmatched_enemies)
@@ -92,7 +94,7 @@ class Military(GeometryMixin):
                 # seem to be ahead,
                 squad_type = SquadTypeDefinitions['banshee harass']
             else:
-                squad_type = SquadTypeDefinitions['defensive tank']
+                squad_type = SquadTypeDefinitions['tanks with support']
 
             # look for incomplete squad
             for squad in self.squads:
@@ -100,6 +102,9 @@ class Military(GeometryMixin):
                     wishlist = squad.needed_unit_types()
                     if wishlist:
                         break
+                    # expand existing squad
+                    if squad.type.composition.expansion_units and len(squad.units) < squad.type.composition.max_size:
+                        wishlist
             else:
                 self.add_squad(squad_type)
                 wishlist = squad_type.composition.current_units
@@ -245,7 +250,7 @@ class Military(GeometryMixin):
     async def manage_squads(self):
         self.unassigned_army.draw_debug_box()
         for unassigned in self.unassigned_army.units:
-            if self.scouting.scouts_needed > 0:
+            if self.scouting.needs(unassigned):
                 logger.info(f"scouts needed: {self.scouting.scouts_needed}")
                 self.unassigned_army.transfer(unassigned, self.scouting)
                 self.squads_by_unit_tag[unassigned.tag] = self.scouting
@@ -260,6 +265,7 @@ class Military(GeometryMixin):
         await self.scouting.move_scouts(self.new_damage_taken)
 
         for i, squad in enumerate(self.squads):
+            logger.info(f"squad {squad.name} is {squad.state}")
             if squad.state in (SquadState.FILLING, SquadState.DESTROYED, SquadState.RESUPPLYING):
                 continue
             squad.draw_debug_box()

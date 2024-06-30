@@ -1,5 +1,5 @@
 from loguru import logger
-from typing import Dict, List
+from typing import Dict, List, Union, Iterable
 
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
@@ -11,6 +11,7 @@ from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 
 from bottato.build_step import BuildStep
 from bottato.economy.workers import Workers
+from bottato.economy.production import Production
 from bottato.tech_tree import TECH_TREE
 
 
@@ -59,12 +60,13 @@ class BuildOrder:
     # next_unfinished_step_index: int
     tech_tree: Dict[UnitTypeId, List[UnitTypeId]] = {}
 
-    def __init__(self, build_name: str, bot: BotAI, workers: Workers):
+    def __init__(self, build_name: str, bot: BotAI, workers: Workers, production: Production):
         self.recently_completed_units: List[Unit] = []
         # self.recently_completed_transformations: List[UnitTypeId] = []
         self.recently_started_units: List[Unit] = []
         self.bot: BotAI = bot
         self.workers: Workers = workers
+        self.production: Production = production
         self.pending = [
             # BuildStep(unit, bot, workers) for unit in self.get_build_start(build_name)
         ]
@@ -107,7 +109,7 @@ class BuildOrder:
             requested_worker_count < worker_build_capacity
             and requested_worker_count + len(self.bot.workers) < desired_worker_count
         ):
-            self.pending.insert(1, BuildStep(UnitTypeId.SCV, self.bot, self.workers))
+            self.pending.insert(1, BuildStep(UnitTypeId.SCV, self.bot, self.workers, self.production))
 
     def queue_command_center(self) -> None:
         requested_worker_count = 0
@@ -119,9 +121,9 @@ class BuildOrder:
         # expand if running out of room for workers at current bases
         if (
             requested_worker_count + len(self.bot.workers)
-            > len(self.bot.townhalls) * 14 - 3
+            > len(self.bot.townhalls) * 14
         ):
-            self.pending.insert(1, BuildStep(UnitTypeId.COMMANDCENTER, self.bot, self.workers))
+            self.pending.insert(1, BuildStep(UnitTypeId.COMMANDCENTER, self.bot, self.workers, self.production))
         # should also build a new one if current bases run out of resources
 
     def queue_refinery(self) -> None:
@@ -133,7 +135,7 @@ class BuildOrder:
         logger.info(f"refineries: {refinery_count}, townhalls: {len(self.bot.townhalls)}")
         if refinery_count < len(self.bot.townhalls) * 2:
             logger.info("adding refinery to build order")
-            self.pending.insert(0, BuildStep(UnitTypeId.REFINERY, self.bot, self.workers))
+            self.pending.insert(0, BuildStep(UnitTypeId.REFINERY, self.bot, self.workers, self.production))
         # should also build a new one if current bases run out of resources
 
     def queue_supply(self) -> None:
@@ -141,7 +143,7 @@ class BuildOrder:
             if build_step.unit_type_id == UnitTypeId.SUPPLYDEPOT:
                 return
         if self.bot.supply_left < 10 and self.bot.supply_cap < 200:
-            self.pending.insert(1, BuildStep(UnitTypeId.SUPPLYDEPOT, self.bot, self.workers))
+            self.pending.insert(1, BuildStep(UnitTypeId.SUPPLYDEPOT, self.bot, self.workers, self.production))
 
     def queue_production(self) -> None:
         # add more barracks/factories/starports to handle backlog of pending affordable units
@@ -149,12 +151,17 @@ class BuildOrder:
 
     def queue_military(self, unit_types: list[UnitTypeId]):
         in_progress = self.started + self.pending
-
+        # don't add duplicate tech requirements
+        new_tech_additions = []
         for unit_type in unit_types:
             build_list = self.build_order_with_prereqs(unit_type)
             build_list.reverse()
             logger.info(f"build list with prereqs {build_list}")
             for build_item in build_list:
+                if build_item in new_tech_additions:
+                    continue
+                if build_item in [UnitTypeId.FACTORY, UnitTypeId.FACTORYTECHLAB, UnitTypeId.BARRACKS, UnitTypeId.BARRACKSTECHLAB, UnitTypeId.STARPORT, UnitTypeId.STARPORTTECHLAB]:
+                    new_tech_additions.append(build_item)
                 for build_step in in_progress:
                     if build_item == build_step.unit_type_id:
                         logger.info(f"already in build order {build_item}")
@@ -163,7 +170,7 @@ class BuildOrder:
                 else:
                     # not already started or pending
                     logger.info(f"adding to build order: {build_item}")
-                    self.pending.append(BuildStep(build_item, self.bot, self.workers))
+                    self.pending.append(BuildStep(build_item, self.bot, self.workers, self.production))
 
     def build_order_with_prereqs(self, unit_type: UnitTypeId) -> list[UnitTypeId]:
         build_order = [unit_type]
@@ -202,22 +209,6 @@ class BuildOrder:
                     build_order = requirement_bom
                 else:
                     build_order.extend(requirement_bom)
-
-        # training_facilities = UNIT_TRAINED_FROM[unit_type]
-        # for training_facility in training_facilities:
-        #     if self.bot.structure_type_build_progress(training_facility) > 0:
-        #         break
-        #     if training_facility == UnitTypeId.SCV:
-        #         # queue workers elsewhere
-        #         break
-        # else:
-        #     for training_facility in training_facilities:
-        #         # should only be one thing in the set for terran, but won't work for z or p
-        #         build_order.extend(self.build_order_with_prereqs(training_facility))
-        #         break
-
-        # if self.bot.tech_requirement_progress(unit_type) == 0:
-        #     build_order.extend(self.build_order_with_prereqs(TECH_TREE[unit_type]))
 
         return build_order
 
@@ -322,6 +313,16 @@ class BuildOrder:
         for idx in reversed(to_promote):
             self.pending.insert(0, self.started.pop(idx))
 
+    # returns true if any of the types are queued
+    def already_queued(self, unit_types: Union[UnitTypeId, Iterable[UnitTypeId]]) -> bool:
+        if isinstance(unit_types, UnitTypeId):
+            unit_types = [unit_types]
+        for unit_type in unit_types:
+            for build_step in self.pending + self.started:
+                if build_step.unit_type_id == unit_type:
+                    return True
+        return False
+
     async def execute_first_pending(self, needed_resources: Cost) -> None:
         execution_index = 0
         while execution_index < len(self.pending):
@@ -334,15 +335,40 @@ class BuildOrder:
                 return False
             build_position = await self.find_placement(build_step.unit_type_id)
             logger.debug(f"Executing build step at position {build_position}")
-            execute_response = await build_step.execute(at_position=build_position, needed_resources=needed_resources)
-            logger.debug(f"> Got back {execute_response}")
-            if execute_response:
+
+            build_response = await build_step.execute(at_position=build_position, needed_resources=needed_resources)
+            logger.info(f"build_response: {build_response}")
+            if build_response == build_step.ResponseCode.SUCCESS:
                 self.started.append(self.pending.pop(execution_index))
                 break
-            else:
+            elif build_response == build_step.ResponseCode.NO_FACILITY:
+                if build_step.unit_type_id == UnitTypeId.SCV or self.already_queued(build_step.builder_type):
+                    logger.info(f"!!! {build_step.unit_type_id} has no facility, but one is in progress")
+                    execution_index += 1
+                else:
+                    logger.info(f"!!! {build_step.unit_type_id} has no facility, adding facility to front of queue")
+                    prereqs = self.build_order_with_prereqs(build_step.unit_type_id)
+                    prereqs.reverse()
+                    logger.info(f"new facility prereqs {prereqs}")
+                    offset = 0
+                    for prereq in prereqs:
+                        if not self.already_queued(prereq):
+                            self.pending.insert(execution_index + offset, BuildStep(prereq, self.bot, self.workers, self.production))
+                            logger.info(f"updated pending {self.pending}")
+                            offset += 1
+                    # everything already queued, move on to next
+                    if offset == 0:
+                        execution_index += 1
+            elif build_response == build_step.ResponseCode.NO_TECH:
+                execution_index += 1
+            elif build_response == build_step.ResponseCode.FAILED:
                 logger.info(f"!!! {build_step.unit_type_id} failed to start building, trying next")
                 # try building next thing in list
                 execution_index += 1
+            elif build_response == build_step.ResponseCode.NO_BUILDER:
+                # assume scv is being build or will be
+                execution_index += 1
+            logger.info(f"pending loop: {execution_index} < {len(self.pending)}")
 
     def can_afford(self, requested_cost: Cost) -> bool:
         # PS: non-structure build steps never get their `unit_being_build` populated,

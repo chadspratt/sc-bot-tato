@@ -119,4 +119,15 @@ class BaseSquad(UnitReferenceMixin):
             else:
                 logger.info(f"no match for {unit_type}")
                 needed_types.append(unit_type)
+
+        if not needed_types:
+            remaining_space = self.composition.max_size - len(self.units)
+            logger.info(f"needed types empty, {remaining_space} spaces remaining, adding from expansion list {self.composition.expansion_units}")
+            if remaining_space > 0 and self.composition.expansion_units:
+                number_to_add = min(remaining_space, len(self.composition.expansion_units))
+                needed_types = self.composition.expansion_units[:number_to_add]
+                logger.info(f"adding {needed_types} to current composition")
+                self.composition.current_units.extend(needed_types)
+            if needed_types:
+                self.state = SquadState.FILLING
         return needed_types

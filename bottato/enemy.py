@@ -11,6 +11,7 @@ from .squad.enemy_squad import EnemySquad
 class Enemy(UnitReferenceMixin, GeometryMixin):
     unit_probably_moved_seconds = 8
     unit_may_not_exist_seconds = 60
+    enemy_squad_counter = 0
 
     def __init__(self, bot: BotAI):
         self.bot: BotAI = bot
@@ -59,7 +60,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 self.enemies_out_of_view.append(enemy_unit)
                 self.predicted_position[enemy_unit.tag] = enemy_unit.position
         self.enemies_in_view = self.bot.enemy_units
-        self.update_squads()
+        # self.update_squads()
 
     def record_death(self, unit_tag):
         found = False
@@ -90,7 +91,8 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
         for enemy_squad in self.enemy_squads:
             if enemy_squad.near(enemy_unit, self.predicted_position):
                 return enemy_squad
-        new_squad = EnemySquad(bot=self.bot)
+        new_squad = EnemySquad(bot=self.bot, number=self.enemy_squad_counter)
+        self.enemy_squad_counter += 1
         self.enemy_squads.append(new_squad)
         return new_squad
 

@@ -1,17 +1,18 @@
+import enum
 from loguru import logger
-from typing import Optional, Union
+from typing import Optional, Union, Iterable
 
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2, Point3
-from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.game_data import Cost
 
 from .mixins import UnitReferenceMixin
 from bottato.economy.workers import Workers
+from bottato.economy.production import Production
 
 
 class BuildStep(UnitReferenceMixin):
@@ -22,11 +23,23 @@ class BuildStep(UnitReferenceMixin):
     pos: Union[Unit, Point2]
     check_idle: bool = False
 
-    def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers = None):
-        self.unit_type_id = unit_type_id
+    def __init__(self, unit_types: Union[UnitTypeId, Iterable[UnitTypeId]], bot: BotAI, workers: Workers = None, production: Production = None):
         self.bot: BotAI = bot
         self.workers: Workers = workers
-        self.cost = bot.calculate_cost(unit_type_id)
+        self.production: Production = production
+        self.unit_type_id = None
+        self.cost = Cost(9999, 9999)
+        # build cheapest option in set of unit_types
+        if isinstance(unit_types, UnitTypeId):
+            self.unit_type_id = unit_types
+            self.cost = bot.calculate_cost(unit_types)
+        else:
+            for unit_type in unit_types:
+                unit_cost = bot.calculate_cost(unit_type)
+                if unit_cost.minerals + unit_cost.vespene < self.cost.minerals + self.cost.vespene:
+                    self.unit_type_id = unit_type
+                    self.cost = unit_cost
+        self.builder_type = self.production.get_builder_type(self.unit_type_id)
         self.pos = None
         self.unit_in_charge: Unit = None
         self.completed_time: int = None
@@ -60,24 +73,15 @@ class BuildStep(UnitReferenceMixin):
         except self.UnitNotFound:
             self.unit_in_charge = None
 
-    def get_builder_type(self, unit_type_id):
-        if self.unit_type_id in {
-            UnitTypeId.BARRACKSREACTOR,
-            UnitTypeId.BARRACKSTECHLAB,
-        }:
-            return {UnitTypeId.BARRACKS}
-        if self.unit_type_id in {UnitTypeId.FACTORYREACTOR, UnitTypeId.FACTORYTECHLAB}:
-            return {UnitTypeId.FACTORY}
-        if self.unit_type_id in {
-            UnitTypeId.STARPORTREACTOR,
-            UnitTypeId.STARPORTTECHLAB,
-        }:
-            return {UnitTypeId.STARPORT}
-        return UNIT_TRAINED_FROM[self.unit_type_id]
+    class ResponseCode(enum.Enum):
+        SUCCESS = 0
+        FAILED = 1
+        NO_BUILDER = 2
+        NO_FACILITY = 3
+        NO_TECH = 4
 
-    async def execute(self, at_position: Point2 = None, needed_resources: Cost = None) -> bool:
-        builder_type = self.get_builder_type(self.unit_type_id)
-        if UnitTypeId.SCV in builder_type:
+    async def execute(self, at_position: Point2 = None, needed_resources: Cost = None) -> ResponseCode:
+        if UnitTypeId.SCV in self.builder_type:
             # this is a structure built by an scv
             logger.info(
                 f"Trying to build structure {self.unit_type_id} at {at_position}"
@@ -92,36 +96,40 @@ class BuildStep(UnitReferenceMixin):
                     # self.unit_in_charge = self.bot.workers.filter(
                     #     lambda worker: worker.is_idle or worker.is_gathering
                     # ).closest_to(at_position)
-                    logger.info(f"Found my builder {self.unit_in_charge}")
                     if self.unit_in_charge is None:
-                        return False
+                        return self.ResponseCode.NO_BUILDER
+                    logger.info(f"Found my builder {self.unit_in_charge}")
                 if self.unit_being_built is None:
                     build_response = self.unit_in_charge.build(
                         self.unit_type_id, at_position
                     )
                 else:
                     build_response = self.unit_in_charge.smart(self.unit_being_built)
-                logger.info(f"build_response: {build_response}")
                 logger.info(f"Unit in charge is doing {self.unit_in_charge.orders}")
 
                 if not build_response:
-                    return False
+                    return self.ResponseCode.FAILED
         else:
-            logger.info(
-                f"Trying to train unit {self.unit_type_id} with {builder_type}"
-            )
             # not built by scv
-            try:
-                facility_candidates = self.bot.structures(builder_type)
-                logger.info(f"training facility candidates {facility_candidates}")
-                for facility in facility_candidates:
-                    logger.info(f"{facility}, ready={facility.is_ready}, idle={facility.is_idle}, orders={facility.orders}")
-                self.unit_in_charge = facility_candidates.ready.idle[0]
-                logger.info(f"Found training facility {self.unit_in_charge}")
-            except IndexError:
-                # no available build structure
-                logger.info("no idle training facility")
-                return False
+            logger.info(
+                f"Trying to train unit {self.unit_type_id} with {self.builder_type}"
+            )
+            if self.unit_type_id != UnitTypeId.SCV:
+                self.unit_in_charge = self.production.get_builder(self.unit_type_id)
+                if self.unit_in_charge is None:
+                    return self.ResponseCode.NO_FACILITY
+            else:
+                try:
+                    facility_candidates = self.bot.structures(self.builder_type)
+                    logger.info(f"training facility candidates {facility_candidates}")
+                    for facility in facility_candidates:
+                        logger.info(f"{facility}, ready={facility.is_ready}, idle={facility.is_idle}, orders={facility.orders}")
+                    self.unit_in_charge = facility_candidates.ready.idle[0]
+                    logger.info(f"Found training facility {self.unit_in_charge}")
+                except IndexError:
+                    # no available build structure
+                    logger.info("no idle training facility")
+                    return self.ResponseCode.NO_FACILITY
             build_ability: AbilityId = self.get_build_ability()
             self.unit_in_charge(build_ability)
             # self.unit_in_charge.train(self.unit_type_id)
@@ -129,7 +137,7 @@ class BuildStep(UnitReferenceMixin):
             self.unit_being_built = True
         self.draw_debug_box()
         self.is_in_progress = True
-        return True
+        return self.ResponseCode.SUCCESS
 
     def get_build_ability(self) -> AbilityId:
         if self.unit_type_id in {
