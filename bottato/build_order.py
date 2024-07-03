@@ -418,12 +418,19 @@ class BuildOrder:
                     # account for addon = true
                     addon_place = True
                 map_center = self.bot.game_info.map_center
-                new_build_position = await self.bot.find_placement(
-                    unit_type_id,
-                    near=self.bot.townhalls.random.position.towards(map_center, distance=8),
-                    placement_step=2,
-                    addon_place=addon_place,
-                )
+                if self.bot.townhalls:
+                    new_build_position = await self.bot.find_placement(
+                        unit_type_id,
+                        near=self.bot.townhalls.random.position.towards(map_center, distance=8),
+                        placement_step=2,
+                        addon_place=addon_place,
+                    )
+                else:
+                    new_build_position = await self.bot.find_placement(
+                        unit_type_id,
+                        placement_step=2,
+                        addon_place=addon_place,
+                    )
         return new_build_position
 
     def get_build_start(self, build_name: str) -> list[UnitTypeId]:
