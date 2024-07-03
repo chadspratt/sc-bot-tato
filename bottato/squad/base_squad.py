@@ -57,7 +57,7 @@ class BaseSquad(UnitReferenceMixin):
         logger.info(f"Removing {unit} from {self.name} squad")
         try:
             self.units.remove(unit)
-            if not self.units:
+            if not self.units or not self.composition.current_units:
                 self.state = SquadState.DESTROYED
             elif self.state == SquadState.FULL:
                 self.state = SquadState.REDUCED
@@ -113,11 +113,11 @@ class BaseSquad(UnitReferenceMixin):
                 if unit.tag in counted_unit_tags:
                     continue
                 if unit.type_id == unit_type:
-                    logger.info(f"match for {unit_type}")
+                    logger.debug(f"match for {unit_type}")
                     counted_unit_tags.append(unit.tag)
                     break
             else:
-                logger.info(f"no match for {unit_type}")
+                logger.debug(f"no match for {unit_type}")
                 needed_types.append(unit_type)
 
         if not needed_types:

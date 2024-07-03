@@ -45,12 +45,14 @@ class BuildStep(UnitReferenceMixin):
         self.completed_time: int = None
 
     def __repr__(self) -> str:
-        unit_name = (
-            self.unit_being_built.name
+        builder = self.unit_in_charge if self.unit_in_charge else self.builder_type
+        orders = self.unit_in_charge.orders if self.unit_in_charge else '[]'
+        target = (
+            f"{self.unit_being_built} {self.unit_being_built.build_progress}"
             if self.unit_being_built and self.unit_being_built is not True
             else self.unit_type_id
         )
-        return f"BuildStep({unit_name}, {self.completed_time})"
+        return f"{builder} has orders {orders} for target {target}"
 
     def draw_debug_box(self):
         if self.unit_in_charge is not None:
@@ -66,12 +68,17 @@ class BuildStep(UnitReferenceMixin):
             logger.debug(f"unit being built {self.unit_being_built}")
             self.bot.client.debug_box2_out(self.unit_being_built, 0.75)
 
-    def refresh_worker_reference(self):
+    def update_references(self):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
         try:
             self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge)
         except self.UnitNotFound:
             self.unit_in_charge = None
+        if isinstance(self.unit_being_built, Unit):
+            try:
+                self.unit_being_built = self.get_updated_unit_reference(self.unit_being_built)
+            except self.UnitNotFound:
+                self.unit_being_built = None
 
     class ResponseCode(enum.Enum):
         SUCCESS = 0
@@ -180,7 +187,8 @@ class BuildStep(UnitReferenceMixin):
     def is_interrupted(self) -> bool:
         if self.unit_in_charge is None:
             return True
-        logger.info(f"{self.unit_in_charge} is doing {self.unit_in_charge.orders}")
+        logger.info(f"{self}")
+
         self.check_idle: bool = self.check_idle or (
             self.unit_in_charge.is_active and not self.unit_in_charge.is_gathering
         )

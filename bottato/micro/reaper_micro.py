@@ -20,7 +20,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
     async def retreat(self, enemy: Enemy, health_threshold: float) -> bool:
         can_grenade_1: bool = await self.grenade_available
-        logger.info(f"{self.unit} grenade available: {can_grenade_1}")
+        logger.debug(f"{self.unit} grenade available: {can_grenade_1}")
         if await self.grenade_knock_away(enemy.threats_to(self.unit)):
             return True
         return await super().retreat(enemy, health_threshold)

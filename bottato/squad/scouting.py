@@ -50,7 +50,7 @@ class Scout(UnitReferenceMixin):
         if self.unit:
             try:
                 self.unit = self.get_updated_unit_reference(self.unit)
-                logger.info(f"{self.name} scout {self.unit}")
+                logger.debug(f"{self.name} scout {self.unit}")
                 await self.move_scout(new_damage_taken)
             except self.UnitNotFound:
                 self.unit = None
@@ -58,7 +58,7 @@ class Scout(UnitReferenceMixin):
 
     async def move_scout(self, new_damage_taken: dict[int, float]):
         assignment: ScoutingLocation = self.scouting_locations[self.scouting_locations_index]
-        logger.info(f"scout {self.unit} previous assignment: {assignment}")
+        logger.debug(f"scout {self.unit} previous assignment: {assignment}")
 
         micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot)
 
@@ -67,7 +67,7 @@ class Scout(UnitReferenceMixin):
         if self.unit.tag in new_damage_taken:
             next_index = (next_index + 1) % len(self.scouting_locations)
             assignment: ScoutingLocation = self.scouting_locations[next_index]
-            logger.info(f"scout {self.unit} took damage, changing assignment")
+            logger.debug(f"scout {self.unit} took damage, changing assignment")
 
         while assignment.last_seen and self.bot.time - assignment.last_seen < 10:
             next_index = (next_index + 1) % len(self.scouting_locations)
@@ -76,7 +76,7 @@ class Scout(UnitReferenceMixin):
                 break
             assignment: ScoutingLocation = self.scouting_locations[next_index]
         self.scouting_locations_index = next_index
-        logger.info(f"scout {self.unit} new assignment: {assignment}")
+        logger.debug(f"scout {self.unit} new assignment: {assignment}")
 
         await micro.scout(assignment.position, self.enemy)
 
@@ -110,8 +110,8 @@ class Scouting(BaseSquad):
             if not self.friendly_territory.contains_location(enemy_nearest_locations_temp[i]):
                 self.enemy_territory.add_location(enemy_nearest_locations_temp[i])
 
-        logger.info(f"friendly_territory {self.friendly_territory}")
-        logger.info(f"enemy_territory {self.enemy_territory}")
+        logger.debug(f"friendly_territory {self.friendly_territory}")
+        logger.debug(f"enemy_territory {self.enemy_territory}")
 
     @property
     def scouts_needed(self):
@@ -120,10 +120,10 @@ class Scouting(BaseSquad):
     def recruit(self, unit: Unit):
         self.units.append(unit)
         if self.enemy_territory.scouts_needed > 0:
-            logger.info(f"Assigning scout {unit} to enemy_territory")
+            logger.debug(f"Assigning scout {unit} to enemy_territory")
             self.enemy_territory.unit = unit
         elif self.friendly_territory.scouts_needed > 0:
-            logger.info(f"Assigning scout {unit} to friendly_territory")
+            logger.debug(f"Assigning scout {unit} to friendly_territory")
             self.friendly_territory.unit = unit
 
     def update_visibility(self):

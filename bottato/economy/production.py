@@ -12,9 +12,15 @@ from ..mixins import UnitReferenceMixin
 class Facility():
     def __init__(self, unit: Unit) -> None:
         self.unit = unit
-        self.addon = UnitTypeId.NOTAUNIT
+        self.add_on_type = UnitTypeId.NOTAUNIT
         self.addon_destroyed_time = None
         self.in_progress_unit: Unit = None
+        self.capacity = 1
+
+    def set_add_on_type(self, add_on_type: UnitTypeId) -> None:
+        self.add_on_type = add_on_type
+        if add_on_type == UnitTypeId.REACTOR:
+            self.capacity = 2
 
 
 class Production(UnitReferenceMixin):
@@ -43,7 +49,15 @@ class Production(UnitReferenceMixin):
             UnitTypeId.SIEGETANK,
             UnitTypeId.BATTLECRUISER
         ]
-        self.add_on_type: dict[UnitTypeId, UnitTypeId] = {
+        self.add_on_types: list[UnitTypeId] = [
+            UnitTypeId.BARRACKSTECHLAB,
+            UnitTypeId.BARRACKSREACTOR,
+            UnitTypeId.FACTORYTECHLAB,
+            UnitTypeId.FACTORYREACTOR,
+            UnitTypeId.STARPORTTECHLAB,
+            UnitTypeId.STARPORTREACTOR
+        ]
+        self.add_on_type_lookup: dict[UnitTypeId, UnitTypeId] = {
             UnitTypeId.BARRACKS: {
                 UnitTypeId.TECHLAB: UnitTypeId.BARRACKSTECHLAB,
                 UnitTypeId.REACTOR: UnitTypeId.BARRACKSREACTOR,
@@ -70,24 +84,21 @@ class Production(UnitReferenceMixin):
 
     def get_builder(self, unit_type: UnitTypeId) -> Unit:
         candidates = []
-        builder_type: UnitTypeId = list(self.get_builder_type(unit_type))[0]
-        if unit_type not in self.needs_tech_lab:
-            logger.info(f"{unit_type} doesn't need tech lab")
-            candidates: list[Facility] = self.facilities[builder_type][UnitTypeId.REACTOR]
-            logger.info(f"reactor facilities {candidates}")
+        builder_type: UnitTypeId = self.get_cheapest_builder_type(unit_type)
+        usable_add_ons: list[UnitTypeId]
+        if unit_type in self.needs_tech_lab:
+            usable_add_ons = [UnitTypeId.TECHLAB]
+        elif unit_type in self.add_on_types:
+            usable_add_ons = [UnitTypeId.NOTAUNIT]
+        else:
+            usable_add_ons = [UnitTypeId.REACTOR, UnitTypeId.NOTAUNIT, UnitTypeId.TECHLAB]
+
+        for add_on_type in usable_add_ons:
+            candidates: list[Facility] = self.facilities[builder_type][add_on_type]
+            logger.info(f"{add_on_type} facilities {candidates}")
             for candidate in candidates:
-                if len(candidate.unit.orders) < 2:
+                if len(candidate.unit.orders) < candidate.capacity:
                     return candidate.unit
-            candidates = self.facilities[builder_type][UnitTypeId.NOTAUNIT]
-            logger.info(f"no add-on facilities {candidates}")
-            for candidate in candidates:
-                if len(candidate.unit.orders) < 1:
-                    return candidate.unit
-        candidates = self.facilities[builder_type][UnitTypeId.TECHLAB]
-        logger.info(f"techlab facilities {candidates}")
-        for candidate in candidates:
-            if len(candidate.unit.orders) < 1:
-                return candidate.unit
 
         return None
 
@@ -106,20 +117,25 @@ class Production(UnitReferenceMixin):
             return {UnitTypeId.STARPORT}
         return UNIT_TRAINED_FROM[unit_type_id]
 
+    def get_cheapest_builder_type(self, unit_type_id: UnitTypeId) -> UnitTypeId:
+        # XXX add hardcoded answers for sets with more than one entry
+        return list(self.get_builder_type(unit_type_id))[0]
+
     def create_builder(self, unit_type: UnitTypeId) -> list[UnitTypeId]:
         build_list: list[UnitTypeId] = []
-        builder_type: UnitTypeId = self.get_builder_type(unit_type)
+        builder_type: UnitTypeId = self.get_cheapest_builder_type(unit_type)
         if unit_type not in self.needs_tech_lab:
             if self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
                 # queue a reactor for a facility with no addon
-                build_list.append(self.add_on_type[builder_type][UnitTypeId.REACTOR])
+                build_list.append(self.add_on_type_lookup[builder_type][UnitTypeId.REACTOR])
             else:
                 build_list.append(builder_type)
         else:
-            if self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
-                # queue a techlab for a facility with no addon
-                build_list.append(self.add_on_type[builder_type][UnitTypeId.TECHLAB])
-            build_list.append(builder_type)
+            if not self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
+                # queue new facility of none availiable for a tech lab (more complicated, could sometimes move existing)
+                build_list.append(builder_type)
+            # queue a techlab for a facility with no addon
+            build_list.append(self.add_on_type_lookup[builder_type][UnitTypeId.TECHLAB])
 
         return build_list
 
@@ -147,4 +163,5 @@ class Production(UnitReferenceMixin):
                         generic_type = list(UNIT_TECH_ALIAS[add_on.type_id])[0]
                         self.facilities[facility_type][generic_type].append(facility)
                         self.facilities[facility_type][UnitTypeId.NOTAUNIT].remove(facility)
+                        facility.set_add_on_type(generic_type)
                         logger.info(f"adding to {facility_type}-{generic_type}")

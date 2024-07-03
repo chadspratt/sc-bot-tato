@@ -80,7 +80,8 @@ class BuildOrder:
         logger.info(
             f"started={','.join([step.unit_type_id.name for step in self.started])}"
         )
-        self.refresh_worker_references()
+        for build_step in self.started:
+            build_step.update_references()
         self.update_completed()
         self.update_started()
         self.move_interupted_to_pending()
@@ -152,25 +153,29 @@ class BuildOrder:
     def queue_military(self, unit_types: list[UnitTypeId]):
         in_progress = self.started + self.pending
         # don't add duplicate tech requirements
-        new_tech_additions = []
+        new_facilities = []
+        already_in_build_order = []
+        added_to_build_order = []
         for unit_type in unit_types:
             build_list = self.build_order_with_prereqs(unit_type)
             build_list.reverse()
-            logger.info(f"build list with prereqs {build_list}")
+            logger.debug(f"build list with prereqs {build_list}")
             for build_item in build_list:
-                if build_item in new_tech_additions:
+                if build_item in new_facilities:
                     continue
                 if build_item in [UnitTypeId.FACTORY, UnitTypeId.FACTORYTECHLAB, UnitTypeId.BARRACKS, UnitTypeId.BARRACKSTECHLAB, UnitTypeId.STARPORT, UnitTypeId.STARPORTTECHLAB]:
-                    new_tech_additions.append(build_item)
+                    new_facilities.append(build_item)
                 for build_step in in_progress:
                     if build_item == build_step.unit_type_id:
-                        logger.info(f"already in build order {build_item}")
+                        already_in_build_order.append(build_item)
                         in_progress.remove(build_step)
                         break
                 else:
                     # not already started or pending
-                    logger.info(f"adding to build order: {build_item}")
+                    added_to_build_order.append(build_item)
                     self.pending.append(BuildStep(build_item, self.bot, self.workers, self.production))
+        logger.info(f"already in build order {already_in_build_order}")
+        logger.info(f"adding to build order: {added_to_build_order}")
 
     def build_order_with_prereqs(self, unit_type: UnitTypeId) -> list[UnitTypeId]:
         build_order = [unit_type]
@@ -293,10 +298,6 @@ class BuildOrder:
                     ramp_blocker.is_started = True
         self.recently_started_units = []
 
-    def refresh_worker_references(self):
-        for build_step in self.started:
-            build_step.refresh_worker_reference()
-
     def move_interupted_to_pending(self) -> None:
         to_promote = []
         for idx, build_step in enumerate(self.started):
@@ -344,30 +345,31 @@ class BuildOrder:
             elif build_response == build_step.ResponseCode.NO_FACILITY:
                 if build_step.unit_type_id == UnitTypeId.SCV or self.already_queued(build_step.builder_type):
                     logger.info(f"!!! {build_step.unit_type_id} has no facility, but one is in progress")
-                    execution_index += 1
                 else:
                     logger.info(f"!!! {build_step.unit_type_id} has no facility, adding facility to front of queue")
-                    prereqs = self.build_order_with_prereqs(build_step.unit_type_id)
-                    prereqs.reverse()
-                    logger.info(f"new facility prereqs {prereqs}")
+                    new_facility = self.production.create_builder(build_step.unit_type_id)
+                    # prereqs = self.build_order_with_prereqs(build_step.unit_type_id)
+                    # prereqs.reverse()
+                    logger.info(f"new facility prereqs {new_facility}")
                     offset = 0
-                    for prereq in prereqs:
+                    for prereq in new_facility:
                         if not self.already_queued(prereq):
                             self.pending.insert(execution_index + offset, BuildStep(prereq, self.bot, self.workers, self.production))
                             logger.info(f"updated pending {self.pending}")
                             offset += 1
                     # everything already queued, move on to next
-                    if offset == 0:
-                        execution_index += 1
+                    if offset > 0:
+                        break
             elif build_response == build_step.ResponseCode.NO_TECH:
-                execution_index += 1
+                logger.info(f"!!! {build_step.unit_type_id} failed to start building, NO_TECH")
+                pass
             elif build_response == build_step.ResponseCode.FAILED:
                 logger.info(f"!!! {build_step.unit_type_id} failed to start building, trying next")
-                # try building next thing in list
-                execution_index += 1
             elif build_response == build_step.ResponseCode.NO_BUILDER:
+                logger.info(f"!!! {build_step.unit_type_id} failed to start building, NO_BUILDER")
                 # assume scv is being build or will be
-                execution_index += 1
+                pass
+            execution_index += 1
             logger.info(f"pending loop: {execution_index} < {len(self.pending)}")
 
     def can_afford(self, requested_cost: Cost) -> bool:

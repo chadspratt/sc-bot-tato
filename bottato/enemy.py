@@ -81,11 +81,11 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             del self.last_seen_position[unit_tag]
             if unit_tag in self.predicted_position:
                 del self.predicted_position[unit_tag]
-            enemy_squad = self.squads_by_unit_tag[unit_tag]
-            enemy_squad.remove_by_tag(unit_tag)
-            del self.squads_by_unit_tag[unit_tag]
-            if enemy_squad.is_empty:
-                self.enemy_squads.remove(enemy_squad)
+            # enemy_squad = self.squads_by_unit_tag[unit_tag]
+            # enemy_squad.remove_by_tag(unit_tag)
+            # del self.squads_by_unit_tag[unit_tag]
+            # if enemy_squad.is_empty:
+            #     self.enemy_squads.remove(enemy_squad)
 
     def _find_nearby_squad(self, enemy_unit: Unit) -> EnemySquad:
         for enemy_squad in self.enemy_squads:
