@@ -5,6 +5,7 @@ from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
+from sc2.protocol import ProtocolError
 from .base_unit_micro import BaseUnitMicro
 from sc2.ids.ability_id import AbilityId
 from ..enemy import Enemy
@@ -56,4 +57,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
     @property
     async def grenade_available(self) -> bool:
-        return await self.bot.can_cast(self.unit, AbilityId.KD8CHARGE_KD8CHARGE, only_check_energy_and_cooldown=True)
+        try:
+            return await self.bot.can_cast(self.unit, AbilityId.KD8CHARGE_KD8CHARGE, only_check_energy_and_cooldown=True)
+        except ProtocolError:
+            return False

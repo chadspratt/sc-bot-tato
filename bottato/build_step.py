@@ -123,7 +123,7 @@ class BuildStep(UnitReferenceMixin):
             logger.info(
                 f"Trying to train unit {self.unit_type_id} with {self.builder_type}"
             )
-            if self.builder_type in [UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT]:
+            if self.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
                 self.unit_in_charge = self.production.get_builder(self.unit_type_id)
                 if self.unit_in_charge is None:
                     logger.info("no idle training facility")
