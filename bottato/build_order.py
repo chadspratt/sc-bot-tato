@@ -7,12 +7,13 @@ from sc2.unit import Unit
 from sc2.game_data import Cost
 from sc2.game_info import Ramp
 from sc2.position import Point2
-from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
+from sc2.protocol import ConnectionAlreadyClosed, ProtocolError
 
-from bottato.build_step import BuildStep
-from bottato.economy.workers import Workers
-from bottato.economy.production import Production
-from bottato.tech_tree import TECH_TREE
+from .build_step import BuildStep
+from .economy.workers import Workers
+from .economy.production import Production
+from .squad.base_squad import BaseSquad
+from .mixins import TimerMixin
 
 
 class RampBlocker:
@@ -36,7 +37,7 @@ class RampBlock:
         self.add_ramp(ramp)
 
     def add_ramp(self, ramp: Ramp):
-        ramp_blockers: list[RampBlocker] = []
+        ramp_blockers: List[RampBlocker] = []
         for corner_position in ramp.corner_depots:
             ramp_blockers.append(RampBlocker(UnitTypeId.SUPPLYDEPOT, corner_position))
         ramp_blockers.append(
@@ -53,7 +54,7 @@ class RampBlock:
         return None
 
 
-class BuildOrder:
+class BuildOrder(TimerMixin):
     pending: List[BuildStep] = []
     started: List[BuildStep] = []
     complete: List[BuildStep] = []
@@ -68,7 +69,7 @@ class BuildOrder:
         self.workers: Workers = workers
         self.production: Production = production
         self.pending = [
-            # BuildStep(unit, bot, workers) for unit in self.get_build_start(build_name)
+            BuildStep(unit, bot, workers, production) for unit in self.get_build_start(build_name)
         ]
         self.ramp_block = RampBlock(ramp=self.bot.main_base_ramp)
         logger.info(f"Starting position: {self.bot.start_location}")
@@ -82,20 +83,45 @@ class BuildOrder:
         )
         for build_step in self.started:
             build_step.update_references()
+            logger.info(f"started step {build_step}")
         self.update_completed()
         self.update_started()
         self.move_interupted_to_pending()
 
+    @property
+    def remaining_cap(self) -> int:
+        remaining = self.bot.supply_left
+        for step in self.pending:
+            remaining -= self.bot.calculate_supply_cost(step.unit_type_id)
+        return remaining
+
     async def execute(self):
+        self.start_timer("queue_production")
+        self.queue_production()
+        self.stop_timer("queue_production")
+        self.start_timer("queue_command_center")
         self.queue_command_center()
+        self.stop_timer("queue_command_center")
+        self.start_timer("queue_supply")
         self.queue_supply()
+        self.stop_timer("queue_supply")
+        self.start_timer("queue_worker")
         self.queue_worker()
+        self.stop_timer("queue_worker")
+        self.start_timer("get_first_resource_shortage")
         needed_resources: Cost = self.get_first_resource_shortage()
+        self.stop_timer("get_first_resource_shortage")
+        self.start_timer("redistribute_workers")
         moved_workers = await self.workers.redistribute_workers(needed_resources)
+        self.stop_timer("redistribute_workers")
         logger.info(f"needed gas {needed_resources.vespene}, minerals {needed_resources.minerals}, moved workers {moved_workers}")
+        self.start_timer("queue_refinery")
         if needed_resources.vespene > 0 and moved_workers == 0:
             self.queue_refinery()
+        self.stop_timer("queue_refinery")
+        self.start_timer("execute_first_pending")
         await self.execute_first_pending(needed_resources)
+        self.stop_timer("execute_first_pending")
 
     def queue_worker(self) -> None:
         requested_worker_count = 0
@@ -143,79 +169,37 @@ class BuildOrder:
         for build_step in self.started + self.pending:
             if build_step.unit_type_id == UnitTypeId.SUPPLYDEPOT:
                 return
-        if self.bot.supply_left < 10 and self.bot.supply_cap < 200:
+        if self.bot.supply_left / self.bot.supply_cap < 0.3 and self.bot.supply_cap < 200:
             self.pending.insert(1, BuildStep(UnitTypeId.SUPPLYDEPOT, self.bot, self.workers, self.production))
 
     def queue_production(self) -> None:
         # add more barracks/factories/starports to handle backlog of pending affordable units
-        pass
+        affordable_units: List[UnitTypeId] = self.get_affordable_build_list()
+        extra_production: List[UnitTypeId] = self.production.additional_needed_production(affordable_units)
+        self.add_to_build_order(extra_production)
 
-    def queue_military(self, unit_types: list[UnitTypeId]):
+    def queue_military(self, squads: List[BaseSquad]):
+        unit_wishlist = []
+        for squad in squads:
+            unit_wishlist.extend(squad.needed_unit_types())
+        self.add_to_build_order(unit_wishlist)
+
+    def add_to_build_order(self, unit_types: List[UnitTypeId]) -> None:
         in_progress = self.started + self.pending
-        # don't add duplicate tech requirements
-        new_facilities = []
         already_in_build_order = []
         added_to_build_order = []
-        for unit_type in unit_types:
-            build_list = self.build_order_with_prereqs(unit_type)
-            build_list.reverse()
-            logger.debug(f"build list with prereqs {build_list}")
-            for build_item in build_list:
-                if build_item in new_facilities:
-                    continue
-                if build_item in [UnitTypeId.FACTORY, UnitTypeId.FACTORYTECHLAB, UnitTypeId.BARRACKS, UnitTypeId.BARRACKSTECHLAB, UnitTypeId.STARPORT, UnitTypeId.STARPORTTECHLAB]:
-                    new_facilities.append(build_item)
-                for build_step in in_progress:
-                    if build_item == build_step.unit_type_id:
-                        already_in_build_order.append(build_item)
-                        in_progress.remove(build_step)
-                        break
-                else:
-                    # not already started or pending
-                    added_to_build_order.append(build_item)
-                    self.pending.append(BuildStep(build_item, self.bot, self.workers, self.production))
+        for build_item in unit_types:
+            for build_step in in_progress:
+                if build_item == build_step.unit_type_id:
+                    already_in_build_order.append(build_item)
+                    in_progress.remove(build_step)
+                    break
+            else:
+                # not already started or pending
+                added_to_build_order.append(build_item)
+                self.pending.append(BuildStep(build_item, self.bot, self.workers, self.production))
         logger.info(f"already in build order {already_in_build_order}")
         logger.info(f"adding to build order: {added_to_build_order}")
-
-    def build_order_with_prereqs(self, unit_type: UnitTypeId) -> list[UnitTypeId]:
-        build_order = [unit_type]
-
-        if unit_type in TECH_TREE:
-            # check that all tech requirements are met
-            for requirement in TECH_TREE[unit_type]:
-                prereq_progress = self.bot.structure_type_build_progress(requirement)
-                logger.info(f"{requirement} progress: {prereq_progress}")
-
-                if prereq_progress == 0:
-                    requirement_bom = self.build_order_with_prereqs(requirement)
-                    # if same prereq appears at a higher level, skip adding it
-                    if unit_type in requirement_bom:
-                        build_order = requirement_bom
-                    else:
-                        build_order.extend(requirement_bom)
-
-        if unit_type in UNIT_TRAINED_FROM:
-            # check that one training facility exists
-            arbitrary_trainer: UnitTypeId = None
-            for trainer in UNIT_TRAINED_FROM[unit_type]:
-                if trainer in build_order:
-                    break
-                if trainer == UnitTypeId.SCV and self.bot.workers:
-                    break
-                if self.bot.structure_type_build_progress(trainer) > 0:
-                    break
-                if arbitrary_trainer is None:
-                    arbitrary_trainer = trainer
-            else:
-                # no trainers available
-                requirement_bom = self.build_order_with_prereqs(arbitrary_trainer)
-                # if same prereq appears at a higher level, skip adding it
-                if unit_type in requirement_bom:
-                    build_order = requirement_bom
-                else:
-                    build_order.extend(requirement_bom)
-
-        return build_order
 
     def get_first_resource_shortage(self) -> Cost:
         needed_resources: Cost = Cost(0, 0)
@@ -237,6 +221,25 @@ class BuildOrder:
             f"minerals: {self.bot.minerals}/{needed_resources.minerals + self.bot.minerals}"
         )
         return needed_resources
+
+    def get_affordable_build_list(self) -> List[UnitTypeId]:
+        affordable_items: List[UnitTypeId] = []
+        needed_resources: Cost = Cost(0, 0)
+        if not self.pending:
+            return affordable_items
+
+        needed_resources.minerals = -self.bot.minerals
+        needed_resources.vespene = -self.bot.vespene
+
+        # find first shortage
+        for idx, build_step in enumerate(self.pending):
+            needed_resources.minerals += build_step.cost.minerals
+            needed_resources.vespene += build_step.cost.vespene
+            if needed_resources.minerals > 0 or needed_resources.vespene > 0:
+                break
+            affordable_items.append(build_step.unit_type_id)
+        logger.info(f"affordable items {affordable_items}")
+        return affordable_items
 
     def update_completed(self) -> None:
         for completed_unit in self.recently_completed_units:
@@ -334,41 +337,52 @@ class BuildOrder:
             if not self.can_afford(build_step.cost):
                 logger.debug(f"Cannot afford {build_step.unit_type_id.name}")
                 return False
-            build_position = await self.find_placement(build_step.unit_type_id)
+            build_position: Point2 = None
+            if UnitTypeId.SCV in build_step.builder_type:
+                self.start_timer(f"find_placement {build_step.unit_type_id}")
+                build_position = await self.find_placement(build_step.unit_type_id)
+                self.stop_timer(f"find_placement {build_step.unit_type_id}")
             logger.debug(f"Executing build step at position {build_position}")
 
+            self.start_timer("build_step.execute")
             build_response = await build_step.execute(at_position=build_position, needed_resources=needed_resources)
+            self.stop_timer("build_step.execute")
+            self.start_timer(f"handle response {build_response}")
             logger.info(f"build_response: {build_response}")
             if build_response == build_step.ResponseCode.SUCCESS:
                 self.started.append(self.pending.pop(execution_index))
                 break
-            elif build_response == build_step.ResponseCode.NO_FACILITY:
-                if build_step.unit_type_id == UnitTypeId.SCV or self.already_queued(build_step.builder_type):
-                    logger.info(f"!!! {build_step.unit_type_id} has no facility, but one is in progress")
-                else:
-                    logger.info(f"!!! {build_step.unit_type_id} has no facility, adding facility to front of queue")
-                    new_facility = self.production.create_builder(build_step.unit_type_id)
-                    # prereqs = self.build_order_with_prereqs(build_step.unit_type_id)
-                    # prereqs.reverse()
-                    logger.info(f"new facility prereqs {new_facility}")
-                    offset = 0
-                    for prereq in new_facility:
-                        if not self.already_queued(prereq):
-                            self.pending.insert(execution_index + offset, BuildStep(prereq, self.bot, self.workers, self.production))
-                            logger.info(f"updated pending {self.pending}")
-                            offset += 1
-                    # everything already queued, move on to next
-                    if offset > 0:
-                        break
-            elif build_response == build_step.ResponseCode.NO_TECH:
-                logger.info(f"!!! {build_step.unit_type_id} failed to start building, NO_TECH")
-                pass
-            elif build_response == build_step.ResponseCode.FAILED:
-                logger.info(f"!!! {build_step.unit_type_id} failed to start building, trying next")
-            elif build_response == build_step.ResponseCode.NO_BUILDER:
-                logger.info(f"!!! {build_step.unit_type_id} failed to start building, NO_BUILDER")
-                # assume scv is being build or will be
-                pass
+            else:
+                logger.info(f"!!! {build_step.unit_type_id} failed to start building, {build_response}")
+            # elif build_response == build_step.ResponseCode.NO_FACILITY:
+                # if build_step.unit_type_id == UnitTypeId.SCV or self.already_queued(build_step.builder_type):
+                #     logger.info(f"!!! {build_step.unit_type_id} has no facility, but one is in progress")
+                # else:
+                #     total_queued = 0
+                #     for step in self.pending:
+                #         if step.unit_type_id == build_step.unit_type_id:
+                #             total_queued += 1
+                #     logger.info(f"!!! {build_step.unit_type_id} has no facility, adding facility to front of queue")
+                #     new_facility = self.production.create_builder(build_step.unit_type_id)
+                #     # prereqs = self.build_order_with_prereqs(build_step.unit_type_id)
+                #     # prereqs.reverse()
+                #     logger.info(f"new facility prereqs {new_facility}")
+                #     offset = 0
+                #     for i in range(total_queued // 2):
+                #         for prereq in new_facility:
+                #             self.pending.insert(execution_index + offset, BuildStep(prereq, self.bot, self.workers, self.production))
+                #             logger.info(f"updated pending {self.pending}")
+                #             offset += 1
+                #     # everything already queued, move on to next
+                #     if offset > 0:
+                #         break
+            # elif build_response == build_step.ResponseCode.NO_TECH:
+            #     logger.info(f"!!! {build_step.unit_type_id} failed to start building, NO_TECH")
+            # elif build_response == build_step.ResponseCode.FAILED:
+            #     logger.info(f"!!! {build_step.unit_type_id} failed to start building, trying next")
+            # elif build_response == build_step.ResponseCode.NO_BUILDER:
+            #     logger.info(f"!!! {build_step.unit_type_id} failed to start building, NO_BUILDER")
+            self.stop_timer(f"handle response {build_response}")
             execution_index += 1
             logger.info(f"pending loop: {execution_index} < {len(self.pending)}")
 
@@ -409,31 +423,31 @@ class BuildOrder:
             if not self.ramp_block.is_blocked:
                 new_build_position = self.ramp_block.find_placement(unit_type_id)
             if new_build_position is None:
-                addon_place = False
-                if unit_type_id in (
+                addon_place = unit_type_id in (
                     UnitTypeId.BARRACKS,
                     UnitTypeId.FACTORY,
                     UnitTypeId.STARPORT,
-                ):
-                    # account for addon = true
-                    addon_place = True
+                )
                 map_center = self.bot.game_info.map_center
-                if self.bot.townhalls:
-                    new_build_position = await self.bot.find_placement(
-                        unit_type_id,
-                        near=self.bot.townhalls.random.position.towards(map_center, distance=8),
-                        placement_step=2,
-                        addon_place=addon_place,
-                    )
-                else:
-                    new_build_position = await self.bot.find_placement(
-                        unit_type_id,
-                        placement_step=2,
-                        addon_place=addon_place,
-                    )
+                try:
+                    if self.bot.townhalls:
+                        new_build_position = await self.bot.find_placement(
+                            unit_type_id,
+                            near=self.bot.townhalls.random.position.towards(map_center, distance=8),
+                            placement_step=2,
+                            addon_place=addon_place,
+                        )
+                    else:
+                        new_build_position = await self.bot.find_placement(
+                            unit_type_id,
+                            placement_step=2,
+                            addon_place=addon_place,
+                        )
+                except (ConnectionAlreadyClosed, ConnectionResetError, ProtocolError):
+                    return None
         return new_build_position
 
-    def get_build_start(self, build_name: str) -> list[UnitTypeId]:
+    def get_build_start(self, build_name: str) -> List[UnitTypeId]:
         if build_name == "tvt1":
             # https://lotv.spawningtool.com/build/171779/
             # Standard Terran vs Terran (3 Reaper 2 Hellion) (TvT Economic)

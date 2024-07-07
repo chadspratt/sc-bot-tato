@@ -77,9 +77,6 @@ class Workers(UnitReferenceMixin):
                 if worker.tag not in self.known_worker_tags:
                     self.known_worker_tags.append(worker.tag)
                     workers_to_assign.append(worker)
-        else:
-            # maybe extraneous but could keep workers from slipping through cracks
-            workers_to_assign = self.bot.workers.idle
 
         if workers_to_assign:
             logger.info(f"idle or new workers {workers_to_assign}")
@@ -90,9 +87,13 @@ class Workers(UnitReferenceMixin):
 
                 if self.vespene.has_unused_capacity:
                     self.vespene.add_worker(worker)
+                    continue
+
+                if self.minerals.add_long_distance_minerals(1) > 0:
+                    self.minerals.add_worker(worker)
 
         logger.info(
-            f"workers: minerals({self.minerals.worker_count}), "
+            f"[==WORKERS==] minerals({self.minerals.worker_count}), "
             f"vespene({self.vespene.worker_count}), "
             f"builders({len(self.builders)}), "
             f"repairers({len(self.repairers)}), "

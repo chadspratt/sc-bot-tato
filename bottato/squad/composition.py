@@ -1,8 +1,10 @@
+from typing import List
+
 from sc2.ids.unit_typeid import UnitTypeId
 
 
 class Composition():
-    def __init__(self, initial_units: list[UnitTypeId], expansion_units: list[UnitTypeId] = [], max_size=0) -> None:
+    def __init__(self, initial_units: List[UnitTypeId], expansion_units: List[UnitTypeId] = [], max_size=0) -> None:
         self.minimum_units = initial_units
         self.expansion_units = expansion_units
         self.current_units = initial_units

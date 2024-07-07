@@ -70,6 +70,15 @@ class BaseUnitMicro(GeometryMixin):
                 return target
         return None
 
+    async def move(self, target: Point2, enemy: Enemy) -> None:
+        if await self.retreat(enemy, health_threshold=0.35):
+            pass
+        elif self.attack_something():
+            pass
+        else:
+            logger.info(f"scout {self.unit} moving to updated assignment {target}")
+            self.unit.move(target)
+
     async def scout(self, scouting_location: Point2, enemy: Enemy):
         logger.info(f"scout {self.unit} health {self.unit.health}/{self.unit.health_max} ({self.unit.health_percentage}) health")
 
@@ -81,4 +90,4 @@ class BaseUnitMicro(GeometryMixin):
             pass
         else:
             logger.info(f"scout {self.unit} moving to updated assignment {scouting_location}")
-            self.unit.move(scouting_location.position)
+            self.unit.move(scouting_location)

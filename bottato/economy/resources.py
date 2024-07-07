@@ -36,10 +36,14 @@ class Resources(UnitReferenceMixin):
                 return True
         return False
 
-    def add_node(self, node: Unit):
+    def add_node(self, node: Unit) -> bool:
+        if node in self.nodes:
+            logger.debug(f"node {node} already added")
+            return False
         logger.info(f"added node {node} (resets worker tags)")
         self.nodes.append(node)
         self.worker_tags_by_node_tag[node.tag] = []
+        return True
 
     def needed_workers_for_node(self, node: Unit):
         logger.debug(
@@ -103,3 +107,6 @@ class Resources(UnitReferenceMixin):
         self.assigned_workers = self.get_updated_unit_references_by_tags(self.assigned_workers_tags)
         logger.debug(f"workers after refresh {self.assigned_workers}")
         self.nodes = self.get_updated_unit_references(self.nodes)
+        for node in self.nodes:
+            if node.mineral_contents == 0 and node.vespene_contents == 0:
+                self.nodes.remove(node)

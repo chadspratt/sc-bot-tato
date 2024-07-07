@@ -16,7 +16,7 @@ micro_lookup = {
 class MicroFactory:
     def get_unit_micro(unit: Unit, bot: BotAI) -> BaseUnitMicro:
         if unit.type_id in micro_lookup:
-            logger.info(f"creating {unit.type_id} micro for {unit}")
+            logger.debug(f"creating {unit.type_id} micro for {unit}")
             return micro_lookup[unit.type_id](unit, bot)
-        logger.info(f"creating generic micro for {unit}")
+        logger.debug(f"creating generic micro for {unit}")
         return BaseUnitMicro(unit, bot)

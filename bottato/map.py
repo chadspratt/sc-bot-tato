@@ -1,3 +1,5 @@
+from typing import List
+
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -8,9 +10,9 @@ from sc2.position import Point2
 class Map:
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
-        self.distance_from_edge: list[list[int]] = []
-        self.open_area_midpoints: list[Point2] = []
-        self.choke_midpoints: dict[Point2, list[(Point2, Point2)]] = {}
+        self.distance_from_edge: List[List[int]] = []
+        self.open_area_midpoints: List[Point2] = []
+        self.choke_midpoints: dict[Point2, List[(Point2, Point2)]] = {}
         self.init_distance_from_edge()
         self.init_open_area_midpoints()
         self.init_open_area_connections()
@@ -60,11 +62,11 @@ class Map:
             self.choke_midpoints[midpoint] = self.find_choke_midpoints(midpoint)
 
     def find_choke_midpoints(self, midpoint: Point2):
-        choke_points: list[Point2] = []
-        next_points: list[Point2] = [midpoint]
+        choke_points: List[Point2] = []
+        next_points: List[Point2] = [midpoint]
         visited: set[Point2] = set()
         while next_points:
-            new_next_points: list[Point2] = []
+            new_next_points: List[Point2] = []
             for next_point in next_points:
                 current_distance_from_edge: int = self.distance_from_edge[next_point]
                 adjacent_points = next_point.neighbors8

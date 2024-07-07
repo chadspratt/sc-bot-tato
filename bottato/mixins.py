@@ -1,6 +1,7 @@
 import math
 from loguru import logger
 from typing import List
+from time import perf_counter
 
 from sc2.unit import Unit
 from sc2.units import Units
@@ -111,3 +112,21 @@ class GeometryMixin:
             remaining_distance -= 1
             if remaining_distance <= 0:
                 return future_position
+
+
+class TimerMixin:
+    def start_timer(self, timer_name: str) -> None:
+        if not hasattr(self, "timers"):
+            self.timers = {}
+        if timer_name not in self.timers:
+            self.timers[timer_name] = {"start": None, "total": 0}
+        self.timers[timer_name]["start"] = perf_counter()
+
+    def stop_timer(self, timer_name: str) -> None:
+        timer = self.timers[timer_name]
+        timer["total"] += perf_counter() - timer["start"]
+
+    def print_timers(self, prefix: str = '') -> None:
+        for timer_name in self.timers.keys():
+            timer = self.timers[timer_name]
+            logger.info(f"{prefix}{timer_name} execution time: {timer["total"]}")

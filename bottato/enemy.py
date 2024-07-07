@@ -1,3 +1,5 @@
+from typing import List
+
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.units import Units
@@ -23,7 +25,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
         self.last_seen: dict[int, float] = {}
         self.last_seen_position: dict[int, Point2] = {}
         self.predicted_position: dict[int, Point2] = {}
-        self.enemy_squads: list[EnemySquad] = []
+        self.enemy_squads: List[EnemySquad] = []
         self.squads_by_unit_tag: dict[int, EnemySquad] = {}
 
     def update_references(self):
@@ -110,7 +112,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                     current_squad.transfer(enemy_unit, nearby_squad)
                     self.squads_by_unit_tag[enemy_unit.tag] = nearby_squad
 
-    def threats_to(self, friendly_unit: Unit, attack_range_buffer=2) -> list[Unit]:
+    def threats_to(self, friendly_unit: Unit, attack_range_buffer=2) -> List[Unit]:
         threats = [enemy_unit for enemy_unit in self.enemies_in_view
                    if enemy_unit.target_in_range(friendly_unit, attack_range_buffer)]
         for enemy_unit in self.enemies_out_of_view:

@@ -48,7 +48,7 @@ class FormationPosition:
 
 class Formation:
     def __init__(
-        self, bot: BotAI, formation_type: FormationType, unit_tags: list[int], offset: Point2
+        self, bot: BotAI, formation_type: FormationType, unit_tags: List[int], offset: Point2
     ):
         self.bot = bot
         # generate specific formation positions
@@ -57,11 +57,11 @@ class Formation:
         self.offset = offset
         # self.unit_count = unit_count
         # self.slowest_unit = None
-        self.positions: list[FormationPosition] = self.get_formation_positions()
+        self.positions: List[FormationPosition] = self.get_formation_positions()
         logger.info(f"created formation {self.positions}")
 
     def __repr__(self):
-        return ", ".join([str(position) for position in self.positions])
+        return f"[{self.formation_type}]: " + ", ".join([str(position) for position in self.positions])
 
     def __str__(self):
         return self.__repr__()
@@ -112,14 +112,16 @@ class Formation:
 
     def get_column_positions(self) -> List[FormationPosition]:
         unit_count = len(self.unit_tags)
-        width = length = min(1, math.floor(math.sqrt(unit_count)))
-        while width * 2 > length and width > 1:
+        width = unit_count
+        length = 1
+        while width > length * 3 and width > 1:
             width -= 1
             length = unit_count / width
         fill_pattern = []
         for i in range(width):
             adjustment = i // 2 if i % 2 == 0 else -i // 2
             fill_pattern.append(adjustment)
+        # logger.info(f"fucking hell, unit_count {unit_count}, width {width}, length {length}")
 
         positions = []
         row = column = 0
@@ -127,6 +129,10 @@ class Formation:
             positions.append(FormationPosition(
                 x_offset=fill_pattern[column], y_offset=row - 0.5, unit_tag=unit_tag
             ))
+            column += 1
+            if column == width:
+                column = 0
+                row += 1
         return positions
 
     def get_hollow_circle_positions(self) -> List[FormationPosition]:
@@ -216,7 +222,7 @@ class ParentFormation(GeometryMixin):
 
     def __init__(self, bot: BotAI):
         self.bot = bot
-        self.formations: list[Formation] = []
+        self.formations: List[Formation] = []
 
     def __repr__(self):
         return ", ".join([str(formation) for formation in self.formations])
@@ -227,7 +233,7 @@ class ParentFormation(GeometryMixin):
     def add_formation(
         self,
         formation_type: FormationType,
-        unit_tags: list[int],
+        unit_tags: List[int],
         offset: Point2 = Point2((0, 0)),
     ):
         if not unit_tags:
@@ -265,13 +271,13 @@ class ParentFormation(GeometryMixin):
             )
 
         distance_remaining = (self.game_position - formation_destination).length
-        logger.info(f"formation distance remaining {distance_remaining}")
+        logger.debug(f"formation distance remaining {distance_remaining}")
         formation_facing = destination_facing if distance_remaining < 5 and destination_facing else leader.facing
-        logger.info(f"formation facing {formation_facing}")
+        logger.debug(f"formation facing {formation_facing}")
 
-        logger.info(f"unit offsets {unit_offsets}")
+        logger.debug(f"unit offsets {unit_offsets}")
         rotated_offsets = self.apply_rotations(formation_facing, unit_offsets)
-        logger.info(f"rotated offsets {rotated_offsets}")
+        logger.debug(f"rotated offsets {rotated_offsets}")
         if destination_facing:
             rotated_offsets[leader.tag] = self.apply_rotation(destination_facing, unit_offsets[leader.tag])
         unit_destinations = dict([(unit_tag, offset + leader.position) for unit_tag, offset in rotated_offsets.items()])

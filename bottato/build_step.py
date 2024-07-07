@@ -89,6 +89,8 @@ class BuildStep(UnitReferenceMixin):
 
     async def execute(self, at_position: Point2 = None, needed_resources: Cost = None) -> ResponseCode:
         if UnitTypeId.SCV in self.builder_type:
+            if at_position is None:
+                return False
             # this is a structure built by an scv
             logger.info(
                 f"Trying to build structure {self.unit_type_id} at {at_position}"
@@ -121,9 +123,10 @@ class BuildStep(UnitReferenceMixin):
             logger.info(
                 f"Trying to train unit {self.unit_type_id} with {self.builder_type}"
             )
-            if self.unit_type_id != UnitTypeId.SCV:
+            if self.builder_type in [UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT]:
                 self.unit_in_charge = self.production.get_builder(self.unit_type_id)
                 if self.unit_in_charge is None:
+                    logger.info("no idle training facility")
                     return self.ResponseCode.NO_FACILITY
             else:
                 try:
@@ -132,11 +135,11 @@ class BuildStep(UnitReferenceMixin):
                     for facility in facility_candidates:
                         logger.info(f"{facility}, ready={facility.is_ready}, idle={facility.is_idle}, orders={facility.orders}")
                     self.unit_in_charge = facility_candidates.ready.idle[0]
-                    logger.info(f"Found training facility {self.unit_in_charge}")
                 except IndexError:
                     # no available build structure
                     logger.info("no idle training facility")
                     return self.ResponseCode.NO_FACILITY
+            logger.info(f"Found training facility {self.unit_in_charge}")
             build_ability: AbilityId = self.get_build_ability()
             self.unit_in_charge(build_ability)
             # self.unit_in_charge.train(self.unit_type_id)
@@ -187,7 +190,7 @@ class BuildStep(UnitReferenceMixin):
     def is_interrupted(self) -> bool:
         if self.unit_in_charge is None:
             return True
-        logger.info(f"{self}")
+        logger.debug(f"{self}")
 
         self.check_idle: bool = self.check_idle or (
             self.unit_in_charge.is_active and not self.unit_in_charge.is_gathering

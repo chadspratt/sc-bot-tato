@@ -1,5 +1,6 @@
 import math
 import random
+from typing import List
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -23,6 +24,7 @@ class Military(GeometryMixin):
         self.enemy = enemy
         self.unassigned_army = FormationSquad(
             bot=bot,
+            enemy=enemy,
             type=SquadTypeDefinitions['none'],
             color=self.random_color(),
             name='unassigned'
@@ -30,14 +32,18 @@ class Military(GeometryMixin):
         self.scouting = Scouting(self.bot, enemy, self.random_color())
         self.new_damage_taken: dict[int, float] = {}
         self.squads_by_unit_tag: dict[int, BaseSquad] = {}
-        self.squads: list[BaseSquad] = []
+        self.squads: List[BaseSquad] = []
         self.created_squad_type_counts: dict[int, int] = {}
 
-    def add_squad(self, squad_type: SquadType):
-        self.squads.append(FormationSquad(bot=self.bot,
-                                          type=squad_type,
-                                          color=self.random_color(),
-                                          name=self.create_squad_name(squad_type)))
+    def add_squad(self, squad_type: SquadType) -> FormationSquad:
+        new_squad = FormationSquad(bot=self.bot,
+                                   type=squad_type,
+                                   enemy=self.enemy,
+                                   color=self.random_color(),
+                                   name=self.create_squad_name(squad_type))
+        self.squads.append(new_squad)
+        logger.info(f"add squad {new_squad} of type {squad_type}")
+        return new_squad
 
     def random_color(self) -> tuple[int, int, int]:
         rgb = [0, 0, 0]
@@ -70,47 +76,46 @@ class Military(GeometryMixin):
     def get_counter(enemy_unit: Unit):
         return []
 
-    def get_squad_request(self) -> list[UnitTypeId]:
-        wishlist = []
-
-        scouts_needed = self.scouting.needed_unit_types()
-        if scouts_needed:
-            wishlist = scouts_needed
+    def get_squad_request(self) -> BaseSquad:
+        squad_to_fill: BaseSquad = None
+        simplify = True
+        if self.scouting.needed_unit_types():
+            squad_to_fill = self.scouting
         else:
-            squad_type: SquadType = None
-            unmatched_friendlies, unmatched_enemies = self.simulate_battle()
-            logger.info(f"simulated battle results: friendlies {self.count_units_by_type(unmatched_friendlies)}, enemies {self.count_units_by_type(unmatched_enemies)}")
             if self.bot.time < 250:
                 squad_type = SquadTypeDefinitions["early marines"]
-            if unmatched_enemies:
-                # type_summary = self.count_units_by_type(unmatched_enemies)
-                property_summary = self.count_units_by_property(unmatched_enemies)
-                # pick a squad type
-                if property_summary['flying'] >= property_summary['ground']:
-                    squad_type = SquadTypeDefinitions['anti air']
+            elif simplify:
+                squad_type = SquadTypeDefinitions["early marines"]
+            else:
+                squad_type: SquadType = None
+                unmatched_friendlies, unmatched_enemies = self.simulate_battle()
+                logger.info(f"simulated battle results: friendlies {self.count_units_by_type(unmatched_friendlies)}, enemies {self.count_units_by_type(unmatched_enemies)}")
+
+                if unmatched_enemies:
+                    # type_summary = self.count_units_by_type(unmatched_enemies)
+                    property_summary = self.count_units_by_property(unmatched_enemies)
+                    # pick a squad type
+                    if property_summary['flying'] >= property_summary['ground']:
+                        squad_type = SquadTypeDefinitions['anti air']
+                    else:
+                        squad_type = SquadTypeDefinitions['tanks with support']
+                elif unmatched_friendlies:
+                    # seem to be ahead,
+                    squad_type = SquadTypeDefinitions['banshee harass']
                 else:
                     squad_type = SquadTypeDefinitions['tanks with support']
-            elif unmatched_friendlies:
-                # seem to be ahead,
-                squad_type = SquadTypeDefinitions['banshee harass']
-            else:
-                squad_type = SquadTypeDefinitions['tanks with support']
 
             # look for incomplete squad
             for squad in self.squads:
                 if squad.type.name == squad_type.name:
-                    wishlist = squad.needed_unit_types()
-                    if wishlist:
+                    squad_to_fill = squad
+                    if squad.needed_unit_types():
                         break
-                    # expand existing squad
-                    if squad.type.composition.expansion_units and len(squad.units) < squad.type.composition.max_size:
-                        wishlist
             else:
-                self.add_squad(squad_type)
-                wishlist = squad_type.composition.current_units
+                squad_to_fill = self.add_squad(squad_type)
 
-        logger.info(f"military requesting {wishlist}")
-        return wishlist
+        logger.info(f"military requesting {squad_to_fill}")
+        return squad_to_fill
 
     def simulate_battle(self):
         remaining_dps: dict[int, float] = {}
@@ -236,7 +241,7 @@ class Military(GeometryMixin):
         return counts
 
     def report(self):
-        _report = "Military: "
+        _report = "[==MILITARY==] "
         for squad in self.squads:
             _report += squad.get_report() + ", "
         _report += self.unassigned_army.get_report()
@@ -264,13 +269,28 @@ class Military(GeometryMixin):
         self.scouting.update_visibility()
         await self.scouting.move_scouts(self.new_damage_taken)
 
-        for i, squad in enumerate(self.squads):
-            logger.info(f"squad {squad.name} is {squad.state}")
-            if squad.state in (SquadState.FILLING, SquadState.DESTROYED, SquadState.RESUPPLYING):
+        enemies_in_base: Units = Units([], bot_object=self.bot)
+        logger.info(f"damaged unit tags {self.new_damage_taken.keys}")
+        for unit_id in self.new_damage_taken.keys():
+            try:
+                unit: Unit = self.bot.structures.by_tag(unit_id)
+            except KeyError:
+                # structure already destroyed, ignore it
                 continue
+            new_enemies = self.bot.enemy_units.closest_n_units(unit, 5)
+            logger.info(f"enemies attacking {unit}: {new_enemies}")
+            enemies_in_base.extend(new_enemies)
+        logger.info(f"enemies in base {enemies_in_base}")
+
+        squad: FormationSquad
+        for i, squad in enumerate(self.squads):
+            logger.info(f"managing {squad}")
             squad.draw_debug_box()
             squad.update_formation()
-            if self.enemy.enemies_in_view:
+            if squad.state in (SquadState.FILLING, SquadState.RESUPPLYING):
+                if enemies_in_base:
+                    squad.attack(enemies_in_base)
+            elif self.enemy.enemies_in_view:
                 squad.attack(self.enemy.enemies_in_view)
             elif not squad.is_full:
                 map_center = self.bot.game_info.map_center
@@ -295,5 +315,5 @@ class Military(GeometryMixin):
             squad = self.squads_by_unit_tag[unit_tag]
             squad.remove_by_tag(unit_tag)
             del self.squads_by_unit_tag[unit_tag]
-            if squad.is_empty and not isinstance(squad, Scouting):
+            if squad.state == SquadState.DESTROYED and not isinstance(squad, Scouting):
                 self.squads.remove(squad)

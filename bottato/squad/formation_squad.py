@@ -1,6 +1,6 @@
 from __future__ import annotations
 import enum
-from typing import Set
+from typing import Set, Union, List
 
 from loguru import logger
 from sc2.unit import Unit
@@ -9,7 +9,10 @@ from sc2.position import Point2
 
 from ..mixins import GeometryMixin
 from .formation import FormationType, ParentFormation
+# from ..micro.base_unit_micro import BaseUnitMicro
+# from ..micro.micro_factory import MicroFactory
 from .base_squad import BaseSquad
+from ..enemy import Enemy
 
 
 class SquadOrderEnum(enum.Enum):
@@ -25,7 +28,7 @@ class SquadOrder:
     def __init__(
         self,
         order: SquadOrderEnum,
-        targets: list[Unit],
+        targets: List[Unit],
         priority: int = 0,
     ):
         self.order = order
@@ -36,9 +39,11 @@ class SquadOrder:
 class FormationSquad(BaseSquad, GeometryMixin):
     def __init__(
         self,
+        enemy: Enemy,
         **kwargs,
     ):
         super().__init__(**kwargs)
+        self.enemy = enemy
         self.orders = []
         self.current_order = SquadOrderEnum.IDLE
         self.leader: Unit = None
@@ -52,12 +57,16 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def execute(self, squad_order: SquadOrder):
         self.orders.append(squad_order)
 
+    def __repr__(self):
+        return f"FormationSquad({self.name},{self.state},{len(self.units)}/{len(self.composition.current_units)}, {self.parent_formation})"
+
     @property
     def position(self) -> Point2:
         return self.parent_formation.game_position
 
     def recruit(self, unit: Unit):
         super().recruit(unit)
+        self.update_leader()
         if self.leader is None:
             self.leader = unit
             self.units_in_formation_position.add(unit.tag)
@@ -96,7 +105,10 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def update_references(self):
         self.units = self.get_updated_unit_references(self.units)
         self.targets = self.get_updated_unit_references(self.targets)
-        self.update_leader()
+        try:
+            self.leader = self.get_updated_unit_reference(self.leader)
+        except self.UnitNotFound:
+            self.update_leader()
 
     def update_formation(self, reset=False):
         # decide formation(s)
@@ -111,9 +123,9 @@ class FormationSquad(BaseSquad, GeometryMixin):
             self.parent_formation.add_formation(
                 FormationType.HOLLOW_CIRCLE, self.units.tags
             )
-        logger.info(f"squad {self.name} formation: {self.parent_formation}")
+        logger.debug(f"squad {self.name} formation: {self.parent_formation}")
 
-    def attack(self, targets: Units):
+    def attack(self, targets: Union[Point2, Units]):
         if not targets or not self.units:
             return
 
@@ -146,11 +158,14 @@ class FormationSquad(BaseSquad, GeometryMixin):
             logger.info(f"squad {self.name} regrouping at {regroup_point}")
             formation_positions = self.parent_formation.get_unit_destinations(regroup_point, self.leader, destination_facing)
 
-        logger.info(f"squad {self.name} moving from {self.position}/{self.leader.position} to {self._destination} with {formation_positions.values()}")
+        logger.debug(f"squad {self.name} moving from {self.position}/{self.leader.position} to {self._destination} with {formation_positions.values()}")
         for unit in self.units:
             if unit.tag in self.bot.unit_tags_received_action:
+                logger.info(f"unit {unit} already received an order {unit.orders}")
                 continue
             unit.attack(formation_positions[unit.tag])
+            # micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot)
+            # micro.move(formation_positions[unit.tag], self.enemy)
         # TODO add leader movement vector to positions so they aren't playing catch up
 
     def update_units_in_formation_position(self, formation_positions: dict[int, Point2]):
