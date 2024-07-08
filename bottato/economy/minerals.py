@@ -41,10 +41,11 @@ class Minerals(Resources):
 
     def add_long_distance_minerals(self, count: int) -> int:
         added = 0
-        for minerals in self.bot.mineral_field.sorted_by_distance_to(self.bot.townhalls[0]):
-            if self.add_node(minerals):
-                logger.info(f"adding long distance mining node {minerals}")
-                added += 1
-                if added == count:
-                    break
+        if self.bot.townhalls:
+            for minerals in self.bot.mineral_field.sorted_by_distance_to(self.bot.townhalls[0]):
+                if self.add_node(minerals):
+                    logger.info(f"adding long distance mining node {minerals}")
+                    added += 1
+                    if added == count:
+                        break
         return added

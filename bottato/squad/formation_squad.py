@@ -9,8 +9,8 @@ from sc2.position import Point2
 
 from ..mixins import GeometryMixin
 from .formation import FormationType, ParentFormation
-# from ..micro.base_unit_micro import BaseUnitMicro
-# from ..micro.micro_factory import MicroFactory
+from ..micro.base_unit_micro import BaseUnitMicro
+from ..micro.micro_factory import MicroFactory
 from .base_squad import BaseSquad
 from ..enemy import Enemy
 
@@ -164,8 +164,8 @@ class FormationSquad(BaseSquad, GeometryMixin):
                 logger.info(f"unit {unit} already received an order {unit.orders}")
                 continue
             unit.attack(formation_positions[unit.tag])
-            # micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot)
-            # micro.move(formation_positions[unit.tag], self.enemy)
+            micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot)
+            micro.move(unit, formation_positions[unit.tag], self.enemy)
         # TODO add leader movement vector to positions so they aren't playing catch up
 
     def update_units_in_formation_position(self, formation_positions: dict[int, Point2]):

@@ -8,6 +8,7 @@ from .base_unit_micro import BaseUnitMicro
 from .reaper_micro import ReaperMicro
 
 
+micro_instances = {}
 micro_lookup = {
     UnitTypeId.REAPER: ReaperMicro
 }
@@ -15,8 +16,13 @@ micro_lookup = {
 
 class MicroFactory:
     def get_unit_micro(unit: Unit, bot: BotAI) -> BaseUnitMicro:
-        if unit.type_id in micro_lookup:
+        if unit.type_id not in micro_instances:
             logger.debug(f"creating {unit.type_id} micro for {unit}")
-            return micro_lookup[unit.type_id](unit, bot)
-        logger.debug(f"creating generic micro for {unit}")
-        return BaseUnitMicro(unit, bot)
+            if unit.type_id in micro_lookup:
+                micro_instances[unit.type_id] = micro_lookup[unit.type_id](bot)
+            else:
+                if UnitTypeId.NOTAUNIT not in micro_instances:
+                    micro_instances[UnitTypeId.NOTAUNIT] = BaseUnitMicro(bot)
+                micro_instances[unit.type_id] = micro_instances[UnitTypeId.NOTAUNIT]
+
+        return micro_instances[unit.type_id]

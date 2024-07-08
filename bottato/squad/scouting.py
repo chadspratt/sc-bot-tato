@@ -78,7 +78,7 @@ class Scout(UnitReferenceMixin):
         self.scouting_locations_index = next_index
         logger.debug(f"scout {self.unit} new assignment: {assignment}")
 
-        await micro.scout(assignment.position, self.enemy)
+        await micro.scout(self.unit, assignment.position, self.enemy)
 
 
 class Scouting(BaseSquad):
