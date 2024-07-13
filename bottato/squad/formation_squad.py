@@ -53,6 +53,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         self.parent_formation: ParentFormation = ParentFormation(self.bot)
         self.units_in_formation_position: Set[int] = set()
         self.destination_facing: float = None
+        self.last_leader_update: float = 0
 
     def execute(self, squad_order: SquadOrder):
         self.orders.append(squad_order)
@@ -78,6 +79,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         return f"{self.name}({has}/{wants})"
 
     def update_leader(self):
+        self.last_leader_update = self.bot.time
         new_slowest: Unit = None
 
         candidates: Units = Units([
@@ -105,10 +107,13 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def update_references(self):
         self.units = self.get_updated_unit_references(self.units)
         self.targets = self.get_updated_unit_references(self.targets)
-        try:
-            self.leader = self.get_updated_unit_reference(self.leader)
-        except self.UnitNotFound:
+        if self.bot.time - self.last_leader_update > 1:
             self.update_leader()
+        else:
+            try:
+                self.leader = self.get_updated_unit_reference(self.leader)
+            except self.UnitNotFound:
+                self.update_leader()
 
     def update_formation(self, reset=False):
         # decide formation(s)
@@ -125,7 +130,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
             )
         logger.debug(f"squad {self.name} formation: {self.parent_formation}")
 
-    def attack(self, targets: Union[Point2, Units]):
+    async def attack(self, targets: Union[Point2, Units]):
         if not targets or not self.units:
             return
 
@@ -137,14 +142,16 @@ class FormationSquad(BaseSquad, GeometryMixin):
             f"{self.name} Squad attacking {closest_target};"
         )
 
-        for unit in self.units:
-            if unit.target_in_range(closest_target):
-                unit.attack(closest_target)
+        # for unit in self.units:
+        #     if unit.target_in_range(closest_target):
+        #         micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot)
+        #         micro.move(unit, closest_target, self.enemy)
 
-        self.move(closest_target.position, 0.0)
+        facing = self.get_facing(self.units.center, closest_target.position)
+        await self.move(closest_target.position, facing)
         # self.move(closest_target.position, self.get_facing(self.position, closest_target.position))
 
-    def move(self, destination: Point2, destination_facing: float):
+    async def move(self, destination: Point2, destination_facing: float):
         self.current_order = SquadOrderEnum.MOVE
         self._destination = destination
         self.destination_facing = destination_facing
@@ -160,12 +167,14 @@ class FormationSquad(BaseSquad, GeometryMixin):
 
         logger.debug(f"squad {self.name} moving from {self.position}/{self.leader.position} to {self._destination} with {formation_positions.values()}")
         for unit in self.units:
+            logger.debug(f"unit {unit} moving to {formation_positions[unit.tag]}")
             if unit.tag in self.bot.unit_tags_received_action:
                 logger.info(f"unit {unit} already received an order {unit.orders}")
                 continue
-            unit.attack(formation_positions[unit.tag])
+            # unit.attack(formation_positions[unit.tag])
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot)
-            micro.move(unit, formation_positions[unit.tag], self.enemy)
+            logger.debug(f"unit {unit} using micro {micro}")
+            await micro.move(unit, formation_positions[unit.tag], self.enemy)
         # TODO add leader movement vector to positions so they aren't playing catch up
 
     def update_units_in_formation_position(self, formation_positions: dict[int, Point2]):

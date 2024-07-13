@@ -112,9 +112,10 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                     current_squad.transfer(enemy_unit, nearby_squad)
                     self.squads_by_unit_tag[enemy_unit.tag] = nearby_squad
 
-    def threats_to(self, friendly_unit: Unit, attack_range_buffer=2) -> List[Unit]:
-        threats = [enemy_unit for enemy_unit in self.enemies_in_view
-                   if enemy_unit.target_in_range(friendly_unit, attack_range_buffer)]
+    def threats_to(self, friendly_unit: Unit, attack_range_buffer=2) -> Units:
+        threats = Units([enemy_unit for enemy_unit in self.enemies_in_view
+                         if enemy_unit.target_in_range(friendly_unit, attack_range_buffer)],
+                        self.bot)
         for enemy_unit in self.enemies_out_of_view:
             if self.bot.time - self.last_seen[enemy_unit.tag] > Enemy.unit_probably_moved_seconds:
                 continue

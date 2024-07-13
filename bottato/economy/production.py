@@ -126,6 +126,8 @@ class Production(UnitReferenceMixin):
                         facility.update_references()
                     except UnitReferenceMixin.UnitNotFound:
                         addon_type.remove(facility)
+                    if self.bot.supply_left == 0:
+                        facility.queued_unit_ids.clear()
 
     def get_builder(self, unit_type: UnitTypeId) -> Unit:
         candidates = []
@@ -140,7 +142,7 @@ class Production(UnitReferenceMixin):
 
         for add_on_type in usable_add_ons:
             candidates: List[Facility] = self.facilities[builder_type][add_on_type]
-            logger.info(f"{add_on_type} facilities {candidates}")
+            logger.debug(f"{add_on_type} facilities {candidates}")
             for candidate in candidates:
                 if candidate.has_capacity:
                     candidate.add_queued_unit_id(unit_type)

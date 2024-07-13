@@ -33,8 +33,8 @@ class BotTato(BotAI, TimerMixin):
         # await self.client.debug_minerals()
         # self.client.save_replay_path = "..\replays\bottato.mpq"
         self.last_replay_save_time = 0
+        self.last_timer_print = 0
         logger.info(os.getcwd())
-        self.performance_timing = {}
 
     async def on_step(self, iteration):
         logger.info(f"======starting step {iteration} ({self.time}s)======")
@@ -85,11 +85,11 @@ class BotTato(BotAI, TimerMixin):
         self.start_timer("build_order.execute")
         await self.build_order.execute()
         self.stop_timer("build_order.execute")
+        self.print_timers(30)
 
     async def on_end(self, game_result: Result):
-        self.print_timers("main-")
-        self.build_order.print_timers("build_order-")
         print("Game ended.")
+        self.print_timers()
         try:
             logger.info(self.build_order.complete)
         except AttributeError:
@@ -101,6 +101,11 @@ class BotTato(BotAI, TimerMixin):
         self.enemy.update_references()
         self.build_order.update_references()
         self.production.update_references()
+
+    def print_timers(self, interval: int = 0):
+        if self.time - self.last_timer_print > interval:
+            self.print_timers("main-")
+            self.build_order.print_timers("build_order-")
 
     async def save_replay(self):
         if self.time - self.last_replay_save_time > 30:

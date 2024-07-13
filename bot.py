@@ -31,7 +31,7 @@ def main():
             Computer(Race.Protoss, Difficulty.Medium),
         ],
         realtime=False,
-        save_replay_as=".\\replays\\bottato.sc2replay",
+        # save_replay_as=".\\replays\\bottato.sc2replay",
     )
 
 

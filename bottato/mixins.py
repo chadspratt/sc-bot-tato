@@ -1,4 +1,5 @@
 import math
+import random
 from loguru import logger
 from typing import List
 from time import perf_counter
@@ -130,3 +131,16 @@ class TimerMixin:
         for timer_name in self.timers.keys():
             timer = self.timers[timer_name]
             logger.info(f"{prefix}{timer_name} execution time: {timer["total"]}")
+
+
+class DebugMixin:
+    def random_color(self) -> tuple[int, int, int]:
+        rgb = [0, 0, 0]
+        highlow_index = random.randint(0, 2)
+        high_or_low = random.randint(0, 1) > 0
+        for i in range(3):
+            if i == highlow_index:
+                rgb[i] = 255 if high_or_low else 0
+            else:
+                rgb[i] = random.randint(0, 255)
+        return tuple(rgb)

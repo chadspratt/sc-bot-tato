@@ -1,5 +1,3 @@
-import math
-import random
 from typing import List
 from loguru import logger
 
@@ -15,10 +13,10 @@ from .squad.scouting import Scouting
 from .squad.formation_squad import FormationSquad
 from .enemy import Enemy
 
-from .mixins import GeometryMixin
+from .mixins import GeometryMixin, DebugMixin
 
 
-class Military(GeometryMixin):
+class Military(GeometryMixin, DebugMixin):
     def __init__(self, bot: BotAI, enemy: Enemy) -> None:
         self.bot: BotAI = bot
         self.enemy = enemy
@@ -33,7 +31,10 @@ class Military(GeometryMixin):
         self.new_damage_taken: dict[int, float] = {}
         self.squads_by_unit_tag: dict[int, BaseSquad] = {}
         self.squads: List[BaseSquad] = []
+        self.squads.append(self.unassigned_army)
         self.created_squad_type_counts: dict[int, int] = {}
+        self.last_offense_push = 0
+        self.last_defense_push = 0
 
     def add_squad(self, squad_type: SquadType) -> FormationSquad:
         new_squad = FormationSquad(bot=self.bot,
@@ -44,17 +45,6 @@ class Military(GeometryMixin):
         self.squads.append(new_squad)
         logger.info(f"add squad {new_squad} of type {squad_type}")
         return new_squad
-
-    def random_color(self) -> tuple[int, int, int]:
-        rgb = [0, 0, 0]
-        highlow_index = random.randint(0, 2)
-        high_or_low = random.randint(0, 1) > 0
-        for i in range(3):
-            if i == highlow_index:
-                rgb[i] = 255 if high_or_low else 0
-            else:
-                rgb[i] = random.randint(0, 255)
-        return tuple(rgb)
 
     def create_squad_name(self, squad_type: SquadType) -> str:
         if squad_type.name in self.created_squad_type_counts:
@@ -73,8 +63,73 @@ class Military(GeometryMixin):
     def muster_workers(self, position: Point2, count: int = 5):
         pass
 
-    def get_counter(enemy_unit: Unit):
-        return []
+    async def manage_squads(self):
+        self.unassigned_army.draw_debug_box()
+        for unassigned in self.unassigned_army.units:
+            if self.scouting.needs(unassigned):
+                logger.info(f"scouts needed: {self.scouting.scouts_needed}")
+                self.unassigned_army.transfer(unassigned, self.scouting)
+                self.squads_by_unit_tag[unassigned.tag] = self.scouting
+                continue
+            for squad in self.squads:
+                if squad.needs(unassigned):
+                    self.unassigned_army.transfer(unassigned, squad)
+                    self.squads_by_unit_tag[unassigned.tag] = squad
+                    break
+
+        self.scouting.update_visibility()
+        await self.scouting.move_scouts(self.new_damage_taken)
+
+        enemies_in_base: Units = Units([], bot_object=self.bot)
+        logger.info(f"damaged unit tags {self.new_damage_taken.keys()}")
+        for unit_id in self.new_damage_taken.keys():
+            try:
+                unit: Unit = self.bot.structures.by_tag(unit_id)
+            except KeyError:
+                # structure already destroyed, ignore it
+                continue
+            new_enemies = self.bot.enemy_units.closest_n_units(unit, 5)
+            logger.info(f"enemies attacking {unit}: {new_enemies}")
+            enemies_in_base.extend(new_enemies)
+        logger.info(f"enemies in base {enemies_in_base}")
+
+        mount_defense = enemies_in_base and self.bot.time - self.last_defense_push > 10
+        mount_offense = self.bot.time - self.last_offense_push > 300
+        if mount_defense:
+            self.last_defense_push = self.bot.time
+        if mount_offense:
+            self.last_offense_push = self.bot.time
+
+        squad: FormationSquad
+        for i, squad in enumerate(self.squads):
+            if not squad.units:
+                logger.info(f"squad {squad} is empty")
+                continue
+            squad.draw_debug_box()
+            squad.update_formation()
+            if mount_defense:
+                logger.info(f"squad {squad} mounting defense")
+                await squad.attack(enemies_in_base)
+            elif squad.state in (SquadState.FILLING, SquadState.RESUPPLYING) or squad.name == 'unassigned':
+                logger.info(f"squad {squad} staging")
+                enemy_position = self.bot.enemy_start_locations[0]
+                staging_location = self.bot.townhalls.closest_to(enemy_position).position.towards(enemy_position, 1)
+                facing = self.get_facing(staging_location, enemy_position)
+                await squad.move(staging_location, facing)
+            elif mount_offense:
+                logger.info(f"squad {squad} mounting offense")
+                if self.enemy.enemies_in_view:
+                    await squad.attack(self.enemy.enemies_in_view)
+                elif self.bot.enemy_structures:
+                    await squad.attack(self.bot.enemy_structures)
+            else:
+                logger.info(f"squad {squad} just moving")
+                await squad.move(squad._destination, squad.destination_facing)
+        if self.enemy.enemies_in_view:
+            self.unassigned_army.attack(self.enemy.enemies_in_view)
+
+        self.report()
+        self.new_damage_taken.clear()
 
     def get_squad_request(self) -> BaseSquad:
         squad_to_fill: BaseSquad = None
@@ -251,64 +306,6 @@ class Military(GeometryMixin):
         self.unassigned_army.update_references()
         for squad in self.squads:
             squad.update_references()
-
-    async def manage_squads(self):
-        self.unassigned_army.draw_debug_box()
-        for unassigned in self.unassigned_army.units:
-            if self.scouting.needs(unassigned):
-                logger.info(f"scouts needed: {self.scouting.scouts_needed}")
-                self.unassigned_army.transfer(unassigned, self.scouting)
-                self.squads_by_unit_tag[unassigned.tag] = self.scouting
-                continue
-            for squad in self.squads:
-                if squad.needs(unassigned):
-                    self.unassigned_army.transfer(unassigned, squad)
-                    self.squads_by_unit_tag[unassigned.tag] = squad
-                    break
-
-        self.scouting.update_visibility()
-        await self.scouting.move_scouts(self.new_damage_taken)
-
-        enemies_in_base: Units = Units([], bot_object=self.bot)
-        logger.info(f"damaged unit tags {self.new_damage_taken.keys}")
-        for unit_id in self.new_damage_taken.keys():
-            try:
-                unit: Unit = self.bot.structures.by_tag(unit_id)
-            except KeyError:
-                # structure already destroyed, ignore it
-                continue
-            new_enemies = self.bot.enemy_units.closest_n_units(unit, 5)
-            logger.info(f"enemies attacking {unit}: {new_enemies}")
-            enemies_in_base.extend(new_enemies)
-        logger.info(f"enemies in base {enemies_in_base}")
-
-        squad: FormationSquad
-        for i, squad in enumerate(self.squads):
-            logger.info(f"managing {squad}")
-            squad.draw_debug_box()
-            squad.update_formation()
-            if squad.state in (SquadState.FILLING, SquadState.RESUPPLYING):
-                if enemies_in_base:
-                    squad.attack(enemies_in_base)
-            elif self.enemy.enemies_in_view:
-                squad.attack(self.enemy.enemies_in_view)
-            elif not squad.is_full:
-                map_center = self.bot.game_info.map_center
-                staging_location = self.bot.start_location.towards(
-                    map_center, distance=10 + i * 5
-                )
-                # facing = self.get_facing(squad.position, staging_location) if squad.position else squad.slowest_unit.facing
-                squad.move(staging_location, math.pi * 3 / 2)
-                # squad.move(staging_location, self.get_facing(self.bot.start_location, staging_location))
-            elif self.bot.enemy_structures:
-                squad.attack(self.bot.enemy_structures)
-            else:
-                squad.move(squad._destination, squad.destination_facing)
-        if self.enemy.enemies_in_view:
-            self.unassigned_army.attack(self.enemy.enemies_in_view)
-
-        self.report()
-        self.new_damage_taken.clear()
 
     def record_death(self, unit_tag):
         if unit_tag in self.squads_by_unit_tag:

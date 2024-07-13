@@ -14,6 +14,9 @@ class BaseUnitMicro(GeometryMixin):
     def __init__(self, bot: BotAI):
         self.bot: BotAI = bot
 
+    async def use_ability(self, unit: Unit, enemy: Enemy, health_threshold: float):
+        return False
+
     async def retreat(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
         if unit.health_percentage > health_threshold:
             return False
@@ -66,22 +69,26 @@ class BaseUnitMicro(GeometryMixin):
                 target = targets.sorted(key=lambda enemy_unit: enemy_unit.health).first
                 unit.attack(target)
                 logger.info(f"unit {unit} attacking enemy {target}")
-                return target
-        return None
+                return True
+        return False
 
     async def move(self, unit: Unit, target: Point2, enemy: Enemy) -> None:
-        if await self.retreat(unit, enemy, health_threshold=0.5):
-            pass
+        if await self.use_ability(unit, enemy, health_threshold=0.0):
+            logger.debug(f"unit {unit} used ability")
+        elif await self.retreat(unit, enemy, health_threshold=0.0):
+            logger.debug(f"unit {unit} retreated")
         elif self.attack_something(unit):
-            pass
+            logger.debug(f"unit {unit} attacked something")
         else:
-            logger.info(f"scout {unit} moving to updated assignment {target}")
             unit.move(target)
+            logger.debug(f"unit {unit} moving to {target}")
 
     async def scout(self, unit: Unit, scouting_location: Point2, enemy: Enemy):
         logger.info(f"scout {unit} health {unit.health}/{unit.health_max} ({unit.health_percentage}) health")
 
-        if await self.retreat(unit, enemy, health_threshold=1.0):
+        if await self.use_ability(unit, enemy, health_threshold=1.0):
+            pass
+        elif await self.retreat(unit, enemy, health_threshold=1.0):
             pass
         elif self.attack_something(unit):
             pass
