@@ -66,7 +66,7 @@ class BaseSquad(UnitReferenceMixin):
         logger.info(f"Removing {unit} from {self.name} squad")
         try:
             self.units.remove(unit)
-            if not self.units or not self.composition.current_units:
+            if not self.units or not self.composition.current_units and self.name != "unassigned":
                 self.state = SquadState.DESTROYED
             elif self.state == SquadState.FULL:
                 self.state = SquadState.REDUCED

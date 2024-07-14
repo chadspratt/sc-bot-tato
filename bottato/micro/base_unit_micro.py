@@ -65,17 +65,19 @@ class BaseUnitMicro(GeometryMixin):
     def attack_something(self, unit: Unit) -> bool:
         targets = self.bot.all_enemy_units.in_attack_range_of(unit)
         if targets:
-            nearest_target = targets.sorted(key=lambda enemy_unit: enemy_unit.health).first
             if unit.weapon_cooldown == 0:
-                unit.attack(nearest_target)
-                logger.info(f"unit {unit} attacking enemy {nearest_target}")
+                lowest_target = targets.sorted(key=lambda enemy_unit: enemy_unit.health).first
+                unit.attack(lowest_target)
+                logger.info(f"unit {unit} attacking enemy {lowest_target}")
                 return True
             else:
+                nearest_target = targets.closest_to(unit)
                 attack_range = unit.ground_range
                 if nearest_target.is_flying:
                     attack_range = unit.air_range
-                unit.move(nearest_target.position.towards(unit, attack_range - 0.5))
-                logger.info(f"unit {unit} staying at attack range to {nearest_target}")
+                target_position = nearest_target.position.towards(unit, attack_range - 0.5)
+                unit.move(target_position)
+                logger.info(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
         return False
 
     async def move(self, unit: Unit, target: Point2, enemy: Enemy) -> None:

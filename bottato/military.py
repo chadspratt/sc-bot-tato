@@ -115,8 +115,8 @@ class Military(GeometryMixin, DebugMixin):
             elif squad.state in (SquadState.FILLING, SquadState.RESUPPLYING) or squad.name == 'unassigned':
                 logger.info(f"squad {squad} staging")
                 enemy_position = self.bot.enemy_start_locations[0]
-                if squad.staging_location is None:
-                    squad.staging_location = self.bot.townhalls.closest_to(enemy_position).position.towards_with_random_angle(enemy_position, 2, math.pi / 2)
+                if not squad.staging_location:
+                    squad.staging_location = self.bot.townhalls.ready.closest_to(enemy_position).position.towards_with_random_angle(enemy_position, 2, math.pi / 2)
                 facing = self.get_facing(squad.staging_location, enemy_position)
                 await squad.move(squad.staging_location, facing)
             elif mount_offense:

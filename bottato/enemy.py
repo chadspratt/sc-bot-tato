@@ -54,6 +54,8 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
         for enemy_unit in self.bot.enemy_units:
             self.last_seen[enemy_unit.tag] = self.bot.time
             self.last_seen_position[enemy_unit.tag] = enemy_unit.position
+            self.predicted_position[enemy_unit.tag] = self.predict_future_unit_position(
+                enemy_unit, self.bot.time - self.last_seen[enemy_unit.tag])
             if enemy_unit.tag not in self.first_seen:
                 self.first_seen[enemy_unit.tag] = self.bot.time
         # add not visible to out_of_view
@@ -140,12 +142,33 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             last_seen_cutoff_time = self.bot.time - seconds_since_last_seen
 
         for enemy in self.enemies_in_view:
-            if self.first_seen[enemy.tag] < first_seen_cutoff_time:
-                continue
-            units.append(enemy)
+            if self.first_seen[enemy.tag] >= first_seen_cutoff_time:
+                units.append(enemy)
 
         for enemy in self.enemies_out_of_view:
-            if self.first_seen[enemy.tag] < first_seen_cutoff_time or self.last_seen[enemy.tag] < last_seen_cutoff_time:
-                continue
-            units.append(enemy)
+            if self.first_seen[enemy.tag] >= first_seen_cutoff_time and self.last_seen[enemy.tag] >= last_seen_cutoff_time:
+                units.append(enemy)
         return units
+
+    def get_closest_enemy(self, friendly_unit: Unit, seconds_since_last_seen: float = None, seconds_since_first_seen: float = None) -> Units:
+        nearest_enemy: Unit = None
+        nearest_distance = 9999
+
+        first_seen_cutoff_time = 0
+        last_seen_cutoff_time = 0
+        if seconds_since_first_seen is not None:
+            first_seen_cutoff_time = self.bot.time - seconds_since_first_seen
+        if seconds_since_last_seen is not None:
+            last_seen_cutoff_time = self.bot.time - seconds_since_last_seen
+
+        for enemy in self.enemies_in_view:
+            if (self.first_seen[enemy.tag] >= first_seen_cutoff_time
+                    and friendly_unit.distance_to(self.predicted_position[enemy.tag]) < nearest_distance):
+                nearest_enemy = enemy
+
+        for enemy in self.enemies_out_of_view:
+            if (self.first_seen[enemy.tag] >= first_seen_cutoff_time
+                    and self.last_seen[enemy.tag] >= last_seen_cutoff_time
+                    and friendly_unit.distance_to(self.predicted_position[enemy.tag]) < nearest_distance):
+                nearest_enemy = enemy
+        return {"enemy": nearest_enemy, "distance": nearest_distance}

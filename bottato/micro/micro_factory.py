@@ -7,12 +7,15 @@ from sc2.ids.unit_typeid import UnitTypeId
 from .base_unit_micro import BaseUnitMicro
 from .reaper_micro import ReaperMicro
 from .raven_micro import RavenMicro
+from .siege_tank_micro import SiegeTankMicro
 
 
 micro_instances = {}
 micro_lookup = {
     UnitTypeId.REAPER: ReaperMicro,
-    UnitTypeId.RAVEN: RavenMicro
+    UnitTypeId.RAVEN: RavenMicro,
+    UnitTypeId.SIEGETANK: SiegeTankMicro,
+    UnitTypeId.SIEGETANKSIEGED: SiegeTankMicro
 }
 
 
