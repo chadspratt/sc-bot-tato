@@ -61,6 +61,11 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def __repr__(self):
         return f"FormationSquad({self.name},{self.state},{len(self.units)}/{len(self.composition.current_units)}, {self.parent_formation})"
 
+    def draw_debug_box(self):
+        if self.leader:
+            self.bot.client.debug_sphere_out(self.leader, 1, (255, 255, 255))
+        super().draw_debug_box()
+
     @property
     def position(self) -> Point2:
         return self.parent_formation.game_position
@@ -107,13 +112,14 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def update_references(self):
         self.units = self.get_updated_unit_references(self.units)
         self.targets = self.get_updated_unit_references(self.targets)
-        if self.bot.time - self.last_leader_update > 1:
+        # if self.bot.time - self.last_leader_update > 1:
+        #     # self.update_leader()
+        #     pass
+        # else:
+        try:
+            self.leader = self.get_updated_unit_reference(self.leader)
+        except self.UnitNotFound:
             self.update_leader()
-        else:
-            try:
-                self.leader = self.get_updated_unit_reference(self.leader)
-            except self.UnitNotFound:
-                self.update_leader()
 
     def update_formation(self, reset=False):
         # decide formation(s)
@@ -159,11 +165,11 @@ class FormationSquad(BaseSquad, GeometryMixin):
         formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.leader, destination_facing)
         # check if squad is in formation
         self.update_units_in_formation_position(formation_positions)
-        if self.formation_completion < 0.4:
-            # if not, regroup
-            regroup_point = self.get_regroup_destination()
-            logger.info(f"squad {self.name} regrouping at {regroup_point}")
-            formation_positions = self.parent_formation.get_unit_destinations(regroup_point, self.leader, destination_facing)
+        # if self.formation_completion < 0.4:
+        #     # if not, regroup
+        #     regroup_point = self.get_regroup_destination()
+        #     logger.info(f"squad {self.name} regrouping at {regroup_point}")
+        #     formation_positions = self.parent_formation.get_unit_destinations(regroup_point, self.leader, destination_facing)
 
         logger.debug(f"squad {self.name} moving from {self.position}/{self.leader.position} to {self._destination} with {formation_positions.values()}")
         for unit in self.units:

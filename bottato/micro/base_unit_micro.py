@@ -14,7 +14,7 @@ class BaseUnitMicro(GeometryMixin):
     def __init__(self, bot: BotAI):
         self.bot: BotAI = bot
 
-    async def use_ability(self, unit: Unit, enemy: Enemy, health_threshold: float):
+    async def use_ability(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
         return False
 
     async def retreat(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
@@ -62,14 +62,20 @@ class BaseUnitMicro(GeometryMixin):
 
         return True
 
-    def attack_something(self, unit: Unit):
-        if unit.weapon_cooldown == 0:
-            targets = self.bot.all_enemy_units.in_attack_range_of(unit)
-            if targets:
-                target = targets.sorted(key=lambda enemy_unit: enemy_unit.health).first
-                unit.attack(target)
-                logger.info(f"unit {unit} attacking enemy {target}")
+    def attack_something(self, unit: Unit) -> bool:
+        targets = self.bot.all_enemy_units.in_attack_range_of(unit)
+        if targets:
+            nearest_target = targets.sorted(key=lambda enemy_unit: enemy_unit.health).first
+            if unit.weapon_cooldown == 0:
+                unit.attack(nearest_target)
+                logger.info(f"unit {unit} attacking enemy {nearest_target}")
                 return True
+            else:
+                attack_range = unit.ground_range
+                if nearest_target.is_flying:
+                    attack_range = unit.air_range
+                unit.move(nearest_target.position.towards(unit, attack_range - 0.5))
+                logger.info(f"unit {unit} staying at attack range to {nearest_target}")
         return False
 
     async def move(self, unit: Unit, target: Point2, enemy: Enemy) -> None:

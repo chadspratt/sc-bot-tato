@@ -238,7 +238,7 @@ class Production(UnitReferenceMixin):
                         if builder_type in prereqs_added:
                             additional_production.append(builder_type)
                         else:
-                            additional_production.append(self.build_order_with_prereqs(builder_type))
+                            additional_production.extend(self.build_order_with_prereqs(builder_type))
                             prereqs_added.append(builder_type)
                     additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.TECHLAB])
             normal_balance = available_capacity[builder_type] - needed_capacity[builder_type]

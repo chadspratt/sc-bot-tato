@@ -1,3 +1,4 @@
+import math
 from typing import List
 from loguru import logger
 
@@ -93,8 +94,9 @@ class Military(GeometryMixin, DebugMixin):
             enemies_in_base.extend(new_enemies)
         logger.info(f"enemies in base {enemies_in_base}")
 
-        mount_defense = enemies_in_base and self.bot.time - self.last_defense_push > 10
-        mount_offense = self.bot.time - self.last_offense_push > 300
+        mount_defense = enemies_in_base
+        time_since_last_push = self.bot.time - self.last_offense_push
+        mount_offense = time_since_last_push < 50 or time_since_last_push > 500 or self.bot.supply_used == 200
         if mount_defense:
             self.last_defense_push = self.bot.time
         if mount_offense:
@@ -113,15 +115,18 @@ class Military(GeometryMixin, DebugMixin):
             elif squad.state in (SquadState.FILLING, SquadState.RESUPPLYING) or squad.name == 'unassigned':
                 logger.info(f"squad {squad} staging")
                 enemy_position = self.bot.enemy_start_locations[0]
-                staging_location = self.bot.townhalls.closest_to(enemy_position).position.towards(enemy_position, 1)
-                facing = self.get_facing(staging_location, enemy_position)
-                await squad.move(staging_location, facing)
+                if squad.staging_location is None:
+                    squad.staging_location = self.bot.townhalls.closest_to(enemy_position).position.towards_with_random_angle(enemy_position, 2, math.pi / 2)
+                facing = self.get_facing(squad.staging_location, enemy_position)
+                await squad.move(squad.staging_location, facing)
             elif mount_offense:
                 logger.info(f"squad {squad} mounting offense")
                 if self.enemy.enemies_in_view:
                     await squad.attack(self.enemy.enemies_in_view)
                 elif self.bot.enemy_structures:
                     await squad.attack(self.bot.enemy_structures)
+                else:
+                    await squad.attack(self.bot.enemy_start_locations[0])
             else:
                 logger.info(f"squad {squad} just moving")
                 await squad.move(squad._destination, squad.destination_facing)

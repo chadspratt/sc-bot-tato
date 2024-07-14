@@ -174,9 +174,15 @@ class BuildOrder(TimerMixin):
 
     def queue_production(self) -> None:
         # add more barracks/factories/starports to handle backlog of pending affordable units
+        self.start_timer("queue_production-get_affordable_build_list")
         affordable_units: List[UnitTypeId] = self.get_affordable_build_list()
+        self.stop_timer("queue_production-get_affordable_build_list")
+        self.start_timer("queue_production-additional_needed_production")
         extra_production: List[UnitTypeId] = self.production.additional_needed_production(affordable_units)
+        self.stop_timer("queue_production-additional_needed_production")
+        self.start_timer("queue_production-add_to_build_order")
         self.add_to_build_order(extra_production)
+        self.stop_timer("queue_production-add_to_build_order")
 
     def queue_military(self, squads: List[BaseSquad]):
         unit_wishlist = []
@@ -416,7 +422,6 @@ class BuildOrder(TimerMixin):
         )
 
     async def find_placement(self, unit_type_id: UnitTypeId) -> Point2:
-        # depot_position = await self.find_placement(UnitTypeId.SUPPLYDEPOT, near=cc)
         if unit_type_id == UnitTypeId.COMMANDCENTER:
             new_build_position = await self.bot.get_next_expansion()
         else:
@@ -461,6 +466,7 @@ class BuildOrder(TimerMixin):
                 UnitTypeId.ORBITALCOMMAND,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.FACTORY,
+                UnitTypeId.FACTORYTECHLAB,
                 UnitTypeId.REAPER,
                 UnitTypeId.COMMANDCENTER,
                 UnitTypeId.HELLION,
@@ -468,12 +474,11 @@ class BuildOrder(TimerMixin):
                 UnitTypeId.REAPER,
                 UnitTypeId.BARRACKS,
                 UnitTypeId.STARPORT,
+                UnitTypeId.STARPORTTECHLAB,
                 UnitTypeId.HELLION,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.BARRACKSREACTOR,
                 UnitTypeId.REFINERY,
-                UnitTypeId.FACTORYTECHLAB,
-                UnitTypeId.STARPORTTECHLAB,
                 UnitTypeId.ORBITALCOMMAND,
                 UnitTypeId.CYCLONE,
                 UnitTypeId.MARINE,

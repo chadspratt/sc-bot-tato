@@ -58,7 +58,7 @@ class Formation:
         # self.unit_count = unit_count
         # self.slowest_unit = None
         self.positions: List[FormationPosition] = self.get_formation_positions()
-        logger.info(f"created formation {self.positions}")
+        logger.debug(f"created formation {self.positions}")
 
     def __repr__(self):
         return f"[{self.formation_type}]: " + ", ".join([str(position) for position in self.positions])
@@ -213,7 +213,7 @@ class Formation:
         for position in self.positions:
             unit_positions[position.unit_tag] = (
                 position.offset + self.offset - leader_offset
-            ) * 1.3
+            ) * 2
         return unit_positions
 
 
@@ -238,7 +238,7 @@ class ParentFormation(GeometryMixin):
     ):
         if not unit_tags:
             return
-        logger.info(f"Adding formation {formation_type.name} with unit tags {unit_tags}")
+        logger.debug(f"Adding formation {formation_type.name} with unit tags {unit_tags}")
         self.formations.append(Formation(self.bot, formation_type, unit_tags, offset))
 
     @property

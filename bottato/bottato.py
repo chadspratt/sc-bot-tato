@@ -85,11 +85,11 @@ class BotTato(BotAI, TimerMixin):
         self.start_timer("build_order.execute")
         await self.build_order.execute()
         self.stop_timer("build_order.execute")
-        self.print_timers(30)
+        self.print_all_timers(30)
 
     async def on_end(self, game_result: Result):
         print("Game ended.")
-        self.print_timers()
+        self.print_all_timers()
         try:
             logger.info(self.build_order.complete)
         except AttributeError:
@@ -102,8 +102,9 @@ class BotTato(BotAI, TimerMixin):
         self.build_order.update_references()
         self.production.update_references()
 
-    def print_timers(self, interval: int = 0):
+    def print_all_timers(self, interval: int = 0):
         if self.time - self.last_timer_print > interval:
+            self.last_timer_print = self.time
             self.print_timers("main-")
             self.build_order.print_timers("build_order-")
 
