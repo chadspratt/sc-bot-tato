@@ -16,13 +16,13 @@ class StructureMicro:
         # Raise depos when enemies are nearby
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
             for enemy_unit in self.bot.enemy_units:
-                if enemy_unit.distance_to(depot) < 10:
+                if enemy_unit.distance_to(depot) < 3:
                     depot(AbilityId.MORPH_SUPPLYDEPOT_RAISE)
                     break
         # Lower depos when no enemies are nearby
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:
             for enemy_unit in self.bot.enemy_units:
-                if enemy_unit.distance_to(depot) < 15:
+                if enemy_unit.distance_to(depot) < 8:
                     break
             else:
                 depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)

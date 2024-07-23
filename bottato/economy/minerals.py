@@ -2,6 +2,7 @@ from loguru import logger
 
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
+from sc2.units import Units
 
 from .resources import Resources
 
@@ -49,3 +50,15 @@ class Minerals(Resources):
                     if added == count:
                         break
         return added
+
+    def get_workers_from_depleted(self) -> Units:
+        workers = Units([], self.bot)
+        depleted_nodes = Units([], self.bot)
+        for node in self.nodes:
+            if node.mineral_contents == 0:
+                workers.extend(self.worker_tags_by_node_tag[node.tag])
+                depleted_nodes.append(node)
+        for depleted_node in depleted_nodes:
+            del self.worker_tags_by_node_tag[depleted_node.tag]
+            self.nodes.remove(depleted_node)
+        return workers

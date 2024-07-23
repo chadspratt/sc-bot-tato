@@ -95,8 +95,9 @@ class Military(GeometryMixin, DebugMixin):
         logger.info(f"enemies in base {enemies_in_base}")
 
         mount_defense = enemies_in_base
-        time_since_last_push = self.bot.time - self.last_offense_push
-        mount_offense = time_since_last_push < 50 or time_since_last_push > 500 or self.bot.supply_used == 200
+        # time_since_last_push = self.bot.time - self.last_offense_push
+        # mount_offense = time_since_last_push < 50 or time_since_last_push > 500 or self.bot.supply_used == 200
+        mount_offense = False
         if mount_defense:
             self.last_defense_push = self.bot.time
         if mount_offense:
@@ -105,7 +106,7 @@ class Military(GeometryMixin, DebugMixin):
         squad: FormationSquad
         for i, squad in enumerate(self.squads):
             if not squad.units:
-                logger.info(f"squad {squad} is empty")
+                logger.debug(f"squad {squad} is empty")
                 continue
             squad.draw_debug_box()
             squad.update_formation()

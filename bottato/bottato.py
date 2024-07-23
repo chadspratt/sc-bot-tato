@@ -41,13 +41,13 @@ class BotTato(BotAI, TimerMixin):
         # await self.save_replay()
 
         self.start_timer("update_unit_references")
+        # XXX very slow
         self.update_unit_references()
         self.stop_timer("update_unit_references")
-        self.start_timer("my_workers.distribute_idle")
         self.my_workers.distribute_idle()
-        self.stop_timer("my_workers.distribute_idle")
 
         self.start_timer("military.manage_squads")
+        # XXX extremely slow
         await self.military.manage_squads()
         self.stop_timer("military.manage_squads")
         self.start_timer("military.get_squad_request")
@@ -83,6 +83,7 @@ class BotTato(BotAI, TimerMixin):
         self.stop_timer("structure_micro.execute")
 
         self.start_timer("build_order.execute")
+        # XXX slow
         await self.build_order.execute()
         self.stop_timer("build_order.execute")
         self.print_all_timers(30)
@@ -96,11 +97,21 @@ class BotTato(BotAI, TimerMixin):
             pass
 
     def update_unit_references(self):
+        self.start_timer("my_workers.update_references")
         self.my_workers.update_references()
+        self.start_timer("my_workers.update_references")
+        self.start_timer("military.update_references")
         self.military.update_references()
+        self.start_timer("military.update_references")
+        self.start_timer("enemy.update_references")
         self.enemy.update_references()
+        self.start_timer("enemy.update_references")
+        self.start_timer("build_order.update_references")
         self.build_order.update_references()
+        self.start_timer("build_order.update_references")
+        self.start_timer("production.update_references")
         self.production.update_references()
+        self.start_timer("production.update_references")
 
     def print_all_timers(self, interval: int = 0):
         if self.time - self.last_timer_print > interval:

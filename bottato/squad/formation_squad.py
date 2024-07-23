@@ -6,6 +6,7 @@ from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
+from sc2.constants import UnitTypeId
 
 from ..mixins import GeometryMixin
 from .formation import FormationType, ParentFormation
@@ -47,6 +48,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         self.orders = []
         self.current_order = SquadOrderEnum.IDLE
         self.leader: Unit = None
+        self.leader_was_stopped = False
         self._destination: Point2 = None
         self.previous_position: Point2 = None
         self.targets: Units = Units([], bot_object=self.bot)
@@ -73,9 +75,6 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def recruit(self, unit: Unit):
         super().recruit(unit)
         self.update_leader()
-        if self.leader is None:
-            self.leader = unit
-            self.units_in_formation_position.add(unit.tag)
         self.update_formation(reset=True)
 
     def get_report(self) -> str:
@@ -128,13 +127,24 @@ class FormationSquad(BaseSquad, GeometryMixin):
         if reset:
             self.parent_formation.clear()
         if not self.parent_formation.formations:
-            self.parent_formation.add_formation(FormationType.COLUMNS, self.units.tags)
-        if self.bot.enemy_units.closer_than(8.0, self.position):
-            self.parent_formation.clear()
-            self.parent_formation.add_formation(
-                FormationType.HOLLOW_CIRCLE, self.units.tags
-            )
+            unit_type_order = [UnitTypeId.MARINE, UnitTypeId.HELLION, UnitTypeId.REAPER, UnitTypeId.CYCLONE, UnitTypeId.VIKINGFIGHTER, UnitTypeId.RAVEN, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED]
+            y_offset = 0
+            for unit_type in unit_type_order:
+                if self.add_unit_formation(unit_type, y_offset):
+                    y_offset += 2
+
+        # if self.bot.enemy_units.closer_than(8.0, self.position):
+        #     self.parent_formation.clear()
+        #     self.parent_formation.add_formation(
+        #         FormationType.HOLLOW_CIRCLE, self.units.tags
+        #     )
         logger.debug(f"squad {self.name} formation: {self.parent_formation}")
+
+    def add_unit_formation(self, unit_type: UnitTypeId, y_offset: int) -> bool:
+        units: Units = self.units.of_type(unit_type)
+        if units:
+            self.parent_formation.add_formation(FormationType.COLUMNS, units.tags, Point2((0, y_offset)))
+            y_offset += 1
 
     async def attack(self, targets: Union[Point2, Units]):
         if not targets or not self.units:
@@ -165,11 +175,16 @@ class FormationSquad(BaseSquad, GeometryMixin):
         formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.leader, destination_facing)
         # check if squad is in formation
         self.update_units_in_formation_position(formation_positions)
-        # if self.formation_completion < 0.4:
-        #     # if not, regroup
-        #     regroup_point = self.get_regroup_destination()
-        #     logger.info(f"squad {self.name} regrouping at {regroup_point}")
-        #     formation_positions = self.parent_formation.get_unit_destinations(regroup_point, self.leader, destination_facing)
+
+        if self.leader_was_stopped:
+            self.leader_was_stopped = False
+        elif self.formation_completion < 0.4:
+            # if not, pause leader every other step
+            self.leader.stop()
+            self.leader_was_stopped = True
+            # regroup_point = self.get_regroup_destination()
+            # logger.info(f"squad {self.name} regrouping at {regroup_point}")
+            # formation_positions = self.parent_formation.get_unit_destinations(regroup_point, self.leader, destination_facing)
 
         logger.debug(f"squad {self.name} moving from {self.position}/{self.leader.position} to {self._destination} with {formation_positions.values()}")
         for unit in self.units:

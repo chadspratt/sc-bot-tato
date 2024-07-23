@@ -63,12 +63,12 @@ class BaseUnitMicro(GeometryMixin):
         return True
 
     def attack_something(self, unit: Unit) -> bool:
-        targets = self.bot.all_enemy_units.in_attack_range_of(unit)
+        targets = self.bot.all_enemy_units.in_attack_range_of(unit, bonus_distance=-0.5)
         if targets:
             if unit.weapon_cooldown == 0:
                 lowest_target = targets.sorted(key=lambda enemy_unit: enemy_unit.health).first
                 unit.attack(lowest_target)
-                logger.info(f"unit {unit} attacking enemy {lowest_target}")
+                logger.info(f"unit {unit} attacking enemy {lowest_target}({lowest_target.position})")
                 return True
             else:
                 nearest_target = targets.closest_to(unit)

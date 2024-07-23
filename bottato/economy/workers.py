@@ -21,6 +21,7 @@ class Workers(UnitReferenceMixin):
         self.repairers = Units([], bot)
         self.known_worker_tags = []
         self.max_workers = 120
+        self.need_new_townhall = False
 
     def get_builder(self, building_position: Point2, needed_resources: Cost):
         builder = None
@@ -77,6 +78,7 @@ class Workers(UnitReferenceMixin):
                 if worker.tag not in self.known_worker_tags:
                     self.known_worker_tags.append(worker.tag)
                     workers_to_assign.append(worker)
+        workers_to_assign.extend(self.minerals.get_workers_from_depleted())
 
         if workers_to_assign:
             logger.info(f"idle or new workers {workers_to_assign}")
@@ -91,6 +93,7 @@ class Workers(UnitReferenceMixin):
 
                 if self.minerals.add_long_distance_minerals(1) > 0:
                     self.minerals.add_worker(worker)
+                    self.need_new_townhall = True
 
         logger.info(
             f"[==WORKERS==] minerals({self.minerals.worker_count}), "

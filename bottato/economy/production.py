@@ -170,51 +170,66 @@ class Production(UnitReferenceMixin):
         return list(self.get_builder_type(unit_type_id))[0]
 
     def additional_needed_production(self, unit_types: List[UnitTypeId]):
-        available_capacity = {
-            UnitTypeId.BARRACKS: 0,
-            UnitTypeId.FACTORY: 0,
-            UnitTypeId.STARPORT: 0,
-        }
-        available_tech_capacity = {
-            UnitTypeId.BARRACKS: 0,
-            UnitTypeId.FACTORY: 0,
-            UnitTypeId.STARPORT: 0,
+        production_capacity = {
+            UnitTypeId.BARRACKS: {
+                "tech": {
+                    "available": 0,
+                    "needed": 0,
+                    "net": 0,
+                },
+                "normal": {
+                    "available": 0,
+                    "needed": 0,
+                    "net": 0,
+                }
+            },
+            UnitTypeId.FACTORY: {
+                "tech": {
+                    "available": 0,
+                    "needed": 0,
+                    "net": 0,
+                },
+                "normal": {
+                    "available": 0,
+                    "needed": 0,
+                    "net": 0,
+                }
+            },
+            UnitTypeId.STARPORT: {
+                "tech": {
+                    "available": 0,
+                    "needed": 0,
+                    "net": 0,
+                },
+                "normal": {
+                    "available": 0,
+                    "needed": 0,
+                    "net": 0,
+                }
+            },
         }
         for builder_type in self.facilities.keys():
             for facility in self.facilities[builder_type][UnitTypeId.TECHLAB]:
                 used_capacity = len(facility.unit.orders) + len(facility.queued_unit_ids)
-                available_tech_capacity[builder_type] += facility.capacity - used_capacity
+                production_capacity[builder_type]["tech"]["available"] += facility.capacity - used_capacity
 
             for facility in self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
                 used_capacity = len(facility.unit.orders) + len(facility.queued_unit_ids)
-                available_capacity[builder_type] += facility.capacity - used_capacity
+                production_capacity[builder_type]["normal"]["available"] += facility.capacity - used_capacity
             for facility in self.facilities[builder_type][UnitTypeId.REACTOR]:
                 used_capacity = len(facility.unit.orders) + len(facility.queued_unit_ids)
-                available_capacity[builder_type] += facility.capacity - used_capacity
-        logger.info(f"production capacity normal {available_capacity} tech {available_tech_capacity}")
-
-        needed_capacity = {
-            UnitTypeId.BARRACKS: 0,
-            UnitTypeId.FACTORY: 0,
-            UnitTypeId.STARPORT: 0,
-        }
-        needed_tech_capacity = {
-            UnitTypeId.BARRACKS: 0,
-            UnitTypeId.FACTORY: 0,
-            UnitTypeId.STARPORT: 0,
-        }
+                production_capacity[builder_type]["normal"]["available"] += facility.capacity - used_capacity
 
         for unit_type in unit_types:
             if unit_type in self.add_on_types:
                 continue
             builder_type = self.get_cheapest_builder_type(unit_type)
-            if builder_type not in needed_capacity.keys():
+            if builder_type not in production_capacity.keys():
                 continue
             if unit_type in self.needs_tech_lab:
-                needed_tech_capacity[builder_type] += 1
+                production_capacity[builder_type]["tech"]["needed"] += 1
             else:
-                needed_capacity[builder_type] += 1
-        logger.info(f"production needed normal {needed_capacity} tech {needed_tech_capacity}")
+                production_capacity[builder_type]["normal"]["needed"] += 1
 
         upgraded_facility_tags = {
             UnitTypeId.BARRACKS: [],
@@ -224,8 +239,11 @@ class Production(UnitReferenceMixin):
         additional_production: List[UnitTypeId] = []
         prereqs_added: List[UnitTypeId] = []
         for builder_type in self.facilities.keys():
-            tech_balance = available_tech_capacity[builder_type] - needed_tech_capacity[builder_type]
-            logger.info(f"{builder_type} tech balance = {tech_balance}")
+            production_capacity[builder_type]["tech"]["net"] = production_capacity[builder_type]["tech"]["available"] - production_capacity[builder_type]["tech"]["needed"]
+            production_capacity[builder_type]["normal"]["net"] = production_capacity[builder_type]["normal"]["available"] - production_capacity[builder_type]["normal"]["needed"]
+            tech_balance = production_capacity[builder_type]["tech"]["net"]
+            normal_balance = production_capacity[builder_type]["normal"]["net"]
+
             if tech_balance < 0:
                 for i in range(abs(tech_balance)):
                     facility: Facility
@@ -241,12 +259,12 @@ class Production(UnitReferenceMixin):
                             additional_production.extend(self.build_order_with_prereqs(builder_type))
                             prereqs_added.append(builder_type)
                     additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.TECHLAB])
-            normal_balance = available_capacity[builder_type] - needed_capacity[builder_type]
+
             # use leftover tech facilities
             if tech_balance > 0:
                 normal_balance += tech_balance
             extra_facility = False
-            logger.info(f"{builder_type} normal balance = {normal_balance}")
+
             if normal_balance < 0:
                 for i in range(abs(normal_balance)):
                     facility: Facility
@@ -266,6 +284,8 @@ class Production(UnitReferenceMixin):
                                 additional_production.extend(self.build_order_with_prereqs(builder_type))
                                 prereqs_added.append(builder_type)
                             extra_facility = True
+
+        logger.info(f"production capacity {production_capacity}")
         logger.info(f"additional production {additional_production}")
         return additional_production
 

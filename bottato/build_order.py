@@ -120,6 +120,7 @@ class BuildOrder(TimerMixin):
             self.queue_refinery()
         self.stop_timer("queue_refinery")
         self.start_timer("execute_first_pending")
+        # XXX slow
         await self.execute_first_pending(needed_resources)
         self.stop_timer("execute_first_pending")
 
@@ -147,10 +148,11 @@ class BuildOrder(TimerMixin):
                 return
         # expand if running out of room for workers at current bases
         if (
-            requested_worker_count + len(self.bot.workers)
-            > len(self.bot.townhalls) * 14
+            self.workers.need_new_townhall or
+            requested_worker_count + len(self.bot.workers) > len(self.bot.townhalls) * 14
         ):
             self.pending.insert(1, BuildStep(UnitTypeId.COMMANDCENTER, self.bot, self.workers, self.production))
+            self.workers.need_new_townhall = False
         # should also build a new one if current bases run out of resources
 
     def queue_refinery(self) -> None:
@@ -169,7 +171,7 @@ class BuildOrder(TimerMixin):
         for build_step in self.started + self.pending:
             if build_step.unit_type_id == UnitTypeId.SUPPLYDEPOT:
                 return
-        if self.bot.supply_left / self.bot.supply_cap < 0.3 and self.bot.supply_cap < 200:
+        if self.bot.supply_cap == 0 or (self.bot.supply_left / self.bot.supply_cap < 0.3 and self.bot.supply_cap < 200):
             self.pending.insert(1, BuildStep(UnitTypeId.SUPPLYDEPOT, self.bot, self.workers, self.production))
 
     def queue_production(self) -> None:
@@ -351,6 +353,7 @@ class BuildOrder(TimerMixin):
             logger.debug(f"Executing build step at position {build_position}")
 
             self.start_timer("build_step.execute")
+            # XXX slightly slow
             build_response = await build_step.execute(at_position=build_position, needed_resources=needed_resources)
             self.stop_timer("build_step.execute")
             self.start_timer(f"handle response {build_response}")
@@ -463,6 +466,7 @@ class BuildOrder(TimerMixin):
                 UnitTypeId.REFINERY,
                 UnitTypeId.REFINERY,
                 UnitTypeId.REAPER,
+                UnitTypeId.BARRACKSREACTOR,
                 UnitTypeId.ORBITALCOMMAND,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.FACTORY,
@@ -477,7 +481,6 @@ class BuildOrder(TimerMixin):
                 UnitTypeId.STARPORTTECHLAB,
                 UnitTypeId.HELLION,
                 UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.BARRACKSREACTOR,
                 UnitTypeId.REFINERY,
                 UnitTypeId.ORBITALCOMMAND,
                 UnitTypeId.CYCLONE,
