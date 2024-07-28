@@ -21,21 +21,25 @@ class Military(GeometryMixin, DebugMixin):
     def __init__(self, bot: BotAI, enemy: Enemy) -> None:
         self.bot: BotAI = bot
         self.enemy = enemy
-        self.unassigned_army = FormationSquad(
+        self.main_army = FormationSquad(
             bot=bot,
             enemy=enemy,
             type=SquadTypeDefinitions['none'],
             color=self.random_color(),
-            name='unassigned'
+            name='main'
         )
         self.scouting = Scouting(self.bot, enemy, self.random_color())
         self.new_damage_taken: dict[int, float] = {}
         self.squads_by_unit_tag: dict[int, BaseSquad] = {}
         self.squads: List[BaseSquad] = []
-        self.squads.append(self.unassigned_army)
+        self.squads.append(self.main_army)
         self.created_squad_type_counts: dict[int, int] = {}
         self.last_offense_push = 0
         self.last_defense_push = 0
+
+    def add_to_main(self, unit: Unit) -> None:
+        self.main_army.recruit(unit)
+        self.squads_by_unit_tag[unit.tag] = self.main_army
 
     def add_squad(self, squad_type: SquadType) -> FormationSquad:
         new_squad = FormationSquad(bot=self.bot,
@@ -64,34 +68,26 @@ class Military(GeometryMixin, DebugMixin):
     def muster_workers(self, position: Point2, count: int = 5):
         pass
 
-    async def manage_squads(self):
-        self.unassigned_army.draw_debug_box()
-        for unassigned in self.unassigned_army.units:
-            if self.scouting.needs(unassigned):
-                logger.info(f"scouts needed: {self.scouting.scouts_needed}")
-                self.unassigned_army.transfer(unassigned, self.scouting)
-                self.squads_by_unit_tag[unassigned.tag] = self.scouting
-                continue
-            for squad in self.squads:
-                if squad.needs(unassigned):
-                    self.unassigned_army.transfer(unassigned, squad)
-                    self.squads_by_unit_tag[unassigned.tag] = squad
+    async def manage_squads(self, iteration: int):
+        self.main_army.draw_debug_box()
+        while self.scouting.scouts_needed:
+            logger.info(f"scouts needed: {self.scouting.scouts_needed}")
+            for unit in self.main_army.units:
+                if self.scouting.needs(unit):
+                    logger.info(f"adding {unit} to scouts")
+                    self.main_army.transfer(unit, self.scouting)
+                    self.squads_by_unit_tag[unit.tag] = self.scouting
                     break
+            else:
+                break
 
         self.scouting.update_visibility()
         await self.scouting.move_scouts(self.new_damage_taken)
 
-        enemies_in_base: Units = Units([], bot_object=self.bot)
-        logger.info(f"damaged unit tags {self.new_damage_taken.keys()}")
-        for unit_id in self.new_damage_taken.keys():
-            try:
-                unit: Unit = self.bot.structures.by_tag(unit_id)
-            except KeyError:
-                # structure already destroyed, ignore it
-                continue
-            new_enemies = self.bot.enemy_units.closest_n_units(unit, 5)
-            logger.info(f"enemies attacking {unit}: {new_enemies}")
-            enemies_in_base.extend(new_enemies)
+        # only run this every three steps
+        if iteration % 3:
+            return
+        enemies_in_base = self.bot.enemy_units.in_distance_of_group(self.bot.structures, 10)
         logger.info(f"enemies in base {enemies_in_base}")
 
         mount_defense = enemies_in_base
@@ -113,11 +109,10 @@ class Military(GeometryMixin, DebugMixin):
             if mount_defense:
                 logger.info(f"squad {squad} mounting defense")
                 await squad.attack(enemies_in_base)
-            elif squad.state in (SquadState.FILLING, SquadState.RESUPPLYING) or squad.name == 'unassigned':
+            elif squad.state in (SquadState.FILLING, SquadState.RESUPPLYING) or squad.name == 'main':
                 logger.info(f"squad {squad} staging")
                 enemy_position = self.bot.enemy_start_locations[0]
-                if not squad.staging_location:
-                    squad.staging_location = self.bot.townhalls.ready.closest_to(enemy_position).position.towards_with_random_angle(enemy_position, 2, math.pi / 2)
+                squad.staging_location = self.bot.townhalls.ready.closest_to(enemy_position).position.towards_with_random_angle(enemy_position, 2, math.pi / 2)
                 facing = self.get_facing(squad.staging_location, enemy_position)
                 await squad.move(squad.staging_location, facing)
             elif mount_offense:
@@ -132,17 +127,21 @@ class Military(GeometryMixin, DebugMixin):
                 logger.info(f"squad {squad} just moving")
                 await squad.move(squad._destination, squad.destination_facing)
         if self.enemy.enemies_in_view:
-            self.unassigned_army.attack(self.enemy.enemies_in_view)
+            self.main_army.attack(self.enemy.enemies_in_view)
 
         self.report()
         self.new_damage_taken.clear()
 
-    def get_squad_request(self) -> BaseSquad:
-        squad_to_fill: BaseSquad = None
+    def get_squad_request(self, remaining_cap: int) -> list[UnitTypeId]:
+        # squad_to_fill: BaseSquad = None
+        squad_type: SquadType = None
+        new_supply = 0
+        new_units: list[UnitTypeId] = self.scouting.needed_unit_types()
+        for unit_type in new_units:
+            new_supply += self.bot.calculate_supply_cost(unit_type)
+
         simplify = True
-        if self.scouting.needed_unit_types():
-            squad_to_fill = self.scouting
-        else:
+        while new_supply < remaining_cap:
             if self.bot.time < 250:
                 squad_type = SquadTypeDefinitions["early marines"]
             elif simplify:
@@ -165,18 +164,12 @@ class Military(GeometryMixin, DebugMixin):
                     squad_type = SquadTypeDefinitions['banshee harass']
                 else:
                     squad_type = SquadTypeDefinitions['tanks with support']
+            for unit_type in squad_type.composition.current_units:
+                new_units.append(unit_type)
+                new_supply += self.bot.calculate_supply_cost(unit_type)
 
-            # look for incomplete squad
-            for squad in self.squads:
-                if squad.type.name == squad_type.name:
-                    squad_to_fill = squad
-                    if squad.needed_unit_types():
-                        break
-            else:
-                squad_to_fill = self.add_squad(squad_type)
-
-        logger.info(f"military requesting {squad_to_fill}")
-        return squad_to_fill
+        logger.info(f"military requesting {new_units}")
+        return new_units
 
     def simulate_battle(self):
         remaining_dps: dict[int, float] = {}
@@ -305,11 +298,11 @@ class Military(GeometryMixin, DebugMixin):
         _report = "[==MILITARY==] "
         for squad in self.squads:
             _report += squad.get_report() + ", "
-        _report += self.unassigned_army.get_report()
+        _report += self.main_army.get_report()
         logger.info(_report)
 
     def update_references(self):
-        self.unassigned_army.update_references()
+        self.main_army.update_references()
         for squad in self.squads:
             squad.update_references()
 
@@ -318,5 +311,5 @@ class Military(GeometryMixin, DebugMixin):
             squad = self.squads_by_unit_tag[unit_tag]
             squad.remove_by_tag(unit_tag)
             del self.squads_by_unit_tag[unit_tag]
-            if squad.state == SquadState.DESTROYED and not isinstance(squad, Scouting):
-                self.squads.remove(squad)
+            # if squad.state == SquadState.DESTROYED and not isinstance(squad, Scouting):
+            #     self.squads.remove(squad)

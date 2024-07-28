@@ -1,3 +1,4 @@
+import math
 from loguru import logger
 from typing import Dict, List, Union, Iterable
 
@@ -12,7 +13,6 @@ from sc2.protocol import ConnectionAlreadyClosed, ProtocolError
 from .build_step import BuildStep
 from .economy.workers import Workers
 from .economy.production import Production
-from .squad.base_squad import BaseSquad
 from .mixins import TimerMixin
 
 
@@ -140,20 +140,22 @@ class BuildOrder(TimerMixin):
             self.pending.insert(1, BuildStep(UnitTypeId.SCV, self.bot, self.workers, self.production))
 
     def queue_command_center(self) -> None:
-        requested_worker_count = 0
+        worker_count = len(self.bot.workers)
+        cc_count = 0
         for build_step in self.started + self.pending:
             if build_step.unit_type_id == UnitTypeId.SCV:
-                requested_worker_count += 1
+                worker_count += 1
             elif build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
-                return
+                cc_count += 1
+        # adds number of townhalls to account for near-term production
+        surplus_worker_count = worker_count - self.workers.get_mineral_capacity() + len(self.bot.townhalls)
+        needed_cc_count = math.ceil(surplus_worker_count / 14)
+        logger.info(f"expansion: {surplus_worker_count} surplus workers need {needed_cc_count} cc(s)")
         # expand if running out of room for workers at current bases
-        if (
-            self.workers.need_new_townhall or
-            requested_worker_count + len(self.bot.workers) > len(self.bot.townhalls) * 14
-        ):
-            self.pending.insert(1, BuildStep(UnitTypeId.COMMANDCENTER, self.bot, self.workers, self.production))
-            self.workers.need_new_townhall = False
-        # should also build a new one if current bases run out of resources
+        if needed_cc_count > 0:
+            for i in range(needed_cc_count - cc_count):
+                logger.info("queuing command center")
+                self.pending.insert(1, BuildStep(UnitTypeId.COMMANDCENTER, self.bot, self.workers, self.production))
 
     def queue_refinery(self) -> None:
         refinery_count = len(self.bot.gas_buildings)
@@ -185,12 +187,6 @@ class BuildOrder(TimerMixin):
         self.start_timer("queue_production-add_to_build_order")
         self.add_to_build_order(extra_production)
         self.stop_timer("queue_production-add_to_build_order")
-
-    def queue_military(self, squads: List[BaseSquad]):
-        unit_wishlist = []
-        for squad in squads:
-            unit_wishlist.extend(squad.needed_unit_types())
-        self.add_to_build_order(unit_wishlist)
 
     def add_to_build_order(self, unit_types: List[UnitTypeId]) -> None:
         in_progress = self.started + self.pending

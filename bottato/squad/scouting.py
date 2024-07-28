@@ -5,9 +5,9 @@ from sc2.bot_ai import BotAI
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
+from sc2.constants import UnitTypeId
 
 from .base_squad import BaseSquad
-from .squad_type import SquadTypeDefinitions
 from ..enemy import Enemy
 from ..mixins import UnitReferenceMixin
 from ..micro.base_unit_micro import BaseUnitMicro
@@ -90,7 +90,7 @@ class Scouting(BaseSquad):
     assign first two reapers as they are built to immediately start scouting
     """
     def __init__(self, bot: BotAI, enemy: Enemy, color):
-        super().__init__(bot=bot, type=SquadTypeDefinitions["reaper scouts"], color=color, name="scouting")
+        super().__init__(bot=bot, color=color, name="scouting")
         self.bot = bot
         self.enemy = enemy
         self.scouting_locations: List[ScoutingLocation] = list()
@@ -116,6 +116,15 @@ class Scouting(BaseSquad):
     @property
     def scouts_needed(self):
         return self.friendly_territory.scouts_needed + self.enemy_territory.scouts_needed
+
+    def needed_unit_types(self) -> List[UnitTypeId]:
+        needed_types: List[UnitTypeId] = []
+        for i in range(self.scouts_needed):
+            needed_types.append(UnitTypeId.REAPER)
+        return needed_types
+
+    def needs(self, unit_type: UnitTypeId) -> bool:
+        return unit_type == UnitTypeId.REAPER
 
     def recruit(self, unit: Unit):
         self.units.append(unit)

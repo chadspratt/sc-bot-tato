@@ -10,12 +10,12 @@ from sc2.position import Point2, Point3
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.game_data import Cost
 
-from .mixins import UnitReferenceMixin
+from .mixins import UnitReferenceMixin, GeometryMixin
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
 
 
-class BuildStep(UnitReferenceMixin):
+class BuildStep(UnitReferenceMixin, GeometryMixin):
     supply_count: int
     unit_type_id: UnitTypeId
     unit_in_charge: Optional[Unit] = None

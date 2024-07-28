@@ -56,8 +56,10 @@ class Minerals(Resources):
         depleted_nodes = Units([], self.bot)
         for node in self.nodes:
             if node.mineral_contents == 0:
-                workers.extend(self.worker_tags_by_node_tag[node.tag])
+                for tag in self.worker_tags_by_node_tag[node.tag]:
+                    workers.append(self.bot.workers.by_tag(tag))
                 depleted_nodes.append(node)
+                logger.info(f"depleted node detected {node} with workers {self.worker_tags_by_node_tag[node.tag]}")
         for depleted_node in depleted_nodes:
             del self.worker_tags_by_node_tag[depleted_node.tag]
             self.nodes.remove(depleted_node)

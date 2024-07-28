@@ -32,7 +32,7 @@ class Resources(UnitReferenceMixin):
     @property
     def has_unused_capacity(self):
         for node in self.nodes:
-            if self.needed_workers_for_node(node) > 0:
+            if self.needed_workers_for_node(node):
                 return True
         return False
 
@@ -46,9 +46,9 @@ class Resources(UnitReferenceMixin):
         return True
 
     def needed_workers_for_node(self, node: Unit):
-        logger.debug(
+        logger.info(
             f"resource node {node} has "
-            f"{len(self.worker_tags_by_node_tag[node.tag])}: "
+            f"{len(self.worker_tags_by_node_tag[node.tag])}/{self.max_workers_per_node}: "
             f"{self.worker_tags_by_node_tag[node.tag]}"
         )
         return self.max_workers_per_node - len(self.worker_tags_by_node_tag[node.tag])
@@ -74,12 +74,15 @@ class Resources(UnitReferenceMixin):
 
     def remove_worker(self, exiting_worker: Unit):
         self.assigned_workers.remove(exiting_worker)
-        self.assigned_workers_tags.remove(exiting_worker.tag)
-        for worker_tags in self.worker_tags_by_node_tag.values():
-            for worker_tag in worker_tags:
-                if worker_tag == exiting_worker.tag:
-                    worker_tags.remove(worker_tag)
-                    return
+        self.remove_worker_by_tag(exiting_worker.tag)
+
+    def remove_worker_by_tag(self, tag: str):
+        self.assigned_workers_tags.remove(tag)
+        for node_tag in self.worker_tags_by_node_tag.keys():
+            if tag in self.worker_tags_by_node_tag[node_tag]:
+                self.worker_tags_by_node_tag[node_tag].remove(tag)
+                logger.info(f"removing worker {tag} from {node_tag}")
+                return
 
     def transfer_workers_from(self, worker_source: Resources, number_to_move: int):
         workers_moved = 0
@@ -105,8 +108,12 @@ class Resources(UnitReferenceMixin):
     def update_references(self):
         logger.debug(f"workers before refresh {self.assigned_workers}")
         self.assigned_workers = self.get_updated_unit_references_by_tags(self.assigned_workers_tags)
+
         logger.debug(f"workers after refresh {self.assigned_workers}")
         self.nodes = self.get_updated_unit_references(self.nodes)
-        for node in self.nodes:
-            if node.mineral_contents == 0 and node.vespene_contents == 0:
-                self.nodes.remove(node)
+        # for node in self.nodes:
+        #     if node.mineral_contents == 0 and node.vespene_contents == 0:
+        #         self.nodes.remove(node)
+
+    def get_worker_capacity(self) -> int:
+        return len(self.nodes) * self.max_workers_per_node

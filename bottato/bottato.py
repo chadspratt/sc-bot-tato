@@ -1,6 +1,5 @@
 from loguru import logger
 import os
-from typing import List
 
 from sc2.bot_ai import BotAI
 from sc2.data import Result
@@ -13,7 +12,6 @@ from .enemy import Enemy
 from .economy.workers import Workers
 from .economy.production import Production
 from .military import Military
-from .squad.base_squad import BaseSquad
 from .mixins import TimerMixin
 
 
@@ -48,35 +46,18 @@ class BotTato(BotAI, TimerMixin):
 
         self.start_timer("military.manage_squads")
         # XXX extremely slow
-        await self.military.manage_squads()
+        await self.military.manage_squads(iteration)
         self.stop_timer("military.manage_squads")
         self.start_timer("military.get_squad_request")
-        squads_to_fill: List[BaseSquad] = [self.military.get_squad_request()]
-        self.stop_timer("military.get_squad_request")
-        self.start_timer("build_order.queue_military")
-        self.build_order.queue_military(squads_to_fill)
-        self.stop_timer("build_order.queue_military")
-        self.start_timer("build_order.get_first_resource_shortage")
-        needed_resources = self.build_order.get_first_resource_shortage()
-        self.stop_timer("build_order.get_first_resource_shortage")
-        self.start_timer("spend money loop")
-        while needed_resources.vespene <= 0 and needed_resources.minerals <= 0 and self.build_order.remaining_cap > 0:
-            # running a surplus, try to spend it
-            if squads_to_fill[-1].can_expand:
-                # expand existing squad
-                logger.info(f"expanding squad {squads_to_fill[-1]}")
-                squads_to_fill[-1].expand()
-            else:
-                # make a copy of last request
-                copy_squad = self.military.add_squad(squads_to_fill[-1].type)
-                squads_to_fill.append(copy_squad)
-                logger.info(f"added squad, new squads to fill: {squads_to_fill}")
-            self.build_order.queue_military(squads_to_fill)
-            needed_resources = self.build_order.get_first_resource_shortage()
-        self.stop_timer("spend money loop")
-        if needed_resources.minerals < -1000:
-            # try adding some mineral-only units
-            pass
+        # squads_to_fill: List[BaseSquad] = [self.military.get_squad_request()]
+        remaining_cap = self.build_order.remaining_cap
+        if remaining_cap:
+            logger.info(f"requesting at least {remaining_cap} supply of units for military")
+            unit_request: list[UnitTypeId] = self.military.get_squad_request(remaining_cap)
+            self.stop_timer("military.get_squad_request")
+            self.start_timer("build_order.queue_military")
+            self.build_order.add_to_build_order(unit_request)
+            self.stop_timer("build_order.queue_military")
 
         self.start_timer("structure_micro.execute")
         await self.structure_micro.execute()
@@ -144,8 +125,8 @@ class BotTato(BotAI, TimerMixin):
         logger.info(f"raising complete! {unit}")
         self.build_order.recently_completed_units.append(unit)
         if unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE):
-            logger.info(f"assigned to {self.military.unassigned_army.name}")
-            self.military.unassigned_army.recruit(unit)
+            logger.info(f"assigned to {self.military.main_army.name}")
+            self.military.add_to_main(unit)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         logger.info(

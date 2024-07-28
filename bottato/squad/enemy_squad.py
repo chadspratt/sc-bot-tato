@@ -39,12 +39,3 @@ class EnemySquad(BaseSquad):
     def recruit(self, unit: Unit):
         logger.info(f"adding {unit} into {self.name} squad")
         self.units.append(unit)
-
-    def get_report(self) -> str:
-        composition = {}
-        for unit in self.units:
-            composition.setdefault(unit.type_id, []).append(unit)
-        buffer = ""
-        for unit_type_id, units in composition.items():
-            buffer += f"{unit_type_id}: {len(units)}, "
-        return buffer

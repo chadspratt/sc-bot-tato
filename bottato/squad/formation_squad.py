@@ -50,6 +50,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         self.leader: Unit = None
         self.leader_was_stopped = False
         self._destination: Point2 = None
+        self.leader_destination: Point2 = None
         self.previous_position: Point2 = None
         self.targets: Units = Units([], bot_object=self.bot)
         self.parent_formation: ParentFormation = ParentFormation(self.bot)
@@ -61,11 +62,13 @@ class FormationSquad(BaseSquad, GeometryMixin):
         self.orders.append(squad_order)
 
     def __repr__(self):
-        return f"FormationSquad({self.name},{self.state},{len(self.units)}/{len(self.composition.current_units)}, {self.parent_formation})"
+        return f"FormationSquad({self.name},{self.state},{len(self.units)}, {self.parent_formation})"
 
     def draw_debug_box(self):
         if self.leader:
             self.bot.client.debug_sphere_out(self.leader, 1, (255, 255, 255))
+            if self.leader_destination:
+                self.bot.client.debug_line_out(self.leader, self.convert_point2_to_3(self.leader_destination))
         super().draw_debug_box()
 
     @property
@@ -79,20 +82,21 @@ class FormationSquad(BaseSquad, GeometryMixin):
 
     def get_report(self) -> str:
         has = len(self.units)
-        wants = len(self.composition.current_units)
-        return f"{self.name}({has}/{wants})"
+        return f"{self.name}({has})"
 
     def update_leader(self):
+        if self.leader and self.bot.time - self.last_leader_update < 3:
+            return
         self.last_leader_update = self.bot.time
         new_slowest: Unit = None
 
-        candidates: Units = Units([
-            unit for unit in self.units
-            if unit.tag in self.units_in_formation_position
-        ], self.bot)
-
-        if not candidates:
-            candidates = self.units
+        candidates: Units = self.units
+        if len(self.units_in_formation_position) > len(self.units) / 2:
+            candidates: Units = Units([
+                unit for unit in self.units
+                if unit.tag in self.units_in_formation_position
+            ], self.bot)
+        logger.info(f"squad {self.name} leader candidates {candidates}")
 
         leader_can_fly = True
         for unit in candidates:
@@ -111,13 +115,11 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def update_references(self):
         self.units = self.get_updated_unit_references(self.units)
         self.targets = self.get_updated_unit_references(self.targets)
-        # if self.bot.time - self.last_leader_update > 1:
-        #     # self.update_leader()
-        #     pass
-        # else:
         try:
             self.leader = self.get_updated_unit_reference(self.leader)
         except self.UnitNotFound:
+            self.leader = None
+            logger.info(f"squad {self.name} lost leader {self.leader}")
             self.update_leader()
 
     def update_formation(self, reset=False):
@@ -173,6 +175,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         self.destination_facing = destination_facing
 
         formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.leader, destination_facing)
+        self.leader_destination = formation_positions[self.leader.tag]
         # check if squad is in formation
         self.update_units_in_formation_position(formation_positions)
 

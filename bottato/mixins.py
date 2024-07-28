@@ -13,10 +13,6 @@ class UnitReferenceMixin:
     class UnitNotFound(Exception):
         pass
 
-    def convert_point2_to_3(self, point2: Point2) -> Point3:
-        height: float = self.bot.get_terrain_z_height(point2)
-        return Point3((point2.x, point2.y, height))
-
     def get_updated_unit_reference(self, unit: Unit) -> Unit:
         if unit is None:
             raise self.UnitNotFound(
@@ -52,6 +48,10 @@ class UnitReferenceMixin:
 
 
 class GeometryMixin:
+    def convert_point2_to_3(self, point2: Point2) -> Point3:
+        height: float = self.bot.get_terrain_z_height(point2)
+        return Point3((point2.x, point2.y, height))
+
     def get_facing(self, start_position: Point2, end_position: Point2):
         angle = math.atan2(
             end_position.y - start_position.y, end_position.x - start_position.x

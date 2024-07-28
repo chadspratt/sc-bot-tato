@@ -21,7 +21,6 @@ class Workers(UnitReferenceMixin):
         self.repairers = Units([], bot)
         self.known_worker_tags = []
         self.max_workers = 120
-        self.need_new_townhall = False
 
     def get_builder(self, building_position: Point2, needed_resources: Cost):
         builder = None
@@ -72,28 +71,35 @@ class Workers(UnitReferenceMixin):
     def distribute_idle(self):
         if self.bot.workers.idle:
             logger.info(f"idle workers {self.bot.workers.idle}")
-        workers_to_assign = self.bot.workers.idle
+        workers_to_assign: set[int] = set(self.bot.workers.idle.tags)
         if len(self.bot.workers) != len(self.known_worker_tags):
             for worker in self.bot.workers:
                 if worker.tag not in self.known_worker_tags:
                     self.known_worker_tags.append(worker.tag)
-                    workers_to_assign.append(worker)
-        workers_to_assign.extend(self.minerals.get_workers_from_depleted())
+                    workers_to_assign.add(worker.tag)
+        for worker in self.minerals.get_workers_from_depleted():
+            workers_to_assign.add(worker.tag)
 
         if workers_to_assign:
             logger.info(f"idle or new workers {workers_to_assign}")
-            for worker in workers_to_assign:
+            for worker_tag in workers_to_assign:
+                try:
+                    worker = self.bot.workers.by_tag(worker_tag)
+                except KeyError:
+                    continue
                 if self.minerals.has_unused_capacity:
+                    logger.info(f"adding {worker_tag} to minerals")
                     self.minerals.add_worker(worker)
                     continue
 
                 if self.vespene.has_unused_capacity:
+                    logger.info(f"adding {worker_tag} to gas")
                     self.vespene.add_worker(worker)
                     continue
 
                 if self.minerals.add_long_distance_minerals(1) > 0:
+                    logger.info(f"adding {worker_tag} to long-distance")
                     self.minerals.add_worker(worker)
-                    self.need_new_townhall = True
 
         logger.info(
             f"[==WORKERS==] minerals({self.minerals.worker_count}), "
@@ -141,3 +147,6 @@ class Workers(UnitReferenceMixin):
         if number_moved > 0:
             self.last_worker_stop = self.bot.time
         return number_moved
+
+    def get_mineral_capacity(self) -> int:
+        return self.minerals.get_worker_capacity()
