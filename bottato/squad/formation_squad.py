@@ -91,11 +91,11 @@ class FormationSquad(BaseSquad, GeometryMixin):
         new_slowest: Unit = None
 
         candidates: Units = self.units
-        if len(self.units_in_formation_position) > len(self.units) / 2:
-            candidates: Units = Units([
-                unit for unit in self.units
-                if unit.tag in self.units_in_formation_position
-            ], self.bot)
+        # if len(self.units_in_formation_position) > len(self.units) / 2:
+        #     candidates: Units = Units([
+        #         unit for unit in self.units
+        #         if unit.tag in self.units_in_formation_position
+        #     ], self.bot)
         logger.info(f"squad {self.name} leader candidates {candidates}")
 
         leader_can_fly = True

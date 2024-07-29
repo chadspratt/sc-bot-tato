@@ -4,6 +4,7 @@ from typing import Dict, List, Union, Iterable
 
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
+# from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
 from sc2.game_data import Cost
 from sc2.game_info import Ramp
@@ -96,6 +97,9 @@ class BuildOrder(TimerMixin):
         return remaining
 
     async def execute(self):
+        self.start_timer("queue_upgrade")
+        self.queue_upgrade()
+        self.stop_timer("queue_upgrade")
         self.start_timer("queue_production")
         self.queue_production()
         self.stop_timer("queue_production")
@@ -187,6 +191,11 @@ class BuildOrder(TimerMixin):
         self.start_timer("queue_production-add_to_build_order")
         self.add_to_build_order(extra_production)
         self.stop_timer("queue_production-add_to_build_order")
+
+    def queue_upgrade(self) -> None:
+        pass
+        # if self.bot.supply_used == 200:
+        #     self.add_to_build_order(UpgradeId.TERRANINFANTRYWEAPONSLEVEL1)
 
     def add_to_build_order(self, unit_types: List[UnitTypeId]) -> None:
         in_progress = self.started + self.pending
@@ -353,43 +362,43 @@ class BuildOrder(TimerMixin):
             build_response = await build_step.execute(at_position=build_position, needed_resources=needed_resources)
             self.stop_timer("build_step.execute")
             self.start_timer(f"handle response {build_response}")
-            logger.info(f"build_response: {build_response}")
+            logger.debug(f"build_response: {build_response}")
             if build_response == build_step.ResponseCode.SUCCESS:
                 self.started.append(self.pending.pop(execution_index))
                 break
             else:
-                logger.info(f"!!! {build_step.unit_type_id} failed to start building, {build_response}")
+                logger.debug(f"!!! {build_step.unit_type_id} failed to start building, {build_response}")
             # elif build_response == build_step.ResponseCode.NO_FACILITY:
                 # if build_step.unit_type_id == UnitTypeId.SCV or self.already_queued(build_step.builder_type):
-                #     logger.info(f"!!! {build_step.unit_type_id} has no facility, but one is in progress")
+                #     logger.debug(f"!!! {build_step.unit_type_id} has no facility, but one is in progress")
                 # else:
                 #     total_queued = 0
                 #     for step in self.pending:
                 #         if step.unit_type_id == build_step.unit_type_id:
                 #             total_queued += 1
-                #     logger.info(f"!!! {build_step.unit_type_id} has no facility, adding facility to front of queue")
+                #     logger.debug(f"!!! {build_step.unit_type_id} has no facility, adding facility to front of queue")
                 #     new_facility = self.production.create_builder(build_step.unit_type_id)
                 #     # prereqs = self.build_order_with_prereqs(build_step.unit_type_id)
                 #     # prereqs.reverse()
-                #     logger.info(f"new facility prereqs {new_facility}")
+                #     logger.debug(f"new facility prereqs {new_facility}")
                 #     offset = 0
                 #     for i in range(total_queued // 2):
                 #         for prereq in new_facility:
                 #             self.pending.insert(execution_index + offset, BuildStep(prereq, self.bot, self.workers, self.production))
-                #             logger.info(f"updated pending {self.pending}")
+                #             logger.debug(f"updated pending {self.pending}")
                 #             offset += 1
                 #     # everything already queued, move on to next
                 #     if offset > 0:
                 #         break
             # elif build_response == build_step.ResponseCode.NO_TECH:
-            #     logger.info(f"!!! {build_step.unit_type_id} failed to start building, NO_TECH")
+            #     logger.debug(f"!!! {build_step.unit_type_id} failed to start building, NO_TECH")
             # elif build_response == build_step.ResponseCode.FAILED:
-            #     logger.info(f"!!! {build_step.unit_type_id} failed to start building, trying next")
+            #     logger.debug(f"!!! {build_step.unit_type_id} failed to start building, trying next")
             # elif build_response == build_step.ResponseCode.NO_BUILDER:
-            #     logger.info(f"!!! {build_step.unit_type_id} failed to start building, NO_BUILDER")
+            #     logger.debug(f"!!! {build_step.unit_type_id} failed to start building, NO_BUILDER")
             self.stop_timer(f"handle response {build_response}")
             execution_index += 1
-            logger.info(f"pending loop: {execution_index} < {len(self.pending)}")
+            logger.debug(f"pending loop: {execution_index} < {len(self.pending)}")
 
     def can_afford(self, requested_cost: Cost) -> bool:
         # PS: non-structure build steps never get their `unit_being_build` populated,

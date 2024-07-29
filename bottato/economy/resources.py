@@ -46,10 +46,11 @@ class Resources(UnitReferenceMixin):
         return True
 
     def needed_workers_for_node(self, node: Unit):
-        logger.info(
+        logger.debug(
             f"resource node {node} has "
             f"{len(self.worker_tags_by_node_tag[node.tag])}/{self.max_workers_per_node}: "
             f"{self.worker_tags_by_node_tag[node.tag]}"
+            f"minerals {node.mineral_contents} gas {node.vespene_contents}"
         )
         return self.max_workers_per_node - len(self.worker_tags_by_node_tag[node.tag])
 
@@ -76,13 +77,14 @@ class Resources(UnitReferenceMixin):
         self.assigned_workers.remove(exiting_worker)
         self.remove_worker_by_tag(exiting_worker.tag)
 
-    def remove_worker_by_tag(self, tag: str):
-        self.assigned_workers_tags.remove(tag)
-        for node_tag in self.worker_tags_by_node_tag.keys():
-            if tag in self.worker_tags_by_node_tag[node_tag]:
-                self.worker_tags_by_node_tag[node_tag].remove(tag)
-                logger.info(f"removing worker {tag} from {node_tag}")
-                return
+    def remove_worker_by_tag(self, tag: int):
+        if tag in self.assigned_workers_tags:
+            self.assigned_workers_tags.remove(tag)
+            for node_tag in self.worker_tags_by_node_tag.keys():
+                if tag in self.worker_tags_by_node_tag[node_tag]:
+                    self.worker_tags_by_node_tag[node_tag].remove(tag)
+                    logger.info(f"removing worker {tag} from {node_tag}")
+                    return
 
     def transfer_workers_from(self, worker_source: Resources, number_to_move: int):
         workers_moved = 0
@@ -111,9 +113,6 @@ class Resources(UnitReferenceMixin):
 
         logger.debug(f"workers after refresh {self.assigned_workers}")
         self.nodes = self.get_updated_unit_references(self.nodes)
-        # for node in self.nodes:
-        #     if node.mineral_contents == 0 and node.vespene_contents == 0:
-        #         self.nodes.remove(node)
 
     def get_worker_capacity(self) -> int:
         return len(self.nodes) * self.max_workers_per_node

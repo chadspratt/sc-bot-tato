@@ -68,6 +68,14 @@ class Workers(UnitReferenceMixin):
         self.builders = self.get_updated_unit_references(self.builders)
         self.repairers = self.get_updated_unit_references(self.repairers)
 
+    def record_death(self, unit_tag):
+        if unit_tag in self.known_worker_tags:
+            self.known_worker_tags.remove(unit_tag)
+            self.minerals.remove_worker_by_tag(unit_tag)
+            self.vespene.remove_worker_by_tag(unit_tag)
+        else:
+            self.minerals.record_non_worker_death(unit_tag)
+
     def distribute_idle(self):
         if self.bot.workers.idle:
             logger.info(f"idle workers {self.bot.workers.idle}")

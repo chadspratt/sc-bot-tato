@@ -32,6 +32,10 @@ class Minerals(Resources):
         super().update_references()
         self.add_mineral_fields_for_townhalls()
 
+    def record_non_worker_death(self, unit_tag):
+        if unit_tag in self.known_townhall_tags:
+            self.known_townhall_tags.remove(unit_tag)
+
     def add_mineral_fields_for_townhalls(self):
         for townhall in self.bot.townhalls.ready:
             if townhall.tag not in self.known_townhall_tags:
@@ -44,7 +48,7 @@ class Minerals(Resources):
         added = 0
         if self.bot.townhalls:
             for minerals in self.bot.mineral_field.sorted_by_distance_to(self.bot.townhalls[0]):
-                if self.add_node(minerals):
+                if minerals.mineral_contents and self.add_node(minerals):
                     logger.info(f"adding long distance mining node {minerals}")
                     added += 1
                     if added == count:
@@ -54,13 +58,13 @@ class Minerals(Resources):
     def get_workers_from_depleted(self) -> Units:
         workers = Units([], self.bot)
         depleted_nodes = Units([], self.bot)
-        for node in self.nodes:
-            if node.mineral_contents == 0:
-                for tag in self.worker_tags_by_node_tag[node.tag]:
-                    workers.append(self.bot.workers.by_tag(tag))
-                depleted_nodes.append(node)
-                logger.info(f"depleted node detected {node} with workers {self.worker_tags_by_node_tag[node.tag]}")
+        for node_tag in self.worker_tags_by_node_tag.keys():
+            try:
+                self.nodes.by_tag(node_tag)
+            except KeyError:
+                depleted_nodes.append(node_tag)
+                for worker_tag in self.worker_tags_by_node_tag[node_tag]:
+                    workers.append(self.bot.workers.by_tag(worker_tag))
         for depleted_node in depleted_nodes:
-            del self.worker_tags_by_node_tag[depleted_node.tag]
-            self.nodes.remove(depleted_node)
+            del self.worker_tags_by_node_tag[depleted_node]
         return workers

@@ -126,7 +126,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
             if self.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
                 self.unit_in_charge = self.production.get_builder(self.unit_type_id)
                 if self.unit_in_charge is None:
-                    logger.info("no idle training facility")
+                    logger.debug("no idle training facility")
                     return self.ResponseCode.NO_FACILITY
             else:
                 try:
@@ -137,7 +137,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
                     self.unit_in_charge = facility_candidates.ready.idle[0]
                 except IndexError:
                     # no available build structure
-                    logger.info("no idle training facility")
+                    logger.debug("no idle training facility")
                     return self.ResponseCode.NO_FACILITY
             logger.info(f"Found training facility {self.unit_in_charge}")
             build_ability: AbilityId = self.get_build_ability()
