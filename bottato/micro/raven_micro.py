@@ -1,5 +1,6 @@
 from __future__ import annotations
 from loguru import logger
+import random
 
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
@@ -11,8 +12,7 @@ from ..mixins import GeometryMixin
 
 
 class RavenMicro(BaseUnitMicro, GeometryMixin):
-    grenade_cooldown = 14.0
-    grenade_timer = 1.7
+    turret_drop_range = 2
 
     def __init__(self, bot: BotAI):
         super().__init__(bot)
@@ -21,11 +21,12 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         return self.attack_with_turret(unit, enemy.threats_to(unit))
 
     def attack_with_turret(self, unit: Unit, targets: Units):
-        logger.info(f"{unit} trying to drop turret on {targets}")
         if targets and self.turret_available(unit):
+            drop_distance = self.turret_drop_range * random.random()
+            turret_position = unit.position.towards_with_random_angle(targets.center, drop_distance)
             turret_position = unit.position.towards(targets.center, 2, limit=True)
             self.drop_turret(unit, turret_position)
-            logger.info(f"{unit} dropped turret at {turret_position}")
+            logger.info(f"{unit} trying to drop turret at {turret_position}")
             return True
 
         return False

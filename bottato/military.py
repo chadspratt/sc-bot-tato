@@ -87,7 +87,7 @@ class Military(GeometryMixin, DebugMixin):
         # only run this every three steps
         if iteration % 3:
             return
-        enemies_in_base = self.bot.enemy_units.in_distance_of_group(self.bot.structures, 10)
+        enemies_in_base = self.bot.enemy_units.in_distance_of_group(self.bot.structures, 20)
         logger.info(f"enemies in base {enemies_in_base}")
 
         mount_defense = enemies_in_base
@@ -107,7 +107,7 @@ class Military(GeometryMixin, DebugMixin):
             squad.draw_debug_box()
             squad.update_formation()
             if mount_defense:
-                logger.info(f"squad {squad} mounting defense")
+                logger.info(f"squad {squad.name} mounting defense")
                 await squad.attack(enemies_in_base)
             elif squad.state in (SquadState.FILLING, SquadState.RESUPPLYING) or squad.name == 'main':
                 logger.info(f"squad {squad} staging")
@@ -116,7 +116,7 @@ class Military(GeometryMixin, DebugMixin):
                 facing = self.get_facing(squad.staging_location, enemy_position)
                 await squad.move(squad.staging_location, facing)
             elif mount_offense:
-                logger.info(f"squad {squad} mounting offense")
+                logger.info(f"squad {squad.name} mounting offense")
                 if self.enemy.enemies_in_view:
                     await squad.attack(self.enemy.enemies_in_view)
                 elif self.bot.enemy_structures:

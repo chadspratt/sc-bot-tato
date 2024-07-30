@@ -84,7 +84,7 @@ class BuildOrder(TimerMixin):
         )
         for build_step in self.started:
             build_step.update_references()
-            logger.info(f"started step {build_step}")
+            logger.debug(f"started step {build_step}")
         self.update_completed()
         self.update_started()
         self.move_interupted_to_pending()
@@ -341,12 +341,16 @@ class BuildOrder(TimerMixin):
         return False
 
     async def execute_first_pending(self, needed_resources: Cost) -> None:
-        execution_index = 0
+        execution_index = -1
+        failed_types: list[UnitTypeId] = []
         while execution_index < len(self.pending):
+            execution_index += 1
             try:
                 build_step = self.pending[execution_index]
             except IndexError:
                 return False
+            if build_step.unit_type_id in failed_types:
+                continue
             if not self.can_afford(build_step.cost):
                 logger.debug(f"Cannot afford {build_step.unit_type_id.name}")
                 return False
@@ -367,6 +371,7 @@ class BuildOrder(TimerMixin):
                 self.started.append(self.pending.pop(execution_index))
                 break
             else:
+                failed_types.append(build_step.unit_type_id)
                 logger.debug(f"!!! {build_step.unit_type_id} failed to start building, {build_response}")
             # elif build_response == build_step.ResponseCode.NO_FACILITY:
                 # if build_step.unit_type_id == UnitTypeId.SCV or self.already_queued(build_step.builder_type):
@@ -397,7 +402,6 @@ class BuildOrder(TimerMixin):
             # elif build_response == build_step.ResponseCode.NO_BUILDER:
             #     logger.debug(f"!!! {build_step.unit_type_id} failed to start building, NO_BUILDER")
             self.stop_timer(f"handle response {build_response}")
-            execution_index += 1
             logger.debug(f"pending loop: {execution_index} < {len(self.pending)}")
 
     def can_afford(self, requested_cost: Cost) -> bool:

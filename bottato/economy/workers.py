@@ -91,6 +91,9 @@ class Workers(UnitReferenceMixin):
         if workers_to_assign:
             logger.info(f"idle or new workers {workers_to_assign}")
             for worker_tag in workers_to_assign:
+                # try to remove first in case they were assigned to something despite being idle
+                self.minerals.remove_worker_by_tag(worker_tag)
+                self.vespene.remove_worker_by_tag(worker_tag)
                 try:
                     worker = self.bot.workers.by_tag(worker_tag)
                 except KeyError:
@@ -105,9 +108,9 @@ class Workers(UnitReferenceMixin):
                     self.vespene.add_worker(worker)
                     continue
 
-                if self.minerals.add_long_distance_minerals(1) > 0:
-                    logger.info(f"adding {worker_tag} to long-distance")
-                    self.minerals.add_worker(worker)
+                # if self.minerals.add_long_distance_minerals(1) > 0:
+                #     logger.info(f"adding {worker_tag} to long-distance")
+                #     self.minerals.add_worker(worker)
 
         logger.info(
             f"[==WORKERS==] minerals({self.minerals.worker_count}), "

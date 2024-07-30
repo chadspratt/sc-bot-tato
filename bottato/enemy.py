@@ -52,6 +52,11 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             # TODO something with last_seen
         # set last_seen for visible
         for enemy_unit in self.bot.enemy_units:
+            self.bot.client.debug_box2_out(
+                enemy_unit,
+                half_vertex_length=enemy_unit.radius,
+                color=(255, 0, 0)
+            )
             self.last_seen[enemy_unit.tag] = self.bot.time
             self.last_seen_position[enemy_unit.tag] = enemy_unit.position
             self.predicted_position[enemy_unit.tag] = self.predict_future_unit_position(

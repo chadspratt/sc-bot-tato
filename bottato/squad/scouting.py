@@ -123,8 +123,8 @@ class Scouting(BaseSquad):
             needed_types.append(UnitTypeId.REAPER)
         return needed_types
 
-    def needs(self, unit_type: UnitTypeId) -> bool:
-        return unit_type == UnitTypeId.REAPER
+    def needs(self, unit: Unit) -> bool:
+        return unit.type_id == UnitTypeId.REAPER
 
     def recruit(self, unit: Unit):
         self.units.append(unit)

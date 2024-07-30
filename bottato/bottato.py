@@ -139,4 +139,4 @@ class BotTato(BotAI, TimerMixin):
         self.enemy.record_death(unit_tag)
         self.military.record_death(unit_tag)
         self.my_workers.record_death(unit_tag)
-        logger.info(f"Unit {unit_tag} destroyed. Condolences.")
+        logger.info(f"Unit {unit_tag} destroyed")
