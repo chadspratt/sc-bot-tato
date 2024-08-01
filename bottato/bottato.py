@@ -42,7 +42,9 @@ class BotTato(BotAI, TimerMixin):
         # XXX very slow
         self.update_unit_references()
         self.stop_timer("update_unit_references")
+        self.start_timer("my_workers.distribute_idle")
         self.my_workers.distribute_idle()
+        self.stop_timer("my_workers.distribute_idle")
 
         self.start_timer("military.manage_squads")
         # XXX extremely slow

@@ -151,23 +151,23 @@ class FormationSquad(BaseSquad, GeometryMixin):
     async def attack(self, targets: Union[Point2, Units]):
         if not targets or not self.units:
             return
+        target_position = targets
+        if isinstance(targets, Units):
+            self.targets = Units(targets, self.bot)
+            self.current_order = SquadOrderEnum.ATTACK
 
-        self.targets = Units(targets, self.bot)
-        self.current_order = SquadOrderEnum.ATTACK
+            closest_target = self.targets.closest_to(self.leader)
+            target_position = closest_target.position
+            logger.info(
+                f"{self.name} Squad attacking {closest_target};"
+            )
+        else:
+            logger.info(
+                f"{self.name} Squad attacking {target_position};"
+            )
 
-        closest_target = self.targets.closest_to(self.leader)
-        logger.info(
-            f"{self.name} Squad attacking {closest_target};"
-        )
-
-        # for unit in self.units:
-        #     if unit.target_in_range(closest_target):
-        #         micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot)
-        #         micro.move(unit, closest_target, self.enemy)
-
-        facing = self.get_facing(self.units.center, closest_target.position)
-        await self.move(closest_target.position, facing)
-        # self.move(closest_target.position, self.get_facing(self.position, closest_target.position))
+        facing = self.get_facing(self.units.center, target_position)
+        await self.move(target_position, facing)
 
     async def move(self, destination: Point2, destination_facing: float):
         self.current_order = SquadOrderEnum.MOVE

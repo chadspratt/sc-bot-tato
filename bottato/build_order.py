@@ -100,6 +100,12 @@ class BuildOrder(TimerMixin):
         self.start_timer("queue_upgrade")
         self.queue_upgrade()
         self.stop_timer("queue_upgrade")
+        self.start_timer("queue_turret")
+        self.queue_turret()
+        self.stop_timer("queue_turret")
+        self.start_timer("queue_planetary")
+        self.queue_planetary()
+        self.stop_timer("queue_planetary")
         self.start_timer("queue_production")
         self.queue_production()
         self.stop_timer("queue_production")
@@ -196,6 +202,18 @@ class BuildOrder(TimerMixin):
         pass
         # if self.bot.supply_used == 200:
         #     self.add_to_build_order(UpgradeId.TERRANINFANTRYWEAPONSLEVEL1)
+
+    def queue_planetary(self) -> None:
+        planetary_count = len(self.bot.structures.of_type(UnitTypeId.PLANETARYFORTRESS))
+        cc_count = len(self.bot.structures.of_type(UnitTypeId.COMMANDCENTER))
+        if planetary_count < cc_count:
+            self.add_to_build_order(self.production.build_order_with_prereqs(UnitTypeId.PLANETARYFORTRESS))
+
+    def queue_turret(self) -> None:
+        turret_count = len(self.bot.structures.of_type(UnitTypeId.MISSILETURRET))
+        base_count = len(self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}))
+        if turret_count < base_count:
+            self.add_to_build_order(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
 
     def add_to_build_order(self, unit_types: List[UnitTypeId]) -> None:
         in_progress = self.started + self.pending
@@ -359,6 +377,9 @@ class BuildOrder(TimerMixin):
                 self.start_timer(f"find_placement {build_step.unit_type_id}")
                 build_position = await self.find_placement(build_step.unit_type_id)
                 self.stop_timer(f"find_placement {build_step.unit_type_id}")
+                if build_position is None:
+                    logger.info(f"no build position for {build_step.unit_type_id}")
+                    continue
             logger.debug(f"Executing build step at position {build_position}")
 
             self.start_timer("build_step.execute")
@@ -434,8 +455,20 @@ class BuildOrder(TimerMixin):
         )
 
     async def find_placement(self, unit_type_id: UnitTypeId) -> Point2:
+        new_build_position = None
         if unit_type_id == UnitTypeId.COMMANDCENTER:
             new_build_position = await self.bot.get_next_expansion()
+        elif unit_type_id == UnitTypeId.MISSILETURRET:
+            bases = self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS})
+            turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
+            for base in bases:
+                if not turrets or turrets.closest_distance_to(base) > 10:
+                    new_build_position = await self.bot.find_placement(
+                        unit_type_id,
+                        near=base.position.towards(self.bot.game_info.map_center, distance=4),
+                        placement_step=2,
+                    )
+                    break
         else:
             if not self.ramp_block.is_blocked:
                 new_build_position = self.ramp_block.find_placement(unit_type_id)

@@ -176,4 +176,4 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                     and self.last_seen[enemy.tag] >= last_seen_cutoff_time
                     and friendly_unit.distance_to(self.predicted_position[enemy.tag]) < nearest_distance):
                 nearest_enemy = enemy
-        return {"enemy": nearest_enemy, "distance": nearest_distance}
+        return (nearest_enemy, nearest_distance)

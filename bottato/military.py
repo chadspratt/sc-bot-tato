@@ -9,7 +9,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from .squad.squad_type import SquadType, SquadTypeDefinitions
-from .squad.base_squad import BaseSquad, SquadState
+from .squad.base_squad import BaseSquad
 from .squad.scouting import Scouting
 from .squad.formation_squad import FormationSquad
 from .enemy import Enemy
@@ -35,6 +35,7 @@ class Military(GeometryMixin, DebugMixin):
         self.squads.append(self.main_army)
         self.created_squad_type_counts: dict[int, int] = {}
         self.last_offense_push = 0
+        self.offense_start_supply = 200
         self.last_defense_push = 0
 
     def add_to_main(self, unit: Unit) -> None:
@@ -87,7 +88,7 @@ class Military(GeometryMixin, DebugMixin):
         # only run this every three steps
         if iteration % 3:
             return
-        enemies_in_base = self.bot.enemy_units.in_distance_of_group(self.bot.structures, 20)
+        enemies_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id != UnitTypeId.OBSERVER).in_distance_of_group(self.bot.structures, 20)
         logger.info(f"enemies in base {enemies_in_base}")
 
         mount_defense = enemies_in_base
@@ -96,8 +97,20 @@ class Military(GeometryMixin, DebugMixin):
         mount_offense = False
         if mount_defense:
             self.last_defense_push = self.bot.time
+        # elif self.last_defense_push > 0:
+        #     self.last_defense_push = 0
+        #     # defense ended, counterattack
+        #     mount_offense = True
+        elif self.bot.supply_used == 200 or self.bot.supply_army / self.offense_start_supply > 0.7:
+            mount_offense = True
+
         if mount_offense:
+            if self.offense_start_supply == 200:
+                self.offense_start_supply = self.bot.supply_army
             self.last_offense_push = self.bot.time
+        else:
+            self.offense_start_supply = 200
+            self.last_offense_push = 0
 
         squad: FormationSquad
         for i, squad in enumerate(self.squads):
@@ -109,12 +122,6 @@ class Military(GeometryMixin, DebugMixin):
             if mount_defense:
                 logger.info(f"squad {squad.name} mounting defense")
                 await squad.attack(enemies_in_base)
-            elif squad.state in (SquadState.FILLING, SquadState.RESUPPLYING) or squad.name == 'main':
-                logger.info(f"squad {squad} staging")
-                enemy_position = self.bot.enemy_start_locations[0]
-                squad.staging_location = self.bot.townhalls.ready.closest_to(enemy_position).position.towards_with_random_angle(enemy_position, 2, math.pi / 2)
-                facing = self.get_facing(squad.staging_location, enemy_position)
-                await squad.move(squad.staging_location, facing)
             elif mount_offense:
                 logger.info(f"squad {squad.name} mounting offense")
                 if self.enemy.enemies_in_view:
@@ -123,9 +130,16 @@ class Military(GeometryMixin, DebugMixin):
                     await squad.attack(self.bot.enemy_structures)
                 else:
                     await squad.attack(self.bot.enemy_start_locations[0])
+            # elif squad.state in (SquadState.FILLING, SquadState.RESUPPLYING):
             else:
-                logger.info(f"squad {squad} just moving")
-                await squad.move(squad._destination, squad.destination_facing)
+                logger.info(f"squad {squad} staging")
+                enemy_position = self.bot.enemy_start_locations[0]
+                squad.staging_location = self.bot.townhalls.ready.closest_to(enemy_position).position.towards_with_random_angle(enemy_position, 4, math.pi / 2)
+                facing = self.get_facing(squad.staging_location, enemy_position)
+                await squad.move(squad.staging_location, facing)
+            # else:
+            #     logger.info(f"squad {squad} just moving")
+            #     await squad.move(squad._destination, squad.destination_facing)
         if self.enemy.enemies_in_view:
             self.main_army.attack(self.enemy.enemies_in_view)
 

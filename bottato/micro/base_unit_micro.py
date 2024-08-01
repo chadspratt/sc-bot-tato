@@ -63,7 +63,7 @@ class BaseUnitMicro(GeometryMixin):
         return True
 
     def attack_something(self, unit: Unit) -> bool:
-        targets = self.bot.all_enemy_units.in_attack_range_of(unit, bonus_distance=-0.5)
+        targets = self.bot.all_enemy_units.in_attack_range_of(unit)
         if targets:
             if unit.weapon_cooldown == 0:
                 lowest_target = targets.sorted(key=lambda enemy_unit: enemy_unit.health).first
@@ -83,10 +83,10 @@ class BaseUnitMicro(GeometryMixin):
     async def move(self, unit: Unit, target: Point2, enemy: Enemy) -> None:
         if await self.use_ability(unit, enemy, health_threshold=0.0):
             logger.debug(f"unit {unit} used ability")
-        elif await self.retreat(unit, enemy, health_threshold=0.0):
-            logger.debug(f"unit {unit} retreated")
         elif self.attack_something(unit):
             logger.debug(f"unit {unit} attacked something")
+        elif await self.retreat(unit, enemy, health_threshold=0.0):
+            logger.debug(f"unit {unit} retreated")
         else:
             unit.move(target)
             logger.debug(f"unit {unit} moving to {target}")

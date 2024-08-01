@@ -120,8 +120,9 @@ class TimerMixin:
         if not hasattr(self, "timers"):
             self.timers = {}
         if timer_name not in self.timers:
-            self.timers[timer_name] = {"start": None, "total": 0}
-        self.timers[timer_name]["start"] = perf_counter()
+            self.timers[timer_name] = {"start": perf_counter(), "total": 0}
+        else:
+            self.timers[timer_name]["start"] = perf_counter()
 
     def stop_timer(self, timer_name: str) -> None:
         timer = self.timers[timer_name]
