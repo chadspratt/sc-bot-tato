@@ -155,7 +155,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 units.append(enemy)
         return units
 
-    def get_closest_enemy(self, friendly_unit: Unit, seconds_since_last_seen: float = None, seconds_since_first_seen: float = None) -> Units:
+    def get_closest_enemy(self, friendly_unit: Unit, seconds_since_last_seen: float = None, seconds_since_first_seen: float = None) -> tuple[Unit, float]:
         nearest_enemy: Unit = None
         nearest_distance = 9999
 
@@ -167,13 +167,17 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             last_seen_cutoff_time = self.bot.time - seconds_since_last_seen
 
         for enemy in self.enemies_in_view:
+            enemy_distance = friendly_unit.distance_to(self.predicted_position[enemy.tag])
             if (self.first_seen[enemy.tag] >= first_seen_cutoff_time
-                    and friendly_unit.distance_to(self.predicted_position[enemy.tag]) < nearest_distance):
+                    and enemy_distance < nearest_distance):
                 nearest_enemy = enemy
+                nearest_distance = enemy_distance
 
         for enemy in self.enemies_out_of_view:
+            enemy_distance = friendly_unit.distance_to(self.predicted_position[enemy.tag])
             if (self.first_seen[enemy.tag] >= first_seen_cutoff_time
                     and self.last_seen[enemy.tag] >= last_seen_cutoff_time
-                    and friendly_unit.distance_to(self.predicted_position[enemy.tag]) < nearest_distance):
+                    and enemy_distance < nearest_distance):
                 nearest_enemy = enemy
+                nearest_distance = enemy_distance
         return (nearest_enemy, nearest_distance)

@@ -23,7 +23,7 @@ SquadTypeDefinitions: dict[str, SquadType] = {
     'banshee harass': SquadType('banshee harass', Composition(initial_units=[UnitTypeId.BANSHEE], expansion_units=[UnitTypeId.BANSHEE])),
     'hellion harass': SquadType('hellion harass', Composition(initial_units=[UnitTypeId.HELLION, UnitTypeId.REAPER, UnitTypeId.HELLION])),
     'tanks with support': SquadType('tanks with support', Composition(
-        initial_units=[UnitTypeId.SIEGETANK, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.RAVEN],
+        initial_units=[UnitTypeId.SIEGETANK, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.RAVEN, UnitTypeId.MEDIVAC],
         expansion_units=[UnitTypeId.SIEGETANK, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.REAPER, UnitTypeId.VIKINGFIGHTER])),
     'anti air': SquadType('anti air', Composition(initial_units=[UnitTypeId.VIKINGFIGHTER, UnitTypeId.VIKINGFIGHTER])),
 }

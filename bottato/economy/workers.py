@@ -6,12 +6,12 @@ from sc2.units import Units
 from sc2.position import Point2
 from sc2.game_data import Cost
 
-from ..mixins import UnitReferenceMixin
+from ..mixins import UnitReferenceMixin, TimerMixin
 from .minerals import Minerals
 from .vespene import Vespene
 
 
-class Workers(UnitReferenceMixin):
+class Workers(UnitReferenceMixin, TimerMixin):
     def __init__(self, bot: BotAI) -> None:
         self.last_worker_stop = -1000
         self.bot: BotAI = bot
@@ -20,7 +20,7 @@ class Workers(UnitReferenceMixin):
         self.builders = Units([], bot)
         self.repairers = Units([], bot)
         self.known_worker_tags = []
-        self.max_workers = 120
+        self.max_workers = 85
 
     def get_builder(self, building_position: Point2, needed_resources: Cost):
         builder = None
@@ -63,10 +63,18 @@ class Workers(UnitReferenceMixin):
 
     def update_references(self):
         # PS: we're getting fresh references for all SCVs from `catalog_workers`.
+        self.start_timer("minerals.update_references")
         self.minerals.update_references()
+        self.stop_timer("minerals.update_references")
+        self.start_timer("vespene.update_references")
         self.vespene.update_references()
+        self.stop_timer("vespene.update_references")
+        self.start_timer("builders.update_references")
         self.builders = self.get_updated_unit_references(self.builders)
+        self.stop_timer("builders.update_references")
+        self.start_timer("repairers.update_references")
         self.repairers = self.get_updated_unit_references(self.repairers)
+        self.stop_timer("repairers.update_references")
 
     def record_death(self, unit_tag):
         if unit_tag in self.known_worker_tags:

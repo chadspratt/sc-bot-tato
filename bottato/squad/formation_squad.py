@@ -90,7 +90,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         self.last_leader_update = self.bot.time
         new_slowest: Unit = None
 
-        candidates: Units = self.units
+        candidates: Units = self.units.filter(lambda unit: unit.type_id not in {UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK, UnitTypeId.CYCLONE})
         # if len(self.units_in_formation_position) > len(self.units) / 2:
         #     candidates: Units = Units([
         #         unit for unit in self.units
@@ -129,11 +129,11 @@ class FormationSquad(BaseSquad, GeometryMixin):
         if reset:
             self.parent_formation.clear()
         if not self.parent_formation.formations:
-            unit_type_order = [UnitTypeId.MARINE, UnitTypeId.HELLION, UnitTypeId.REAPER, UnitTypeId.CYCLONE, UnitTypeId.VIKINGFIGHTER, UnitTypeId.RAVEN, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED]
+            unit_type_order = [UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.MEDIVAC, UnitTypeId.HELLION, UnitTypeId.REAPER, UnitTypeId.BANSHEE, UnitTypeId.CYCLONE, UnitTypeId.VIKINGFIGHTER, UnitTypeId.BATTLECRUISER, UnitTypeId.THOR, UnitTypeId.RAVEN, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED]
             y_offset = 0
             for unit_type in unit_type_order:
                 if self.add_unit_formation(unit_type, y_offset):
-                    y_offset += 2
+                    y_offset -= 1
 
         # if self.bot.enemy_units.closer_than(8.0, self.position):
         #     self.parent_formation.clear()
@@ -146,7 +146,8 @@ class FormationSquad(BaseSquad, GeometryMixin):
         units: Units = self.units.of_type(unit_type)
         if units:
             self.parent_formation.add_formation(FormationType.COLUMNS, units.tags, Point2((0, y_offset)))
-            y_offset += 1
+            return True
+        return False
 
     async def attack(self, targets: Union[Point2, Units]):
         if not targets or not self.units:

@@ -529,6 +529,7 @@ class BuildOrder(TimerMixin):
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.RAVEN,
+                UnitTypeId.BANSHEE,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,

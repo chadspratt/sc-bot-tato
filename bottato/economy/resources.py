@@ -115,4 +115,5 @@ class Resources(UnitReferenceMixin):
         self.nodes = self.get_updated_unit_references(self.nodes)
 
     def get_worker_capacity(self) -> int:
-        return len(self.nodes) * self.max_workers_per_node
+        nodes_near_base = self.nodes.filter(lambda unit: self.bot.townhalls.closest_distance_to(unit) < 8)
+        return len(nodes_near_base) * self.max_workers_per_node

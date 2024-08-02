@@ -101,7 +101,7 @@ class Military(GeometryMixin, DebugMixin):
         #     self.last_defense_push = 0
         #     # defense ended, counterattack
         #     mount_offense = True
-        elif self.bot.supply_used == 200 or self.bot.supply_army / self.offense_start_supply > 0.7:
+        elif self.bot.supply_used >= 190 or self.bot.supply_army / self.offense_start_supply > 0.7:
             mount_offense = True
 
         if mount_offense:
@@ -154,7 +154,7 @@ class Military(GeometryMixin, DebugMixin):
         for unit_type in new_units:
             new_supply += self.bot.calculate_supply_cost(unit_type)
 
-        simplify = True
+        simplify = False
         while new_supply < remaining_cap:
             if self.bot.time < 250:
                 squad_type = SquadTypeDefinitions["early marines"]

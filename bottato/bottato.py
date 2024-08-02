@@ -82,25 +82,26 @@ class BotTato(BotAI, TimerMixin):
     def update_unit_references(self):
         self.start_timer("my_workers.update_references")
         self.my_workers.update_references()
-        self.start_timer("my_workers.update_references")
+        self.stop_timer("my_workers.update_references")
         self.start_timer("military.update_references")
         self.military.update_references()
-        self.start_timer("military.update_references")
+        self.stop_timer("military.update_references")
         self.start_timer("enemy.update_references")
         self.enemy.update_references()
-        self.start_timer("enemy.update_references")
+        self.stop_timer("enemy.update_references")
         self.start_timer("build_order.update_references")
         self.build_order.update_references()
-        self.start_timer("build_order.update_references")
+        self.stop_timer("build_order.update_references")
         self.start_timer("production.update_references")
         self.production.update_references()
-        self.start_timer("production.update_references")
+        self.stop_timer("production.update_references")
 
     def print_all_timers(self, interval: int = 0):
         if self.time - self.last_timer_print > interval:
             self.last_timer_print = self.time
             self.print_timers("main-")
             self.build_order.print_timers("build_order-")
+            self.my_workers.print_timers("my_workers-")
 
     async def save_replay(self):
         if self.time - self.last_replay_save_time > 30:

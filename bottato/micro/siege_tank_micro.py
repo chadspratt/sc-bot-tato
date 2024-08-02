@@ -20,13 +20,14 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     async def use_ability(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
         is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
         enemy_unit, enemy_distance = enemy.get_closest_enemy(unit)
+        logger.info(f"{unit} seiged: {is_sieged}, closest enemy {enemy_unit}, distance {enemy_distance}")
         if is_sieged:
-            if enemy_distance > 30:
+            if enemy_distance > 25:
                 self.unsiege(unit)
                 return True
         elif enemy_unit:
             enemy_range_after_sieging = enemy_distance - enemy_unit.calculate_speed() * self.max_siege_time
-            if enemy_range_after_sieging <= self.sieged_range:
+            if enemy_range_after_sieging <= self.sieged_range - 1:
                 self.siege(unit)
                 return True
         return False
