@@ -98,15 +98,12 @@ class FormationSquad(BaseSquad, GeometryMixin):
         #     ], self.bot)
         logger.info(f"squad {self.name} leader candidates {candidates}")
 
-        leader_can_fly = True
         for unit in candidates:
             if not unit.is_flying:
-                leader_can_fly = False
+                candidates = candidates.filter(lambda unit: not unit.is_flying)
                 break
 
         for unit in candidates:
-            if not leader_can_fly and unit.is_flying:
-                continue
             if new_slowest is None or unit.movement_speed < new_slowest.movement_speed:
                 new_slowest = unit
 
