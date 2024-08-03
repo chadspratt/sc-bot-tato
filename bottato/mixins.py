@@ -76,15 +76,14 @@ class GeometryMixin:
         new_y = point.x * s_theta + point.y * c_theta
         return Point2((new_x, new_y))
 
-    def apply_rotations(self, angle: float, points: dict[int, Point2] = None):
+    def apply_rotations(self, angle: float, points: list[Point2] = None):
         # rotations default to facing along the y-axis, with a facing of pi/2
         rotation_needed = angle - math.pi / 2
         s_theta = math.sin(rotation_needed)
         c_theta = math.cos(rotation_needed)
-        new_positions = {}
-        for unit_tag, point in points.items():
-            new_positions[unit_tag] = self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
-        return new_positions
+        return [
+            self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point) for point in points
+        ]
 
     def predict_future_unit_position(self,
                                      unit: Unit,

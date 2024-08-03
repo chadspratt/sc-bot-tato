@@ -73,7 +73,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
 
     @property
     def position(self) -> Point2:
-        return self.parent_formation.game_position
+        return self.leader.position
 
     def recruit(self, unit: Unit):
         super().recruit(unit)
