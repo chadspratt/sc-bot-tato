@@ -18,25 +18,25 @@ class BaseUnitMicro(GeometryMixin):
         return False
 
     async def retreat(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
-        if unit.health_percentage > health_threshold:
-            return False
-
-        threats = enemy.threats_to(unit)
-        # threats = [enemy_unit for enemy_unit in self.bot.all_enemy_units
-        #            if enemy_unit.target_in_range(unit)]
-        if not threats:
-            return False
+        do_retreat = False
+        if unit.health_percentage < health_threshold:
+            # already below min
+            do_retreat = True
+        else:
+            threats = enemy.threats_to(unit)
+            if not threats:
+                return False
 
         # retreat_vector = Point2([0, 0])
 
-        total_potential_damage = 0.0
-        for threat in threats:
-            threat_damage = threat.calculate_damage_vs_target(unit)[0]
-            total_potential_damage += threat_damage
+            total_potential_damage = 0.0
+            for threat in threats:
+                threat_damage = threat.calculate_damage_vs_target(unit)[0]
+                total_potential_damage += threat_damage
             # retreat_vector += (unit.position - threat.position).normalized * threat_damage
         # check if incoming damage will bring unit below health threshold
-        if (unit.health - total_potential_damage) / unit.health_max > health_threshold:
-            return False
+            if (unit.health - total_potential_damage) / unit.health_max < health_threshold:
+                do_retreat = True
         # map_center_vector = self.bot.game_info.map_center - unit.position
         # retreat_vector = retreat_vector + map_center_vector.normalized
 
@@ -57,10 +57,11 @@ class BaseUnitMicro(GeometryMixin):
         #         return False
         #     attempted_position = unit.position.towards_with_random_angle(desired_position, 5, deflection)
         # unit.move(unit.position + retreat_vector)
-        logger.info(f"{unit} retreating")
-        unit.move(self.bot.game_info.player_start_location)
+        if do_retreat:
+            logger.info(f"{unit} retreating")
+            unit.move(self.bot.game_info.player_start_location)
 
-        return True
+        return do_retreat
 
     def attack_something(self, unit: Unit) -> bool:
         targets = self.bot.all_enemy_units.in_attack_range_of(unit)
@@ -85,7 +86,7 @@ class BaseUnitMicro(GeometryMixin):
             logger.debug(f"unit {unit} used ability")
         elif self.attack_something(unit):
             logger.debug(f"unit {unit} attacked something")
-        elif await self.retreat(unit, enemy, health_threshold=1.0):
+        elif await self.retreat(unit, enemy, health_threshold=0.4):
             logger.debug(f"unit {unit} retreated")
         else:
             unit.move(target)

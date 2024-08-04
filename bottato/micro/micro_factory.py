@@ -9,6 +9,7 @@ from .reaper_micro import ReaperMicro
 from .raven_micro import RavenMicro
 from .siege_tank_micro import SiegeTankMicro
 from .medivac_micro import MedivacMicro
+from .marine_micro import MarineMicro
 
 
 micro_instances = {}
@@ -17,7 +18,8 @@ micro_lookup = {
     UnitTypeId.RAVEN: RavenMicro,
     UnitTypeId.SIEGETANK: SiegeTankMicro,
     UnitTypeId.SIEGETANKSIEGED: SiegeTankMicro,
-    UnitTypeId.MEDIVAC: MedivacMicro
+    UnitTypeId.MEDIVAC: MedivacMicro,
+    UnitTypeId.MARINE: MarineMicro,
 }
 
 

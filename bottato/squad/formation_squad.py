@@ -126,7 +126,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         if reset:
             self.parent_formation.clear()
         if not self.parent_formation.formations:
-            unit_type_order = [UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.MEDIVAC, UnitTypeId.HELLION, UnitTypeId.REAPER, UnitTypeId.BANSHEE, UnitTypeId.CYCLONE, UnitTypeId.VIKINGFIGHTER, UnitTypeId.BATTLECRUISER, UnitTypeId.THOR, UnitTypeId.RAVEN, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED]
+            unit_type_order = [UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.HELLION, UnitTypeId.REAPER, UnitTypeId.BANSHEE, UnitTypeId.CYCLONE, UnitTypeId.VIKINGFIGHTER, UnitTypeId.BATTLECRUISER, UnitTypeId.THOR, UnitTypeId.RAVEN, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.MEDIVAC]
             y_offset = 0
             for unit_type in unit_type_order:
                 if self.add_unit_formation(unit_type, y_offset):
@@ -172,7 +172,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         self._destination = destination
         self.destination_facing = destination_facing
 
-        formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.leader, destination_facing)
+        formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.leader, self.units, destination_facing)
         self.leader_destination = formation_positions[self.leader.tag]
         # check if squad is in formation
         self.update_units_in_formation_position(formation_positions)

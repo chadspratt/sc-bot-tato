@@ -19,7 +19,8 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         super().__init__(bot)
 
     async def use_ability(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
-        enemy_unit, enemy_distance = enemy.get_closest_enemy(unit)
+        enemy_unit, enemy_distance = enemy.get_closest_target(unit, distance_limit=20)
+        logger.info(f"raven {unit} closest unit {enemy_unit}({enemy_distance}), energy={unit.energy}")
         if enemy_unit is None:
             return False
         elif enemy_distance < self.ideal_enemy_distance - 2:

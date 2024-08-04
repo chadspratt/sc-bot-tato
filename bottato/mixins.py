@@ -60,10 +60,11 @@ class GeometryMixin:
             angle += math.pi * 2
         return angle
 
-    def apply_rotation(self, angle: float, point: Point2) -> Point2:
+    def apply_rotation(self, angle: float, point: Point2, reverse_direction=False) -> Point2:
         # rotations default to facing along the y-axis, with a facing of pi/2
         logger.debug(f"apply_rotation at angle {angle}")
-        rotation_needed = angle - math.pi / 2
+        rotation_needed = math.pi / 2 - angle if reverse_direction else angle - math.pi / 2
+
         logger.debug(f">> adjusted to {rotation_needed}")
         s_theta = math.sin(rotation_needed)
         c_theta = math.cos(rotation_needed)

@@ -17,7 +17,6 @@ from ..micro.micro_factory import MicroFactory
 class ScoutingLocation:
     def __init__(self, position: Point2):
         self.position: Point2 = position
-        self.scouted_units: Units = []
         self.last_seen: int = None
 
     def __repr__(self) -> str:
@@ -94,7 +93,7 @@ class Scouting(BaseSquad):
         self.bot = bot
         self.enemy = enemy
         self.scouting_locations: List[ScoutingLocation] = list()
-        self.units: Units = []
+        self.units: Units = Units([], bot)
 
         self.friendly_territory = Scout("friendly territory", self.bot, enemy)
         self.enemy_territory = Scout("enemy territory", self.bot, enemy)
