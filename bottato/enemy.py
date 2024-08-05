@@ -50,7 +50,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                     if self.last_seen_position[enemy_unit.tag] == new_prediction:
                         # seems to be some fuzziness where building pos is visible but building is not in enemy_structures
                         break
-                    logger.info(f"enemy not where predicted {enemy_unit}")
+                    logger.debug(f"enemy not where predicted {enemy_unit}")
                     if reverse_vector is None:
                         reverse_vector = (self.last_seen_position[enemy_unit.tag] - new_prediction).normalized
                     new_prediction += reverse_vector

@@ -58,7 +58,7 @@ class Resources(UnitReferenceMixin):
         if worker is None:
             return None
         node = self.nodes.filter(
-            lambda field: self.needed_workers_for_node(field) > 0
+            lambda unit: self.needed_workers_for_node(unit) > 0
         ).closest_to(worker)
         self.worker_tags_by_node_tag[node.tag].append(worker.tag)
         self.assigned_workers.append(worker)

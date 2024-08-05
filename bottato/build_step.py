@@ -56,7 +56,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
 
     def draw_debug_box(self):
         if self.unit_in_charge is not None:
-            self.bot.client.debug_sphere_out(self.unit_in_charge, 1)
+            self.bot.client.debug_sphere_out(self.unit_in_charge, 1, (255, 165, 0))
             self.bot.client.debug_text_world(
                 str(self.unit_in_charge.tag), self.unit_in_charge.position3d)
         if self.pos is not None:
