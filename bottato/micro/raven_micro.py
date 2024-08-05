@@ -30,7 +30,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             return False
         return self.attack_with_turret(unit, enemy_unit)
 
-    def attack_something(self, unit: Unit) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float) -> bool:
         # doesn't have an auto attack
         return False
 

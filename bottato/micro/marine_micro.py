@@ -10,6 +10,7 @@ from ..mixins import GeometryMixin
 
 
 class MarineMicro(BaseUnitMicro, GeometryMixin):
+    attack_health: float = 0.51
     healing_unit_tags = set()
 
     def __init__(self, bot: BotAI):
@@ -19,7 +20,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
         return False
 
     async def retreat(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
-        if unit.health_percentage < 0.5:
+        if unit.health_percentage < 0.8:
             return self.retreat_to_medivac(unit)
         elif unit.tag in self.healing_unit_tags:
             if unit.health_percentage < 0.9:

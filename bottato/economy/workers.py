@@ -3,6 +3,8 @@ from loguru import logger
 
 from sc2.bot_ai import BotAI
 from sc2.units import Units
+from sc2.unit import Unit
+from sc2.constants import UnitTypeId
 from sc2.position import Point2
 from sc2.game_data import Cost
 
@@ -21,6 +23,8 @@ class Workers(UnitReferenceMixin, TimerMixin):
         self.repairers = Units([], bot)
         self.known_worker_tags = []
         self.max_workers = 85
+        self.health_per_repairer = 50
+        self.max_repairers = 25
 
     def get_builder(self, building_position: Point2, needed_resources: Cost):
         builder = None
@@ -129,7 +133,78 @@ class Workers(UnitReferenceMixin, TimerMixin):
             f"total({len(self.bot.workers)})"
         )
 
+    def units_needing_repair(self) -> Units:
+        injured_mechanical_units = self.bot.units.filter(lambda unit: unit.is_mechanical
+                                                         and unit.health_percentage < 1)
+        injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
+                                                        and unit.build_progress == 1
+                                                        and unit.health < unit.health_max)
+        return injured_mechanical_units + injured_structures
+
     async def redistribute_workers(self, needed_resources: Cost) -> int:
+        injured_units = self.units_needing_repair()
+        needed_repairers = 0
+        missing_health = 0
+        if injured_units:
+            for unit in injured_units:
+                if unit.build_progress == 1:
+                    missing_health += unit.health_max - unit.health
+                    logger.info(f"{unit} missing health {unit.health_max - unit.health}")
+                else:
+                    unit_missing_health = (unit.build_progress - unit.health_percentage) * unit.health_max
+                    logger.info(f"{unit} missing health {unit_missing_health}")
+                    missing_health += unit_missing_health
+            needed_repairers = missing_health / self.health_per_repairer
+            if needed_repairers > self.max_repairers:
+                needed_repairers = self.max_repairers
+            for repairer in self.repairers:
+                repairer.repair(injured_units.closest_to(repairer))
+            repairer_shortage = round(needed_repairers) - len(self.repairers)
+            logger.info(f"missing health {missing_health} need repairers {needed_repairers} have {len(self.repairers)} shortage {repairer_shortage}")
+            # remove excess repairers
+            if repairer_shortage < 0:
+                for i in range(-repairer_shortage):
+                    retiring_repairer = self.repairers.furthest_to(injured_units.random)
+                    if self.vespene.has_unused_capacity:
+                        self.vespene.add_worker(retiring_repairer)
+                        self.repairers.remove(retiring_repairer)
+                        logger.info(f"{retiring_repairer} retiring to mine gas")
+                    elif self.minerals.has_unused_capacity:
+                        self.minerals.add_worker(retiring_repairer)
+                        self.repairers.remove(retiring_repairer)
+                        logger.info(f"{retiring_repairer} retiring to mine minerals")
+                    else:
+                        logger.info(f"nowhere for {retiring_repairer} to retire to, staying repairer")
+                        break
+
+            # tell existing to repair closest that isn't themself
+            for repairer in self.repairers:
+                closest_injured = injured_units.filter(lambda unit: unit.tag != repairer.tag).closest_to(repairer)
+                repairer.repair(closest_injured)
+                logger.info(f"{repairer} ordered to repair {closest_injured}")
+                self.bot.client.debug_sphere_out(repairer, 1, (100, 255, 100))
+
+            # add more repairers
+            if repairer_shortage > 0:
+                for i in range(repairer_shortage):
+                    repairer: Unit = None
+                    random_injured = injured_units.random
+                    if needed_resources.minerals <= 0 or not self.vespene.assigned_workers:
+                        repairer = self.minerals.take_worker_closest_to(random_injured.position)
+                        logger.info(f"{repairer} repairer taken from minerals")
+                    elif needed_resources.vespene <= 0 or not self.minerals.assigned_workers:
+                        repairer = self.vespene.take_worker_closest_to(random_injured.position)
+                        logger.info(f"{repairer} repairer taken from vespene")
+
+                    if repairer:
+                        self.repairers.append(repairer)
+                        closest_injured = injured_units.filter(lambda unit: unit.tag != repairer.tag).closest_to(repairer)
+                        repairer.repair(closest_injured)
+                        logger.info(f"{repairer} ordered to repair {closest_injured}")
+                        self.bot.client.debug_sphere_out(repairer, 1, (100, 255, 100))
+                    else:
+                        break
+
         remaining_cooldown = 3 - (self.bot.time - self.last_worker_stop)
         if remaining_cooldown > 0:
             logger.info(f"Distribute workers is on cooldown for {remaining_cooldown}")

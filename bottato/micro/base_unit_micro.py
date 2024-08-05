@@ -5,12 +5,17 @@ from loguru import logger
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.position import Point2
+from sc2.constants import UnitTypeId
 
 from ..mixins import GeometryMixin
 from ..enemy import Enemy
 
 
 class BaseUnitMicro(GeometryMixin):
+    ability_health: float = 0.1
+    attack_health: float = 0.1
+    retreat_health: float = 0.75
+
     def __init__(self, bot: BotAI):
         self.bot: BotAI = bot
 
@@ -59,11 +64,20 @@ class BaseUnitMicro(GeometryMixin):
         # unit.move(unit.position + retreat_vector)
         if do_retreat:
             logger.info(f"{unit} retreating")
-            unit.move(self.bot.game_info.player_start_location)
+            if unit.is_mechanical:
+                unit.move(self.bot.workers.closest_to(unit))
+            else:
+                medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC)
+                if medivacs:
+                    unit.move(medivacs.closest_to(unit))
+                else:
+                    unit.move(self.bot.game_info.player_start_location)
 
         return do_retreat
 
-    def attack_something(self, unit: Unit) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float) -> bool:
+        if unit.health_percentage < health_threshold:
+            return False
         targets = self.bot.all_enemy_units.in_attack_range_of(unit)
         if targets:
             if unit.weapon_cooldown == 0:
@@ -82,11 +96,11 @@ class BaseUnitMicro(GeometryMixin):
         return False
 
     async def move(self, unit: Unit, target: Point2, enemy: Enemy) -> None:
-        if await self.use_ability(unit, enemy, health_threshold=0.0):
+        if await self.use_ability(unit, enemy, health_threshold=self.ability_health):
             logger.debug(f"unit {unit} used ability")
-        elif self.attack_something(unit):
+        elif self.attack_something(unit, health_threshold=self.attack_health):
             logger.debug(f"unit {unit} attacked something")
-        elif await self.retreat(unit, enemy, health_threshold=0.4):
+        elif await self.retreat(unit, enemy, health_threshold=self.retreat_health):
             logger.debug(f"unit {unit} retreated")
         else:
             unit.move(target)
@@ -99,7 +113,7 @@ class BaseUnitMicro(GeometryMixin):
             pass
         elif await self.retreat(unit, enemy, health_threshold=1.0):
             pass
-        elif self.attack_something(unit):
+        elif self.attack_something(unit, health_threshold=0.0):
             pass
         elif await self.retreat(unit, enemy, health_threshold=0.75):
             pass

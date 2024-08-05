@@ -67,6 +67,8 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def draw_debug_box(self):
         if self.leader:
             self.bot.client.debug_sphere_out(self.leader, 1, (255, 255, 255))
+            if self.parent_formation.front_center:
+                self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.parent_formation.front_center), 1.5, (0, 255, 255))
             if self.leader_destination:
                 self.bot.client.debug_line_out(self.leader, self.convert_point2_to_3(self.leader_destination))
         super().draw_debug_box()
@@ -112,12 +114,13 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def update_references(self):
         self.units = self.get_updated_unit_references(self.units)
         self.targets = self.get_updated_unit_references(self.targets)
-        try:
-            self.leader = self.get_updated_unit_reference(self.leader)
-        except self.UnitNotFound:
-            self.leader = None
-            logger.info(f"squad {self.name} lost leader {self.leader}")
-            self.update_leader()
+        if self.leader:
+            try:
+                self.leader = self.get_updated_unit_reference(self.leader)
+            except self.UnitNotFound:
+                self.leader = None
+                logger.info(f"squad {self.name} lost leader {self.leader}")
+                self.update_leader()
 
     def update_formation(self, reset=False):
         # decide formation(s)
