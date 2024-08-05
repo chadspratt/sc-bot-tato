@@ -200,6 +200,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
     def __init__(self, bot: BotAI):
         self.bot = bot
         self.formations: List[Formation] = []
+        self.front_center: Point2 = None
 
     def __repr__(self):
         return ", ".join([str(formation) for formation in self.formations])
@@ -222,10 +223,15 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         self, formation_destination: Point2, leader: Unit, units: Units, destination_facing: float = None
     ) -> dict[int, Point2]:
         frontline_units = units.closest_n_units(formation_destination, 10)
-        front_center = self.calculate_formation_front_center(frontline_units, formation_destination)
-        self.bot.client.debug_sphere_out(self.convert_point2_to_3(front_center), 2, (255, 255, 255))
+        new_front_center = self.calculate_formation_front_center(frontline_units, formation_destination)
+        if self.front_center:
+            self.front_center = self.front_center.towards(new_front_center, 1, limit=True)
+        else:
+            self.front_center = new_front_center
+        self.bot.client.debug_sphere_out(self.convert_point2_to_3(new_front_center), 2, (255, 255, 255))
+        self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.front_center), 2, (100, 100, 100))
 
-        distance_remaining = (front_center - formation_destination).length
+        distance_remaining = (self.front_center - formation_destination).length
         logger.debug(f"formation distance remaining {distance_remaining}")
         logger.debug(f"formation facing {destination_facing}")
 
@@ -244,7 +250,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             # create list of positions to fill
             formation_offsets = formation.get_unit_offset_from_reference_point(Point2((0, 0)))
             rotated_offsets = self.apply_rotations(destination_facing, formation_offsets)
-            positions = [front_center + offset for offset in rotated_offsets]
+            positions = [self.front_center + offset for offset in rotated_offsets]
 
             # match positions to closest units
             for position in positions:
