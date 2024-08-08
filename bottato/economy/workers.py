@@ -135,11 +135,27 @@ class Workers(UnitReferenceMixin, TimerMixin):
 
     def units_needing_repair(self) -> Units:
         injured_mechanical_units = self.bot.units.filter(lambda unit: unit.is_mechanical
-                                                         and unit.health_percentage < 1)
+                                                         and unit.health < unit.health_max)
+        logger.debug(f"injured mechanical units {injured_mechanical_units}")
+
         injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
                                                         and unit.build_progress == 1
                                                         and unit.health < unit.health_max)
+        logger.debug(f"injured structures {injured_structures}")
         return injured_mechanical_units + injured_structures
+
+    def repair_closest(self, injured_units: Units, repairer: Unit) -> bool:
+        self_excluded = injured_units.filter(lambda unit: unit.tag != repairer.tag)
+        if self_excluded:
+            closest_injured = self_excluded.closest_to(repairer)
+            repairer.repair(closest_injured)
+            if closest_injured.tag not in self.bot.unit_tags_received_action:
+                closest_injured.move(repairer)
+            logger.info(f"{repairer} ordered to repair {closest_injured}")
+            self.bot.client.debug_sphere_out(repairer, 1, (100, 255, 100))
+            self.bot.client.debug_line_out(repairer, closest_injured, (100, 255, 100))
+            return True
+        return False
 
     async def redistribute_workers(self, needed_resources: Cost) -> int:
         injured_units = self.units_needing_repair()
@@ -147,20 +163,14 @@ class Workers(UnitReferenceMixin, TimerMixin):
         missing_health = 0
         if injured_units:
             for unit in injured_units:
-                if unit.build_progress == 1:
-                    missing_health += unit.health_max - unit.health
-                    logger.info(f"{unit} missing health {unit.health_max - unit.health}")
-                else:
-                    unit_missing_health = (unit.build_progress - unit.health_percentage) * unit.health_max
-                    logger.info(f"{unit} missing health {unit_missing_health}")
-                    missing_health += unit_missing_health
+                missing_health += unit.health_max - unit.health
+                logger.info(f"{unit} missing health {unit.health_max - unit.health}")
             needed_repairers = missing_health / self.health_per_repairer
             if needed_repairers > self.max_repairers:
                 needed_repairers = self.max_repairers
-            for repairer in self.repairers:
-                repairer.repair(injured_units.closest_to(repairer))
             repairer_shortage = round(needed_repairers) - len(self.repairers)
             logger.info(f"missing health {missing_health} need repairers {needed_repairers} have {len(self.repairers)} shortage {repairer_shortage}")
+
             # remove excess repairers
             if repairer_shortage < 0:
                 for i in range(-repairer_shortage):
@@ -179,10 +189,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
 
             # tell existing to repair closest that isn't themself
             for repairer in self.repairers:
-                closest_injured = injured_units.filter(lambda unit: unit.tag != repairer.tag).closest_to(repairer)
-                repairer.repair(closest_injured)
-                logger.info(f"{repairer} ordered to repair {closest_injured}")
-                self.bot.client.debug_sphere_out(repairer, 1, (100, 255, 100))
+                self.repair_closest(injured_units, repairer)
 
             # add more repairers
             if repairer_shortage > 0:
@@ -198,10 +205,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
 
                     if repairer:
                         self.repairers.append(repairer)
-                        closest_injured = injured_units.filter(lambda unit: unit.tag != repairer.tag).closest_to(repairer)
-                        repairer.repair(closest_injured)
-                        logger.info(f"{repairer} ordered to repair {closest_injured}")
-                        self.bot.client.debug_sphere_out(repairer, 1, (100, 255, 100))
+                        self.repair_closest(injured_units, repairer)
                     else:
                         break
 

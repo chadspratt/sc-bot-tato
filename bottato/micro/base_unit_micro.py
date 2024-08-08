@@ -93,6 +93,7 @@ class BaseUnitMicro(GeometryMixin):
                 target_position = nearest_target.position.towards(unit, attack_range - 0.5)
                 unit.move(target_position)
                 logger.info(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
+                return True
         return False
 
     async def move(self, unit: Unit, target: Point2, enemy: Enemy) -> None:

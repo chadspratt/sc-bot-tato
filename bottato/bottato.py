@@ -53,7 +53,7 @@ class BotTato(BotAI, TimerMixin):
         self.start_timer("military.get_squad_request")
         # squads_to_fill: List[BaseSquad] = [self.military.get_squad_request()]
         remaining_cap = self.build_order.remaining_cap
-        if remaining_cap:
+        if remaining_cap > 0:
             logger.info(f"requesting at least {remaining_cap} supply of units for military")
             unit_request: list[UnitTypeId] = self.military.get_squad_request(remaining_cap)
             self.stop_timer("military.get_squad_request")

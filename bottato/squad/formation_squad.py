@@ -98,6 +98,8 @@ class FormationSquad(BaseSquad, GeometryMixin):
         #         unit for unit in self.units
         #         if unit.tag in self.units_in_formation_position
         #     ], self.bot)
+        if not candidates:
+            candidates = self.units
         logger.info(f"squad {self.name} leader candidates {candidates}")
 
         for unit in candidates:
@@ -110,6 +112,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
                 new_slowest = unit
 
         self.leader = new_slowest
+        logger.info(f"squad {self.name} chosen leader {self.leader}")
 
     def update_references(self):
         self.units = self.get_updated_unit_references(self.units)

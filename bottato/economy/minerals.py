@@ -65,7 +65,11 @@ class Minerals(Resources):
                 # XXX nodes have to be in vision? long distance seems to break
                 depleted_nodes.append(node_tag)
                 for worker_tag in self.worker_tags_by_node_tag[node_tag]:
-                    workers.append(self.bot.workers.by_tag(worker_tag))
+                    try:
+                        workers.append(self.bot.workers.by_tag(worker_tag))
+                    except KeyError:
+                        # destroyed
+                        pass
         for depleted_node in depleted_nodes:
             del self.worker_tags_by_node_tag[depleted_node]
         return workers

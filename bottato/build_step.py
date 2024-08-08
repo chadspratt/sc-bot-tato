@@ -56,10 +56,12 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
 
     def draw_debug_box(self):
         if self.unit_in_charge is not None:
-            self.bot.client.debug_sphere_out(self.unit_in_charge, 1, (255, 165, 0))
+            self.bot.client.debug_sphere_out(self.unit_in_charge, 1, (255, 130, 0))
+            if self.pos:
+                self.bot.client.debug_line_out(self.unit_in_charge, self.convert_point2_to_3(self.pos), (255, 130, 0))
             self.bot.client.debug_text_world(
                 str(self.unit_in_charge.tag), self.unit_in_charge.position3d)
-        if self.pos is not None:
+        if self.pos:
             self.bot.client.debug_box2_out(self.convert_point2_to_3(self.pos), 0.5)
             self.bot.client.debug_text_world(
                 self.unit_type_id.name, Point3((*self.pos, 10))
