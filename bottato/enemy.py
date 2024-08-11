@@ -34,8 +34,8 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             squad.update_references()
         # remove visible from out_of_view
         visible_tags = self.bot.enemy_units.tags.union(self.bot.enemy_structures.tags)
-        logger.info(f"visible tags: {visible_tags}")
-        logger.info(f"self.enemies_out_of_view: {self.enemies_out_of_view}")
+        logger.debug(f"visible tags: {visible_tags}")
+        logger.debug(f"self.enemies_out_of_view: {self.enemies_out_of_view}")
         for enemy_unit in self.enemies_out_of_view:
             time_since_last_seen = self.bot.time - self.last_seen[enemy_unit.tag]
             if enemy_unit.tag in visible_tags or time_since_last_seen > self.unit_may_not_exist_seconds:

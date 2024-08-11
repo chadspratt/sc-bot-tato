@@ -1,5 +1,7 @@
 import math
+import enum
 from loguru import logger
+from typing import Union
 
 from sc2.bot_ai import BotAI
 from sc2.units import Units
@@ -11,203 +13,204 @@ from sc2.game_data import Cost
 from ..mixins import UnitReferenceMixin, TimerMixin
 from .minerals import Minerals
 from .vespene import Vespene
+from .resources import Resources
+
+
+class JobType(enum.Enum):
+    IDLE = 0
+    MINERALS = 1
+    VESPENE = 2
+    BUILD = 3
+    REPAIR = 4
+    ATTACK = 5
+
+
+class WorkerAssignment():
+    def __init__(self, unit: Unit) -> None:
+        self.unit = unit
+        self.job_type: JobType = JobType.IDLE
+        self.target: Unit = None
+        self.unit_available: bool = True
+
+    def __repr__(self) -> str:
+        return f"WorkerAssignment({self.unit}({self.unit_available}), {self.job_type.name}, {self.target})"
 
 
 class Workers(UnitReferenceMixin, TimerMixin):
     def __init__(self, bot: BotAI) -> None:
         self.last_worker_stop = -1000
         self.bot: BotAI = bot
+        self.assignments_by_worker: dict[int, WorkerAssignment] = {}
+        self.assignments_by_job: dict[JobType, list[WorkerAssignment]] = {
+            JobType.IDLE: [],
+            JobType.MINERALS: [],
+            JobType.VESPENE: [],
+            JobType.BUILD: [],
+            JobType.REPAIR: [],
+            JobType.ATTACK: [],
+        }
         self.minerals = Minerals(bot)
         self.vespene = Vespene(bot)
-        self.builders = Units([], bot)
-        self.repairers = Units([], bot)
-        self.known_worker_tags = []
         self.max_workers = 85
         self.health_per_repairer = 50
         self.max_repairers = 25
+        for worker in self.bot.workers:
+            self.add_worker(worker)
 
-    def get_builder(self, building_position: Point2, needed_resources: Cost):
-        builder = None
-        logger.info(
-            "selecting builder: "
-            f"minerals_needed {needed_resources.minerals}, "
-            f"vespene_needed {needed_resources.vespene}, "
-            f"mineral_gatherers {self.minerals.worker_count}, "
-            f"vespene_gatherers {self.vespene.worker_count}, "
-            f"build position {building_position}"
-        )
-        if needed_resources.minerals > needed_resources.vespene and self.vespene.available_worker_count:
-            builder = self.vespene.take_worker_closest_to(building_position)
-        elif self.minerals.worker_count:
-            builder = self.minerals.take_worker_closest_to(building_position)
-        elif self.repairers:
-            builder = self.repairers.closest_to(building_position)
-            self.repairers.remove(builder)
-        else:
-            logger.info("FAILED TO GET BUILDER")
-        if builder is not None:
-            self.builders.append(builder)
-        return builder
-
-    def catalog_workers(self):
-        # put workers into correct bins (this may supercede `update_references`)
-        self.mineral_gatherers = self.bot.workers.filter(
-            lambda unit: unit.order_target in [m.tag for m in self.mineral_fields]
-            or unit.is_carrying_minerals
-        )
-        self.vespene_gatherers = self.bot.workers.filter(
-            lambda unit: unit.order_target
-            in [v.tag for v in self.bot.gas_buildings.ready]
-            or unit.is_carrying_vespene
-        )
-        self.repairers = self.bot.workers.filter(lambda unit: unit.is_repairing)
-        # PS: This one is hard... maybe when we assign a worker to build
-        #   something we could flag it? (with a little cross-talk between objects)
-        # self.builders = self.bot.workers.filter(lambad unit: unit.is_using_ability())
+    def add_worker(self, worker: Unit) -> bool:
+        if worker.tag not in self.assignments_by_worker:
+            new_assignment = WorkerAssignment(worker)
+            self.assignments_by_worker[worker.tag] = new_assignment
+            self.assignments_by_job[JobType.IDLE].append(new_assignment)
+            return True
+        return False
 
     def update_references(self):
-        # PS: we're getting fresh references for all SCVs from `catalog_workers`.
         self.start_timer("minerals.update_references")
         self.minerals.update_references()
         self.stop_timer("minerals.update_references")
         self.start_timer("vespene.update_references")
         self.vespene.update_references()
         self.stop_timer("vespene.update_references")
-        self.start_timer("builders.update_references")
-        self.builders = self.get_updated_unit_references(self.builders)
-        self.stop_timer("builders.update_references")
-        self.start_timer("repairers.update_references")
-        self.repairers = self.get_updated_unit_references(self.repairers)
-        self.stop_timer("repairers.update_references")
+
+        self.assignments_by_job[JobType.IDLE].clear()
+        self.assignments_by_job[JobType.MINERALS].clear()
+        self.assignments_by_job[JobType.VESPENE].clear()
+        self.assignments_by_job[JobType.BUILD].clear()
+        self.assignments_by_job[JobType.REPAIR].clear()
+        self.assignments_by_job[JobType.ATTACK].clear()
+        for assignment in self.assignments_by_worker.values():
+            try:
+                assignment.unit = self.get_updated_unit_reference(assignment.unit)
+                assignment.unit_available = True
+            except UnitReferenceMixin.UnitNotFound:
+                assignment.unit_available = False
+                logger.info(f"{assignment.unit} unavailable, maybe already working on {assignment.target}")
+            if assignment.job_type in self.assignments_by_job:
+                self.assignments_by_job[assignment.job_type].append(assignment)
+            else:
+                self.assignments_by_job[assignment.job_type] = [assignment]
+        logger.debug(f"assignment summary {self.assignments_by_job}")
+
+    def update_assigment(self, worker: Unit, new_job: JobType, new_target: Union[Unit, None]):
+        self.update_job(worker, new_job)
+        self.update_target(worker, new_target)
+
+    def update_job(self, worker: Unit, new_job: JobType):
+        assignment = self.assignments_by_worker[worker.tag]
+        logger.info(f"worker {worker} changing from {assignment.job_type} to {new_job}")
+        if assignment.job_type == JobType.MINERALS:
+            self.minerals.remove_worker(worker)
+        elif assignment.job_type == JobType.VESPENE:
+            self.vespene.remove_worker(worker)
+        self.assignments_by_job[assignment.job_type].remove(assignment)
+        assignment.job_type = new_job
+        self.assignments_by_job[new_job].append(assignment)
+
+    def update_target(self, worker: Unit, new_target: Union[Unit, None]):
+        assignment = self.assignments_by_worker[worker.tag]
+        logger.info(f"worker {worker} changing from {assignment.target} to {new_target}")
+        if new_target:
+            if assignment.job_type == JobType.REPAIR:
+                worker.repair(new_target)
+                if new_target.tag not in self.bot.unit_tags_received_action:
+                    new_target.move(worker)
+            elif assignment.job_type == JobType.VESPENE:
+                self.vespene.add_worker_to_node(worker, new_target)
+                worker.smart(new_target)
+            elif assignment.job_type == JobType.MINERALS:
+                self.minerals.add_worker_to_node(worker, new_target)
+                worker.gather(new_target)
+            else:
+                worker.smart(new_target)
+        else:
+            if assignment.job_type == JobType.MINERALS:
+                new_target = self.minerals.add_worker(worker)
+                worker.smart(new_target)
+            elif assignment.job_type == JobType.VESPENE:
+                new_target = self.vespene.add_worker(worker)
+                worker.smart(new_target)
+        assignment.target = new_target
 
     def record_death(self, unit_tag):
-        if unit_tag in self.known_worker_tags:
-            self.known_worker_tags.remove(unit_tag)
+        if unit_tag in self.assignments_by_worker:
+            del self.assignments_by_worker[unit_tag]
+            # assign_by_job should be cleaned up by update_references refresh
             self.minerals.remove_worker_by_tag(unit_tag)
             self.vespene.remove_worker_by_tag(unit_tag)
         else:
             self.minerals.record_non_worker_death(unit_tag)
 
+    def get_builder(self, building_position: Point2, needed_resources: Cost):
+        builder = None
+        candidates: Units = (
+            self.availiable_workers_on_job(JobType.IDLE)
+            or self.availiable_workers_on_job(JobType.VESPENE)
+            or self.availiable_workers_on_job(JobType.MINERALS)
+            or self.availiable_workers_on_job(JobType.REPAIR)
+        )
+        if not candidates:
+            logger.info("FAILED TO GET BUILDER")
+        else:
+            builder = candidates.closest_to(building_position)
+            if builder is not None:
+                self.update_assigment(builder, JobType.BUILD, None)
+
+        return builder
+
+    def availiable_workers_on_job(self, job_type: JobType) -> Units:
+        return Units([
+            assignment.unit for assignment in self.assignments_by_job[job_type] if assignment.unit_available],
+            bot_object=self.bot)
+
+    def deliver_resources(self, worker: Unit):
+        if worker.is_carrying_resource:
+            nearest_cc = self.bot.townhalls.ready.closest_to(worker)
+            worker.smart(nearest_cc)
+            logger.info(f"{worker} delivering resources to {nearest_cc}")
+
+    def set_as_idle(self, worker: Unit):
+        self.update_assigment(worker, JobType.IDLE, None)
+
     def distribute_idle(self):
         if self.bot.workers.idle:
             logger.info(f"idle workers {self.bot.workers.idle}")
-        workers_to_assign: set[int] = set(self.bot.workers.idle.tags)
-        if len(self.bot.workers) != len(self.known_worker_tags):
-            for worker in self.bot.workers:
-                if worker.tag not in self.known_worker_tags:
-                    self.known_worker_tags.append(worker.tag)
-                    workers_to_assign.add(worker.tag)
+        for worker in self.bot.workers.idle:
+            assigment: WorkerAssignment = self.assignments_by_worker[worker.tag]
+            if assigment.job_type != JobType.BUILD:
+                self.update_job(worker, JobType.IDLE)
         for worker in self.minerals.get_workers_from_depleted():
-            workers_to_assign.add(worker.tag)
+            self.update_job(worker, JobType.IDLE)
 
-        if workers_to_assign:
-            logger.info(f"idle or new workers {workers_to_assign}")
-            for worker_tag in workers_to_assign:
-                # try to remove first in case they were assigned to something despite being idle
-                self.minerals.remove_worker_by_tag(worker_tag)
-                self.vespene.remove_worker_by_tag(worker_tag)
-                try:
-                    worker = self.bot.workers.by_tag(worker_tag)
-                except KeyError:
-                    continue
+        idle_workers: Units = self.availiable_workers_on_job(JobType.IDLE)
+        if idle_workers:
+            logger.info(f"idle or new workers {idle_workers}")
+            for worker in idle_workers:
                 if self.minerals.has_unused_capacity:
-                    logger.info(f"adding {worker_tag} to minerals")
-                    self.minerals.add_worker(worker)
+                    logger.info(f"adding {worker.tag} to minerals")
+                    self.update_assigment(worker, JobType.MINERALS, None)
                     continue
 
                 if self.vespene.has_unused_capacity:
-                    logger.info(f"adding {worker_tag} to gas")
-                    self.vespene.add_worker(worker)
+                    logger.info(f"adding {worker.tag} to gas")
+                    self.update_assigment(worker, JobType.VESPENE, None)
                     continue
 
                 # if self.minerals.add_long_distance_minerals(1) > 0:
-                #     logger.info(f"adding {worker_tag} to long-distance")
+                #     logger.info(f"adding {worker.tag} to long-distance")
                 #     self.minerals.add_worker(worker)
 
         logger.info(
-            f"[==WORKERS==] minerals({self.minerals.worker_count}), "
-            f"vespene({self.vespene.worker_count}), "
-            f"builders({len(self.builders)}), "
-            f"repairers({len(self.repairers)}), "
-            f"idle({len(self.bot.workers.idle)}), "
-            f"total({len(self.bot.workers)})"
+            f"[==WORKERS==] minerals({len(self.assignments_by_job[JobType.MINERALS])}), "
+            f"vespene({len(self.assignments_by_job[JobType.VESPENE])}), "
+            f"builders({len(self.assignments_by_job[JobType.BUILD])}), "
+            f"repairers({len(self.assignments_by_job[JobType.REPAIR])}), "
+            f"idle({len(self.assignments_by_job[JobType.IDLE])}({len(self.bot.workers.idle)})), "
+            f"total({len(self.assignments_by_worker.keys())}({len(self.bot.workers)}))"
         )
 
-    def units_needing_repair(self) -> Units:
-        injured_mechanical_units = self.bot.units.filter(lambda unit: unit.is_mechanical
-                                                         and unit.health < unit.health_max)
-        logger.debug(f"injured mechanical units {injured_mechanical_units}")
-
-        injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
-                                                        and unit.build_progress == 1
-                                                        and unit.health < unit.health_max)
-        logger.debug(f"injured structures {injured_structures}")
-        return injured_mechanical_units + injured_structures
-
-    def repair_closest(self, injured_units: Units, repairer: Unit) -> bool:
-        self_excluded = injured_units.filter(lambda unit: unit.tag != repairer.tag)
-        if self_excluded:
-            closest_injured = self_excluded.closest_to(repairer)
-            repairer.repair(closest_injured)
-            if closest_injured.tag not in self.bot.unit_tags_received_action:
-                closest_injured.move(repairer)
-            logger.info(f"{repairer} ordered to repair {closest_injured}")
-            self.bot.client.debug_sphere_out(repairer, 1, (100, 255, 100))
-            self.bot.client.debug_line_out(repairer, closest_injured, (100, 255, 100))
-            return True
-        return False
-
     async def redistribute_workers(self, needed_resources: Cost) -> int:
-        injured_units = self.units_needing_repair()
-        needed_repairers = 0
-        missing_health = 0
-        if injured_units:
-            for unit in injured_units:
-                missing_health += unit.health_max - unit.health
-                logger.info(f"{unit} missing health {unit.health_max - unit.health}")
-            needed_repairers = missing_health / self.health_per_repairer
-            if needed_repairers > self.max_repairers:
-                needed_repairers = self.max_repairers
-            repairer_shortage = round(needed_repairers) - len(self.repairers)
-            logger.info(f"missing health {missing_health} need repairers {needed_repairers} have {len(self.repairers)} shortage {repairer_shortage}")
-
-            # remove excess repairers
-            if repairer_shortage < 0:
-                for i in range(-repairer_shortage):
-                    retiring_repairer = self.repairers.furthest_to(injured_units.random)
-                    if self.vespene.has_unused_capacity:
-                        self.vespene.add_worker(retiring_repairer)
-                        self.repairers.remove(retiring_repairer)
-                        logger.info(f"{retiring_repairer} retiring to mine gas")
-                    elif self.minerals.has_unused_capacity:
-                        self.minerals.add_worker(retiring_repairer)
-                        self.repairers.remove(retiring_repairer)
-                        logger.info(f"{retiring_repairer} retiring to mine minerals")
-                    else:
-                        logger.info(f"nowhere for {retiring_repairer} to retire to, staying repairer")
-                        break
-
-            # tell existing to repair closest that isn't themself
-            for repairer in self.repairers:
-                self.repair_closest(injured_units, repairer)
-
-            # add more repairers
-            if repairer_shortage > 0:
-                for i in range(repairer_shortage):
-                    repairer: Unit = None
-                    random_injured = injured_units.random
-                    if needed_resources.minerals <= 0 or not self.vespene.assigned_workers:
-                        repairer = self.minerals.take_worker_closest_to(random_injured.position)
-                        logger.info(f"{repairer} repairer taken from minerals")
-                    elif needed_resources.vespene <= 0 or not self.minerals.assigned_workers:
-                        repairer = self.vespene.take_worker_closest_to(random_injured.position)
-                        logger.info(f"{repairer} repairer taken from vespene")
-
-                    if repairer:
-                        self.repairers.append(repairer)
-                        self.repair_closest(injured_units, repairer)
-                    else:
-                        break
+        self.update_repairers(needed_resources)
 
         remaining_cooldown = 3 - (self.bot.time - self.last_worker_stop)
         if remaining_cooldown > 0:
@@ -234,17 +237,112 @@ class Workers(UnitReferenceMixin, TimerMixin):
             # move workers to vespene
             return self.move_workers_to_vespene(workers_to_move)
 
+    def update_repairers(self, needed_resources: Cost) -> None:
+        injured_units = self.units_needing_repair()
+        needed_repairers: int = 0
+        missing_health = 0
+        if injured_units:
+            for unit in injured_units:
+                missing_health += unit.health_max - unit.health
+                logger.info(f"{unit} missing health {unit.health_max - unit.health}")
+            needed_repairers = missing_health / self.health_per_repairer
+            if needed_repairers > self.max_repairers:
+                needed_repairers = self.max_repairers
+
+        current_repairers: Units = self.availiable_workers_on_job(JobType.REPAIR)
+        repairer_shortage: int = round(needed_repairers) - len(current_repairers)
+        logger.info(f"missing health {missing_health} need repairers {needed_repairers} have {len(current_repairers)} shortage {repairer_shortage}")
+
+        # remove excess repairers
+        if repairer_shortage < 0:
+            for i in range(-repairer_shortage):
+                retiring_repairer = current_repairers.furthest_to(injured_units.random)
+                if self.vespene.has_unused_capacity:
+                    self.update_assigment(retiring_repairer, JobType.VESPENE, None)
+                elif self.minerals.has_unused_capacity:
+                    self.update_assigment(retiring_repairer, JobType.MINERALS, None)
+                else:
+                    logger.info(f"nowhere for {retiring_repairer} to retire to, staying repairer")
+                    break
+                current_repairers.remove(retiring_repairer)
+
+        # tell existing to repair closest that isn't themself
+        for repairer in current_repairers:
+            self.update_target(repairer, self.get_repair_target(repairer, injured_units))
+
+        # add more repairers
+        if repairer_shortage > 0:
+            candidates: Units = None
+            if needed_resources.minerals <= 0 or not self.availiable_workers_on_job(JobType.VESPENE):
+                candidates = self.availiable_workers_on_job(JobType.MINERALS)
+            elif needed_resources.vespene <= 0 or not self.availiable_workers_on_job(JobType.MINERALS):
+                candidates = self.availiable_workers_on_job(JobType.VESPENE)
+            if candidates:
+                for i in range(repairer_shortage):
+                    random_injured = injured_units.random
+                    repairer: Unit = candidates.closest_to(random_injured)
+                    candidates.remove(repairer)
+
+                    if repairer:
+                        self_excluded = injured_units.filter(lambda unit: unit.tag != repairer.tag)
+                        new_target: Unit = None
+                        if self_excluded:
+                            new_target = self_excluded.closest_to(repairer)
+                        self.update_assigment(repairer, JobType.REPAIR, new_target)
+                    else:
+                        break
+
+    def get_repair_target(self, repairer: Unit, injured_units: Units) -> Unit:
+        self_excluded = injured_units.filter(lambda unit: unit.tag != repairer.tag)
+        new_target: Unit = None
+        if self_excluded:
+            new_target = self_excluded.closest_to(repairer)
+        return new_target
+
+    def units_needing_repair(self) -> Units:
+        injured_mechanical_units = self.bot.units.filter(lambda unit: unit.is_mechanical
+                                                         and unit.health < unit.health_max)
+        logger.debug(f"injured mechanical units {injured_mechanical_units}")
+
+        injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
+                                                        and unit.build_progress == 1
+                                                        and unit.health < unit.health_max)
+        logger.debug(f"injured structures {injured_structures}")
+        return injured_mechanical_units + injured_structures
+
     def move_workers_to_minerals(self, number_to_move: int) -> int:
-        number_moved = self.minerals.transfer_workers_from(self.vespene, number_to_move)
-        if number_moved > 0:
-            self.last_worker_stop = self.bot.time
-        return number_moved
+        self.move_workers_between_resources(self.vespene, self.minerals, JobType.MINERALS, number_to_move)
 
     def move_workers_to_vespene(self, number_to_move: int) -> int:
-        number_moved = self.vespene.transfer_workers_from(self.minerals, number_to_move)
-        if number_moved > 0:
+        self.move_workers_between_resources(self.minerals, self.vespene, JobType.VESPENE, number_to_move)
+
+    def move_workers_between_resources(self, source: Resources, target: Resources, target_job: JobType, number_to_move: int) -> int:
+        moved_count = 0
+        mineral_nodes = target.nodes_with_capacity()
+        if not mineral_nodes:
+            return 0
+
+        candidates: Units = None
+        if target_job == JobType.VESPENE:
+            candidates = self.availiable_workers_on_job(JobType.MINERALS)
+        else:
+            candidates = self.availiable_workers_on_job(JobType.VESPENE)
+
+        next_node: Unit = mineral_nodes.pop()
+        while moved_count < number_to_move and candidates and target.has_unused_capacity:
+            if target.needed_workers_for_node(next_node) == 0:
+                if mineral_nodes:
+                    next_node = mineral_nodes.pop()
+                    continue
+                break
+            worker = candidates.closest_to(next_node)
+            candidates.remove(worker)
+            self.update_assigment(worker, target_job, next_node)
+            moved_count += 1
+
+        if moved_count:
             self.last_worker_stop = self.bot.time
-        return number_moved
+        return moved_count
 
     def get_mineral_capacity(self) -> int:
         return self.minerals.get_worker_capacity()

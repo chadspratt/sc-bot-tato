@@ -12,7 +12,7 @@ from sc2.position import Point2
 from sc2.protocol import ConnectionAlreadyClosed, ProtocolError
 
 from .build_step import BuildStep
-from .economy.workers import Workers
+from .economy.workers import Workers, JobType
 from .economy.production import Production
 from .mixins import TimerMixin
 
@@ -85,7 +85,6 @@ class BuildOrder(TimerMixin):
         for build_step in self.started:
             build_step.update_references()
             logger.debug(f"started step {build_step}")
-        self.update_completed()
         self.update_started()
         self.move_interupted_to_pending()
 
@@ -272,42 +271,49 @@ class BuildOrder(TimerMixin):
         logger.info(f"affordable items {affordable_items}")
         return affordable_items
 
-    def update_completed(self) -> None:
-        for completed_unit in self.recently_completed_units:
-            logger.info(
-                f"construction of {completed_unit.type_id} completed at {completed_unit.position}"
+    def update_completed_unit(self, completed_unit: Unit) -> None:
+        logger.info(
+            f"construction of {completed_unit.type_id} completed at {completed_unit.position}"
+        )
+        for idx, in_progress_step in enumerate(self.started):
+            logger.debug(
+                f"{in_progress_step.unit_type_id}, {completed_unit.type_id}"
             )
-            needle = None
-            for idx, in_progress_step in enumerate(self.started):
-                logger.debug(
-                    f"{in_progress_step.unit_type_id}, {completed_unit.type_id}"
-                )
-                if in_progress_step.unit_type_id == completed_unit.type_id:
-                    needle = idx
-                    in_progress_step.completed_time = self.bot.time
-                    break
-            for ramp_blocker in self.ramp_block.ramp_blockers:
-                if ramp_blocker == completed_unit:
-                    logger.info(">> is ramp blocker")
-                    ramp_blocker.tag = completed_unit.tag
-                    ramp_blocker.is_complete = True
-            if needle is not None:
-                self.complete.append(self.started.pop(needle))
-            # if completed_unit.type_id == UnitTypeId.COMMANDCENTER:
-            #     # generate ramp blocking positions for newly created command centers
-            #     # not working... It keeps finding the original ramp location
-            #     ramp = min(
-            #         (
-            #             _ramp
-            #             for _ramp in self.bot.game_info.map_ramps
-            #             if len(_ramp.upper) in {2, 5}
-            #             and _ramp.top_center
-            #             not in [r.top_center for r in self.ramp_block.ramps]
-            #         ),
-            #         key=lambda r: completed_unit.position.distance_to(r.top_center),
-            #     )
-            #     self.ramp_block.add_ramp(ramp)
-        self.recently_completed_units = []
+            if in_progress_step.unit_type_id == completed_unit.type_id:
+                in_progress_step.completed_time = self.bot.time
+                if in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
+                    self.workers.set_as_idle(in_progress_step.unit_in_charge)
+                self.complete.append(self.started.pop(idx))
+                break
+
+    def update_completed_structure(self, completed_structure: Unit, previous_type: UnitTypeId = UnitTypeId.NOTAUNIT) -> None:
+        if completed_structure.type_id == UnitTypeId.AUTOTURRET:
+            return
+        logger.info(
+            f"construction of {completed_structure.type_id} completed at {completed_structure.position}"
+        )
+        for idx, in_progress_step in enumerate(self.started):
+            logger.debug(
+                f"{in_progress_step.unit_type_id}, {completed_structure.type_id}"
+            )
+            structure: Unit = in_progress_step.unit_being_built
+            builder: Unit = in_progress_step.unit_in_charge
+            logger.info(f"type {in_progress_step.unit_type_id}, structure {structure}, builder {builder}, pos {in_progress_step.pos}")
+            if completed_structure.position.distance_to(in_progress_step.pos) < 1.5:
+                in_progress_step.completed_time = self.bot.time
+                if builder.type_id == UnitTypeId.SCV:
+                    if in_progress_step.unit_type_id == UnitTypeId.REFINERY:
+                        self.workers.vespene.add_node(structure)
+                        self.workers.update_assigment(in_progress_step.unit_in_charge, JobType.VESPENE, structure)
+                    else:
+                        self.workers.set_as_idle(builder)
+                self.complete.append(self.started.pop(idx))
+                break
+        for ramp_blocker in self.ramp_block.ramp_blockers:
+            if ramp_blocker == completed_structure:
+                logger.info(">> is ramp blocker")
+                ramp_blocker.tag = completed_structure.tag
+                ramp_blocker.is_complete = True
 
     def update_started(self) -> None:
         logger.debug(
@@ -323,6 +329,7 @@ class BuildOrder(TimerMixin):
                 if in_progress_step.unit_type_id == started_unit.type_id:
                     logger.debug(f"found matching step: {in_progress_step}")
                     in_progress_step.unit_being_built = started_unit
+                    self.workers.update_target(in_progress_step.unit_in_charge, started_unit)
                     break
             # see if this is a ramp blocker
             for ramp_blocker in self.ramp_block.ramp_blockers:
@@ -454,7 +461,7 @@ class BuildOrder(TimerMixin):
             and total_requested_cost.vespene <= self.bot.vespene
         )
 
-    async def find_placement(self, unit_type_id: UnitTypeId) -> Point2:
+    async def find_placement(self, unit_type_id: UnitTypeId) -> Union[Point2, None]:
         new_build_position = None
         if unit_type_id == UnitTypeId.COMMANDCENTER:
             new_build_position = await self.bot.get_next_expansion()
@@ -544,4 +551,61 @@ class BuildOrder(TimerMixin):
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.RAVEN,
+            ]
+        elif build_name == 'uthermal tvt':
+            return [
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.BARRACKS,
+                UnitTypeId.REFINERY,
+                UnitTypeId.REFINERY,
+                UnitTypeId.ORBITALCOMMAND,
+                UnitTypeId.REAPER,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.FACTORY,
+                UnitTypeId.REAPER,
+                UnitTypeId.CYCLONE,
+                UnitTypeId.COMMANDCENTER,
+                UnitTypeId.STARPORT,
+                UnitTypeId.STARPORTTECHLAB,
+                UnitTypeId.FACTORYTECHLAB,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.REFINERY,
+                UnitTypeId.SIEGETANK,
+                UnitTypeId.RAVEN,
+                UnitTypeId.ORBITALCOMMAND,
+                UnitTypeId.COMMANDCENTER,
+                UnitTypeId.SIEGETANK,
+                UnitTypeId.REFINERY,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.RAVEN,
+                # interference matrix
+                UnitTypeId.SIEGETANK,
+                UnitTypeId.ENGINEERINGBAY,
+                UnitTypeId.BARRACKSREACTOR,
+                UnitTypeId.RAVEN,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.SIEGETANK,
+                UnitTypeId.ORBITALCOMMAND,
+                UnitTypeId.VIKINGFIGHTER,
+                UnitTypeId.ORBITALCOMMAND,
+                UnitTypeId.SIEGETANK,
+                UnitTypeId.VIKINGFIGHTER,
+                UnitTypeId.REFINERY,
+                UnitTypeId.REFINERY,
+                UnitTypeId.BARRACKSREACTOR,
+                UnitTypeId.FACTORY,
+                UnitTypeId.FACTORYTECHLAB,
+                UnitTypeId.FACTORY,
+                UnitTypeId.VIKINGFIGHTER,
+                UnitTypeId.VIKINGFIGHTER,
+                UnitTypeId.SIEGETANK,
+                UnitTypeId.SIEGETANK,
+                UnitTypeId.HELLION,
+                UnitTypeId.HELLION,
+                UnitTypeId.VIKINGFIGHTER,
+                UnitTypeId.HELLION,
+                UnitTypeId.HELLION,
+                UnitTypeId.FACTORY,
+                UnitTypeId.FACTORY,
+                UnitTypeId.COMMANDCENTER,
             ]

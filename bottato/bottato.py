@@ -24,7 +24,7 @@ class BotTato(BotAI, TimerMixin):
         self.structure_micro: StructureMicro = StructureMicro(self)
         self.production: Production = Production(self)
         self.build_order: BuildOrder = BuildOrder(
-            "tvt1", bot=self, workers=self.my_workers, production=self.production
+            "uthermal tvt", bot=self, workers=self.my_workers, production=self.production
         )
         # await self.client.debug_fast_build()
         # await self.client.debug_gas()
@@ -117,19 +117,25 @@ class BotTato(BotAI, TimerMixin):
 
     async def on_building_construction_complete(self, unit: Unit):
         logger.info(f"building complete! {unit}")
-        self.build_order.recently_completed_units.append(unit)
+        self.build_order.update_completed_structure(unit)
+        # self.build_order.recently_completed_units.append(unit)
         self.production.add_builder(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         logger.info(f"transformation complete! {previous_type} to {unit.type_id}")
-        self.build_order.recently_completed_units.append(unit)
+        if unit.is_structure and unit.type_id not in {UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED}:
+            self.build_order.update_completed_structure(unit, previous_type)
+            # self.build_order.recently_completed_units.append(unit)
 
     async def on_unit_created(self, unit: Unit):
         logger.info(f"raising complete! {unit}")
-        self.build_order.recently_completed_units.append(unit)
         if unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE):
+            self.build_order.update_completed_unit(unit)
             logger.info(f"assigned to {self.military.main_army.name}")
             self.military.add_to_main(unit)
+        elif self.my_workers.add_worker(unit):
+            # not an old worker that just popped out of a building
+            self.build_order.update_completed_unit(unit)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         logger.info(

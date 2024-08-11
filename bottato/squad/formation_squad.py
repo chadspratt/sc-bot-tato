@@ -197,7 +197,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         for unit in self.units:
             logger.debug(f"unit {unit} moving to {formation_positions[unit.tag]}")
             if unit.tag in self.bot.unit_tags_received_action:
-                logger.info(f"unit {unit} already received an order {unit.orders}")
+                logger.debug(f"unit {unit} already received an order {unit.orders}")
                 continue
             # unit.attack(formation_positions[unit.tag])
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot)

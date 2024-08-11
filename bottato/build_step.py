@@ -98,25 +98,31 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
                 f"Trying to build structure {self.unit_type_id} at {at_position}"
             )
             # Vespene targets unit to build instead of position
+            empty_gas: Unit = None
             if self.unit_type_id == UnitTypeId.REFINERY:
-                self.build_gas()
+                empty_gas = self.get_geysir()
+                self.pos = empty_gas.position
             else:
                 self.pos = at_position or self.pos
-                if self.unit_in_charge is None or self.unit_in_charge.health == 0:
-                    self.unit_in_charge = self.workers.get_builder(self.pos, needed_resources)
-                    # self.unit_in_charge = self.bot.workers.filter(
-                    #     lambda worker: worker.is_idle or worker.is_gathering
-                    # ).closest_to(at_position)
-                    if self.unit_in_charge is None:
-                        return self.ResponseCode.NO_BUILDER
-                    logger.info(f"Found my builder {self.unit_in_charge}")
-                if self.unit_being_built is None:
-                    build_response = self.unit_in_charge.build(
-                        self.unit_type_id, at_position
-                    )
-                else:
-                    build_response = self.unit_in_charge.smart(self.unit_being_built)
-                logger.info(f"Unit in charge is doing {self.unit_in_charge.orders}")
+            if self.unit_in_charge is None or self.unit_in_charge.health == 0:
+                self.unit_in_charge = self.workers.get_builder(self.pos, needed_resources)
+                if self.unit_in_charge is None:
+                    return self.ResponseCode.NO_BUILDER
+                logger.info(f"{self.unit_type_id} found builder {self.unit_in_charge}")
+                self.unit_in_charge.move(self.pos)
+            if self.unit_type_id == UnitTypeId.REFINERY:
+                self.unit_in_charge.build_gas(empty_gas)
+            elif self.unit_being_built is None:
+                build_response = self.unit_in_charge.build(
+                    self.unit_type_id, at_position
+                )
+                if self.unit_type_id in {UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}:
+                    self.unit_being_built = self.unit_in_charge
+                if not build_response:
+                    return self.ResponseCode.FAILED
+            else:
+                build_response = self.unit_in_charge.smart(self.unit_being_built)
+                logger.info(f"{self.unit_in_charge} in charge is doing {self.unit_in_charge.orders}")
 
                 if not build_response:
                     return self.ResponseCode.FAILED
@@ -141,6 +147,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
                     # no available build structure
                     logger.debug("no idle training facility")
                     return self.ResponseCode.NO_FACILITY
+            self.pos = self.unit_in_charge.position
             logger.info(f"Found training facility {self.unit_in_charge}")
             build_ability: AbilityId = self.get_build_ability()
             self.unit_in_charge(build_ability)
@@ -166,7 +173,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
             return AbilityId.BUILD_TECHLAB
         return TRAIN_INFO[self.unit_in_charge.type_id][self.unit_type_id]["ability"]
 
-    def build_gas(self) -> bool:
+    def get_geysir(self) -> Unit:
         # All the vespene geysirs nearby, including ones with a refinery on top of it
         # command_centers = bot.townhalls
         vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
@@ -177,6 +184,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
                 lambda unit: unit.distance_to(vespene_geysir) < 1
             ):
                 continue
+            return vespene_geysir
             # Select a worker closest to the vespene geysir
             self.unit_in_charge: Unit = self.bot.select_build_worker(vespene_geysir)
 

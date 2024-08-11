@@ -308,7 +308,6 @@ class Production(UnitReferenceMixin):
         return build_list
 
     def add_builder(self, unit: Unit) -> None:
-        logger.info(f"adding builder {unit}")
         facility_type: UnitTypeId = None
         if unit.type_id in [UnitTypeId.BARRACKS, UnitTypeId.BARRACKSREACTOR, UnitTypeId.BARRACKSTECHLAB]:
             facility_type = UnitTypeId.BARRACKS
@@ -318,6 +317,7 @@ class Production(UnitReferenceMixin):
             facility_type = UnitTypeId.STARPORT
 
         if facility_type is not None:
+            logger.info(f"adding builder {unit}")
             if unit.type_id in [UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT]:
                 self.facilities[facility_type][UnitTypeId.NOTAUNIT].append(Facility(self.bot, unit))
                 logger.info(f"adding to {facility_type}-NOTAUNIT")

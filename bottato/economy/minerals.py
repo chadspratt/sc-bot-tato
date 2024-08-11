@@ -1,7 +1,6 @@
 from loguru import logger
 
 from sc2.bot_ai import BotAI
-from sc2.unit import Unit
 from sc2.units import Units
 
 from .resources import Resources
@@ -12,21 +11,6 @@ class Minerals(Resources):
         super().__init__(bot)
         self.known_townhall_tags = []
         self.max_workers_per_node = 2
-
-    def add_worker(self, worker: Unit) -> Unit:
-        mineral_field = super().add_worker(worker)
-
-        if mineral_field is not None:
-            logger.info(f"assigning worker {worker} to minerals {mineral_field}")
-            worker.gather(mineral_field)
-        return mineral_field
-
-    def add_worker_to_node(self, worker: Unit, node: Unit):
-        super().add_worker_to_node(worker, node)
-
-        if worker is not None:
-            logger.info(f"assigning worker {worker} to minerals {node}")
-            worker.gather(node)
 
     def update_references(self):
         super().update_references()

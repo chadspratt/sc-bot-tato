@@ -192,8 +192,8 @@ class Military(GeometryMixin, DebugMixin):
         # simulate all units attacking each other
         # do multiple passes until one side has no units left
         while unmatched_enemies and unmatched_friendlies:
-            logger.info(f"enemies: {unmatched_enemies}")
-            logger.info(f"friendlies: {unmatched_friendlies}")
+            logger.debug(f"enemies: {unmatched_enemies}")
+            logger.debug(f"friendlies: {unmatched_friendlies}")
             remaining_enemies: Units = unmatched_enemies.copy()
             remaining_friendlies: Units = unmatched_friendlies.copy()
             unmatched_enemies.clear()
@@ -258,8 +258,8 @@ class Military(GeometryMixin, DebugMixin):
                 if friendly_unit.tag not in remaining_health or remaining_health[friendly_unit.tag] > 0:
                     logger.debug(f"no matching enemies for {friendly_unit}")
                     unmatched_friendlies.append(friendly_unit)
-            logger.info(f"unattackables: {unattackable_enemies} {unattackable_friendly_tags}")
             if unattackable_enemies or unattackable_friendly_tags:
+                logger.info(f"unattackables: {unattackable_enemies} {unattackable_friendly_tags}")
                 # stalemate of stuff that can't attack (not considering abilities)
                 break
         return (unmatched_friendlies, unmatched_enemies)
