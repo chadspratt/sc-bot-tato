@@ -1,11 +1,13 @@
-from typing import List
+from typing import List, Union
 from loguru import logger
 
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit, UnitOrder
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
+from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.constants import abilityid_to_unittypeid
 
 from ..mixins import UnitReferenceMixin
@@ -150,7 +152,26 @@ class Production(UnitReferenceMixin):
 
         return None
 
-    def get_builder_type(self, unit_type_id):
+    def get_research_facility(self, upgrade_id: UpgradeId) -> Unit:
+        research_structure_type: UnitTypeId = UPGRADE_RESEARCHED_FROM[upgrade_id]
+
+        structure: Unit
+        for structure in self.bot.structures:
+            if (
+                # Structure can research this upgrade
+                structure.type_id == research_structure_type
+                and structure.is_ready
+                # If structure hasn't received an action/order this frame
+                and structure.tag not in self.bot.unit_tags_received_action
+                # Structure is idle
+                and structure.is_idle
+            ):
+                return structure
+        return None
+
+    def get_builder_type(self, unit_type_id: Union[UnitTypeId, UpgradeId]):
+        if isinstance(unit_type_id, UpgradeId):
+            return {UPGRADE_RESEARCHED_FROM[unit_type_id]}
         if unit_type_id in {
             UnitTypeId.BARRACKSREACTOR,
             UnitTypeId.BARRACKSTECHLAB,
@@ -165,11 +186,11 @@ class Production(UnitReferenceMixin):
             return {UnitTypeId.STARPORT}
         return UNIT_TRAINED_FROM[unit_type_id]
 
-    def get_cheapest_builder_type(self, unit_type_id: UnitTypeId) -> UnitTypeId:
+    def get_cheapest_builder_type(self, unit_type_id: Union[UnitTypeId, UpgradeId]) -> UnitTypeId:
         # XXX add hardcoded answers for sets with more than one entry
         return list(self.get_builder_type(unit_type_id))[0]
 
-    def additional_needed_production(self, unit_types: List[UnitTypeId]):
+    def additional_needed_production(self, unit_types: List[Union[UnitTypeId, UpgradeId]]):
         production_capacity = {
             UnitTypeId.BARRACKS: {
                 "tech": {
@@ -221,6 +242,8 @@ class Production(UnitReferenceMixin):
                 production_capacity[builder_type]["normal"]["available"] += facility.capacity - used_capacity
 
         for unit_type in unit_types:
+            if isinstance(unit_type, UpgradeId):
+                continue
             if unit_type in self.add_on_types:
                 continue
             builder_type = self.get_cheapest_builder_type(unit_type)
@@ -334,47 +357,60 @@ class Production(UnitReferenceMixin):
                         facility.set_add_on_type(generic_type)
                         logger.info(f"adding to {facility_type}-{generic_type}")
 
-    def build_order_with_prereqs(self, unit_type: UnitTypeId) -> List[UnitTypeId]:
+    def build_order_with_prereqs(self, unit_type: Union[UnitTypeId, UpgradeId]) -> List[Union[UnitTypeId, UpgradeId]]:
         build_order = self.build_order_with_prereqs_recurse(unit_type)
         build_order.reverse()
         return build_order
 
-    def build_order_with_prereqs_recurse(self, unit_type: UnitTypeId) -> List[UnitTypeId]:
+    def build_order_with_prereqs_recurse(self, unit_type: Union[UnitTypeId, UpgradeId]) -> List[Union[UnitTypeId, UpgradeId]]:
         build_order = [unit_type]
 
-        if unit_type in TECH_TREE:
-            # check that all tech requirements are met
-            for requirement in TECH_TREE[unit_type]:
-                prereq_progress = self.bot.structure_type_build_progress(requirement)
-                logger.debug(f"{requirement} progress: {prereq_progress}")
+        if isinstance(unit_type, UpgradeId):
+            requirement = UPGRADE_RESEARCHED_FROM[unit_type]
+            prereq_progress = self.bot.structure_type_build_progress(requirement)
+            logger.debug(f"{requirement} progress: {prereq_progress}")
 
-                if prereq_progress == 0:
-                    requirement_bom = self.build_order_with_prereqs(requirement)
-                    # if same prereq appears at a higher level, skip adding it
-                    if unit_type in requirement_bom:
-                        build_order = requirement_bom
-                    else:
-                        build_order.extend(requirement_bom)
-
-        if unit_type in UNIT_TRAINED_FROM:
-            # check that one training facility exists
-            arbitrary_trainer: UnitTypeId = None
-            for trainer in UNIT_TRAINED_FROM[unit_type]:
-                if trainer in build_order:
-                    break
-                if trainer == UnitTypeId.SCV and self.bot.workers:
-                    break
-                if self.bot.structure_type_build_progress(trainer) > 0:
-                    break
-                if arbitrary_trainer is None:
-                    arbitrary_trainer = trainer
-            else:
-                # no trainers available
-                requirement_bom = self.build_order_with_prereqs(arbitrary_trainer)
+            if prereq_progress == 0:
+                requirement_bom = self.build_order_with_prereqs_recurse(requirement)
                 # if same prereq appears at a higher level, skip adding it
                 if unit_type in requirement_bom:
                     build_order = requirement_bom
                 else:
                     build_order.extend(requirement_bom)
+        else:
+            if unit_type in TECH_TREE:
+                # check that all tech requirements are met
+                for requirement in TECH_TREE[unit_type]:
+                    prereq_progress = self.bot.structure_type_build_progress(requirement)
+                    logger.debug(f"{requirement} progress: {prereq_progress}")
+
+                    if prereq_progress == 0:
+                        requirement_bom = self.build_order_with_prereqs_recurse(requirement)
+                        # if same prereq appears at a higher level, skip adding it
+                        if unit_type in requirement_bom:
+                            build_order = requirement_bom
+                        else:
+                            build_order.extend(requirement_bom)
+
+            if unit_type in UNIT_TRAINED_FROM:
+                # check that one training facility exists
+                arbitrary_trainer: UnitTypeId = None
+                for trainer in UNIT_TRAINED_FROM[unit_type]:
+                    if trainer in build_order:
+                        break
+                    if trainer == UnitTypeId.SCV and self.bot.workers:
+                        break
+                    if self.bot.structure_type_build_progress(trainer) > 0:
+                        break
+                    if arbitrary_trainer is None:
+                        arbitrary_trainer = trainer
+                else:
+                    # no trainers available
+                    requirement_bom = self.build_order_with_prereqs_recurse(arbitrary_trainer)
+                    # if same prereq appears at a higher level, skip adding it
+                    if unit_type in requirement_bom:
+                        build_order = requirement_bom
+                    else:
+                        build_order.extend(requirement_bom)
 
         return build_order

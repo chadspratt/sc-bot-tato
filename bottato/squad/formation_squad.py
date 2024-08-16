@@ -77,6 +77,12 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def position(self) -> Point2:
         return self.leader.position
 
+    def transfer(self, unit: Unit, to_squad: BaseSquad):
+        super().transfer(unit, to_squad)
+        if self.leader.tag == unit.tag:
+            self.leader = None
+            self.update_leader()
+
     def recruit(self, unit: Unit):
         super().recruit(unit)
         self.update_leader()

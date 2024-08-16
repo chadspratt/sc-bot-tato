@@ -3,6 +3,7 @@ import os
 
 from sc2.bot_ai import BotAI
 from sc2.data import Result
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 
@@ -33,6 +34,7 @@ class BotTato(BotAI, TimerMixin):
         self.last_replay_save_time = 0
         self.last_timer_print = 0
         logger.info(os.getcwd())
+        logger.info(f"vision blockers: {self.game_info.vision_blockers}")
 
     async def on_step(self, iteration):
         logger.info(f"======starting step {iteration} ({self.time}s)======")
@@ -113,19 +115,17 @@ class BotTato(BotAI, TimerMixin):
 
     async def on_building_construction_started(self, unit: Unit):
         logger.info(f"building started! {unit}")
-        self.build_order.recently_started_units.append(unit)
+        self.build_order.update_started_structure(unit)
 
     async def on_building_construction_complete(self, unit: Unit):
         logger.info(f"building complete! {unit}")
         self.build_order.update_completed_structure(unit)
-        # self.build_order.recently_completed_units.append(unit)
         self.production.add_builder(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         logger.info(f"transformation complete! {previous_type} to {unit.type_id}")
         if unit.is_structure and unit.type_id not in {UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED}:
             self.build_order.update_completed_structure(unit, previous_type)
-            # self.build_order.recently_completed_units.append(unit)
 
     async def on_unit_created(self, unit: Unit):
         logger.info(f"raising complete! {unit}")
@@ -149,3 +149,7 @@ class BotTato(BotAI, TimerMixin):
         self.military.record_death(unit_tag)
         self.my_workers.record_death(unit_tag)
         logger.info(f"Unit {unit_tag} destroyed")
+
+    async def on_upgrade_complete(self, upgrade: UpgradeId):
+        logger.info(f"upgrade completed {upgrade}")
+        self.build_order.update_completed_upgrade(upgrade)

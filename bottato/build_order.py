@@ -4,7 +4,7 @@ from typing import Dict, List, Union, Iterable
 
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
-# from sc2.ids.upgrade_id import UpgradeId
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
 from sc2.game_data import Cost
 from sc2.game_info import Ramp
@@ -15,6 +15,7 @@ from .build_step import BuildStep
 from .economy.workers import Workers, JobType
 from .economy.production import Production
 from .mixins import TimerMixin
+from .upgrades import Upgrades
 
 
 class RampBlocker:
@@ -72,27 +73,28 @@ class BuildOrder(TimerMixin):
         self.pending = [
             BuildStep(unit, bot, workers, production) for unit in self.get_build_start(build_name)
         ]
+        self.upgrades = Upgrades(bot)
         self.ramp_block = RampBlock(ramp=self.bot.main_base_ramp)
         logger.info(f"Starting position: {self.bot.start_location}")
 
     def update_references(self) -> None:
         logger.info(
-            f"pending={','.join([step.unit_type_id.name for step in self.pending])}"
+            f"pending={','.join([step.friendly_name for step in self.pending])}"
         )
         logger.info(
-            f"started={','.join([step.unit_type_id.name for step in self.started])}"
+            f"started={','.join([step.friendly_name for step in self.started])}"
         )
         for build_step in self.started:
             build_step.update_references()
             logger.debug(f"started step {build_step}")
-        self.update_started()
         self.move_interupted_to_pending()
 
     @property
     def remaining_cap(self) -> int:
         remaining = self.bot.supply_left
         for step in self.pending:
-            remaining -= self.bot.calculate_supply_cost(step.unit_type_id)
+            if step.unit_type_id:
+                remaining -= self.bot.calculate_supply_cost(step.unit_type_id)
         return remaining
 
     async def execute(self):
@@ -197,10 +199,24 @@ class BuildOrder(TimerMixin):
         self.add_to_build_order(extra_production)
         self.stop_timer("queue_production-add_to_build_order")
 
+    upgrades_started = False
+
     def queue_upgrade(self) -> None:
-        pass
-        # if self.bot.supply_used == 200:
-        #     self.add_to_build_order(UpgradeId.TERRANINFANTRYWEAPONSLEVEL1)
+        # look at units we have or that are queued
+        # what are available upgrade facilities
+        # does upgrading on a tech lab block producing units
+        if self.upgrades_started or self.bot.supply_used > 10:
+            self.upgrades_started = True
+            next_upgrade: UpgradeId = self.upgrades.next_upgrade()
+            for build_step in self.started + self.pending:
+                if next_upgrade == build_step.upgrade_id:
+                    logger.info(f"upgrade {next_upgrade} already in build order")
+                    break
+            else:
+                # not already started or pending
+                logger.info(f"adding upgrade {next_upgrade} to build order")
+                self.add_to_build_order(self.production.build_order_with_prereqs(next_upgrade))
+                # self.pending.insert(1, BuildStep(next_upgrade, self.bot, self.workers, self.production))
 
     def queue_planetary(self) -> None:
         planetary_count = len(self.bot.structures.of_type(UnitTypeId.PLANETARYFORTRESS))
@@ -209,10 +225,11 @@ class BuildOrder(TimerMixin):
             self.add_to_build_order(self.production.build_order_with_prereqs(UnitTypeId.PLANETARYFORTRESS))
 
     def queue_turret(self) -> None:
-        turret_count = len(self.bot.structures.of_type(UnitTypeId.MISSILETURRET))
-        base_count = len(self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}))
-        if turret_count < base_count:
-            self.add_to_build_order(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
+        if self.bot.time > 300:
+            turret_count = len(self.bot.structures.of_type(UnitTypeId.MISSILETURRET))
+            base_count = len(self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}))
+            if turret_count < base_count:
+                self.add_to_build_order(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
 
     def add_to_build_order(self, unit_types: List[UnitTypeId]) -> None:
         in_progress = self.started + self.pending
@@ -267,7 +284,10 @@ class BuildOrder(TimerMixin):
             needed_resources.vespene += build_step.cost.vespene
             if needed_resources.minerals > 0 or needed_resources.vespene > 0:
                 break
-            affordable_items.append(build_step.unit_type_id)
+            if build_step.unit_type_id:
+                affordable_items.append(build_step.unit_type_id)
+            elif build_step.upgrade_id:
+                affordable_items.append(build_step.upgrade_id)
         logger.info(f"affordable items {affordable_items}")
         return affordable_items
 
@@ -286,6 +306,28 @@ class BuildOrder(TimerMixin):
                 self.complete.append(self.started.pop(idx))
                 break
 
+    def update_started_structure(self, started_structure: Unit) -> None:
+        logger.info(
+            f"construction of {started_structure.type_id} started at {started_structure.position}"
+        )
+        for in_progress_step in self.started:
+            if isinstance(in_progress_step.unit_being_built, Unit):
+                continue
+            if in_progress_step.unit_type_id == started_structure.type_id or (in_progress_step.unit_type_id == UnitTypeId.REFINERY and started_structure.type_id == UnitTypeId.REFINERYRICH):
+                logger.info(f"found matching step: {in_progress_step}")
+                in_progress_step.unit_being_built = started_structure
+                in_progress_step.pos = started_structure.position
+                if in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
+                    self.workers.update_target(in_progress_step.unit_in_charge, started_structure)
+                break
+        # see if this is a ramp blocker
+        ramp_blocker: RampBlocker
+        for ramp_blocker in self.ramp_block.ramp_blockers:
+            if ramp_blocker == started_structure:
+                logger.info(">> is ramp blocker")
+                ramp_blocker.unit_tag = started_structure.tag
+                ramp_blocker.is_started = True
+
     def update_completed_structure(self, completed_structure: Unit, previous_type: UnitTypeId = UnitTypeId.NOTAUNIT) -> None:
         if completed_structure.type_id == UnitTypeId.AUTOTURRET:
             return
@@ -296,48 +338,35 @@ class BuildOrder(TimerMixin):
             logger.debug(
                 f"{in_progress_step.unit_type_id}, {completed_structure.type_id}"
             )
-            structure: Unit = in_progress_step.unit_being_built
+            structure: Union[bool, Unit] = in_progress_step.unit_being_built
             builder: Unit = in_progress_step.unit_in_charge
-            logger.info(f"type {in_progress_step.unit_type_id}, structure {structure}, builder {builder}, pos {in_progress_step.pos}")
-            if completed_structure.position.distance_to(in_progress_step.pos) < 1.5:
+            logger.info(f"type {in_progress_step.unit_type_id}, structure {structure}, upgrade {in_progress_step.upgrade_id}, builder {builder}, pos {in_progress_step.pos}")
+            is_same_structure = isinstance(structure, Unit) and structure.tag == completed_structure.tag
+            if is_same_structure or in_progress_step.pos and completed_structure.position.distance_to(in_progress_step.pos) < 1.5:
                 in_progress_step.completed_time = self.bot.time
                 if builder.type_id == UnitTypeId.SCV:
                     if in_progress_step.unit_type_id == UnitTypeId.REFINERY:
-                        self.workers.vespene.add_node(structure)
-                        self.workers.update_assigment(in_progress_step.unit_in_charge, JobType.VESPENE, structure)
+                        self.workers.vespene.add_node(completed_structure)
+                        self.workers.update_assigment(in_progress_step.unit_in_charge, JobType.VESPENE, completed_structure)
                     else:
                         self.workers.set_as_idle(builder)
                 self.complete.append(self.started.pop(idx))
                 break
+        ramp_blocker: RampBlocker
         for ramp_blocker in self.ramp_block.ramp_blockers:
             if ramp_blocker == completed_structure:
                 logger.info(">> is ramp blocker")
-                ramp_blocker.tag = completed_structure.tag
+                ramp_blocker.unit_tag = completed_structure.tag
                 ramp_blocker.is_complete = True
 
-    def update_started(self) -> None:
-        logger.debug(
-            f"update_started with recently_started_units {self.recently_started_units}"
-        )
-        for started_unit in self.recently_started_units:
-            logger.info(
-                f"construction of {started_unit.type_id} started at {started_unit.position}"
-            )
-            for in_progress_step in self.started:
-                if in_progress_step.unit_being_built is not None:
-                    continue
-                if in_progress_step.unit_type_id == started_unit.type_id:
-                    logger.debug(f"found matching step: {in_progress_step}")
-                    in_progress_step.unit_being_built = started_unit
-                    self.workers.update_target(in_progress_step.unit_in_charge, started_unit)
-                    break
-            # see if this is a ramp blocker
-            for ramp_blocker in self.ramp_block.ramp_blockers:
-                if ramp_blocker == started_unit:
-                    logger.info(">> is ramp blocker")
-                    ramp_blocker.tag = started_unit.tag
-                    ramp_blocker.is_started = True
-        self.recently_started_units = []
+    def update_completed_upgrade(self, upgrade: UpgradeId):
+        for idx, in_progress_step in enumerate(self.started):
+            if in_progress_step.upgrade_id == upgrade:
+                logger.info(
+                    f"upgrade {upgrade} completed at {in_progress_step.unit_in_charge}"
+                )
+                self.complete.append(self.started.pop(idx))
+                break
 
     def move_interupted_to_pending(self) -> None:
         to_promote = []
@@ -377,7 +406,7 @@ class BuildOrder(TimerMixin):
             if build_step.unit_type_id in failed_types:
                 continue
             if not self.can_afford(build_step.cost):
-                logger.debug(f"Cannot afford {build_step.unit_type_id.name}")
+                logger.debug(f"Cannot afford {build_step.friendly_name}")
                 return False
             build_position: Point2 = None
             if UnitTypeId.SCV in build_step.builder_type:
@@ -401,34 +430,12 @@ class BuildOrder(TimerMixin):
             else:
                 failed_types.append(build_step.unit_type_id)
                 logger.debug(f"!!! {build_step.unit_type_id} failed to start building, {build_response}")
-            # elif build_response == build_step.ResponseCode.NO_FACILITY:
-                # if build_step.unit_type_id == UnitTypeId.SCV or self.already_queued(build_step.builder_type):
-                #     logger.debug(f"!!! {build_step.unit_type_id} has no facility, but one is in progress")
-                # else:
-                #     total_queued = 0
-                #     for step in self.pending:
-                #         if step.unit_type_id == build_step.unit_type_id:
-                #             total_queued += 1
-                #     logger.debug(f"!!! {build_step.unit_type_id} has no facility, adding facility to front of queue")
-                #     new_facility = self.production.create_builder(build_step.unit_type_id)
-                #     # prereqs = self.build_order_with_prereqs(build_step.unit_type_id)
-                #     # prereqs.reverse()
-                #     logger.debug(f"new facility prereqs {new_facility}")
-                #     offset = 0
-                #     for i in range(total_queued // 2):
-                #         for prereq in new_facility:
-                #             self.pending.insert(execution_index + offset, BuildStep(prereq, self.bot, self.workers, self.production))
-                #             logger.debug(f"updated pending {self.pending}")
-                #             offset += 1
-                #     # everything already queued, move on to next
-                #     if offset > 0:
-                #         break
-            # elif build_response == build_step.ResponseCode.NO_TECH:
-            #     logger.debug(f"!!! {build_step.unit_type_id} failed to start building, NO_TECH")
-            # elif build_response == build_step.ResponseCode.FAILED:
-            #     logger.debug(f"!!! {build_step.unit_type_id} failed to start building, trying next")
-            # elif build_response == build_step.ResponseCode.NO_BUILDER:
-            #     logger.debug(f"!!! {build_step.unit_type_id} failed to start building, NO_BUILDER")
+                if build_step.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
+                    for started_step in self.started:
+                        if started_step.unit_type_id == build_step.builder_type:
+                            break
+                    else:
+                        self.add_to_build_order(build_step.builder_type)
             self.stop_timer(f"handle response {build_response}")
             logger.debug(f"pending loop: {execution_index} < {len(self.pending)}")
 
@@ -439,7 +446,7 @@ class BuildOrder(TimerMixin):
         for build_step in self.started:
             if build_step.unit_being_built is None:
                 logger.debug(
-                    f"Build cost for '{build_step.unit_type_id.name}' being added to "
+                    f"Build cost for '{build_step.friendly_name}' being added to "
                     "prior_requested_cost"
                 )
                 prior_requested_cost += build_step.cost
@@ -505,7 +512,17 @@ class BuildOrder(TimerMixin):
         return new_build_position
 
     def get_build_start(self, build_name: str) -> List[UnitTypeId]:
-        if build_name == "tvt1":
+        if build_name == "empty":
+            return []
+        elif build_name == "test":
+            return [
+                UnitTypeId.SUPPLYDEPOT,
+                # UnitTypeId.BARRACKS,
+                UnitTypeId.REFINERY,
+                # UnitTypeId.BARRACKSTECHLAB,
+                # UpgradeId.SHIELDWALL
+            ]
+        elif build_name == "tvt1":
             # https://lotv.spawningtool.com/build/171779/
             # Standard Terran vs Terran (3 Reaper 2 Hellion) (TvT Economic)
             # Very Standard Reaper Hellion Opening that transitions into Marine-Tank-Raven. As solid it as it gets

@@ -13,6 +13,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     heal_start_cost = 5
     heal_range = 4
     ability_health = 0.5
+    pick_up_range = 2
 
     stopped_for_healing: set[int] = set()
 

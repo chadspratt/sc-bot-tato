@@ -236,6 +236,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
 
             # move workers to vespene
             return self.move_workers_to_vespene(workers_to_move)
+        return 0
 
     def update_repairers(self, needed_resources: Cost) -> None:
         injured_units = self.units_needing_repair()
@@ -277,20 +278,21 @@ class Workers(UnitReferenceMixin, TimerMixin):
                 candidates = self.availiable_workers_on_job(JobType.MINERALS)
             elif needed_resources.vespene <= 0 or not self.availiable_workers_on_job(JobType.MINERALS):
                 candidates = self.availiable_workers_on_job(JobType.VESPENE)
-            if candidates:
-                for i in range(repairer_shortage):
-                    random_injured = injured_units.random
-                    repairer: Unit = candidates.closest_to(random_injured)
-                    candidates.remove(repairer)
+            for i in range(repairer_shortage):
+                if not candidates:
+                    break
+                random_injured = injured_units.random
+                repairer: Unit = candidates.closest_to(random_injured)
+                candidates.remove(repairer)
 
-                    if repairer:
-                        self_excluded = injured_units.filter(lambda unit: unit.tag != repairer.tag)
-                        new_target: Unit = None
-                        if self_excluded:
-                            new_target = self_excluded.closest_to(repairer)
-                        self.update_assigment(repairer, JobType.REPAIR, new_target)
-                    else:
-                        break
+                if repairer:
+                    self_excluded = injured_units.filter(lambda unit: unit.tag != repairer.tag)
+                    new_target: Unit = None
+                    if self_excluded:
+                        new_target = self_excluded.closest_to(repairer)
+                    self.update_assigment(repairer, JobType.REPAIR, new_target)
+                else:
+                    break
 
     def get_repair_target(self, repairer: Unit, injured_units: Units) -> Unit:
         self_excluded = injured_units.filter(lambda unit: unit.tag != repairer.tag)

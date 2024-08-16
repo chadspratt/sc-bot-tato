@@ -1,11 +1,12 @@
 import enum
 from loguru import logger
-from typing import Optional, Union, Iterable
+from typing import Optional, Union
 
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.game_data import Cost
@@ -17,42 +18,41 @@ from bottato.economy.production import Production
 
 class BuildStep(UnitReferenceMixin, GeometryMixin):
     supply_count: int
-    unit_type_id: UnitTypeId
+    unit_type_id: UnitTypeId = None
+    upgrade_id: UpgradeId = None
     unit_in_charge: Optional[Unit] = None
     unit_being_built: Optional[Unit] = None
     pos: Union[Unit, Point2]
     check_idle: bool = False
 
-    def __init__(self, unit_types: Union[UnitTypeId, Iterable[UnitTypeId]], bot: BotAI, workers: Workers = None, production: Production = None):
+    def __init__(self, unit_type: Union[UnitTypeId, UpgradeId], bot: BotAI, workers: Workers = None, production: Production = None):
         self.bot: BotAI = bot
         self.workers: Workers = workers
         self.production: Production = production
         self.unit_type_id = None
         self.cost = Cost(9999, 9999)
         # build cheapest option in set of unit_types
-        if isinstance(unit_types, UnitTypeId):
-            self.unit_type_id = unit_types
-            self.cost = bot.calculate_cost(unit_types)
+        if isinstance(unit_type, UnitTypeId):
+            self.unit_type_id = unit_type
         else:
-            for unit_type in unit_types:
-                unit_cost = bot.calculate_cost(unit_type)
-                if unit_cost.minerals + unit_cost.vespene < self.cost.minerals + self.cost.vespene:
-                    self.unit_type_id = unit_type
-                    self.cost = unit_cost
-        self.builder_type = self.production.get_builder_type(self.unit_type_id)
+            self.upgrade_id = unit_type
+        self.friendly_name = unit_type.name
+        self.builder_type = self.production.get_builder_type(unit_type)
+        self.cost = bot.calculate_cost(unit_type)
+
         self.pos = None
         self.unit_in_charge: Unit = None
         self.completed_time: int = None
 
     def __repr__(self) -> str:
         builder = self.unit_in_charge if self.unit_in_charge else self.builder_type
-        orders = self.unit_in_charge.orders if self.unit_in_charge else '[]'
+        # orders = self.unit_in_charge.orders if self.unit_in_charge else '[]'
         target = (
             f"{self.unit_being_built} {self.unit_being_built.build_progress}"
             if self.unit_being_built and self.unit_being_built is not True
             else self.unit_type_id
         )
-        return f"{builder} has orders {orders} for target {target}"
+        return f"{builder} has orders orders for target {target}"
 
     def draw_debug_box(self):
         if self.unit_in_charge is not None:
@@ -89,21 +89,36 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
         NO_FACILITY = 3
         NO_TECH = 4
 
-    async def execute(self, at_position: Point2 = None, needed_resources: Cost = None) -> ResponseCode:
-        if UnitTypeId.SCV in self.builder_type:
+    async def execute(self, at_position: Union[Point2, None] = None, needed_resources: Cost = None) -> ResponseCode:
+        if self.upgrade_id:
+            logger.info(f"researching upgrade {self.upgrade_id}")
+            if self.unit_in_charge is None or self.unit_in_charge.health == 0:
+                self.unit_in_charge = self.production.get_research_facility(self.upgrade_id)
+                logger.info(f"research facility: {self.unit_in_charge}")
+                if self.unit_in_charge is None:
+                    return self.ResponseCode.NO_FACILITY
+            successful_action: bool = self.bot.do(
+                self.unit_in_charge.research(self.upgrade_id), subtract_cost=True, ignore_warning=True
+            )
+            if successful_action:
+                return self.ResponseCode.SUCCESS
+            return self.ResponseCode.FAILED
+        elif UnitTypeId.SCV in self.builder_type:
+            # this is a structure built by an scv
             if at_position is None:
                 return False
-            # this is a structure built by an scv
-            logger.info(
-                f"Trying to build structure {self.unit_type_id} at {at_position}"
-            )
             # Vespene targets unit to build instead of position
-            empty_gas: Unit = None
+            empty_gas: Union[Unit, None] = None
             if self.unit_type_id == UnitTypeId.REFINERY:
                 empty_gas = self.get_geysir()
+                if empty_gas is None:
+                    return self.ResponseCode.NO_FACILITY
                 self.pos = empty_gas.position
             else:
                 self.pos = at_position or self.pos
+            logger.info(
+                f"Trying to build structure {self.unit_type_id} at {self.pos}"
+            )
             if self.unit_in_charge is None or self.unit_in_charge.health == 0:
                 self.unit_in_charge = self.workers.get_builder(self.pos, needed_resources)
                 if self.unit_in_charge is None:
@@ -173,7 +188,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
             return AbilityId.BUILD_TECHLAB
         return TRAIN_INFO[self.unit_in_charge.type_id][self.unit_type_id]["ability"]
 
-    def get_geysir(self) -> Unit:
+    def get_geysir(self) -> Union[Unit, None]:
         # All the vespene geysirs nearby, including ones with a refinery on top of it
         # command_centers = bot.townhalls
         vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
@@ -185,41 +200,19 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
             ):
                 continue
             return vespene_geysir
-            # Select a worker closest to the vespene geysir
-            self.unit_in_charge: Unit = self.bot.select_build_worker(vespene_geysir)
-
-            # Worker can be none in cases where all workers are dead
-            # or 'select_build_worker' function only selects from workers which carry no minerals
-            if self.unit_in_charge is None:
-                logger.debug("No worker found for refinery build")
-                return False
-            # Issue the build command to the worker, important: vespene_geysir has to be a Unit, not a position
-            self.unit_in_charge.build_gas(vespene_geysir)
-            return True
+        return None
 
     def is_interrupted(self) -> bool:
         if self.unit_in_charge is None:
+            logger.info(f"{self} builder is missing")
             return True
-        logger.debug(f"{self}")
 
         self.check_idle: bool = self.check_idle or (
             self.unit_in_charge.is_active and not self.unit_in_charge.is_gathering
         )
-        builder_is_missing = (
-            self.unit_in_charge is None or self.unit_in_charge.health == 0
-        )
-        builder_is_distracted = (
-            self.unit_in_charge.is_idle or self.unit_in_charge.is_gathering
-        )
-        if builder_is_missing or (self.check_idle and builder_is_distracted):
-            logger.info(f"unit_in_charge {self.unit_in_charge}")
-            if self.unit_in_charge is not None:
-                logger.info(f"unit_in_charge.health {self.unit_in_charge.health}")
-                logger.info(f"unit_in_charge.is_idle {self.unit_in_charge.is_idle}")
-                logger.info(
-                    f"unit_in_charge.is_gathering {self.unit_in_charge.is_gathering}"
-                )
-                logger.info(
-                    f"unit_in_charge.is_collecting {self.unit_in_charge.is_collecting}"
-                )
-            return True
+
+        if self.check_idle:
+            if self.unit_in_charge.is_idle:
+                logger.info(f"unit_in_charge {self.unit_in_charge}")
+                return True
+        return False
