@@ -34,7 +34,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 self.unsiege(unit)
                 return True
         if enemy_unit:
-            if enemy_range_after_sieging <= self.sieged_range - 1:
+            if enemy_range_after_sieging <= self.sieged_range - 3:
                 self.siege(unit)
                 return True
         if enemy_structure:

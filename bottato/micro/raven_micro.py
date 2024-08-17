@@ -14,6 +14,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     turret_attack_range = 6
     ideal_enemy_distance = turret_drop_range + turret_attack_range - 1
     turret_energy_cost = 50
+    ability_health = 0.6
 
     def __init__(self, bot: BotAI):
         super().__init__(bot)

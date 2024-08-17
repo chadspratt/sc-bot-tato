@@ -257,7 +257,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
         # remove excess repairers
         if repairer_shortage < 0:
             for i in range(-repairer_shortage):
-                retiring_repairer = current_repairers.furthest_to(injured_units.random)
+                retiring_repairer = current_repairers.furthest_to(injured_units.random) if injured_units else current_repairers.random
                 if self.vespene.has_unused_capacity:
                     self.update_assigment(retiring_repairer, JobType.VESPENE, None)
                 elif self.minerals.has_unused_capacity:
