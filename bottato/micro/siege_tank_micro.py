@@ -20,14 +20,15 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
     async def use_ability(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
         is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
-        enemy_unit, unit_distance = enemy.get_closest_target(unit, include_structures=False)
+        enemy_unit, unit_distance = enemy.get_closest_target(unit, include_structures=False, excluded_types=[UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.DRONEBURROWED, UnitTypeId.MULE])
         enemy_structure, structure_distance = enemy.get_closest_target(unit, include_units=False)
-        self.bot.client.debug_line_out(unit, enemy_unit)
-        self.bot.client.debug_line_out(unit, enemy_structure)
         logger.info(f"{unit} seiged={is_sieged}, closest enemy {enemy_unit}({unit_distance}), structure {enemy_structure}({structure_distance})")
         enemy_range_after_sieging = 9999
         if enemy_unit:
+            self.bot.client.debug_line_out(unit, enemy_unit)
             enemy_range_after_sieging = unit_distance - enemy_unit.calculate_speed() * self.max_siege_time
+        if enemy_structure:
+            self.bot.client.debug_line_out(unit, enemy_structure)
         if is_sieged:
             if enemy_range_after_sieging > self.sieged_range and structure_distance > self.sieged_range:
                 self.unsiege(unit)

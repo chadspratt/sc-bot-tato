@@ -10,10 +10,12 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.game_data import Cost
+from sc2.protocol import ConnectionAlreadyClosed, ProtocolError
 
 from .mixins import UnitReferenceMixin, GeometryMixin
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
+from .special_locations import SpecialLocations
 
 
 class BuildStep(UnitReferenceMixin, GeometryMixin):
@@ -88,8 +90,9 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
         NO_BUILDER = 2
         NO_FACILITY = 3
         NO_TECH = 4
+        NO_LOCATION = 5
 
-    async def execute(self, at_position: Union[Point2, None] = None, needed_resources: Cost = None) -> ResponseCode:
+    async def execute(self, special_locations: SpecialLocations, needed_resources: Cost = None) -> ResponseCode:
         if self.upgrade_id:
             logger.info(f"researching upgrade {self.upgrade_id}")
             if self.unit_in_charge is None or self.unit_in_charge.health == 0:
@@ -102,20 +105,21 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
             )
             if successful_action:
                 return self.ResponseCode.SUCCESS
+            logger.info("upgade failed to start")
             return self.ResponseCode.FAILED
         elif UnitTypeId.SCV in self.builder_type:
             # this is a structure built by an scv
-            if at_position is None:
-                return False
-            # Vespene targets unit to build instead of position
             empty_gas: Union[Unit, None] = None
             if self.unit_type_id == UnitTypeId.REFINERY:
+                # Vespene targets unit to build instead of position
                 empty_gas = self.get_geysir()
                 if empty_gas is None:
                     return self.ResponseCode.NO_FACILITY
                 self.pos = empty_gas.position
             else:
-                self.pos = at_position or self.pos
+                self.pos = await self.find_placement(self.unit_type_id, special_locations)
+                if self.pos is None:
+                    return self.ResponseCode.NO_LOCATION
             logger.info(
                 f"Trying to build structure {self.unit_type_id} at {self.pos}"
             )
@@ -129,7 +133,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
                 self.unit_in_charge.build_gas(empty_gas)
             elif self.unit_being_built is None:
                 build_response = self.unit_in_charge.build(
-                    self.unit_type_id, at_position
+                    self.unit_type_id, self.pos
                 )
                 if self.unit_type_id in {UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}:
                     self.unit_being_built = self.unit_in_charge
@@ -188,6 +192,49 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
             return AbilityId.BUILD_TECHLAB
         return TRAIN_INFO[self.unit_in_charge.type_id][self.unit_type_id]["ability"]
 
+    async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations) -> Union[Point2, None]:
+        new_build_position = None
+        if unit_type_id == UnitTypeId.COMMANDCENTER:
+            new_build_position = await self.bot.get_next_expansion()
+        elif unit_type_id == UnitTypeId.MISSILETURRET:
+            bases = self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS})
+            turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
+            for base in bases:
+                if not turrets or turrets.closest_distance_to(base) > 10:
+                    new_build_position = await self.bot.find_placement(
+                        unit_type_id,
+                        near=base.position.towards(self.bot.game_info.map_center, distance=4),
+                        placement_step=2,
+                    )
+                    break
+        else:
+            if not special_locations.is_blocked:
+                new_build_position = special_locations.find_placement(unit_type_id)
+            if new_build_position is None:
+                addon_place = unit_type_id in (
+                    UnitTypeId.BARRACKS,
+                    UnitTypeId.FACTORY,
+                    UnitTypeId.STARPORT,
+                )
+                map_center = self.bot.game_info.map_center
+                try:
+                    if self.bot.townhalls:
+                        new_build_position = await self.bot.find_placement(
+                            unit_type_id,
+                            near=self.bot.townhalls.random.position.towards(map_center, distance=8),
+                            placement_step=2,
+                            addon_place=addon_place,
+                        )
+                    else:
+                        new_build_position = await self.bot.find_placement(
+                            unit_type_id,
+                            placement_step=2,
+                            addon_place=addon_place,
+                        )
+                except (ConnectionAlreadyClosed, ConnectionResetError, ProtocolError):
+                    return None
+        return new_build_position
+
     def get_geysir(self) -> Union[Unit, None]:
         # All the vespene geysirs nearby, including ones with a refinery on top of it
         # command_centers = bot.townhalls
@@ -214,5 +261,8 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
         if self.check_idle:
             if self.unit_in_charge.is_idle:
                 logger.info(f"unit_in_charge {self.unit_in_charge}")
+                return True
+            if self.upgrade_id and self.bot.already_pending_upgrade(self.upgrade_id) == 0:
+                logger.info(f"upgrade not researching {self.upgrade_id}")
                 return True
         return False

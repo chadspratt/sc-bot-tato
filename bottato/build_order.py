@@ -7,53 +7,13 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
 from sc2.game_data import Cost
-from sc2.game_info import Ramp
-from sc2.position import Point2
-from sc2.protocol import ConnectionAlreadyClosed, ProtocolError
 
 from .build_step import BuildStep
 from .economy.workers import Workers, JobType
 from .economy.production import Production
 from .mixins import TimerMixin
 from .upgrades import Upgrades
-
-
-class RampBlocker:
-    def __init__(self, unit_type_id: UnitTypeId, position: Point2):
-        self.is_started: bool = False
-        self.is_complete: bool = False
-        self.unit_tag: int | None = None
-        self.unit_type_id = unit_type_id
-        self.position = position
-        logger.info(f"Will build {unit_type_id} at {position} to block ramp")
-
-    def __eq__(self, other):
-        return self.unit_type_id == other.type_id and self.position == other.position
-
-
-class RampBlock:
-    def __init__(self, ramp: Ramp):
-        self.is_blocked: bool = False
-        self.ramps = []
-        self.ramp_blockers = []
-        self.add_ramp(ramp)
-
-    def add_ramp(self, ramp: Ramp):
-        ramp_blockers: List[RampBlocker] = []
-        for corner_position in ramp.corner_depots:
-            ramp_blockers.append(RampBlocker(UnitTypeId.SUPPLYDEPOT, corner_position))
-        ramp_blockers.append(
-            RampBlocker(UnitTypeId.BARRACKS, ramp.barracks_correct_placement)
-        )
-        self.ramp_blockers.extend(ramp_blockers)
-
-    def find_placement(self, unit_type_id: UnitTypeId) -> Point2:
-        for ramp_blocker in self.ramp_blockers:
-            if ramp_blocker.is_started:
-                continue
-            if unit_type_id == ramp_blocker.unit_type_id:
-                return ramp_blocker.position
-        return None
+from .special_locations import SpecialLocations, SpecialLocation
 
 
 class BuildOrder(TimerMixin):
@@ -74,7 +34,7 @@ class BuildOrder(TimerMixin):
             BuildStep(unit, bot, workers, production) for unit in self.get_build_start(build_name)
         ]
         self.upgrades = Upgrades(bot)
-        self.ramp_block = RampBlock(ramp=self.bot.main_base_ramp)
+        self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
         logger.info(f"Starting position: {self.bot.start_location}")
 
     def update_references(self) -> None:
@@ -321,8 +281,8 @@ class BuildOrder(TimerMixin):
                     self.workers.update_target(in_progress_step.unit_in_charge, started_structure)
                 break
         # see if this is a ramp blocker
-        ramp_blocker: RampBlocker
-        for ramp_blocker in self.ramp_block.ramp_blockers:
+        ramp_blocker: SpecialLocation
+        for ramp_blocker in self.special_locations.ramp_blockers:
             if ramp_blocker == started_structure:
                 logger.info(">> is ramp blocker")
                 ramp_blocker.unit_tag = started_structure.tag
@@ -352,8 +312,8 @@ class BuildOrder(TimerMixin):
                         self.workers.set_as_idle(builder)
                 self.complete.append(self.started.pop(idx))
                 break
-        ramp_blocker: RampBlocker
-        for ramp_blocker in self.ramp_block.ramp_blockers:
+        ramp_blocker: SpecialLocation
+        for ramp_blocker in self.special_locations.ramp_blockers:
             if ramp_blocker == completed_structure:
                 logger.info(">> is ramp blocker")
                 ramp_blocker.unit_tag = completed_structure.tag
@@ -406,27 +366,20 @@ class BuildOrder(TimerMixin):
             if build_step.unit_type_id in failed_types:
                 continue
             if not self.can_afford(build_step.cost):
-                logger.debug(f"Cannot afford {build_step.friendly_name}")
+                logger.info(f"Cannot afford {build_step.friendly_name}")
                 return False
-            build_position: Point2 = None
-            if UnitTypeId.SCV in build_step.builder_type:
-                self.start_timer(f"find_placement {build_step.unit_type_id}")
-                build_position = await self.find_placement(build_step.unit_type_id)
-                self.stop_timer(f"find_placement {build_step.unit_type_id}")
-                if build_position is None:
-                    logger.info(f"no build position for {build_step.unit_type_id}")
-                    continue
-            logger.debug(f"Executing build step at position {build_position}")
 
             self.start_timer("build_step.execute")
             # XXX slightly slow
-            build_response = await build_step.execute(at_position=build_position, needed_resources=needed_resources)
+            build_response = await build_step.execute(special_locations=self.special_locations, needed_resources=needed_resources)
             self.stop_timer("build_step.execute")
             self.start_timer(f"handle response {build_response}")
             logger.debug(f"build_response: {build_response}")
             if build_response == build_step.ResponseCode.SUCCESS:
                 self.started.append(self.pending.pop(execution_index))
                 break
+            elif build_response == build_step.ResponseCode.NO_LOCATION:
+                continue
             else:
                 failed_types.append(build_step.unit_type_id)
                 logger.debug(f"!!! {build_step.unit_type_id} failed to start building, {build_response}")
@@ -440,76 +393,17 @@ class BuildOrder(TimerMixin):
             logger.debug(f"pending loop: {execution_index} < {len(self.pending)}")
 
     def can_afford(self, requested_cost: Cost) -> bool:
-        # PS: non-structure build steps never get their `unit_being_build` populated,
-        #   so they inflate the total_requested_cost
         prior_requested_cost = Cost(0, 0)
         for build_step in self.started:
+            if build_step.unit_in_charge.is_structure:
+                continue
             if build_step.unit_being_built is None:
-                logger.debug(
-                    f"Build cost for '{build_step.friendly_name}' being added to "
-                    "prior_requested_cost"
-                )
                 prior_requested_cost += build_step.cost
-        logger.debug(
-            f"Want to buy unit for {requested_cost.minerals} minerals, "
-            f"and {requested_cost.vespene} vespene."
-        )
-        logger.debug(
-            f"> Prior (uncharged) requests account for {prior_requested_cost.minerals} minerals, "
-            f"and {prior_requested_cost.vespene} vespene."
-        )
-        logger.debug(
-            f">> Currently have {self.bot.minerals} minerals, "
-            f"and {self.bot.vespene} vespene."
-        )
         total_requested_cost = requested_cost + prior_requested_cost
         return (
             total_requested_cost.minerals <= self.bot.minerals
             and total_requested_cost.vespene <= self.bot.vespene
         )
-
-    async def find_placement(self, unit_type_id: UnitTypeId) -> Union[Point2, None]:
-        new_build_position = None
-        if unit_type_id == UnitTypeId.COMMANDCENTER:
-            new_build_position = await self.bot.get_next_expansion()
-        elif unit_type_id == UnitTypeId.MISSILETURRET:
-            bases = self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS})
-            turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
-            for base in bases:
-                if not turrets or turrets.closest_distance_to(base) > 10:
-                    new_build_position = await self.bot.find_placement(
-                        unit_type_id,
-                        near=base.position.towards(self.bot.game_info.map_center, distance=4),
-                        placement_step=2,
-                    )
-                    break
-        else:
-            if not self.ramp_block.is_blocked:
-                new_build_position = self.ramp_block.find_placement(unit_type_id)
-            if new_build_position is None:
-                addon_place = unit_type_id in (
-                    UnitTypeId.BARRACKS,
-                    UnitTypeId.FACTORY,
-                    UnitTypeId.STARPORT,
-                )
-                map_center = self.bot.game_info.map_center
-                try:
-                    if self.bot.townhalls:
-                        new_build_position = await self.bot.find_placement(
-                            unit_type_id,
-                            near=self.bot.townhalls.random.position.towards(map_center, distance=8),
-                            placement_step=2,
-                            addon_place=addon_place,
-                        )
-                    else:
-                        new_build_position = await self.bot.find_placement(
-                            unit_type_id,
-                            placement_step=2,
-                            addon_place=addon_place,
-                        )
-                except (ConnectionAlreadyClosed, ConnectionResetError, ProtocolError):
-                    return None
-        return new_build_position
 
     def get_build_start(self, build_name: str) -> List[UnitTypeId]:
         if build_name == "empty":

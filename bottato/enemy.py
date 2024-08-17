@@ -152,7 +152,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
     def get_enemies(self) -> Units:
         return self.enemies_in_view + self.recent_out_of_view()
 
-    def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True) -> tuple[Unit, float]:
+    def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True, excluded_types=[]) -> tuple[Unit, float]:
         nearest_enemy: Unit = None
         nearest_distance = distance_limit
 
@@ -165,6 +165,8 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             candidates = self.bot.enemy_structures + self.recent_out_of_view().filter(lambda unit: unit.is_structure)
         logger.debug(f"{friendly_unit} target candidates {candidates}")
 
+        if excluded_types:
+            candidates = candidates.filter(lambda unit: unit.type_id not in excluded_types)
         # ravens technically can't attack
         if friendly_unit.type_id != UnitTypeId.RAVEN:
             candidates = candidates.filter(lambda enemy: self.can_attack(friendly_unit, enemy))

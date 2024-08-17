@@ -19,7 +19,7 @@ class Upgrades:
         UpgradeId.SHIELDWALL: [UnitTypeId.MARINE],
         UpgradeId.STIMPACK: [UnitTypeId.MARINE, UnitTypeId.MARAUDER],
         # ==factory techlab==
-        UpgradeId.CYCLONELOCKONDAMAGEUPGRADE: [UnitTypeId.CYCLONE],
+        # UpgradeId.CYCLONELOCKONDAMAGEUPGRADE: [UnitTypeId.CYCLONE],
         UpgradeId.DRILLCLAWS: [UnitTypeId.WIDOWMINE],
         # blue flame
         UpgradeId.HIGHCAPACITYBARRELS: [UnitTypeId.HELLION],
@@ -59,7 +59,7 @@ class Upgrades:
         UpgradeId.HISECAUTOTRACKING,  # ebay
         UpgradeId.TERRANVEHICLEWEAPONSLEVEL1,  # armory
         UpgradeId.BANSHEESPEED,  # starport
-        UpgradeId.CYCLONELOCKONDAMAGEUPGRADE,  # factory
+        # UpgradeId.CYCLONELOCKONDAMAGEUPGRADE,  # factory
         UpgradeId.TERRANINFANTRYWEAPONSLEVEL1,  # ebay
         UpgradeId.TERRANINFANTRYARMORSLEVEL1,  # ebay
         UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1,  # armory
@@ -86,11 +86,6 @@ class Upgrades:
     def next_upgrade(self) -> UpgradeId:
         # check if last upgrade is finished
         for upgrade_type in self.upgrade_order:
-            if upgrade_type in self.bot.state.upgrades or self.bot.already_pending_upgrade(upgrade_type):
+            if self.bot.already_pending_upgrade(upgrade_type):
                 continue
-            creationAbilityID = self.bot.game_data.upgrades[upgrade_type.value].research_ability.exact_id
-            for structure in self.bot.structures.filter(lambda unit: unit.is_ready):
-                for order in structure.orders:
-                    if order.ability.exact_id == creationAbilityID:
-                        continue
             return upgrade_type
