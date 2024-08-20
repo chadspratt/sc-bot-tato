@@ -263,8 +263,17 @@ class BuildOrder(TimerMixin):
                 in_progress_step.completed_time = self.bot.time
                 if in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
                     self.workers.set_as_idle(in_progress_step.unit_in_charge)
-                self.complete.append(self.started.pop(idx))
+                self.move_to_complete(self.started.pop(idx))
                 break
+
+    def move_to_complete(self, build_step: BuildStep) -> None:
+        self.complete.append(build_step)
+        for timer_name in build_step.timers.keys():
+            if timer_name not in self.timers:
+                self.timers[timer_name] = build_step.timers[timer_name]
+            else:
+                self.timers[timer_name]["total"] += build_step.timers[timer_name]["total"]
+                logger.info(f"adding to existing timer for {timer_name}={self.timers[timer_name]["total"]}")
 
     def update_started_structure(self, started_structure: Unit) -> None:
         logger.info(
@@ -273,6 +282,7 @@ class BuildOrder(TimerMixin):
         for in_progress_step in self.started:
             if isinstance(in_progress_step.unit_being_built, Unit):
                 continue
+            logger.info(f"{in_progress_step.unit_type_id} {started_structure.type_id}")
             if in_progress_step.unit_type_id == started_structure.type_id or (in_progress_step.unit_type_id == UnitTypeId.REFINERY and started_structure.type_id == UnitTypeId.REFINERYRICH):
                 logger.info(f"found matching step: {in_progress_step}")
                 in_progress_step.unit_being_built = started_structure
@@ -310,7 +320,7 @@ class BuildOrder(TimerMixin):
                         self.workers.update_assigment(in_progress_step.unit_in_charge, JobType.VESPENE, completed_structure)
                     else:
                         self.workers.set_as_idle(builder)
-                self.complete.append(self.started.pop(idx))
+                self.move_to_complete(self.started.pop(idx))
                 break
         ramp_blocker: SpecialLocation
         for ramp_blocker in self.special_locations.ramp_blockers:
@@ -325,7 +335,7 @@ class BuildOrder(TimerMixin):
                 logger.info(
                     f"upgrade {upgrade} completed at {in_progress_step.unit_in_charge}"
                 )
-                self.complete.append(self.started.pop(idx))
+                self.move_to_complete(self.started.pop(idx))
                 break
 
     def move_interupted_to_pending(self) -> None:
@@ -369,12 +379,12 @@ class BuildOrder(TimerMixin):
                 logger.info(f"Cannot afford {build_step.friendly_name}")
                 return False
 
-            self.start_timer("build_step.execute")
             # XXX slightly slow
+            self.start_timer("build_step.execute")
             build_response = await build_step.execute(special_locations=self.special_locations, needed_resources=needed_resources)
             self.stop_timer("build_step.execute")
             self.start_timer(f"handle response {build_response}")
-            logger.debug(f"build_response: {build_response}")
+            logger.info(f"build_response: {build_response}")
             if build_response == build_step.ResponseCode.SUCCESS:
                 self.started.append(self.pending.pop(execution_index))
                 break
@@ -383,12 +393,12 @@ class BuildOrder(TimerMixin):
             else:
                 failed_types.append(build_step.unit_type_id)
                 logger.debug(f"!!! {build_step.unit_type_id} failed to start building, {build_response}")
-                if build_step.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
-                    for started_step in self.started:
-                        if started_step.unit_type_id == build_step.builder_type:
-                            break
-                    else:
-                        self.add_to_build_order(build_step.builder_type)
+                # if build_step.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
+                #     for started_step in self.started:
+                #         if started_step.unit_type_id == build_step.builder_type:
+                #             break
+                #     else:
+                #         self.add_to_build_order(build_step.builder_type)
             self.stop_timer(f"handle response {build_response}")
             logger.debug(f"pending loop: {execution_index} < {len(self.pending)}")
 

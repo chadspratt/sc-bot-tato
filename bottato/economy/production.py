@@ -19,6 +19,7 @@ class Facility(UnitReferenceMixin):
         self.bot = bot
         self.unit = unit
         self.add_on_type = UnitTypeId.NOTAUNIT
+        self.addon_blocked = False
         self.addon_destroyed_time = None
         self.in_progress_unit: Unit = None
         self.capacity = 1
@@ -27,13 +28,15 @@ class Facility(UnitReferenceMixin):
     def __repr__(self) -> str:
         return f"facility {self.unit}-{self.add_on_type}"
 
-    def update_references(self) -> None:
+    async def update_references(self) -> None:
+        logger.debug(f"updating reference for facility {self}")
         try:
             updated_unit: Unit = self.get_updated_unit_reference(self.unit)
         except UnitReferenceMixin.UnitNotFound:
             raise UnitReferenceMixin.UnitNotFound
             # addon_type.remove(facility)
 
+        logger.debug(f"updated reference for facility {updated_unit}-{updated_unit.orders}")
         updated_unit.orders.sort(reverse=True, key=Facility.order_sort_key)
         for new_order in updated_unit.orders:
             for old_order in self.unit.orders:
@@ -41,16 +44,26 @@ class Facility(UnitReferenceMixin):
                     self.unit.orders.remove(old_order)
                     break
             else:
+                logger.debug(f"new order {new_order}")
                 # new order doesn't match any old, must be new
                 try:
                     new_unit_id: UnitTypeId = abilityid_to_unittypeid[new_order.ability.id]
                     for queued_unit_id in self.queued_unit_ids:
                         if queued_unit_id == new_unit_id:
+                            logger.debug(f"new order matched {queued_unit_id}")
                             self.queued_unit_ids.remove(queued_unit_id)
                             break
+                    else:
+                        logger.debug(f"no match for {new_order}")
                 except KeyError:
                     # add-on
+                    logger.debug(f"key error, is this an addon?: {new_order}")
                     self.queued_unit_ids.clear()
+
+        if self.add_on_type == UnitTypeId.NOTAUNIT and not self.addon_blocked:
+            self.addon_blocked = not (await self.bot.can_place_single(UnitTypeId.SUPPLYDEPOT, updated_unit.position.offset((2.5, -0.5))))
+            if self.addon_blocked:
+                logger.info(f"addon blocked for {updated_unit}")
 
         self.unit = updated_unit
 
@@ -59,6 +72,7 @@ class Facility(UnitReferenceMixin):
 
     @property
     def has_capacity(self) -> bool:
+        logger.debug(f"facility has orders {self.unit.orders} + {self.queued_unit_ids} and capacity {self.capacity}")
         return len(self.unit.orders) + len(self.queued_unit_ids) < self.capacity
 
     def set_add_on_type(self, add_on_type: UnitTypeId) -> None:
@@ -119,13 +133,13 @@ class Production(UnitReferenceMixin):
             },
         }
 
-    def update_references(self) -> None:
+    async def update_references(self) -> None:
         for facility_type in self.facilities.values():
             for addon_type in facility_type.values():
                 facility: Facility
                 for facility in addon_type:
                     try:
-                        facility.update_references()
+                        await facility.update_references()
                     except UnitReferenceMixin.UnitNotFound:
                         addon_type.remove(facility)
                     if self.bot.supply_left == 0:
@@ -146,9 +160,15 @@ class Production(UnitReferenceMixin):
             candidates: List[Facility] = self.facilities[builder_type][add_on_type]
             logger.debug(f"{add_on_type} facilities {candidates}")
             for candidate in candidates:
+                if unit_type in self.add_on_types and candidate.addon_blocked:
+                    logger.info(f"can't build addon {unit_type} at {candidate}")
+                    continue
+
                 if candidate.has_capacity:
                     candidate.add_queued_unit_id(unit_type)
                     return candidate.unit
+                else:
+                    logger.info
 
         return None
 
@@ -292,7 +312,7 @@ class Production(UnitReferenceMixin):
                 for i in range(abs(normal_balance)):
                     facility: Facility
                     for facility in self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
-                        if facility.unit.tag not in upgraded_facility_tags[builder_type]:
+                        if facility.unit.tag not in upgraded_facility_tags[builder_type] and not facility.addon_blocked:
                             upgraded_facility_tags[builder_type].append(facility.unit.tag)
                             additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.REACTOR])
                             break
@@ -315,18 +335,27 @@ class Production(UnitReferenceMixin):
     def create_builder(self, unit_type: UnitTypeId) -> List[UnitTypeId]:
         build_list: List[UnitTypeId] = []
         builder_type: UnitTypeId = self.get_cheapest_builder_type(unit_type)
-        if unit_type not in self.needs_tech_lab:
+        if unit_type in self.needs_tech_lab:
             if self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
-                # queue a reactor for a facility with no addon
-                build_list.append(self.add_on_type_lookup[builder_type][UnitTypeId.REACTOR])
-            else:
-                build_list.append(builder_type)
-        else:
-            if not self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
-                # queue new facility of none availiable for a tech lab (more complicated, could sometimes move existing)
-                build_list.append(builder_type)
-            # queue a techlab for a facility with no addon
-            build_list.append(self.add_on_type_lookup[builder_type][UnitTypeId.TECHLAB])
+                facility: Facility
+                for facility in self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
+                    if not facility.addon_blocked:
+                        # queue a techlab for a facility with no addon
+                        build_list.append(self.add_on_type_lookup[builder_type][UnitTypeId.TECHLAB])
+                        break
+        elif self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
+            facility: Facility
+            for facility in self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
+                if not facility.addon_blocked:
+                    # queue a reactor for a facility with no addon
+                    build_list.append(self.add_on_type_lookup[builder_type][UnitTypeId.REACTOR])
+                    break
+
+        if not build_list:
+            # queue new facility of none availiable for an addon
+            build_list.append(builder_type)
+            if unit_type in self.needs_tech_lab:
+                build_list.append(self.add_on_type_lookup[builder_type][UnitTypeId.TECHLAB])
 
         return build_list
 

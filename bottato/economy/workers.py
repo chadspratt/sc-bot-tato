@@ -109,7 +109,8 @@ class Workers(UnitReferenceMixin, TimerMixin):
 
     def update_target(self, worker: Unit, new_target: Union[Unit, None]):
         assignment = self.assignments_by_worker[worker.tag]
-        logger.info(f"worker {worker} changing from {assignment.target} to {new_target}")
+        if assignment.target == new_target:
+            logger.info(f"worker {worker} changing from {assignment.target} to {new_target}")
         if new_target:
             if assignment.job_type == JobType.REPAIR:
                 worker.repair(new_target)
@@ -155,6 +156,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
             builder = candidates.closest_to(building_position)
             if builder is not None:
                 self.update_assigment(builder, JobType.BUILD, None)
+                logger.info(f"found builder {builder}")
 
         return builder
 
@@ -329,6 +331,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
             candidates = self.availiable_workers_on_job(JobType.MINERALS)
         else:
             candidates = self.availiable_workers_on_job(JobType.VESPENE)
+        # logger.info(f"candidates to move to {target_job}: {candidates}")
 
         next_node: Unit = mineral_nodes.pop()
         while moved_count < number_to_move and candidates and target.has_unused_capacity:

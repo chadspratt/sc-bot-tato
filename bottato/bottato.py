@@ -42,7 +42,7 @@ class BotTato(BotAI, TimerMixin):
 
         self.start_timer("update_unit_references")
         # XXX very slow
-        self.update_unit_references()
+        await self.update_unit_references()
         self.stop_timer("update_unit_references")
         self.start_timer("my_workers.distribute_idle")
         self.my_workers.distribute_idle()
@@ -81,7 +81,7 @@ class BotTato(BotAI, TimerMixin):
         except AttributeError:
             pass
 
-    def update_unit_references(self):
+    async def update_unit_references(self):
         self.start_timer("my_workers.update_references")
         self.my_workers.update_references()
         self.stop_timer("my_workers.update_references")
@@ -95,7 +95,7 @@ class BotTato(BotAI, TimerMixin):
         self.build_order.update_references()
         self.stop_timer("build_order.update_references")
         self.start_timer("production.update_references")
-        self.production.update_references()
+        await self.production.update_references()
         self.stop_timer("production.update_references")
 
     def print_all_timers(self, interval: int = 0):

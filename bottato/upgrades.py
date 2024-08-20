@@ -59,21 +59,21 @@ class Upgrades:
         UpgradeId.HISECAUTOTRACKING,  # ebay
         UpgradeId.TERRANVEHICLEWEAPONSLEVEL1,  # armory
         UpgradeId.BANSHEESPEED,  # starport
-        # UpgradeId.CYCLONELOCKONDAMAGEUPGRADE,  # factory
+        UpgradeId.HURRICANETHRUSTERS,  # factory
         UpgradeId.TERRANINFANTRYWEAPONSLEVEL1,  # ebay
         UpgradeId.TERRANINFANTRYARMORSLEVEL1,  # ebay
-        # UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1,  # armory
+        UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1,  # armory
         UpgradeId.TERRANBUILDINGARMOR,  # ebay
         UpgradeId.TERRANINFANTRYWEAPONSLEVEL2,  # ebay
         UpgradeId.TERRANINFANTRYARMORSLEVEL2,  # ebay
         UpgradeId.TERRANSHIPWEAPONSLEVEL2,  # armory
         UpgradeId.TERRANVEHICLEWEAPONSLEVEL2,  # armory
-        # UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL2,  # armory
+        UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL2,  # armory
         UpgradeId.TERRANINFANTRYWEAPONSLEVEL3,  # ebay
         UpgradeId.TERRANINFANTRYARMORSLEVEL3,  # ebay
         UpgradeId.TERRANSHIPWEAPONSLEVEL3,  # armory
         UpgradeId.TERRANVEHICLEWEAPONSLEVEL3,  # armory
-        # UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL3,  # armory
+        UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL3,  # armory
         # UpgradeId.STIMPACK,  # barracks
         # UpgradeId.BANSHEECLOAK,  # starport
     ]
