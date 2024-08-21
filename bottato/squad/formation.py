@@ -220,10 +220,9 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         self.formations.append(Formation(self.bot, formation_type, unit_tags, offset))
 
     def get_unit_destinations(
-        self, formation_destination: Point2, leader: Unit, units: Units, destination_facing: float = None
+        self, formation_destination: Point2, units: Units, destination_facing: float = None
     ) -> dict[int, Point2]:
-        frontline_units = units.closest_n_units(formation_destination, 10)
-        new_front_center = self.calculate_formation_front_center(frontline_units, formation_destination)
+        new_front_center = self.calculate_formation_front_center(units, formation_destination)
         if self.front_center:
             self.front_center = self.front_center.towards(new_front_center, 1, limit=True)
         else:
@@ -234,15 +233,6 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         distance_remaining = (self.front_center - formation_destination).length
         logger.debug(f"formation distance remaining {distance_remaining}")
         logger.debug(f"formation facing {destination_facing}")
-
-        leader_offset = self.formations[0].positions[0] + self.formations[0].offset
-        # reference_position = formation_destination
-        # if distance_remaining > 20:
-        #     center_offset_game_coords = formation_position - leader.position
-        #     center_offset = self.apply_rotation(destination_facing, center_offset_game_coords, reverse_direction=True) * 0.5
-        #     leader_projected_position = self.predict_future_unit_position(leader, 1.0)
-        #     projected_movement = leader_projected_position - leader.position
-        #     reference_position = formation_position + projected_movement
 
         unit_destinations = {}
         for formation in self.formations:
@@ -258,17 +248,15 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
                     break
                 unit = unused_units.closest_to(position)
                 unused_units.remove(unit)
-                if unit.tag == leader.tag:
-                    unit_destinations[unit.tag] = formation_destination - leader_offset
-                else:
-                    unit_destinations[unit.tag] = position
+                unit_destinations[unit.tag] = position
 
         return unit_destinations
 
     # make triangle of destination, frontline center, and nearest unit to destination
     # treating frontline to destination as base, find point where triangle height intersects base
     # use this point as (0, 0) position of formation
-    def calculate_formation_front_center(self, frontline_units: Units, destination: Point2) -> Point2:
+    def calculate_formation_front_center(self, units: Units, destination: Point2) -> Point2:
+        frontline_units = units.closest_n_units(destination, 10)
         units_center = frontline_units.center
         closest_unit: Unit = frontline_units[0]
         closest_position = closest_unit.position
@@ -282,4 +270,4 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         closest_front_b: float = closest_position.y - closest_front_slope * closest_position.x
         x_intersect = (closest_front_b - dest_center_b) / (dest_center_slope - closest_front_slope)
         y_intersect = x_intersect * dest_center_slope + dest_center_b
-        return Point2((x_intersect, y_intersect))
+        return Point2((x_intersect, y_intersect)).towards(destination, 2, limit=True)

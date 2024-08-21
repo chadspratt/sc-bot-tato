@@ -47,16 +47,12 @@ class FormationSquad(BaseSquad, GeometryMixin):
         self.enemy = enemy
         self.orders = []
         self.current_order = SquadOrderEnum.IDLE
-        self.leader: Unit = None
-        self.leader_was_stopped = False
         self._destination: Point2 = None
-        self.leader_destination: Point2 = None
         self.previous_position: Point2 = None
         self.targets: Units = Units([], bot_object=self.bot)
         self.parent_formation: ParentFormation = ParentFormation(self.bot)
         self.units_in_formation_position: Set[int] = set()
         self.destination_facing: float = None
-        self.last_leader_update: float = 0
 
     def execute(self, squad_order: SquadOrder):
         self.orders.append(squad_order)
@@ -65,76 +61,31 @@ class FormationSquad(BaseSquad, GeometryMixin):
         return f"FormationSquad({self.name},{self.state},{len(self.units)}, {self.parent_formation})"
 
     def draw_debug_box(self):
-        if self.leader:
-            self.bot.client.debug_sphere_out(self.leader, 1, (255, 255, 255))
-            if self.parent_formation.front_center:
-                self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.parent_formation.front_center), 1.5, (0, 255, 255))
-            if self.leader_destination:
-                self.bot.client.debug_line_out(self.leader, self.convert_point2_to_3(self.leader_destination))
+        if self.parent_formation.front_center:
+            self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.parent_formation.front_center), 1.5, (0, 255, 255))
         super().draw_debug_box()
 
     @property
     def position(self) -> Point2:
-        return self.leader.position
+        return self.parent_formation.front_center
 
     def transfer(self, unit: Unit, to_squad: BaseSquad):
         super().transfer(unit, to_squad)
-        if self.leader.tag == unit.tag:
-            self.leader = None
-            self.update_leader()
 
     def recruit(self, unit: Unit):
         super().recruit(unit)
-        self.update_leader()
         self.update_formation(reset=True)
 
     def get_report(self) -> str:
         has = len(self.units)
         return f"{self.name}({has})"
 
-    def update_leader(self):
-        if self.leader and self.bot.time - self.last_leader_update < 3:
-            return
-        self.last_leader_update = self.bot.time
-        new_slowest: Unit = None
-
-        candidates: Units = self.units.filter(lambda unit: unit.type_id not in {UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK, UnitTypeId.CYCLONE})
-        # if len(self.units_in_formation_position) > len(self.units) / 2:
-        #     candidates: Units = Units([
-        #         unit for unit in self.units
-        #         if unit.tag in self.units_in_formation_position
-        #     ], self.bot)
-        if not candidates:
-            candidates = self.units
-        logger.info(f"squad {self.name} leader candidates {candidates}")
-
-        for unit in candidates:
-            if not unit.is_flying:
-                candidates = candidates.filter(lambda unit: not unit.is_flying)
-                break
-
-        for unit in candidates:
-            if new_slowest is None or unit.movement_speed < new_slowest.movement_speed:
-                new_slowest = unit
-
-        self.leader = new_slowest
-        logger.info(f"squad {self.name} chosen leader {self.leader}")
-
     def update_references(self):
         self.units = self.get_updated_unit_references(self.units)
         self.targets = self.get_updated_unit_references(self.targets)
-        if self.leader:
-            try:
-                self.leader = self.get_updated_unit_reference(self.leader)
-            except self.UnitNotFound:
-                self.leader = None
-                logger.info(f"squad {self.name} lost leader {self.leader}")
-                self.update_leader()
 
     def update_formation(self, reset=False):
         # decide formation(s)
-        if self.leader is None:
-            return
         if reset:
             self.parent_formation.clear()
         if not self.parent_formation.formations:
@@ -144,11 +95,6 @@ class FormationSquad(BaseSquad, GeometryMixin):
                 if self.add_unit_formation(unit_type, y_offset):
                     y_offset -= 1
 
-        # if self.bot.enemy_units.closer_than(8.0, self.position):
-        #     self.parent_formation.clear()
-        #     self.parent_formation.add_formation(
-        #         FormationType.HOLLOW_CIRCLE, self.units.tags
-        #     )
         logger.debug(f"squad {self.name} formation: {self.parent_formation}")
 
     def add_unit_formation(self, unit_type: UnitTypeId, y_offset: int) -> bool:
@@ -166,7 +112,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
             self.targets = Units(targets, self.bot)
             self.current_order = SquadOrderEnum.ATTACK
 
-            closest_target = self.targets.closest_to(self.leader)
+            closest_target = self.targets.closest_to(self.parent_formation.front_center)
             target_position = closest_target.position
             logger.info(
                 f"{self.name} Squad attacking {closest_target};"
@@ -184,28 +130,16 @@ class FormationSquad(BaseSquad, GeometryMixin):
         self._destination = destination
         self.destination_facing = destination_facing
 
-        formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.leader, self.units, destination_facing)
-        self.leader_destination = formation_positions[self.leader.tag]
+        formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.units, destination_facing)
         # check if squad is in formation
         self.update_units_in_formation_position(formation_positions)
 
-        if self.leader_was_stopped:
-            self.leader_was_stopped = False
-        elif self.formation_completion < 0.4:
-            # if not, pause leader every other step
-            self.leader.stop()
-            self.leader_was_stopped = True
-            # regroup_point = self.get_regroup_destination()
-            # logger.info(f"squad {self.name} regrouping at {regroup_point}")
-            # formation_positions = self.parent_formation.get_unit_destinations(regroup_point, self.leader, destination_facing)
-
-        logger.debug(f"squad {self.name} moving from {self.position}/{self.leader.position} to {self._destination} with {formation_positions.values()}")
+        logger.debug(f"squad {self.name} moving from {self.position} to {self._destination} with {formation_positions.values()}")
         for unit in self.units:
             logger.debug(f"unit {unit} moving to {formation_positions[unit.tag]}")
             if unit.tag in self.bot.unit_tags_received_action:
                 logger.debug(f"unit {unit} already received an order {unit.orders}")
                 continue
-            # unit.attack(formation_positions[unit.tag])
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot)
             logger.debug(f"unit {unit} using micro {micro}")
             await micro.move(unit, formation_positions[unit.tag], self.enemy)
@@ -213,7 +147,6 @@ class FormationSquad(BaseSquad, GeometryMixin):
 
     def update_units_in_formation_position(self, formation_positions: dict[int, Point2]):
         self.units_in_formation_position.clear()
-        self.units_in_formation_position.add(self.leader.tag)
         for unit in self.units:
             if unit.distance_to(formation_positions[unit.tag]) < 3:
                 self.units_in_formation_position.add(unit.tag)
