@@ -11,6 +11,7 @@ from sc2.units import Units
 # from sc2.units import Units
 
 from ..mixins import GeometryMixin, UnitReferenceMixin
+from ..map import Map
 
 
 class FormationType(enum.Enum):
@@ -197,10 +198,12 @@ class Formation:
 class ParentFormation(GeometryMixin, UnitReferenceMixin):
     """Collection of formations which are offset from each other. Translates between formation coords and game coords"""
 
-    def __init__(self, bot: BotAI):
+    def __init__(self, bot: BotAI, map: Map):
         self.bot = bot
+        self.map = map
         self.formations: List[Formation] = []
         self.front_center: Point2 = None
+        self.path: List[Point2] = []
 
     def __repr__(self):
         return ", ".join([str(formation) for formation in self.formations])
@@ -230,16 +233,20 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         self.bot.client.debug_sphere_out(self.convert_point2_to_3(new_front_center), 2, (255, 255, 255))
         self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.front_center), 2, (100, 100, 100))
 
+        self.path = self.map.get_path(self.front_center, formation_destination)
+        next_waypoint = self.path[1] if self.path else formation_destination
+
         distance_remaining = (self.front_center - formation_destination).length
         logger.debug(f"formation distance remaining {distance_remaining}")
         logger.debug(f"formation facing {destination_facing}")
+        facing = destination_facing if distance_remaining < 5 else self.get_facing(self.front_center, next_waypoint)
 
         unit_destinations = {}
         for formation in self.formations:
             unused_units = self.get_updated_unit_references_by_tags(formation.unit_tags)
             # create list of positions to fill
             formation_offsets = formation.get_unit_offset_from_reference_point(Point2((0, 0)))
-            rotated_offsets = self.apply_rotations(destination_facing, formation_offsets)
+            rotated_offsets = self.apply_rotations(facing, formation_offsets)
             positions = [self.front_center + offset for offset in rotated_offsets]
 
             # match positions to closest units
@@ -256,18 +263,38 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
     # treating frontline to destination as base, find point where triangle height intersects base
     # use this point as (0, 0) position of formation
     def calculate_formation_front_center(self, units: Units, destination: Point2) -> Point2:
-        frontline_units = units.closest_n_units(destination, 10)
-        units_center = frontline_units.center
-        closest_unit: Unit = frontline_units[0]
+        in_formation_units: Units = units
+        ground_units = units.filter(lambda unit: not unit.is_flying)
+        if ground_units:
+            in_formation_units = ground_units
+        if self.front_center:
+            in_formation_units = in_formation_units.closer_than(10, self.front_center)
+        else:
+            in_formation_units = in_formation_units.closest_n_units(destination, 1)
+            self.front_center = in_formation_units.first.position
+
+        units_center = in_formation_units.center
+
+        self.path = self.map.get_path(units_center, destination)
+        next_waypoint = destination
+        if self.path:
+            next_waypoint_index = 1
+            distance_remaining = 0
+            while distance_remaining < 2 and next_waypoint_index < len(self.path):
+                next_waypoint = self.path[next_waypoint_index]
+                distance_remaining = (self.front_center - next_waypoint).length
+                next_waypoint_index += 1
+
+        closest_unit: Unit = in_formation_units.closest_to(next_waypoint)
         closest_position = closest_unit.position
-        if units_center.x == destination.x:
+        if units_center.x == next_waypoint.x:
             # avoid div by zero, but is also much simpler
             return Point2((units_center.x, closest_position.y))
 
-        dest_center_slope: float = (units_center.y - destination.y) / (units_center.x - destination.x)
+        dest_center_slope: float = (units_center.y - next_waypoint.y) / (units_center.x - next_waypoint.x)
         dest_center_b = units_center.y - dest_center_slope * units_center.x
         closest_front_slope: float = -1 / dest_center_slope
         closest_front_b: float = closest_position.y - closest_front_slope * closest_position.x
         x_intersect = (closest_front_b - dest_center_b) / (dest_center_slope - closest_front_slope)
         y_intersect = x_intersect * dest_center_slope + dest_center_b
-        return Point2((x_intersect, y_intersect)).towards(destination, 2, limit=True)
+        return Point2((x_intersect, y_intersect)).towards(next_waypoint, 2, limit=True)

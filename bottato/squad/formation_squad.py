@@ -1,11 +1,12 @@
 from __future__ import annotations
 import enum
-from typing import Set, Union, List
+from typing import Union, List
+# import traceback
 
 from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
-from sc2.position import Point2
+from sc2.position import Point2, Point3
 from sc2.constants import UnitTypeId
 
 from ..mixins import GeometryMixin
@@ -14,6 +15,7 @@ from ..micro.base_unit_micro import BaseUnitMicro
 from ..micro.micro_factory import MicroFactory
 from .base_squad import BaseSquad
 from ..enemy import Enemy
+from ..map import Map
 
 
 class SquadOrderEnum(enum.Enum):
@@ -41,17 +43,18 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def __init__(
         self,
         enemy: Enemy,
+        map: Map,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.enemy = enemy
+        self.map = map
         self.orders = []
         self.current_order = SquadOrderEnum.IDLE
         self._destination: Point2 = None
         self.previous_position: Point2 = None
         self.targets: Units = Units([], bot_object=self.bot)
-        self.parent_formation: ParentFormation = ParentFormation(self.bot)
-        self.units_in_formation_position: Set[int] = set()
+        self.parent_formation: ParentFormation = ParentFormation(self.bot, self.map)
         self.destination_facing: float = None
 
     def execute(self, squad_order: SquadOrder):
@@ -63,6 +66,16 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def draw_debug_box(self):
         if self.parent_formation.front_center:
             self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.parent_formation.front_center), 1.5, (0, 255, 255))
+
+            previous_point3: Point3 = self.convert_point2_to_3(self.parent_formation.front_center)
+            if self.parent_formation.path:
+                for point in self.parent_formation.path:
+                    next_point3: Point3 = self.convert_point2_to_3(point)
+                    self.bot.client.debug_line_out(previous_point3, next_point3, (255, 50, 50))
+                    previous_point3 = next_point3
+            destination3: Point3 = self.convert_point2_to_3(self._destination)
+            self.bot.client.debug_line_out(previous_point3, destination3, (255, 50, 50))
+
         super().draw_debug_box()
 
     @property
@@ -131,10 +144,9 @@ class FormationSquad(BaseSquad, GeometryMixin):
         self.destination_facing = destination_facing
 
         formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.units, destination_facing)
-        # check if squad is in formation
-        self.update_units_in_formation_position(formation_positions)
 
         logger.debug(f"squad {self.name} moving from {self.position} to {self._destination} with {formation_positions.values()}")
+        # traceback.print_stack(limit=5)
         for unit in self.units:
             logger.debug(f"unit {unit} moving to {formation_positions[unit.tag]}")
             if unit.tag in self.bot.unit_tags_received_action:
@@ -143,31 +155,3 @@ class FormationSquad(BaseSquad, GeometryMixin):
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot)
             logger.debug(f"unit {unit} using micro {micro}")
             await micro.move(unit, formation_positions[unit.tag], self.enemy)
-        # TODO add leader movement vector to positions so they aren't playing catch up
-
-    def update_units_in_formation_position(self, formation_positions: dict[int, Point2]):
-        self.units_in_formation_position.clear()
-        for unit in self.units:
-            if unit.distance_to(formation_positions[unit.tag]) < 3:
-                self.units_in_formation_position.add(unit.tag)
-
-    @property
-    def formation_completion(self) -> float:
-        return len(self.units_in_formation_position) / len(self.units)
-
-    def get_regroup_destination(self) -> Point2:
-        self.current_order = SquadOrderEnum.REGROUP
-        # find a midpoint
-        max_x = max_y = min_x = min_y = None
-        for unit in self.units:
-            unit.facing
-            if max_x is None or unit.position.x > max_x:
-                max_x = unit.position.x
-            if max_y is None or unit.position.y > max_y:
-                max_y = unit.position.y
-            if min_x is None or unit.position.x < min_x:
-                min_x = unit.position.x
-            if min_y is None or unit.position.y < min_y:
-                min_y = unit.position.y
-
-        return Point2(((min_x + max_x) / 2, (min_y + max_y) / 2))

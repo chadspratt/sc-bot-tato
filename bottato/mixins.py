@@ -49,7 +49,7 @@ class UnitReferenceMixin:
 
 class GeometryMixin:
     def convert_point2_to_3(self, point2: Point2) -> Point3:
-        height: float = self.bot.get_terrain_z_height(point2)
+        height: float = self.bot.get_terrain_z_height(point2) + 1
         return Point3((point2.x, point2.y, height))
 
     def get_facing(self, start_position: Point2, end_position: Point2):

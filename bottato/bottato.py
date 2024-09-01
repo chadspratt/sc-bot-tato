@@ -14,14 +14,19 @@ from .economy.workers import Workers
 from .economy.production import Production
 from .military import Military
 from .mixins import TimerMixin
+from .map import Map
 
 
 class BotTato(BotAI, TimerMixin):
     async def on_start(self):
         # name clash with BotAI.workers
+        self.last_timer_print = 0
+        self.map = Map(self)
+        for loc in self.expansion_locations_list:
+            self.map.get_path(self.game_info.player_start_location, loc)
         self.my_workers: Workers = Workers(self)
         self.enemy: Enemy = Enemy(self)
-        self.military: Military = Military(self, self.enemy)
+        self.military: Military = Military(self, self.enemy, self.map)
         self.structure_micro: StructureMicro = StructureMicro(self)
         self.production: Production = Production(self)
         self.build_order: BuildOrder = BuildOrder(
@@ -32,9 +37,11 @@ class BotTato(BotAI, TimerMixin):
         # await self.client.debug_minerals()
         # self.client.save_replay_path = "..\replays\bottato.mpq"
         self.last_replay_save_time = 0
-        self.last_timer_print = 0
         logger.info(os.getcwd())
         logger.info(f"vision blockers: {self.game_info.vision_blockers}")
+        # self.bot.state.action_errors
+        # self.bot.state.actions
+        # self.bot.state.effects
 
     async def on_step(self, iteration):
         logger.info(f"======starting step {iteration} ({self.time}s)======")
@@ -72,6 +79,7 @@ class BotTato(BotAI, TimerMixin):
         await self.build_order.execute()
         self.stop_timer("build_order.execute")
         self.print_all_timers(30)
+        self.map.draw()
 
     async def on_end(self, game_result: Result):
         print("Game ended.")
@@ -104,6 +112,7 @@ class BotTato(BotAI, TimerMixin):
             self.print_timers("main-")
             self.build_order.print_timers("build_order-")
             self.my_workers.print_timers("my_workers-")
+            self.map.print_timers("map-")
 
     async def save_replay(self):
         if self.time - self.last_replay_save_time > 30:

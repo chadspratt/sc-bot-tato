@@ -13,17 +13,20 @@ from .squad.base_squad import BaseSquad
 from .squad.scouting import Scouting
 from .squad.formation_squad import FormationSquad
 from .enemy import Enemy
+from .map import Map
 
 from .mixins import GeometryMixin, DebugMixin
 
 
 class Military(GeometryMixin, DebugMixin):
-    def __init__(self, bot: BotAI, enemy: Enemy) -> None:
+    def __init__(self, bot: BotAI, enemy: Enemy, map: Map) -> None:
         self.bot: BotAI = bot
         self.enemy = enemy
+        self.map = map
         self.main_army = FormationSquad(
             bot=bot,
             enemy=enemy,
+            map=map,
             type=SquadTypeDefinitions['none'],
             color=self.random_color(),
             name='main'
@@ -46,6 +49,7 @@ class Military(GeometryMixin, DebugMixin):
         new_squad = FormationSquad(bot=self.bot,
                                    type=squad_type,
                                    enemy=self.enemy,
+                                   map=self.map,
                                    color=self.random_color(),
                                    name=self.create_squad_name(squad_type))
         self.squads.append(new_squad)
@@ -135,14 +139,12 @@ class Military(GeometryMixin, DebugMixin):
             else:
                 logger.info(f"squad {squad} staging")
                 enemy_position = self.bot.enemy_start_locations[0]
-                squad.staging_location = self.bot.townhalls.ready.closest_to(enemy_position).position.towards_with_random_angle(enemy_position, 4, math.pi / 2)
+                squad.staging_location = self.bot.townhalls.closest_to(enemy_position).position.towards_with_random_angle(enemy_position, 4, math.pi / 2)
                 facing = self.get_facing(squad.staging_location, enemy_position)
                 await squad.move(squad.staging_location, facing)
             # else:
             #     logger.info(f"squad {squad} just moving")
             #     await squad.move(squad._destination, squad.destination_facing)
-        if self.enemy.enemies_in_view:
-            await self.main_army.attack(self.enemy.enemies_in_view)
 
         self.report()
         self.new_damage_taken.clear()

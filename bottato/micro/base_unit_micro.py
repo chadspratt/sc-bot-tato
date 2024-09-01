@@ -65,7 +65,10 @@ class BaseUnitMicro(GeometryMixin):
         if do_retreat:
             logger.info(f"{unit} retreating")
             if unit.is_mechanical:
-                unit.move(self.bot.workers.closest_to(unit))
+                if self.bot.workers:
+                    unit.move(self.bot.workers.closest_to(unit))
+                else:
+                    do_retreat = False
             else:
                 medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC)
                 if medivacs:
