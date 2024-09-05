@@ -116,10 +116,11 @@ class BotTato(BotAI, TimerMixin):
 
     async def save_replay(self):
         if self.time - self.last_replay_save_time > 30:
-            await self.client.save_replay(".\\replays\\bottato.sc2replay")
+            await self.client.save_replay(".\\python-sc2\\examples\\competitive\\replays\\bottato.sc2replay")
+            self.last_replay_save_time = self.time
 
         if len(self.units) == 0 or len(self.townhalls) == 0:
-            await self.client.save_replay(".\\replays\\bottato.sc2replay")
+            await self.client.save_replay(".\\python-sc2\\examples\\competitive\\replays\\bottato.sc2replay")
             await self.client.leave()
 
     async def on_building_construction_started(self, unit: Unit):

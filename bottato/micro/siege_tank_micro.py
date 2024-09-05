@@ -56,6 +56,9 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     return True
         return False
 
+    # def attack_something(self, unit: Unit, health_threshold: float) -> bool:
+    #     return super().attack_something(unit, health_threshold)
+
     def siege(self, unit: Unit):
         logger.info(f"{unit} sieging")
         unit(AbilityId.SIEGEMODE_SIEGEMODE)

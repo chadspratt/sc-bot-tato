@@ -76,7 +76,7 @@ class Military(GeometryMixin, DebugMixin):
     async def manage_squads(self, iteration: int):
         self.main_army.draw_debug_box()
         while self.scouting.scouts_needed:
-            logger.info(f"scouts needed: {self.scouting.scouts_needed}")
+            logger.debug(f"scouts needed: {self.scouting.scouts_needed}")
             for unit in self.main_army.units:
                 if self.scouting.needs(unit):
                     logger.info(f"adding {unit} to scouts")

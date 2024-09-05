@@ -328,8 +328,8 @@ class Production(UnitReferenceMixin):
                                 prereqs_added.append(builder_type)
                             extra_facility = True
 
-        logger.info(f"production capacity {production_capacity}")
-        logger.info(f"additional production {additional_production}")
+        logger.debug(f"production capacity {production_capacity}")
+        logger.debug(f"additional production {additional_production}")
         return additional_production
 
     def create_builder(self, unit_type: UnitTypeId) -> List[UnitTypeId]:

@@ -62,11 +62,9 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                         half_vertex_length=enemy_unit.radius,
                         color=(255, 0, 0)
                     )
-            # TODO check if position is visible
-            # TODO guess updated position based on last facing
-            # TODO something with last_seen
         # set last_seen for visible
-        for enemy_unit in self.bot.enemy_units + self.bot.enemy_structures:
+        new_visible_enemies: Units = self.bot.enemy_units + self.bot.enemy_structures
+        for enemy_unit in new_visible_enemies:
             self.bot.client.debug_box2_out(
                 enemy_unit,
                 half_vertex_length=enemy_unit.radius,
@@ -83,7 +81,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             if enemy_unit.tag not in visible_tags:
                 self.enemies_out_of_view.append(enemy_unit)
                 self.predicted_position[enemy_unit.tag] = enemy_unit.position
-        self.enemies_in_view = self.bot.enemy_units + self.bot.enemy_structures
+        self.enemies_in_view = new_visible_enemies
         # self.update_squads()
 
     def record_death(self, unit_tag):
@@ -101,7 +99,6 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                     break
         if found:
             del self.first_seen[unit_tag]
-            del self.last_seen[unit_tag]
             del self.last_seen_position[unit_tag]
             if unit_tag in self.predicted_position:
                 del self.predicted_position[unit_tag]
@@ -175,6 +172,13 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             if (enemy_distance < nearest_distance):
                 nearest_enemy = enemy
                 nearest_distance = enemy_distance
+        # can attack a destructable if no enemies in sight range
+        if nearest_distance > friendly_unit.sight_range:
+            for destructable in self.bot.destructables:
+                enemy_distance = friendly_unit.distance_to(destructable)
+                if (enemy_distance < nearest_distance):
+                    nearest_enemy = destructable
+                    nearest_distance = enemy_distance
 
         return (nearest_enemy, nearest_distance)
 

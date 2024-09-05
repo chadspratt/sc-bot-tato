@@ -82,6 +82,8 @@ class BaseUnitMicro(GeometryMixin):
         if unit.health_percentage < health_threshold:
             return False
         targets = self.bot.all_enemy_units.in_attack_range_of(unit)
+        if not targets:
+            targets = self.bot.destructables.in_attack_range_of(unit)
         if targets:
             if unit.weapon_cooldown == 0:
                 lowest_target = targets.sorted(key=lambda enemy_unit: enemy_unit.health).first
@@ -89,11 +91,15 @@ class BaseUnitMicro(GeometryMixin):
                 logger.info(f"unit {unit} attacking enemy {lowest_target}({lowest_target.position})")
                 return True
             else:
+                extra_range = -0.5
+                # move away if
+                if unit.weapon_cooldown > 1:
+                    extra_range = 3
                 nearest_target = targets.closest_to(unit)
                 attack_range = unit.ground_range
                 if nearest_target.is_flying:
                     attack_range = unit.air_range
-                target_position = nearest_target.position.towards(unit, attack_range - 0.5)
+                target_position = nearest_target.position.towards(unit, attack_range + extra_range)
                 unit.move(target_position)
                 logger.info(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
                 return True
@@ -111,7 +117,7 @@ class BaseUnitMicro(GeometryMixin):
             logger.debug(f"unit {unit} moving to {target}")
 
     async def scout(self, unit: Unit, scouting_location: Point2, enemy: Enemy):
-        logger.info(f"scout {unit} health {unit.health}/{unit.health_max} ({unit.health_percentage}) health")
+        logger.debug(f"scout {unit} health {unit.health}/{unit.health_max} ({unit.health_percentage}) health")
 
         if await self.use_ability(unit, enemy, health_threshold=1.0):
             pass
@@ -122,5 +128,5 @@ class BaseUnitMicro(GeometryMixin):
         elif await self.retreat(unit, enemy, health_threshold=0.75):
             pass
         else:
-            logger.info(f"scout {unit} moving to updated assignment {scouting_location}")
+            logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")
             unit.move(scouting_location)

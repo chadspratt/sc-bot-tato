@@ -37,10 +37,11 @@ class BaseSquad(UnitReferenceMixin):
         self.staging_location: Point2 = None
 
     def draw_debug_box(self):
-        for unit in self.units:
-            self.bot.client.debug_box2_out(
-                unit, half_vertex_length=unit.radius, color=self.color
-            )
+        # for unit in self.units:
+        #     self.bot.client.debug_box2_out(
+        #         unit, half_vertex_length=unit.radius, color=self.color
+        #     )
+        return
 
     @property
     def is_full(self) -> bool:

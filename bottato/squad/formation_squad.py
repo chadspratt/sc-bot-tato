@@ -66,12 +66,14 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def draw_debug_box(self):
         if self.parent_formation.front_center:
             self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.parent_formation.front_center), 1.5, (0, 255, 255))
+            self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.parent_formation.destination), 1.5, (255, 0, 255))
 
             previous_point3: Point3 = self.convert_point2_to_3(self.parent_formation.front_center)
             if self.parent_formation.path:
                 for point in self.parent_formation.path:
                     next_point3: Point3 = self.convert_point2_to_3(point)
                     self.bot.client.debug_line_out(previous_point3, next_point3, (255, 50, 50))
+                    self.bot.client.debug_sphere_out(next_point3, 0.5, (255, 50, 50))
                     previous_point3 = next_point3
             destination3: Point3 = self.convert_point2_to_3(self._destination)
             self.bot.client.debug_line_out(previous_point3, destination3, (255, 50, 50))

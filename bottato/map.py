@@ -391,38 +391,38 @@ class Map(TimerMixin, GeometryMixin):
         return point2_path
 
     def draw(self) -> None:
-        # return
-        if self.first_draw:
-            self.first_draw = False
-            for zone_id in self.zones:
-                zone = self.zones[zone_id]
-                for coords in zone.coords:
-                    zone.points_for_drawing[coords] = self.convert_point2_to_3(Point2(coords))
-                zone.midpoint3 = self.convert_point2_to_3(zone.midpoint)
-                for midpoint in zone.all_midpoints:
-                    zone.all_midpoints3.append(self.convert_point2_to_3(midpoint))
+        return
+        # if self.first_draw:
+        #     self.first_draw = False
+        #     for zone_id in self.zones:
+        #         zone = self.zones[zone_id]
+        #         for coords in zone.coords:
+        #             zone.points_for_drawing[coords] = self.convert_point2_to_3(Point2(coords))
+        #         zone.midpoint3 = self.convert_point2_to_3(zone.midpoint)
+        #         for midpoint in zone.all_midpoints:
+        #             zone.all_midpoints3.append(self.convert_point2_to_3(midpoint))
 
         # for coord in self.distance_from_edge:
         #     if self.distance_from_edge[coord] > 0:
         #         self.bot.client.debug_text_3d(f"{self.distance_from_edge[coord]}\n{coord}", self.convert_point2_to_3(Point2(coord)))
 
-        for zone_id in self.zones:
-            zone = self.zones[zone_id]
-            color = (zone.id % 255, (128 + zone.id) % 255, abs(255 - zone.id) % 255)
-            self.bot.client.debug_box2_out(zone.midpoint3, 0.25, color)
-            self.bot.client.debug_text_3d(f"{zone.midpoint}:{zone.radius}", zone.midpoint3)
+        # for zone_id in self.zones:
+        #     zone = self.zones[zone_id]
+        #     color = (zone.id % 255, (128 + zone.id) % 255, abs(255 - zone.id) % 255)
+        #     self.bot.client.debug_box2_out(zone.midpoint3, 0.25, color)
+        #     self.bot.client.debug_text_3d(f"{zone.midpoint}:{zone.radius}", zone.midpoint3)
 
-            # for a_midpoint3 in zone.all_midpoints3:
-            #     self.bot.client.debug_box2_out(a_midpoint3, 0.15, color)
+        #     for a_midpoint3 in zone.all_midpoints3:
+        #         self.bot.client.debug_box2_out(a_midpoint3, 0.15, color)
 
-            # for point3 in zone.points_for_drawing.values():
-            #     self.bot.client.debug_line_out(zone.midpoint3, point3, color)
+        #     for point3 in zone.points_for_drawing.values():
+        #         self.bot.client.debug_line_out(zone.midpoint3, point3, color)
 
-            # path: Path
-            # for zone_id in zone.shortest_paths:
-            #     path = zone.shortest_paths[zone_id]
-            #     if len(path.zones) == 2:
-            #         path_point3: Point3 = self.convert_point2_to_3(path.zones[1].midpoint)
-            #         color = (255, 255, 0) if path.is_shortest else (255, 255, 255)
-            #         self.bot.client.debug_line_out(zone.midpoint3, path_point3, color)
-            #         self.bot.client.debug_text_3d(f"{zone_id}", path_point3)
+        #     path: Path
+        #     for zone_id in zone.shortest_paths:
+        #         path = zone.shortest_paths[zone_id]
+        #         if len(path.zones) == 2:
+        #             path_point3: Point3 = self.convert_point2_to_3(path.zones[1].midpoint)
+        #             color = (255, 255, 0) if path.is_shortest else (255, 255, 255)
+        #             self.bot.client.debug_line_out(zone.midpoint3, path_point3, color)
+        #             self.bot.client.debug_text_3d(f"{zone_id}", path_point3)
