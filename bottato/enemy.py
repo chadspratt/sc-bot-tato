@@ -99,7 +99,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                     break
         if found:
             del self.first_seen[unit_tag]
-            del self.last_seen_position[unit_tag]
+            # del self.last_seen_position[unit_tag]
             if unit_tag in self.predicted_position:
                 del self.predicted_position[unit_tag]
             # enemy_squad = self.squads_by_unit_tag[unit_tag]
@@ -149,7 +149,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
     def get_enemies(self) -> Units:
         return self.enemies_in_view + self.recent_out_of_view()
 
-    def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True, excluded_types=[]) -> tuple[Unit, float]:
+    def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True, include_destructables=True, excluded_types=[]) -> tuple[Unit, float]:
         nearest_enemy: Unit = None
         nearest_distance = distance_limit
 
@@ -173,7 +173,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 nearest_enemy = enemy
                 nearest_distance = enemy_distance
         # can attack a destructable if no enemies in sight range
-        if nearest_distance > friendly_unit.sight_range:
+        if include_destructables and nearest_distance > friendly_unit.sight_range:
             for destructable in self.bot.destructables:
                 enemy_distance = friendly_unit.distance_to(destructable)
                 if (enemy_distance < nearest_distance):

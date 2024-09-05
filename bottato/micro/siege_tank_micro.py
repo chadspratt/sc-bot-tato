@@ -29,8 +29,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if unit.is_transforming:
             return False
         is_sieged = unit.tag in self.sieged_tags
-        enemy_unit, unit_distance = enemy.get_closest_target(unit, include_structures=False, excluded_types=[UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.DRONEBURROWED, UnitTypeId.MULE])
-        enemy_structure, structure_distance = enemy.get_closest_target(unit, include_units=False)
+        enemy_unit, unit_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=[UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.DRONEBURROWED, UnitTypeId.MULE])
+        enemy_structure, structure_distance = enemy.get_closest_target(unit, include_units=False, include_destructables=False)
         logger.info(f"{unit} seiged={is_sieged}, closest enemy {enemy_unit}({unit_distance}), structure {enemy_structure}({structure_distance})")
         enemy_range_after_sieging = 9999
         if enemy_unit:

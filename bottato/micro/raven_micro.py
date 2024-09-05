@@ -13,6 +13,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     turret_drop_range = 2
     turret_attack_range = 6
     ideal_enemy_distance = turret_drop_range + turret_attack_range - 1
+    # XXX use shorter range if enemy unit is facing away from raven, likely fleeing
     turret_energy_cost = 50
     ability_health = 0.6
 
@@ -20,7 +21,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         super().__init__(bot)
 
     async def use_ability(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
-        enemy_unit, enemy_distance = enemy.get_closest_target(unit, distance_limit=20)
+        enemy_unit, enemy_distance = enemy.get_closest_target(unit, distance_limit=20, include_destructables=False)
         logger.info(f"raven {unit} closest unit {enemy_unit}({enemy_distance}), energy={unit.energy}")
         if enemy_unit is None:
             return False

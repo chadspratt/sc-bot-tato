@@ -82,7 +82,9 @@ class BaseUnitMicro(GeometryMixin):
         if unit.health_percentage < health_threshold:
             return False
         targets = self.bot.all_enemy_units.in_attack_range_of(unit)
+        targeting_destructable = False
         if not targets:
+            targeting_destructable = True
             targets = self.bot.destructables.in_attack_range_of(unit)
         if targets:
             if unit.weapon_cooldown == 0:
@@ -90,6 +92,9 @@ class BaseUnitMicro(GeometryMixin):
                 unit.attack(lowest_target)
                 logger.info(f"unit {unit} attacking enemy {lowest_target}({lowest_target.position})")
                 return True
+            elif targeting_destructable:
+                # don't linger to shoot destructables
+                return False
             else:
                 extra_range = -0.5
                 # move away if
