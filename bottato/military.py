@@ -37,9 +37,7 @@ class Military(GeometryMixin, DebugMixin):
         self.squads: List[BaseSquad] = []
         self.squads.append(self.main_army)
         self.created_squad_type_counts: dict[int, int] = {}
-        self.last_offense_push = 0
         self.offense_start_supply = 200
-        self.last_defense_push = 0
 
     def add_to_main(self, unit: Unit) -> None:
         self.main_army.recruit(unit)
@@ -92,30 +90,18 @@ class Military(GeometryMixin, DebugMixin):
         # only run this every three steps
         if iteration % 3:
             return
-        enemies_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id != UnitTypeId.OBSERVER).in_distance_of_group(self.bot.structures, 20)
+        enemies_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id not in {UnitTypeId.OBSERVER, UnitTypeId.SCV}).in_distance_of_group(self.bot.structures, 20)
         logger.info(f"enemies in base {enemies_in_base}")
 
-        mount_defense = enemies_in_base
-        # time_since_last_push = self.bot.time - self.last_offense_push
-        # mount_offense = time_since_last_push < 50 or time_since_last_push > 500 or self.bot.supply_used == 200
-        mount_offense = False
-        if mount_defense:
-            self.last_defense_push = self.bot.time
-        # elif self.last_defense_push > 0:
-        #     self.last_defense_push = 0
-        #     # defense ended, counterattack
-        #     mount_offense = True
-        elif self.bot.supply_used >= 190 or self.bot.supply_army / self.offense_start_supply > 0.7:
-            mount_offense = True
-            self.bot.chat_send("time to attack")
+        mount_defense = len(enemies_in_base) > 0
+        mount_offense = not mount_defense and (self.bot.supply_used >= 180 or self.bot.supply_army / self.offense_start_supply > 0.7)
 
         if mount_offense:
             if self.offense_start_supply == 200:
                 self.offense_start_supply = self.bot.supply_army
-            self.last_offense_push = self.bot.time
+            self.bot.chat_send("time to attack")
         else:
             self.offense_start_supply = 200
-            self.last_offense_push = 0
 
         squad: FormationSquad
         for i, squad in enumerate(self.squads):
@@ -135,16 +121,12 @@ class Military(GeometryMixin, DebugMixin):
                     await squad.attack(self.bot.enemy_structures)
                 else:
                     await squad.attack(self.bot.enemy_start_locations[0])
-            # elif squad.state in (SquadState.FILLING, SquadState.RESUPPLYING):
             else:
                 logger.info(f"squad {squad} staging")
                 enemy_position = self.bot.enemy_start_locations[0]
                 squad.staging_location = self.bot.townhalls.closest_to(enemy_position).position.towards_with_random_angle(enemy_position, 4, math.pi / 2)
                 facing = self.get_facing(squad.staging_location, enemy_position)
                 await squad.move(squad.staging_location, facing)
-            # else:
-            #     logger.info(f"squad {squad} just moving")
-            #     await squad.move(squad._destination, squad.destination_facing)
 
         self.report()
         self.new_damage_taken.clear()
