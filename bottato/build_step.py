@@ -249,22 +249,29 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     UnitTypeId.STARPORT,
                 )
                 map_center = self.bot.game_info.map_center
-                try:
-                    if self.bot.townhalls:
-                        new_build_position = await self.bot.find_placement(
-                            unit_type_id,
-                            near=self.bot.townhalls.random.position.towards(map_center, distance=8),
-                            placement_step=2,
-                            addon_place=addon_place,
-                        )
+                while True:
+                    try:
+                        if self.bot.townhalls:
+                            new_build_position = await self.bot.find_placement(
+                                unit_type_id,
+                                near=self.bot.townhalls.random.position.towards(map_center, distance=8),
+                                placement_step=2,
+                                addon_place=addon_place,
+                            )
+                        else:
+                            new_build_position = await self.bot.find_placement(
+                                unit_type_id,
+                                placement_step=2,
+                                addon_place=addon_place,
+                            )
+                    except (ConnectionAlreadyClosed, ConnectionResetError, ProtocolError):
+                        return None
+                    # try to not block addons
+                    for no_addon_facility in self.production.get_no_addon_facilities():
+                        if no_addon_facility.add_on_position.distance_to(new_build_position) < 3:
+                            break
                     else:
-                        new_build_position = await self.bot.find_placement(
-                            unit_type_id,
-                            placement_step=2,
-                            addon_place=addon_place,
-                        )
-                except (ConnectionAlreadyClosed, ConnectionResetError, ProtocolError):
-                    return None
+                        break
         return new_build_position
 
     def get_geysir(self) -> Union[Unit, None]:

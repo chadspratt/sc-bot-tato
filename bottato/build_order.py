@@ -101,6 +101,7 @@ class BuildOrder(TimerMixin):
             if build_step.unit_type_id == UnitTypeId.SCV:
                 requested_worker_count += 1
         worker_build_capacity: int = len(self.bot.townhalls)
+        # XXX this is exceeding max_workers, maybe by ignoring workers in buildings
         desired_worker_count = min(worker_build_capacity * 14, self.workers.max_workers)
         logger.debug(f"requested_worker_count={requested_worker_count}")
         logger.debug(f"worker_build_capacity={worker_build_capacity}")

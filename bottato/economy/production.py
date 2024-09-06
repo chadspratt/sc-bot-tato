@@ -443,3 +443,9 @@ class Production(UnitReferenceMixin):
                         build_order.extend(requirement_bom)
 
         return build_order
+
+    def get_no_addon_facilities(self) -> List[Unit]:
+        return [facility.unit for facility in
+                self.facilities[UnitTypeId.BARRACKS][UnitTypeId.NOTAUNIT]
+                + self.facilities[UnitTypeId.FACTORY][UnitTypeId.NOTAUNIT]
+                + self.facilities[UnitTypeId.STARPORT][UnitTypeId.NOTAUNIT]]

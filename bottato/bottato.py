@@ -39,6 +39,7 @@ class BotTato(BotAI, TimerMixin):
         self.last_replay_save_time = 0
         logger.info(os.getcwd())
         logger.info(f"vision blockers: {self.game_info.vision_blockers}")
+        logger.info(f"destructables: {self.destructables}")
         # self.bot.state.action_errors
         # self.bot.state.actions
         # self.bot.state.effects

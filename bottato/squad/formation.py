@@ -289,7 +289,8 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
                 distance = (self.front_center - next_waypoint).length
                 next_waypoint_index += 1
 
-        self.closest_unit: Unit = in_formation_units.closest_to(next_waypoint)
+        position_out_in_front = units_center.towards(next_waypoint, 50)
+        self.closest_unit: Unit = in_formation_units.closest_to(position_out_in_front)
         closest_position = self.closest_unit.position
         intersect_point: Point2
         if units_center.x == next_waypoint.x:
