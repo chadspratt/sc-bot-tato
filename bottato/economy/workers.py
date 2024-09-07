@@ -6,7 +6,7 @@ from typing import Union
 from sc2.bot_ai import BotAI
 from sc2.units import Units
 from sc2.unit import Unit
-from sc2.constants import UnitTypeId
+from sc2.constants import UnitTypeId, AbilityId
 from sc2.position import Point2
 from sc2.game_data import Cost
 
@@ -31,6 +31,10 @@ class WorkerAssignment():
         self.job_type: JobType = JobType.IDLE
         self.target: Unit = None
         self.unit_available: bool = True
+        self.gather_position: Point2 = None
+        self.last_stop: Point2 = None
+        self.dropoff_position: Point2 = None
+        self.returning: bool = False
 
     def __repr__(self) -> str:
         return f"WorkerAssignment({self.unit}({self.unit_available}), {self.job_type.name}, {self.target})"
@@ -92,6 +96,41 @@ class Workers(UnitReferenceMixin, TimerMixin):
                 self.assignments_by_job[assignment.job_type] = [assignment]
         logger.debug(f"assignment summary {self.assignments_by_job}")
 
+    def speed_mine(self):
+        for assignment in self.assignments_by_worker.values():
+            if assignment.unit_available and assignment.job_type in (JobType.MINERALS, JobType.VESPENE):
+                worker: Unit = assignment.unit
+                if not worker.is_moving:
+                    assignment.last_stop = worker.position
+                if worker.is_carrying_resource:
+                    if not assignment.returning:
+                        assignment.returning = True
+                        # if assignment.target.distance_to(assignment.last_stop) < assignment.target.radius + 0.1:
+                        #     assignment.gather_position = assignment.last_stop
+                    if len(worker.orders) == 1:
+                        # might be none ready if converting first cc to orbital
+                        candidates: Units = self.bot.townhalls.ready or self.bot.townhalls
+                        dropoff: Unit = candidates.closest_to(worker)
+                        self.speed_smart(worker, dropoff, assignment.dropoff_position)
+                else:
+                    assignment.returning = False
+                    if len(worker.orders) == 1 and assignment.target:
+                        self.speed_smart(worker, assignment.target, assignment.gather_position)
+
+    def speed_smart(self, worker: Unit, target: Unit, position: Union[Point2, None]) -> None:
+        if position is None:
+            position: Point2 = target.position
+            min_distance = target.radius + worker.radius
+            position = position.towards(worker, min_distance, limit=True)
+        remaining_distance = worker.distance_to(position)
+        if remaining_distance > 2:
+            worker(AbilityId.SMART, target)
+        elif remaining_distance < 0.2:
+            pass
+        else:
+            worker.move(position)
+            worker(AbilityId.SMART, target, True)
+
     def update_assigment(self, worker: Unit, new_job: JobType, new_target: Union[Unit, None]):
         self.update_job(worker, new_job)
         self.update_target(worker, new_target)
@@ -109,8 +148,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
 
     def update_target(self, worker: Unit, new_target: Union[Unit, None]):
         assignment = self.assignments_by_worker[worker.tag]
-        if assignment.target == new_target:
-            logger.info(f"worker {worker} changing from {assignment.target} to {new_target}")
+        logger.debug(f"worker {worker} changing from {assignment.target} to {new_target}")
         if new_target:
             if assignment.job_type == JobType.REPAIR:
                 worker.repair(new_target)
@@ -132,6 +170,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
                 new_target = self.vespene.add_worker(worker)
                 worker.smart(new_target)
         assignment.target = new_target
+        assignment.gather_position = None
 
     def record_death(self, unit_tag):
         if unit_tag in self.assignments_by_worker:

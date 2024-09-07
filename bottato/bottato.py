@@ -19,7 +19,9 @@ from .map import Map
 
 class BotTato(BotAI, TimerMixin):
     async def on_start(self):
-        self.disable_logging()
+        self.ladder_mode = True
+        if self.ladder_mode:
+            self.disable_logging()
         # name clash with BotAI.workers
         self.last_timer_print = 0
         self.map = Map(self)
@@ -47,7 +49,8 @@ class BotTato(BotAI, TimerMixin):
 
     async def on_step(self, iteration):
         logger.info(f"======starting step {iteration} ({self.time}s)======")
-        # await self.save_replay()
+        if not self.ladder_mode:
+            await self.save_replay()
 
         self.start_timer("update_unit_references")
         # XXX very slow
@@ -75,6 +78,10 @@ class BotTato(BotAI, TimerMixin):
         self.start_timer("structure_micro.execute")
         await self.structure_micro.execute()
         self.stop_timer("structure_micro.execute")
+
+        self.start_timer("my_workers.speed_mine")
+        self.my_workers.speed_mine()
+        self.stop_timer("my_workers.speed_mine")
 
         self.start_timer("build_order.execute")
         # XXX slow

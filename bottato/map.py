@@ -16,7 +16,7 @@ class Path:
         self.zones: List[Zone] = zones
         self.is_shortest: bool = is_shortest
         if self.zones is None:
-            logger.info("SELF.ZONES IS NONE")
+            logger.debug("SELF.ZONES IS NONE")
 
     def __repr__(self) -> str:
         return f"Path({self.zones}, {self.distance})"
@@ -124,7 +124,7 @@ class Zone:
                         destination_path = new_full_path
                         logger.debug(f"shorter path found, adding route from {self} to {destination_zone}: {destination_path}")
 
-            logger.info(f"shortest route: {destination_path}")
+            logger.debug(f"shortest route: {destination_path}")
             destination_path.is_shortest = True
             # set reverse to be shortest too
             if destination_path.distance < 9999:
@@ -195,11 +195,11 @@ class Map(TimerMixin, GeometryMixin):
         # self.start_timer("init_open_area_midpoints")
         # self.open_area_midpoints: List[tuple] = self.init_open_area_midpoints(self.distance_from_edge)
         # self.stop_timer("init_open_area_midpoints")
-        # logger.info(f"open_area_midpoints {self.open_area_midpoints}")
+        # logger.debug(f"open_area_midpoints {self.open_area_midpoints}")
         self.start_timer("init_zones")
         self.zones: Dict[int, Zone] = self.init_zones(self.distance_from_edge)
         self.stop_timer("init_zones")
-        logger.info(f"zones {self.zones}")
+        logger.debug(f"zones {self.zones}")
         self.first_draw = True
 
     def init_distance_from_edge(self, pathing_grid: PixelMap) -> Dict[tuple, int]:
@@ -223,16 +223,16 @@ class Map(TimerMixin, GeometryMixin):
             current_distance += 1
             self.coords_by_distance[current_distance] = []
             next_layer = []
-            # logger.info(f"current layer {previous_layer}")
+            # logger.debug(f"current layer {previous_layer}")
             for previous_coord in previous_layer:
                 neighbors = self.neighbors4(previous_coord)
                 for neighbor in neighbors:
-                    # logger.info(f"neighbor of {previous_coord}: {neighbor}")
+                    # logger.debug(f"neighbor of {previous_coord}: {neighbor}")
                     if neighbor not in distance_from_edge:
                         distance_from_edge[neighbor] = current_distance
                         if not self.has_higher_neighbor(neighbor, distance_from_edge):
                             self.coords_by_distance[current_distance].append(neighbor)
-                        # logger.info(f"distance_from_edge {neighbor} is {distance_from_edge[neighbor]}")
+                        # logger.debug(f"distance_from_edge {neighbor} is {distance_from_edge[neighbor]}")
                         next_layer.append(neighbor)
 
         return distance_from_edge
@@ -296,7 +296,7 @@ class Map(TimerMixin, GeometryMixin):
         zones: Dict[int, Zone] = {}
         distances: List[int] = sorted(self.coords_by_distance, reverse=True)
         zones_to_remove = []
-        logger.info(f"distances {distances}")
+        logger.debug(f"distances {distances}")
         for distance in distances:
             zone: Zone
             for zone in zones.values():
@@ -309,7 +309,7 @@ class Map(TimerMixin, GeometryMixin):
                     neighbor: tuple
                     # expand to any neighbors that are closer to the edge (won't push in to next zone)
                     if next_point in [(37, 89), (38, 89), (39, 89)]:
-                        logger.info(f"{next_point} distance {current_distance_to_edge} neighbors {neighbors}")
+                        logger.debug(f"{next_point} distance {current_distance_to_edge} neighbors {neighbors}")
                     for neighbor in neighbors:
                         try:
                             point_zone = self.zone_lookup_by_coord[neighbor]
@@ -317,11 +317,11 @@ class Map(TimerMixin, GeometryMixin):
                                 pass
                                 # skip duplicates in same zone
                                 # if next_point in [(37, 89), (38, 89), (39, 89)]:
-                                #     logger.info(f"neighbor already in zone {neighbor}")
+                                #     logger.debug(f"neighbor already in zone {neighbor}")
                             elif point_zone.radius == zone.radius and current_distance_to_edge >= zone.radius - 1:
                                 # merge zones
                                 # if next_point in [(37, 89), (38, 89), (39, 89)]:
-                                #     logger.info(f"merging zone {point_zone} in to {zone}")
+                                #     logger.debug(f"merging zone {point_zone} in to {zone}")
                                 for coords in point_zone.coords:
                                     self.zone_lookup_by_coord[coords] = zone
                                 points_to_check.extend(point_zone.unchecked_points)
@@ -329,7 +329,7 @@ class Map(TimerMixin, GeometryMixin):
                                 zone.merge_with(point_zone)
                             elif distance_from_edge[neighbor] > 0:
                                 # if next_point in [(37, 89), (38, 89), (39, 89)]:
-                                #     logger.info(f"neighbor in adjacent zone {neighbor}")
+                                #     logger.debug(f"neighbor in adjacent zone {neighbor}")
                                 zone.add_adjacent_zone(point_zone)
                         except KeyError:
                             # unassigned point, check if closer to edge
@@ -337,7 +337,7 @@ class Map(TimerMixin, GeometryMixin):
                             # match lower points or equal height
                             if (neighbor_distance <= current_distance_to_edge):
                                 # if next_point in [(37, 89), (38, 89), (39, 89)]:
-                                #     logger.info(f"{neighbor} adding to zone {zone.id}")
+                                #     logger.debug(f"{neighbor} adding to zone {zone.id}")
                                 self.zone_lookup_by_coord[neighbor] = zone
                                 zone.coords.append(neighbor)
                                 zone.unchecked_points.append(neighbor)
@@ -367,7 +367,7 @@ class Map(TimerMixin, GeometryMixin):
             all_point2s = [Point2(coord) for coord in zone.coords]
             zone.midpoint = Point2.center(all_point2s)
 
-        logger.info(f"all zones ({len(zones)}){zones}")
+        logger.debug(f"all zones ({len(zones)}){zones}")
         return zones
 
     def get_path(self, start: Point2, end: Point2) -> List[Point2]:
@@ -379,13 +379,13 @@ class Map(TimerMixin, GeometryMixin):
             end_zone = self.zone_lookup_by_coord[(end_rounded.x, end_rounded.y)]
         except KeyError:
             return point2_path
-        logger.info(f"start_zone {start_zone}")
-        logger.info(f"end_zone {end_zone}")
+        logger.debug(f"start_zone {start_zone}")
+        logger.debug(f"end_zone {end_zone}")
         if start_zone.id != end_zone.id:
             zone: Zone
             path: Path = start_zone.path_to(end_zone)
             if path:
-                logger.info(f"found path {path}")
+                logger.debug(f"found path {path}")
                 for zone in path.zones:
                     point2_path.append(zone.midpoint)
         return point2_path
