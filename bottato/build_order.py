@@ -274,7 +274,7 @@ class BuildOrder(TimerMixin):
                 self.timers[timer_name] = build_step.timers[timer_name]
             else:
                 self.timers[timer_name]["total"] += build_step.timers[timer_name]["total"]
-                logger.info(f"adding to existing timer for {timer_name}={self.timers[timer_name]["total"]}")
+                logger.info(f"adding to existing timer for {timer_name}={self.timers[timer_name]['total']}")
 
     def update_started_structure(self, started_structure: Unit) -> None:
         logger.info(
