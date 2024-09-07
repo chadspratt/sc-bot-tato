@@ -127,7 +127,8 @@ class FormationSquad(BaseSquad, GeometryMixin):
             self.targets = Units(targets, self.bot)
             self.current_order = SquadOrderEnum.ATTACK
 
-            closest_target = self.targets.closest_to(self.parent_formation.front_center)
+            reference_point = self.parent_formation.front_center or self.units.center
+            closest_target = self.targets.closest_to(reference_point)
             target_position = closest_target.position
             logger.info(
                 f"{self.name} Squad attacking {closest_target};"
