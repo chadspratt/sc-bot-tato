@@ -482,6 +482,7 @@ class BuildOrder(TimerMixin):
                 UnitTypeId.REFINERY,
                 UnitTypeId.ORBITALCOMMAND,
                 UnitTypeId.REAPER,
+                UnitTypeId.BARRACKSREACTOR,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.FACTORY,
                 UnitTypeId.REAPER,
@@ -503,7 +504,6 @@ class BuildOrder(TimerMixin):
                 # interference matrix
                 UnitTypeId.SIEGETANK,
                 UnitTypeId.ENGINEERINGBAY,
-                UnitTypeId.BARRACKSREACTOR,
                 UnitTypeId.RAVEN,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.SIEGETANK,
