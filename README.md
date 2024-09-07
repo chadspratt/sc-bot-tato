@@ -1,1 +1,1 @@
-A Starcraft II bot to try some different strategies and have some fun
+A Starcraft II bot with an emphasis on moving in formation

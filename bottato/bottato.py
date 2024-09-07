@@ -19,6 +19,7 @@ from .map import Map
 
 class BotTato(BotAI, TimerMixin):
     async def on_start(self):
+        self.disable_logging()
         # name clash with BotAI.workers
         self.last_timer_print = 0
         self.map = Map(self)
@@ -117,12 +118,15 @@ class BotTato(BotAI, TimerMixin):
 
     async def save_replay(self):
         if self.time - self.last_replay_save_time > 30:
-            await self.client.save_replay(".\\python-sc2\\examples\\competitive\\replays\\bottato.sc2replay")
+            await self.client.save_replay(".\\replays\\bottato.sc2replay")
             self.last_replay_save_time = self.time
 
         if len(self.units) == 0 or len(self.townhalls) == 0:
-            await self.client.save_replay(".\\python-sc2\\examples\\competitive\\replays\\bottato.sc2replay")
+            await self.client.save_replay(".\\replays\\bottato.sc2replay")
             await self.client.leave()
+
+    def disable_logging(self):
+        logger.disable("bottato")
 
     async def on_building_construction_started(self, unit: Unit):
         logger.info(f"building started! {unit}")
