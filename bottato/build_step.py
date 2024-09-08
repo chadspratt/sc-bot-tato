@@ -261,6 +261,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                         else:
                             new_build_position = await self.bot.find_placement(
                                 unit_type_id,
+                                near=self.bot.start_location,
                                 placement_step=2,
                                 addon_place=addon_place,
                             )
