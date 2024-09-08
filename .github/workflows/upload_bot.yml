@@ -29,7 +29,7 @@ jobs:
     # Runs a single command using the runners shell
     - name: Zip Files
       run: zip -r bottato.zip sc2 main/bottato main/__init__.py main/ladderbots.json main/LICENSE main/README.md main/run.py
-    # - name: Upload
-    #   env:
-    #     AI_ARENA_API_KEY: ${{ secrets.AI_ARENA_API_KEY }}
-    #   run: python upload_bot.py
+    - name: Upload
+      env:
+        AI_ARENA_API_KEY: ${{ secrets.AI_ARENA_API_KEY }}
+      run: python upload_bot.py
