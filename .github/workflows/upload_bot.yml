@@ -35,4 +35,4 @@ jobs:
     - name: Upload
       env:
         AI_ARENA_API_KEY: ${{ secrets.AI_ARENA_API_KEY }}
-      run: python main/upload_bot.py
+      run: python upload_bot.py
