@@ -99,7 +99,7 @@ class Military(GeometryMixin, DebugMixin):
         if mount_offense:
             if self.offense_start_supply == 200:
                 self.offense_start_supply = self.bot.supply_army
-            self.bot.chat_send("time to attack")
+            await self.bot.chat_send("time to attack")
         else:
             self.offense_start_supply = 200
 

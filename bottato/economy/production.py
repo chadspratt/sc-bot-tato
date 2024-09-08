@@ -391,8 +391,11 @@ class Production(UnitReferenceMixin):
         build_order.reverse()
         return build_order
 
-    def build_order_with_prereqs_recurse(self, unit_type: Union[UnitTypeId, UpgradeId]) -> List[Union[UnitTypeId, UpgradeId]]:
+    def build_order_with_prereqs_recurse(self,
+                                         unit_type: Union[UnitTypeId, UpgradeId],
+                                         previous_types: List[Union[UnitTypeId, UpgradeId]] = []) -> List[Union[UnitTypeId, UpgradeId]]:
         build_order = [unit_type]
+        new_previous = [unit_type].extend(previous_types)
 
         if isinstance(unit_type, UpgradeId):
             requirement = UPGRADE_RESEARCHED_FROM[unit_type]
@@ -400,7 +403,7 @@ class Production(UnitReferenceMixin):
             logger.debug(f"{requirement} progress: {prereq_progress}")
 
             if prereq_progress == 0:
-                requirement_bom = self.build_order_with_prereqs_recurse(requirement)
+                requirement_bom = self.build_order_with_prereqs_recurse(requirement, new_previous)
                 # if same prereq appears at a higher level, skip adding it
                 if unit_type in requirement_bom:
                     build_order = requirement_bom
@@ -414,7 +417,7 @@ class Production(UnitReferenceMixin):
                     logger.debug(f"{requirement} progress: {prereq_progress}")
 
                     if prereq_progress == 0:
-                        requirement_bom = self.build_order_with_prereqs_recurse(requirement)
+                        requirement_bom = self.build_order_with_prereqs_recurse(requirement, new_previous)
                         # if same prereq appears at a higher level, skip adding it
                         if unit_type in requirement_bom:
                             build_order = requirement_bom
@@ -423,7 +426,6 @@ class Production(UnitReferenceMixin):
 
             if unit_type in UNIT_TRAINED_FROM:
                 # check that one training facility exists
-                arbitrary_trainer: UnitTypeId = None
                 for trainer in UNIT_TRAINED_FROM[unit_type]:
                     if trainer in build_order:
                         break
@@ -431,16 +433,16 @@ class Production(UnitReferenceMixin):
                         break
                     if self.bot.structure_type_build_progress(trainer) > 0:
                         break
-                    if arbitrary_trainer is None:
-                        arbitrary_trainer = trainer
                 else:
                     # no trainers available
-                    requirement_bom = self.build_order_with_prereqs_recurse(arbitrary_trainer)
-                    # if same prereq appears at a higher level, skip adding it
-                    if unit_type in requirement_bom:
-                        build_order = requirement_bom
+                    for trainer in UNIT_TRAINED_FROM[unit_type]:
+                        if trainer not in previous_types:
+                            requirement_bom = self.build_order_with_prereqs_recurse(trainer, new_previous)
+                            if requirement_bom:
+                                build_order.extend(requirement_bom)
+                                break
                     else:
-                        build_order.extend(requirement_bom)
+                        return []
 
         return build_order
 

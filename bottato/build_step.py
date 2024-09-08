@@ -277,15 +277,16 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     def get_geysir(self) -> Union[Unit, None]:
         # All the vespene geysirs nearby, including ones with a refinery on top of it
         # command_centers = bot.townhalls
-        vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
-            distance=10, other_units=self.bot.townhalls
-        )
-        for vespene_geysir in vespene_geysirs:
-            if self.bot.gas_buildings.filter(
-                lambda unit: unit.distance_to(vespene_geysir) < 1
-            ):
-                continue
-            return vespene_geysir
+        if self.bot.townhalls:
+            vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
+                distance=10, other_units=self.bot.townhalls
+            )
+            for vespene_geysir in vespene_geysirs:
+                if self.bot.gas_buildings.filter(
+                    lambda unit: unit.distance_to(vespene_geysir) < 1
+                ):
+                    continue
+                return vespene_geysir
         return None
 
     def is_interrupted(self) -> bool:
