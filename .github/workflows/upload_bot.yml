@@ -15,18 +15,20 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-    - name: Checkout
-      uses: actions/checkout@v4
-
     - name: Checkout python-sc2
       uses: actions/checkout@v4
       with:
-        sparse-checkout: sc2/sc2
+        sparse-checkout: sc2
         repository: chadspratt/python-sc2
-        path: sc2
+
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        path: main
+
     # Runs a single command using the runners shell
     - name: Zip Files
-      run: zip -r bottato.zip sc2 __init__.py ladderbots.json LICENSE README.md run.py
+      run: zip -r bottato.zip sc2 main/bottato main/__init__.py main/ladderbots.json main/LICENSE main/README.md main/run.py
     # - name: Upload
     #   env:
     #     AI_ARENA_API_KEY: ${{ secrets.AI_ARENA_API_KEY }}
