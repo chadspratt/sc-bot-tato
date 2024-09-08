@@ -20,4 +20,6 @@ jobs:
     - name: Zip Files
       run: zip bottato sc2 __init__.py ladderbots.json LICENSE README.md run.py bottato.zip
     - name: Upload
+      env:
+        AI_ARENA_API_KEY: ${{ secrets.AI_ARENA_API_KEY }}
       run: python upload_bot.py
