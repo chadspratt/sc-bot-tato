@@ -395,7 +395,8 @@ class Production(UnitReferenceMixin):
                                          unit_type: Union[UnitTypeId, UpgradeId],
                                          previous_types: List[Union[UnitTypeId, UpgradeId]] = []) -> List[Union[UnitTypeId, UpgradeId]]:
         build_order = [unit_type]
-        new_previous = [unit_type].extend(previous_types)
+        new_previous = [unit_type]
+        new_previous.extend(previous_types)
 
         if isinstance(unit_type, UpgradeId):
             requirement = UPGRADE_RESEARCHED_FROM[unit_type]
