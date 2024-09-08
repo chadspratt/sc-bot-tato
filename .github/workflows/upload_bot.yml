@@ -21,7 +21,7 @@ jobs:
     - name: Checkout python-sc2
       uses: actions/checkout@v4
       with:
-        sparse-checkout: sc2/
+        sparse-checkout: sc2/sc2
         repository: chadspratt/python-sc2
         path: sc2
     # Runs a single command using the runners shell
