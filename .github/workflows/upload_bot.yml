@@ -23,7 +23,7 @@ jobs:
       with:
         sparse-checkout: sc2
         repository: chadspratt/python-sc2
-        # path: sc2
+        path: .
     # Runs a single command using the runners shell
     - name: Zip Files
       run: zip -r bottato.zip sc2 __init__.py ladderbots.json LICENSE README.md run.py
