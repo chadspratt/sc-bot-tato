@@ -10,12 +10,12 @@ on:
 jobs:
   # This workflow contains a single job called "greet"
   package:
-    uses: actions/checkout@v4
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
+    - uses: actions/checkout@v4
     # Runs a single command using the runners shell
     - name: Zip Files
       run: zip bottato sc2 __init__.py ladderbots.json LICENSE README.md run.py bottato.zip
