@@ -27,7 +27,7 @@ jobs:
         path: main
 
     - name: Rearrange files
-      run: mv -f . main/*
+      run: mv -f main/* .
 
     # Runs a single command using the runners shell
     - name: Zip Files
