@@ -21,9 +21,9 @@ jobs:
     - name: Checkout python-sc2
       uses: actions/checkout@v4
       with:
-        sparse-checkout: sc2
+        sparse-checkout: sc2/
         repository: chadspratt/python-sc2
-        path: .
+        path: sc2
     # Runs a single command using the runners shell
     - name: Zip Files
       run: zip -r bottato.zip sc2 __init__.py ladderbots.json LICENSE README.md run.py
