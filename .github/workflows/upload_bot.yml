@@ -18,7 +18,7 @@ jobs:
     - uses: actions/checkout@v4
     # Runs a single command using the runners shell
     - name: Zip Files
-      run: zip bottato sc2 __init__.py ladderbots.json LICENSE README.md run.py bottato.zip
+      run: zip -r bottato.zip sc2 __init__.py ladderbots.json LICENSE README.md run.py
     - name: Upload
       env:
         AI_ARENA_API_KEY: ${{ secrets.AI_ARENA_API_KEY }}
