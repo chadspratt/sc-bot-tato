@@ -124,7 +124,10 @@ class Military(GeometryMixin, DebugMixin):
             else:
                 logger.info(f"squad {squad} staging")
                 enemy_position = self.bot.enemy_start_locations[0]
-                squad.staging_location = self.bot.townhalls.closest_to(enemy_position).position.towards_with_random_angle(enemy_position, 4, math.pi / 2)
+                if self.bot.townhalls:
+                    squad.staging_location = self.bot.townhalls.closest_to(enemy_position).position.towards_with_random_angle(enemy_position, 4, math.pi / 2)
+                else:
+                    squad.staging_location = self.bot.start_location
                 facing = self.get_facing(squad.staging_location, enemy_position)
                 await squad.move(squad.staging_location, facing)
 

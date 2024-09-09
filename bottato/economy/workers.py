@@ -98,7 +98,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
 
     def speed_mine(self):
         for assignment in self.assignments_by_worker.values():
-            if assignment.unit_available and assignment.job_type in (JobType.MINERALS, JobType.VESPENE):
+            if assignment.unit_available and assignment.job_type in (JobType.MINERALS):
                 worker: Unit = assignment.unit
                 if not worker.is_moving:
                     assignment.last_stop = worker.position
@@ -147,6 +147,8 @@ class Workers(UnitReferenceMixin, TimerMixin):
         self.assignments_by_job[new_job].append(assignment)
 
     def update_target(self, worker: Unit, new_target: Union[Unit, None]):
+        if worker.tag not in self.assignments_by_worker:
+            return
         assignment = self.assignments_by_worker[worker.tag]
         logger.debug(f"worker {worker} changing from {assignment.target} to {new_target}")
         if new_target:
