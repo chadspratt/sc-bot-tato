@@ -98,7 +98,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
 
     def speed_mine(self):
         for assignment in self.assignments_by_worker.values():
-            if assignment.unit_available and assignment.job_type in (JobType.MINERALS):
+            if assignment.unit_available and assignment.job_type in [JobType.MINERALS]:
                 worker: Unit = assignment.unit
                 if not worker.is_moving:
                     assignment.last_stop = worker.position
