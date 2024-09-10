@@ -19,7 +19,7 @@ from .map import Map
 
 class BotTato(BotAI, TimerMixin):
     async def on_start(self):
-        self.ladder_mode = False
+        self.ladder_mode = True
         if self.ladder_mode:
             self.disable_logging()
         # name clash with BotAI.workers
