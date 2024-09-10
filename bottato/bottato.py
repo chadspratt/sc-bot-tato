@@ -19,14 +19,14 @@ from .map import Map
 
 class BotTato(BotAI, TimerMixin):
     async def on_start(self):
-        self.ladder_mode = True
+        self.ladder_mode = False
         if self.ladder_mode:
             self.disable_logging()
         # name clash with BotAI.workers
         self.last_timer_print = 0
         self.map = Map(self)
-        for loc in self.expansion_locations_list:
-            self.map.get_path(self.game_info.player_start_location, loc)
+        # for loc in self.expansion_locations_list:
+        #     self.map.get_path(self.game_info.player_start_location, loc)
         self.my_workers: Workers = Workers(self)
         self.enemy: Enemy = Enemy(self)
         self.military: Military = Military(self, self.enemy, self.map)

@@ -110,8 +110,9 @@ class Workers(UnitReferenceMixin, TimerMixin):
                     if len(worker.orders) == 1:
                         # might be none ready if converting first cc to orbital
                         candidates: Units = self.bot.townhalls.ready or self.bot.townhalls
-                        dropoff: Unit = candidates.closest_to(worker)
-                        self.speed_smart(worker, dropoff, assignment.dropoff_position)
+                        if candidates:
+                            dropoff: Unit = candidates.closest_to(worker)
+                            self.speed_smart(worker, dropoff, assignment.dropoff_position)
                 else:
                     assignment.returning = False
                     if len(worker.orders) == 1 and assignment.target:
@@ -133,7 +134,11 @@ class Workers(UnitReferenceMixin, TimerMixin):
 
     def attack_nearby_enemies(self) -> None:
         for assignment in self.assignments_by_worker.values():
-            reference_unit: Unit = assignment.target or self.bot.townhalls.closest_to(assignment.unit.position)
+            reference_unit: Unit = assignment.target
+            if self.bot.townhalls:
+                reference_unit = reference_unit or self.bot.townhalls.closest_to(assignment.unit.position)
+            else:
+                reference_unit = reference_unit or assignment.unit
             if self.bot.enemy_units and reference_unit:
                 nearest_enemy = self.bot.enemy_units.closest_to(reference_unit.position)
                 if nearest_enemy.distance_to(reference_unit.position) < 10:
@@ -176,9 +181,10 @@ class Workers(UnitReferenceMixin, TimerMixin):
         else:
             if assignment.job_type == JobType.MINERALS:
                 new_target = self.minerals.add_worker(worker)
+                worker.smart(new_target)
             elif assignment.job_type == JobType.VESPENE:
                 new_target = self.vespene.add_worker(worker)
-            worker.smart(new_target)
+                worker.smart(new_target)
         assignment.target = new_target
         assignment.gather_position = None
 
