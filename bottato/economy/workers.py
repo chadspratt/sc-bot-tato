@@ -131,6 +131,15 @@ class Workers(UnitReferenceMixin, TimerMixin):
             worker.move(position)
             worker(AbilityId.SMART, target, True)
 
+    def attack_nearby_enemies(self) -> None:
+        for assignment in self.assignments_by_worker.values():
+            reference_unit: Unit = assignment.target or self.bot.townhalls.closest_to(assignment.unit.position)
+            if self.bot.enemy_units and reference_unit:
+                nearest_enemy = self.bot.enemy_units.closest_to(reference_unit.position)
+                if nearest_enemy.distance_to(reference_unit.position) < 10:
+                    logger.info(f"worker {assignment.unit} attacking enemy to defend {reference_unit} which is maybe {assignment.target}")
+                    assignment.unit.attack(nearest_enemy)
+
     def update_assigment(self, worker: Unit, new_job: JobType, new_target: Union[Unit, None]):
         self.update_job(worker, new_job)
         self.update_target(worker, new_target)
@@ -167,10 +176,9 @@ class Workers(UnitReferenceMixin, TimerMixin):
         else:
             if assignment.job_type == JobType.MINERALS:
                 new_target = self.minerals.add_worker(worker)
-                worker.smart(new_target)
             elif assignment.job_type == JobType.VESPENE:
                 new_target = self.vespene.add_worker(worker)
-                worker.smart(new_target)
+            worker.smart(new_target)
         assignment.target = new_target
         assignment.gather_position = None
 

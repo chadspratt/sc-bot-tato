@@ -65,8 +65,9 @@ class BaseUnitMicro(GeometryMixin):
         if do_retreat:
             logger.info(f"{unit} retreating")
             if unit.is_mechanical:
-                if self.bot.workers:
-                    unit.move(self.bot.workers.closest_to(unit))
+                repairers = self.bot.workers.filter(lambda unit: unit.is_repairing) or self.bot.workers
+                if repairers:
+                    unit.move(repairers.closest_to(unit))
                 else:
                     do_retreat = False
             else:

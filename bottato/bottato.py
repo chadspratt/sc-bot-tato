@@ -56,18 +56,16 @@ class BotTato(BotAI, TimerMixin):
         # XXX very slow
         await self.update_unit_references()
         self.stop_timer("update_unit_references")
-        self.start_timer("my_workers.distribute_idle")
-        self.my_workers.distribute_idle()
-        self.stop_timer("my_workers.distribute_idle")
 
         self.start_timer("military.manage_squads")
         # XXX extremely slow
         await self.military.manage_squads(iteration)
         self.stop_timer("military.manage_squads")
-        self.start_timer("military.get_squad_request")
+
         # squads_to_fill: List[BaseSquad] = [self.military.get_squad_request()]
         remaining_cap = self.build_order.remaining_cap
         if remaining_cap > 0:
+            self.start_timer("military.get_squad_request")
             logger.info(f"requesting at least {remaining_cap} supply of units for military")
             unit_request: list[UnitTypeId] = self.military.get_squad_request(remaining_cap)
             self.stop_timer("military.get_squad_request")
@@ -79,6 +77,10 @@ class BotTato(BotAI, TimerMixin):
         await self.structure_micro.execute()
         self.stop_timer("structure_micro.execute")
 
+        self.my_workers.attack_nearby_enemies()
+        self.start_timer("my_workers.distribute_idle")
+        self.my_workers.distribute_idle()
+        self.stop_timer("my_workers.distribute_idle")
         self.start_timer("my_workers.speed_mine")
         self.my_workers.speed_mine()
         self.stop_timer("my_workers.speed_mine")
