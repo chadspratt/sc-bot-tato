@@ -100,7 +100,7 @@ class BuildOrder(TimerMixin):
         for build_step in self.started + self.pending:
             if build_step.unit_type_id == UnitTypeId.SCV:
                 requested_worker_count += 1
-        worker_build_capacity: int = len(self.bot.townhalls)
+        worker_build_capacity: int = len(self.bot.townhalls.ready)
         # XXX this is exceeding max_workers, maybe by ignoring workers in buildings
         desired_worker_count = min(worker_build_capacity * 16, self.workers.max_workers)
         logger.debug(f"requested_worker_count={requested_worker_count}")
@@ -109,7 +109,7 @@ class BuildOrder(TimerMixin):
             requested_worker_count < worker_build_capacity
             and requested_worker_count + len(self.bot.workers) < desired_worker_count
         ):
-            self.pending.insert(1, BuildStep(UnitTypeId.SCV, self.bot, self.workers, self.production))
+            self.pending.insert(0, BuildStep(UnitTypeId.SCV, self.bot, self.workers, self.production))
 
     def queue_command_center(self) -> None:
         worker_count = len(self.bot.workers)

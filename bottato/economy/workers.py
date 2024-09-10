@@ -55,7 +55,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
         }
         self.minerals = Minerals(bot)
         self.vespene = Vespene(bot)
-        self.max_workers = 85
+        self.max_workers = 75
         self.health_per_repairer = 50
         self.max_repairers = 25
         for worker in self.bot.workers:
@@ -285,13 +285,15 @@ class Workers(UnitReferenceMixin, TimerMixin):
         injured_units = self.units_needing_repair()
         needed_repairers: int = 0
         missing_health = 0
+        # limit to percentage of total workers
+        max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 2))
         if injured_units:
             for unit in injured_units:
                 missing_health += unit.health_max - unit.health
                 logger.info(f"{unit} missing health {unit.health_max - unit.health}")
             needed_repairers = missing_health / self.health_per_repairer
-            if needed_repairers > self.max_repairers:
-                needed_repairers = self.max_repairers
+            if needed_repairers > max_repairers:
+                needed_repairers = max_repairers
 
         current_repairers: Units = self.availiable_workers_on_job(JobType.REPAIR)
         repairer_shortage: int = round(needed_repairers) - len(current_repairers)

@@ -94,12 +94,12 @@ class Military(GeometryMixin, DebugMixin):
         logger.info(f"enemies in base {enemies_in_base}")
 
         mount_defense = len(enemies_in_base) > 0
-        mount_offense = not mount_defense and (self.bot.supply_used >= 180 or self.bot.supply_army / self.offense_start_supply > 0.7)
+        mount_offense = not mount_defense and (self.bot.supply_used >= 150 or self.bot.supply_army / self.offense_start_supply > 0.7)
 
         if mount_offense:
             if self.offense_start_supply == 200:
                 self.offense_start_supply = self.bot.supply_army
-                await self.bot.chat_send("time to attack")
+                # await self.bot.chat_send("time to attack")
         else:
             self.offense_start_supply = 200
 

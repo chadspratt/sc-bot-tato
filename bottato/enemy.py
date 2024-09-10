@@ -173,7 +173,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 nearest_enemy = enemy
                 nearest_distance = enemy_distance
         # can attack a destructable if no enemies in sight range
-        if include_destructables and nearest_distance > friendly_unit.sight_range:
+        if include_destructables and nearest_distance > 20:
             for destructable in self.bot.destructables:
                 enemy_distance = friendly_unit.distance_to(destructable)
                 if (enemy_distance < nearest_distance):
