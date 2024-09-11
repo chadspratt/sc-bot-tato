@@ -12,6 +12,7 @@ from ..mixins import GeometryMixin
 
 class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     sieged_range = 13.5
+    sieged_minimum_range = 2
     unsieged_range = 7
     max_siege_time = 3.24
     sieged_tags = set()
@@ -55,7 +56,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         else:
             is_last_unseiged = len(self.unsieged_tags) == 1
             enemy_distance = unit_distance if is_last_unseiged else enemy_range_after_sieging + self.siege_buffer
-            if enemy_range_after_sieging > self.unsieged_range - 2 and (enemy_distance <= self.sieged_range or structure_distance < self.sieged_range):
+            if enemy_range_after_sieging > self.sieged_minimum_range + 1 and (enemy_distance <= self.sieged_range or structure_distance < self.sieged_range):
                 self.siege(unit)
                 return True
         return False
