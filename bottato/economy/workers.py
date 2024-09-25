@@ -227,7 +227,8 @@ class Workers(UnitReferenceMixin, TimerMixin):
             logger.info(f"{worker} delivering resources to {nearest_cc}")
 
     def set_as_idle(self, worker: Unit):
-        self.update_assigment(worker, JobType.IDLE, None)
+        if worker.tag in self.assignments_by_worker:
+            self.update_assigment(worker, JobType.IDLE, None)
 
     def distribute_idle(self):
         if self.bot.workers.idle:
