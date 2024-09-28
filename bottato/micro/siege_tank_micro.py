@@ -40,20 +40,24 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             else:
                 self.unsiege(unit)
         enemy_unit, unit_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=[UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.DRONEBURROWED, UnitTypeId.MULE])
+        any_enemy_unit, any_enemy_unit_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False)
         enemy_structure, structure_distance = enemy.get_closest_target(unit, include_units=False, include_destructables=False)
         logger.info(f"{unit} seiged={is_sieged}, closest enemy {enemy_unit}({unit_distance}), structure {enemy_structure}({structure_distance})")
         enemy_range_after_sieging = 9999
-        if enemy_unit:
-            self.bot.client.debug_line_out(unit, enemy_unit)
-            enemy_range_after_sieging = unit_distance - enemy_unit.calculate_speed() * self.max_siege_time
 
         if is_sieged:
+            if enemy_unit:
+                self.bot.client.debug_line_out(unit, enemy_unit)
+                enemy_range_after_sieging = unit_distance - any_enemy_unit.calculate_speed() * self.max_siege_time
             all_sieged = len(self.unsieged_tags) == 0
-            enemy_distance = unit_distance if all_sieged else enemy_range_after_sieging + self.unsiege_buffer
+            enemy_distance = any_enemy_unit_distance if all_sieged else enemy_range_after_sieging + self.unsiege_buffer
             if enemy_distance > self.sieged_range and structure_distance > self.sieged_range:
                 self.unsiege(unit)
                 return True
         else:
+            if enemy_unit:
+                self.bot.client.debug_line_out(unit, enemy_unit)
+                enemy_range_after_sieging = unit_distance - enemy_unit.calculate_speed() * self.max_siege_time
             is_last_unseiged = len(self.unsieged_tags) == 1
             enemy_distance = unit_distance if is_last_unseiged else enemy_range_after_sieging + self.siege_buffer
             if enemy_range_after_sieging > self.sieged_minimum_range + 1 and (enemy_distance <= self.sieged_range or structure_distance < self.sieged_range):
