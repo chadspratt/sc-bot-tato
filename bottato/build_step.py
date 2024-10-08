@@ -16,6 +16,7 @@ from .mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
 from .special_locations import SpecialLocations
+from bottato.upgrades import RESEARCH_ABILITIES
 
 
 class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
@@ -61,8 +62,12 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.bot.client.debug_sphere_out(self.unit_in_charge, 1, (255, 130, 0))
             if self.pos:
                 self.bot.client.debug_line_out(self.unit_in_charge, self.convert_point2_to_3(self.pos), (255, 130, 0))
-            self.bot.client.debug_text_world(
-                str(self.unit_in_charge.tag), self.unit_in_charge.position3d)
+            if self.unit_type_id:
+                self.bot.client.debug_text_world(
+                    self.unit_type_id.name, self.unit_in_charge.position3d)
+            elif self.upgrade_id:
+                self.bot.client.debug_text_world(
+                    self.upgrade_id.name, self.unit_in_charge.position3d)
         if self.pos:
             self.bot.client.debug_box2_out(self.convert_point2_to_3(self.pos), 0.5)
             self.bot.client.debug_text_world(
@@ -120,13 +125,14 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         logger.info(f"researching upgrade {self.upgrade_id}")
         if self.unit_in_charge is None:
             self.unit_in_charge = self.production.get_research_facility(self.upgrade_id)
-            logger.info(f"research facility: {self.unit_in_charge}")
+            logger.debug(f"research facility: {self.unit_in_charge}")
         if self.unit_in_charge is None:
             response = self.ResponseCode.NO_FACILITY
         else:
-            successful_action: bool = self.bot.do(
-                self.unit_in_charge.research(self.upgrade_id), subtract_cost=True, ignore_warning=True
-            )
+            # successful_action: bool = self.unit_in_charge.research(self.upgrade_id)
+            ability = RESEARCH_ABILITIES[self.upgrade_id]
+            logger.info(f"{self.unit_in_charge} researching upgrade with ability {ability}")
+            successful_action: bool = self.unit_in_charge(ability)
             if successful_action:
                 response = self.ResponseCode.SUCCESS
         if response is None:
@@ -195,7 +201,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 self.unit_in_charge = facility_candidates.ready.idle[0]
 
         if self.unit_in_charge is None:
-            logger.info("no idle training facility")
+            logger.debug("no idle training facility")
             response = self.ResponseCode.NO_FACILITY
         else:
             if self.unit_type_id in {UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}:
@@ -203,7 +209,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             else:
                 self.unit_being_built = True
             # self.pos = self.unit_in_charge.position
-            logger.info(f"Found training facility {self.unit_in_charge}")
+            logger.debug(f"Found training facility {self.unit_in_charge}")
             build_response = self.unit_in_charge(self.get_build_ability())
             response = self.ResponseCode.SUCCESS if build_response else self.ResponseCode.FAILED
         return response
@@ -295,15 +301,12 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             logger.info(f"{self} builder is missing")
             return True
 
-        self.check_idle: bool = self.check_idle or (
+        self.check_idle: bool = self.check_idle or self.upgrade_id or (
             self.unit_in_charge.is_active and not self.unit_in_charge.is_gathering
         )
 
         if self.check_idle:
             if self.unit_in_charge.is_idle:
                 logger.info(f"unit_in_charge {self.unit_in_charge}")
-                return True
-            if self.upgrade_id and self.bot.already_pending_upgrade(self.upgrade_id) == 0:
-                logger.info(f"upgrade not researching {self.upgrade_id}")
                 return True
         return False

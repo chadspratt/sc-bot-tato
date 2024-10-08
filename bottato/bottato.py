@@ -36,7 +36,6 @@ class BotTato(BotAI, TimerMixin):
             "uthermal tvt", bot=self, workers=self.my_workers, production=self.production
         )
         # await self.client.debug_fast_build()
-        # await self.client.debug_gas()
         # await self.client.debug_minerals()
         # self.client.save_replay_path = "..\replays\bottato.mpq"
         self.last_replay_save_time = 0
@@ -124,6 +123,7 @@ class BotTato(BotAI, TimerMixin):
             self.build_order.print_timers("build_order-")
             self.my_workers.print_timers("my_workers-")
             self.map.print_timers("map-")
+            logger.info(f"upgrades: {self.state.upgrades}")
 
     async def save_replay(self):
         if self.time - self.last_replay_save_time > 30:

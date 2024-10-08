@@ -14,6 +14,7 @@ from .economy.production import Production
 from .mixins import TimerMixin
 from .upgrades import Upgrades
 from .special_locations import SpecialLocations, SpecialLocation
+from bottato.upgrades import COMPLETED_UPGRADE_ID_FIXES
 
 
 class BuildOrder(TimerMixin):
@@ -107,9 +108,9 @@ class BuildOrder(TimerMixin):
         logger.debug(f"worker_build_capacity={worker_build_capacity}")
         if (
             requested_worker_count < worker_build_capacity
-            and requested_worker_count + len(self.bot.workers) < desired_worker_count
+            and requested_worker_count + len(self.workers.assignments_by_worker) < desired_worker_count
         ):
-            self.pending.insert(0, BuildStep(UnitTypeId.SCV, self.bot, self.workers, self.production))
+            self.add_to_build_order(UnitTypeId.SCV, 0)
 
     def queue_command_center(self) -> None:
         worker_count = len(self.bot.workers)
@@ -127,7 +128,7 @@ class BuildOrder(TimerMixin):
         if needed_cc_count > 0:
             for i in range(needed_cc_count - cc_count):
                 logger.info("queuing command center")
-                self.pending.insert(1, BuildStep(UnitTypeId.COMMANDCENTER, self.bot, self.workers, self.production))
+                self.add_to_build_order(UnitTypeId.COMMANDCENTER, 1)
 
     def queue_refinery(self) -> None:
         refinery_count = len(self.bot.gas_buildings)
@@ -138,7 +139,7 @@ class BuildOrder(TimerMixin):
         logger.info(f"refineries: {refinery_count}, townhalls: {len(self.bot.townhalls)}")
         if refinery_count < len(self.bot.townhalls) * 2:
             logger.info("adding refinery to build order")
-            self.pending.insert(0, BuildStep(UnitTypeId.REFINERY, self.bot, self.workers, self.production))
+            self.add_to_build_order(UnitTypeId.REFINERY, 0)
         # should also build a new one if current bases run out of resources
 
     def queue_supply(self) -> None:
@@ -146,7 +147,7 @@ class BuildOrder(TimerMixin):
             if build_step.unit_type_id == UnitTypeId.SUPPLYDEPOT:
                 return
         if self.bot.supply_cap == 0 or (self.bot.supply_left / self.bot.supply_cap < 0.3 and self.bot.supply_cap < 200):
-            self.pending.insert(1, BuildStep(UnitTypeId.SUPPLYDEPOT, self.bot, self.workers, self.production))
+            self.add_to_build_order(UnitTypeId.SUPPLYDEPOT, 1)
 
     def queue_production(self) -> None:
         # add more barracks/factories/starports to handle backlog of pending affordable units
@@ -163,21 +164,16 @@ class BuildOrder(TimerMixin):
     upgrades_started = False
 
     def queue_upgrade(self) -> None:
-        # look at units we have or that are queued
-        # what are available upgrade facilities
-        # does upgrading on a tech lab block producing units
-        if self.upgrades_started or self.bot.supply_used > 10:
-            self.upgrades_started = True
-            next_upgrade: UpgradeId = self.upgrades.next_upgrade()
+        next_upgrades: List[UpgradeId] = self.upgrades.get_upgrades()
+        for next_upgrade in next_upgrades:
             for build_step in self.started + self.pending:
                 if next_upgrade == build_step.upgrade_id:
-                    logger.info(f"upgrade {next_upgrade} already in build order")
+                    logger.info(f"upgrade {next_upgrade} already in build order, progress: {self.bot.already_pending_upgrade(build_step.upgrade_id)}")
                     break
             else:
                 # not already started or pending
                 logger.info(f"adding upgrade {next_upgrade} to build order")
-                self.add_to_build_order(self.production.build_order_with_prereqs(next_upgrade))
-                # self.pending.insert(1, BuildStep(next_upgrade, self.bot, self.workers, self.production))
+                self.add_to_build_order(self.production.build_order_with_prereqs(next_upgrade), 1)
 
     def queue_planetary(self) -> None:
         planetary_count = len(self.bot.structures.of_type(UnitTypeId.PLANETARYFORTRESS))
@@ -192,20 +188,25 @@ class BuildOrder(TimerMixin):
             if turret_count < base_count:
                 self.add_to_build_order(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
 
-    def add_to_build_order(self, unit_types: List[UnitTypeId]) -> None:
+    def add_to_build_order(self, unit_types: Union[UnitTypeId, List[UnitTypeId]], position: int = -1) -> None:
         in_progress = self.started + self.pending
         already_in_build_order = []
         added_to_build_order = []
+        if isinstance(unit_types, UnitTypeId):
+            unit_types = [unit_types]
         for build_item in unit_types:
             for build_step in in_progress:
-                if build_item == build_step.unit_type_id:
+                if build_item == build_step.unit_type_id or build_item == build_step.upgrade_id:
                     already_in_build_order.append(build_item)
                     in_progress.remove(build_step)
                     break
             else:
                 # not already started or pending
                 added_to_build_order.append(build_item)
-                self.pending.append(BuildStep(build_item, self.bot, self.workers, self.production))
+                if position > -1:
+                    self.pending.insert(position, BuildStep(build_item, self.bot, self.workers, self.production))
+                else:
+                    self.pending.append(BuildStep(build_item, self.bot, self.workers, self.production))
         logger.info(f"already in build order {already_in_build_order}")
         logger.info(f"adding to build order: {added_to_build_order}")
 
@@ -331,10 +332,11 @@ class BuildOrder(TimerMixin):
                 ramp_blocker.is_complete = True
 
     def update_completed_upgrade(self, upgrade: UpgradeId):
+        fixed_id: UpgradeId = COMPLETED_UPGRADE_ID_FIXES[upgrade]
         for idx, in_progress_step in enumerate(self.started):
-            if in_progress_step.upgrade_id == upgrade:
+            if in_progress_step.upgrade_id == fixed_id:
                 logger.info(
-                    f"upgrade {upgrade} completed at {in_progress_step.unit_in_charge}"
+                    f"upgrade {fixed_id}({upgrade}) completed by {in_progress_step.unit_in_charge}"
                 )
                 self.move_to_complete(self.started.pop(idx))
                 break
@@ -342,8 +344,8 @@ class BuildOrder(TimerMixin):
     def move_interupted_to_pending(self) -> None:
         to_promote = []
         for idx, build_step in enumerate(self.started):
-            logger.debug(
-                f"In progress {build_step.unit_type_id}"
+            logger.info(
+                f"In progress {build_step.unit_type_id} {build_step.upgrade_id}"
                 f"> Builder {build_step.unit_in_charge}"
             )
             build_step.draw_debug_box()
@@ -504,7 +506,6 @@ class BuildOrder(TimerMixin):
                 UnitTypeId.REFINERY,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.RAVEN,
-                # interference matrix
                 UnitTypeId.SIEGETANK,
                 UnitTypeId.ENGINEERINGBAY,
                 UnitTypeId.RAVEN,
@@ -513,11 +514,12 @@ class BuildOrder(TimerMixin):
                 UnitTypeId.ORBITALCOMMAND,
                 UnitTypeId.VIKINGFIGHTER,
                 UnitTypeId.ORBITALCOMMAND,
+                UnitTypeId.ARMORY,
                 UnitTypeId.SIEGETANK,
                 UnitTypeId.VIKINGFIGHTER,
                 UnitTypeId.REFINERY,
                 UnitTypeId.REFINERY,
-                UnitTypeId.BARRACKSREACTOR,
+                UnitTypeId.BARRACKSTECHLAB,
                 UnitTypeId.FACTORY,
                 UnitTypeId.FACTORYTECHLAB,
                 UnitTypeId.FACTORY,
