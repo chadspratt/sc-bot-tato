@@ -19,8 +19,6 @@ for builder_type, upgrades in RESEARCH_INFO.items():
 
 # patch in some overrides
 RESEARCH_ABILITIES[UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1] = AbilityId.RESEARCH_TERRANVEHICLEANDSHIPPLATING
-COMPLETED_UPGRADE_ID_FIXES[UpgradeId.SECRETEDCOATING] = UpgradeId.HURRICANETHRUSTERS
-COMPLETED_UPGRADE_ID_FIXES[UpgradeId.HURRICANETHRUSTERS] = UpgradeId.SECRETEDCOATING
 
 
 class Upgrades:
@@ -151,6 +149,9 @@ class Upgrades:
         logger.info("created upgrades manager")
         self.bot = bot
         self.index = 0
+        if self.bot.game_data.upgrades[UpgradeId.SECRETEDCOATING.value].research_ability:
+            COMPLETED_UPGRADE_ID_FIXES[UpgradeId.SECRETEDCOATING] = UpgradeId.HURRICANETHRUSTERS
+            COMPLETED_UPGRADE_ID_FIXES[UpgradeId.HURRICANETHRUSTERS] = UpgradeId.SECRETEDCOATING
 
     def next_upgrades(self, facility_type: UnitTypeId) -> List[UpgradeId]:
         new_upgrades = []
