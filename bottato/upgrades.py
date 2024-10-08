@@ -10,15 +10,10 @@ from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 
 
 RESEARCH_ABILITIES: dict[UpgradeId, AbilityId] = {}
-COMPLETED_UPGRADE_ID_FIXES: dict[UpgradeId, UpgradeId] = {}
 
 for builder_type, upgrades in RESEARCH_INFO.items():
     for upgrade_id, details in upgrades.items():
         RESEARCH_ABILITIES[upgrade_id] = details["ability"]
-        COMPLETED_UPGRADE_ID_FIXES[upgrade_id] = upgrade_id
-
-# patch in some overrides
-RESEARCH_ABILITIES[UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1] = AbilityId.RESEARCH_TERRANVEHICLEANDSHIPPLATING
 
 
 class Upgrades:
@@ -128,12 +123,12 @@ class Upgrades:
         UnitTypeId.ENGINEERINGBAY: [
             UpgradeId.HISECAUTOTRACKING,
             UpgradeId.TERRANBUILDINGARMOR,
-            UpgradeId.TERRANINFANTRYWEAPONSLEVEL1,
-            UpgradeId.TERRANINFANTRYARMORSLEVEL1,
-            UpgradeId.TERRANINFANTRYWEAPONSLEVEL2,
-            UpgradeId.TERRANINFANTRYARMORSLEVEL2,
-            UpgradeId.TERRANINFANTRYWEAPONSLEVEL3,
-            UpgradeId.TERRANINFANTRYARMORSLEVEL3,
+            # UpgradeId.TERRANINFANTRYWEAPONSLEVEL1,
+            # UpgradeId.TERRANINFANTRYARMORSLEVEL1,
+            # UpgradeId.TERRANINFANTRYWEAPONSLEVEL2,
+            # UpgradeId.TERRANINFANTRYARMORSLEVEL2,
+            # UpgradeId.TERRANINFANTRYWEAPONSLEVEL3,
+            # UpgradeId.TERRANINFANTRYARMORSLEVEL3,
         ],
         UnitTypeId.FUSIONCORE: [
             UpgradeId.BATTLECRUISERENABLESPECIALIZATIONS,
@@ -149,20 +144,15 @@ class Upgrades:
         logger.info("created upgrades manager")
         self.bot = bot
         self.index = 0
-        if self.bot.game_data.upgrades[UpgradeId.SECRETEDCOATING.value].research_ability:
-            COMPLETED_UPGRADE_ID_FIXES[UpgradeId.SECRETEDCOATING] = UpgradeId.HURRICANETHRUSTERS
-            COMPLETED_UPGRADE_ID_FIXES[UpgradeId.HURRICANETHRUSTERS] = UpgradeId.SECRETEDCOATING
 
     def next_upgrades(self, facility_type: UnitTypeId) -> List[UpgradeId]:
         new_upgrades = []
         number_needed: int = len(self.bot.structures(facility_type).idle)
         if number_needed > 0:
             for upgrade_type in self.upgrades_by_facility[facility_type]:
-                completed_type = COMPLETED_UPGRADE_ID_FIXES[upgrade_type]
                 upgrade_progress = self.bot.already_pending_upgrade(upgrade_type)
-                upgrade_progress2 = self.bot.already_pending_upgrade(completed_type)
-                logger.info(f"upgrade progress {upgrade_type}-{completed_type}: {upgrade_progress}-{upgrade_progress2}")
-                if upgrade_progress + upgrade_progress2 > 0:
+                logger.info(f"upgrade progress {upgrade_type}: {upgrade_progress}")
+                if upgrade_progress > 0:
                     continue
                 new_upgrades.append(upgrade_type)
                 if len(new_upgrades) == number_needed:

@@ -14,7 +14,6 @@ from .economy.production import Production
 from .mixins import TimerMixin
 from .upgrades import Upgrades
 from .special_locations import SpecialLocations, SpecialLocation
-from bottato.upgrades import COMPLETED_UPGRADE_ID_FIXES
 
 
 class BuildOrder(TimerMixin):
@@ -164,6 +163,8 @@ class BuildOrder(TimerMixin):
     upgrades_started = False
 
     def queue_upgrade(self) -> None:
+        if self.bot.time < 360:
+            return
         next_upgrades: List[UpgradeId] = self.upgrades.get_upgrades()
         for next_upgrade in next_upgrades:
             for build_step in self.started + self.pending:
@@ -332,11 +333,10 @@ class BuildOrder(TimerMixin):
                 ramp_blocker.is_complete = True
 
     def update_completed_upgrade(self, upgrade: UpgradeId):
-        fixed_id: UpgradeId = COMPLETED_UPGRADE_ID_FIXES[upgrade]
         for idx, in_progress_step in enumerate(self.started):
-            if in_progress_step.upgrade_id == fixed_id:
+            if in_progress_step.upgrade_id == upgrade:
                 logger.info(
-                    f"upgrade {fixed_id}({upgrade}) completed by {in_progress_step.unit_in_charge}"
+                    f"upgrade {upgrade} completed by {in_progress_step.unit_in_charge}"
                 )
                 self.move_to_complete(self.started.pop(idx))
                 break
