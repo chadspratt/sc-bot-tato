@@ -58,51 +58,37 @@ class BuildOrder(TimerMixin):
         return remaining
 
     async def execute(self):
-        self.start_timer("queue_upgrade")
         self.queue_upgrade()
-        self.stop_timer("queue_upgrade")
-        self.start_timer("queue_turret")
         self.queue_turret()
-        self.stop_timer("queue_turret")
-        self.start_timer("queue_planetary")
         self.queue_planetary()
-        self.stop_timer("queue_planetary")
-        self.start_timer("queue_production")
         self.queue_production()
-        self.stop_timer("queue_production")
-        self.start_timer("queue_command_center")
         self.queue_command_center()
-        self.stop_timer("queue_command_center")
-        self.start_timer("queue_supply")
         self.queue_supply()
-        self.stop_timer("queue_supply")
-        self.start_timer("queue_worker")
-        self.queue_worker()
-        self.stop_timer("queue_worker")
-        self.start_timer("get_first_resource_shortage")
+
         needed_resources: Cost = self.get_first_resource_shortage()
-        self.stop_timer("get_first_resource_shortage")
+
         self.start_timer("redistribute_workers")
         moved_workers = await self.workers.redistribute_workers(needed_resources)
         self.stop_timer("redistribute_workers")
         logger.info(f"needed gas {needed_resources.vespene}, minerals {needed_resources.minerals}, moved workers {moved_workers}")
-        self.start_timer("queue_refinery")
+
         if needed_resources.vespene > 0 and moved_workers == 0:
             self.queue_refinery()
-        self.stop_timer("queue_refinery")
-        self.start_timer("execute_first_pending")
-        # XXX slow
+
+        # queue last so it will be at front of queue
+        self.queue_worker()
+
         await self.execute_first_pending(needed_resources)
-        self.stop_timer("execute_first_pending")
 
     def queue_worker(self) -> None:
+        self.start_timer("queue_worker")
         requested_worker_count = 0
-        for build_step in self.started + self.pending:
+        for build_step in self.pending:
             if build_step.unit_type_id == UnitTypeId.SCV:
                 requested_worker_count += 1
         worker_build_capacity: int = len(self.bot.townhalls.ready)
-        # XXX this is exceeding max_workers, maybe by ignoring workers in buildings
-        desired_worker_count = min(worker_build_capacity * 16, self.workers.max_workers)
+        # desired_worker_count = min(worker_build_capacity * 16, self.workers.max_workers)
+        desired_worker_count = self.workers.max_workers
         logger.debug(f"requested_worker_count={requested_worker_count}")
         logger.debug(f"worker_build_capacity={worker_build_capacity}")
         if (
@@ -110,8 +96,10 @@ class BuildOrder(TimerMixin):
             and requested_worker_count + len(self.workers.assignments_by_worker) < desired_worker_count
         ):
             self.add_to_build_order(UnitTypeId.SCV, 0)
+        self.stop_timer("queue_worker")
 
     def queue_command_center(self) -> None:
+        self.start_timer("queue_command_center")
         worker_count = len(self.bot.workers)
         cc_count = 0
         for build_step in self.started + self.pending:
@@ -128,8 +116,10 @@ class BuildOrder(TimerMixin):
             for i in range(needed_cc_count - cc_count):
                 logger.info("queuing command center")
                 self.add_to_build_order(UnitTypeId.COMMANDCENTER, 1)
+        self.stop_timer("queue_command_center")
 
     def queue_refinery(self) -> None:
+        self.start_timer("queue_refinery")
         refinery_count = len(self.bot.gas_buildings)
         for build_step in self.started + self.pending:
             if build_step.unit_type_id == UnitTypeId.REFINERY:
@@ -140,15 +130,20 @@ class BuildOrder(TimerMixin):
             logger.info("adding refinery to build order")
             self.add_to_build_order(UnitTypeId.REFINERY, 0)
         # should also build a new one if current bases run out of resources
+        self.stop_timer("queue_refinery")
 
     def queue_supply(self) -> None:
+        self.start_timer("queue_supply")
         for build_step in self.started + self.pending:
             if build_step.unit_type_id == UnitTypeId.SUPPLYDEPOT:
-                return
-        if self.bot.supply_cap == 0 or (self.bot.supply_left / self.bot.supply_cap < 0.3 and self.bot.supply_cap < 200):
-            self.add_to_build_order(UnitTypeId.SUPPLYDEPOT, 1)
+                break
+        else:
+            if self.bot.supply_cap == 0 or (self.bot.supply_left / self.bot.supply_cap < 0.3 and self.bot.supply_cap < 200):
+                self.add_to_build_order(UnitTypeId.SUPPLYDEPOT, 1)
+        self.stop_timer("queue_supply")
 
     def queue_production(self) -> None:
+        self.start_timer("queue_production")
         # add more barracks/factories/starports to handle backlog of pending affordable units
         self.start_timer("queue_production-get_affordable_build_list")
         affordable_units: List[UnitTypeId] = self.get_affordable_build_list()
@@ -159,35 +154,41 @@ class BuildOrder(TimerMixin):
         self.start_timer("queue_production-add_to_build_order")
         self.add_to_build_order(extra_production)
         self.stop_timer("queue_production-add_to_build_order")
+        self.stop_timer("queue_production")
 
     upgrades_started = False
 
     def queue_upgrade(self) -> None:
-        if self.bot.time < 360:
-            return
-        next_upgrades: List[UpgradeId] = self.upgrades.get_upgrades()
-        for next_upgrade in next_upgrades:
-            for build_step in self.started + self.pending:
-                if next_upgrade == build_step.upgrade_id:
-                    logger.info(f"upgrade {next_upgrade} already in build order, progress: {self.bot.already_pending_upgrade(build_step.upgrade_id)}")
-                    break
-            else:
-                # not already started or pending
-                logger.info(f"adding upgrade {next_upgrade} to build order")
-                self.add_to_build_order(self.production.build_order_with_prereqs(next_upgrade), 1)
+        self.start_timer("queue_upgrade")
+        if self.bot.time > 360:
+            next_upgrades: List[UpgradeId] = self.upgrades.get_upgrades()
+            for next_upgrade in next_upgrades:
+                for build_step in self.started + self.pending:
+                    if next_upgrade == build_step.upgrade_id:
+                        logger.info(f"upgrade {next_upgrade} already in build order, progress: {self.bot.already_pending_upgrade(build_step.upgrade_id)}")
+                        break
+                else:
+                    # not already started or pending
+                    logger.info(f"adding upgrade {next_upgrade} to build order")
+                    self.add_to_build_order(self.production.build_order_with_prereqs(next_upgrade), 1)
+        self.stop_timer("queue_upgrade")
 
     def queue_planetary(self) -> None:
+        self.start_timer("queue_planetary")
         planetary_count = len(self.bot.structures.of_type(UnitTypeId.PLANETARYFORTRESS))
         cc_count = len(self.bot.structures.of_type(UnitTypeId.COMMANDCENTER))
         if planetary_count < cc_count:
             self.add_to_build_order(self.production.build_order_with_prereqs(UnitTypeId.PLANETARYFORTRESS))
+        self.stop_timer("queue_planetary")
 
     def queue_turret(self) -> None:
+        self.start_timer("queue_turret")
         if self.bot.time > 300:
             turret_count = len(self.bot.structures.of_type(UnitTypeId.MISSILETURRET))
             base_count = len(self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}))
             if turret_count < base_count:
                 self.add_to_build_order(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
+        self.stop_timer("queue_turret")
 
     def add_to_build_order(self, unit_types: Union[UnitTypeId, List[UnitTypeId]], position: int = -1) -> None:
         in_progress = self.started + self.pending
@@ -212,24 +213,24 @@ class BuildOrder(TimerMixin):
         logger.info(f"adding to build order: {added_to_build_order}")
 
     def get_first_resource_shortage(self) -> Cost:
+        self.start_timer("get_first_resource_shortage")
         needed_resources: Cost = Cost(0, 0)
-        if not self.pending:
-            return needed_resources
+        if self.pending:
+            needed_resources.minerals = -self.bot.minerals
+            needed_resources.vespene = -self.bot.vespene
 
-        needed_resources.minerals = -self.bot.minerals
-        needed_resources.vespene = -self.bot.vespene
-
-        # find first shortage
-        for idx, build_step in enumerate(self.pending):
-            needed_resources.minerals += build_step.cost.minerals
-            needed_resources.vespene += build_step.cost.vespene
-            if needed_resources.minerals > 0 or needed_resources.vespene > 0:
-                break
-        logger.info(
-            f"next {idx + 1} builds "
-            f"vespene: {self.bot.vespene}/{needed_resources.vespene + self.bot.vespene}, "
-            f"minerals: {self.bot.minerals}/{needed_resources.minerals + self.bot.minerals}"
-        )
+            # find first shortage
+            for idx, build_step in enumerate(self.pending):
+                needed_resources.minerals += build_step.cost.minerals
+                needed_resources.vespene += build_step.cost.vespene
+                if needed_resources.minerals > 0 or needed_resources.vespene > 0:
+                    break
+            logger.info(
+                f"next {idx + 1} builds "
+                f"vespene: {self.bot.vespene}/{needed_resources.vespene + self.bot.vespene}, "
+                f"minerals: {self.bot.minerals}/{needed_resources.minerals + self.bot.minerals}"
+            )
+        self.stop_timer("get_first_resource_shortage")
         return needed_resources
 
     def get_affordable_build_list(self) -> List[UnitTypeId]:
@@ -368,6 +369,7 @@ class BuildOrder(TimerMixin):
         return False
 
     async def execute_first_pending(self, needed_resources: Cost) -> None:
+        self.start_timer("execute_first_pending")
         execution_index = -1
         failed_types: list[UnitTypeId] = []
         while execution_index < len(self.pending):
@@ -375,12 +377,12 @@ class BuildOrder(TimerMixin):
             try:
                 build_step = self.pending[execution_index]
             except IndexError:
-                return False
+                break
             if build_step.unit_type_id in failed_types:
                 continue
             if not self.can_afford(build_step.cost):
                 logger.info(f"Cannot afford {build_step.friendly_name}")
-                return False
+                break
 
             # XXX slightly slow
             self.start_timer("build_step.execute")
@@ -404,6 +406,7 @@ class BuildOrder(TimerMixin):
                 #         self.add_to_build_order(build_step.builder_type)
             self.stop_timer(f"handle response {build_response}")
             logger.debug(f"pending loop: {execution_index} < {len(self.pending)}")
+        self.stop_timer("execute_first_pending")
 
     def can_afford(self, requested_cost: Cost) -> bool:
         prior_requested_cost = Cost(0, 0)
