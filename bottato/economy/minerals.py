@@ -41,7 +41,7 @@ class Minerals(Resources):
 
     def get_workers_from_depleted(self) -> Units:
         workers = Units([], self.bot)
-        depleted_nodes = Units([], self.bot)
+        depleted_nodes = []
         for node_tag in self.worker_tags_by_node_tag.keys():
             try:
                 self.nodes.by_tag(node_tag)

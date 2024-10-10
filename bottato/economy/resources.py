@@ -63,6 +63,10 @@ class Resources(UnitReferenceMixin):
     def add_worker_to_node(self, worker: Unit, node: Unit):
         if worker is None:
             return
+        if node.tag not in self.worker_tags_by_node_tag:
+            # should be impossible to get here, yet it does and will crash without this
+            # get_workers_from_depleted deleting it?
+            self.add_node(node)
         self.worker_tags_by_node_tag[node.tag].append(worker.tag)
 
     def remove_worker(self, exiting_worker: Unit):
