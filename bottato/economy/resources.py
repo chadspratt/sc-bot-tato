@@ -4,6 +4,7 @@ from loguru import logger
 from sc2.bot_ai import BotAI
 from sc2.units import Units
 from sc2.unit import Unit
+from sc2.constants import UnitTypeId
 
 from ..mixins import UnitReferenceMixin
 
@@ -50,9 +51,12 @@ class Resources(UnitReferenceMixin):
     def add_worker(self, worker: Unit) -> Unit:
         if worker is None:
             return None
-        node = self.nodes.filter(
+        candidates = self.nodes.filter(
             lambda unit: self.needed_workers_for_node(unit) > 0
-        ).closest_to(worker)
+        )
+        if candidates.empty or worker.type_id == UnitTypeId.MULE:
+            candidates = self.nodes
+        node = candidates.closest_to(worker)
         self.worker_tags_by_node_tag[node.tag].append(worker.tag)
         return node
 

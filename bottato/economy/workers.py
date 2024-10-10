@@ -60,12 +60,17 @@ class Workers(UnitReferenceMixin, TimerMixin):
         self.max_repairers = 25
         for worker in self.bot.workers:
             self.add_worker(worker)
+        self.mule_queue = []
 
     def add_worker(self, worker: Unit) -> bool:
         if worker.tag not in self.assignments_by_worker:
             new_assignment = WorkerAssignment(worker)
             self.assignments_by_worker[worker.tag] = new_assignment
             self.assignments_by_job[JobType.IDLE].append(new_assignment)
+            if worker.type_id == UnitTypeId.MULE:
+                closest_minerals = self.mule_queue.pop(0)
+                self.update_assigment(worker, JobType.MINERALS, closest_minerals)
+                logger.info(f"added mule {worker.tag}({worker.position}) to minerals {closest_minerals}({closest_minerals.position})")
             return True
         return False
 
@@ -95,6 +100,15 @@ class Workers(UnitReferenceMixin, TimerMixin):
             else:
                 self.assignments_by_job[assignment.job_type] = [assignment]
         logger.debug(f"assignment summary {self.assignments_by_job}")
+
+    def drop_mules(self):
+        for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND).filter(lambda x: x.energy >= 50):
+            mineral_fields: Units = self.minerals.nodes_with_capacity().filter(lambda x: x not in self.mule_queue)
+            if mineral_fields:
+                fullest_mineral_field: Unit = max(mineral_fields, key=lambda x: x.mineral_contents)
+                orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE, fullest_mineral_field)
+                logger.info(f"dropping mule on mineral field {fullest_mineral_field}({fullest_mineral_field.position}) {fullest_mineral_field.mineral_contents}")
+                self.mule_queue.append(fullest_mineral_field)
 
     def speed_mine(self):
         for assignment in self.assignments_by_worker.values():
@@ -217,7 +231,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
 
     def availiable_workers_on_job(self, job_type: JobType) -> Units:
         return Units([
-            assignment.unit for assignment in self.assignments_by_job[job_type] if assignment.unit_available],
+            assignment.unit for assignment in self.assignments_by_job[job_type] if assignment.unit_available and assignment.unit.type_id != UnitTypeId.MULE],
             bot_object=self.bot)
 
     def deliver_resources(self, worker: Unit):

@@ -83,6 +83,7 @@ class BotTato(BotAI, TimerMixin):
         self.start_timer("my_workers.speed_mine")
         self.my_workers.speed_mine()
         self.stop_timer("my_workers.speed_mine")
+        self.my_workers.drop_mules()
 
         self.start_timer("build_order.execute")
         # XXX slow
