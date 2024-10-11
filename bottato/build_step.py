@@ -99,7 +99,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     async def execute(self, special_locations: SpecialLocations, needed_resources: Cost = None) -> ResponseCode:
         self.start_timer("build_step.execute inner")
-        response: self.ResponseCode = None
+        response = None
         if self.upgrade_id:
             self.start_timer(f"build_step.execute_upgrade {self.upgrade_id}")
             response = self.execute_upgrade()
@@ -121,7 +121,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         return response
 
     def execute_upgrade(self) -> ResponseCode:
-        response: self.ResponseCode = None
+        response = None
         logger.info(f"researching upgrade {self.upgrade_id}")
         if self.unit_in_charge is None:
             self.unit_in_charge = self.production.get_research_facility(self.upgrade_id)
@@ -142,7 +142,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         return response
 
     async def execute_scv_build(self, special_locations: SpecialLocations, needed_resources: Cost = None) -> ResponseCode:
-        response: self.ResponseCode = None
+        response = None
         logger.info(f"Trying to build {self.unit_type_id} with SCV")
 
         build_response: bool = None
@@ -187,7 +187,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         return response
 
     def execute_facility_build(self) -> ResponseCode:
-        response: self.ResponseCode = None
+        response = None
         # not built by scv
         logger.info(
             f"Trying to train unit {self.unit_type_id} with {self.builder_type}"
@@ -195,10 +195,10 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         if self.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
             self.unit_in_charge = self.production.get_builder(self.unit_type_id)
         else:
-            facility_candidates = self.bot.structures(self.builder_type)
-            logger.debug(f"training facility candidates {facility_candidates}")
-            if facility_candidates.ready.idle:
-                self.unit_in_charge = facility_candidates.ready.idle[0]
+            facility_candidates = self.bot.structures.filter(lambda x: x.type_id in self.builder_type and x.is_ready and x.is_idle)
+            logger.info(f"training facility candidates {facility_candidates}")
+            if facility_candidates:
+                self.unit_in_charge = facility_candidates[0]
 
         if self.unit_in_charge is None:
             logger.debug("no idle training facility")

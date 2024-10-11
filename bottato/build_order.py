@@ -36,6 +36,7 @@ class BuildOrder(TimerMixin):
         self.upgrades = Upgrades(bot)
         self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
         self.build_a_worker: BuildStep = None
+        self.build_supply: BuildStep = None
         logger.info(f"Starting position: {self.bot.start_location}")
 
     def update_references(self) -> None:
@@ -59,11 +60,16 @@ class BuildOrder(TimerMixin):
         return remaining
 
     async def execute(self):
-        self.queue_upgrade()
-        self.queue_turret()
-        self.queue_planetary()
-        self.queue_production()
-        self.queue_command_center()
+        enemies_in_base = self.bot.enemy_units.filter(
+            lambda unit: unit.type_id not in {UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
+        ).in_distance_of_group(self.bot.structures, 25)
+        if not enemies_in_base:
+            self.queue_worker()
+            self.queue_upgrade()
+            self.queue_turret()
+            self.queue_planetary()
+            self.queue_production()
+            self.queue_command_center()
         self.queue_supply()
 
         needed_resources: Cost = self.get_first_resource_shortage()
@@ -75,9 +81,6 @@ class BuildOrder(TimerMixin):
 
         if needed_resources.vespene > 0 and moved_workers == 0:
             self.queue_refinery()
-
-        # queue last so it will be at front of queue
-        self.queue_worker()
 
         await self.execute_first_pending(needed_resources)
 
@@ -95,6 +98,23 @@ class BuildOrder(TimerMixin):
             ):
                 self.build_a_worker = BuildStep(UnitTypeId.SCV, self.bot, self.workers, self.production)
         self.stop_timer("queue_worker")
+
+    def queue_supply(self) -> None:
+        self.start_timer("queue_supply")
+        max_supply_increase = 2
+        supply_increase = 0
+        for build_step in self.started + self.pending:
+            if build_step.unit_type_id == UnitTypeId.SUPPLYDEPOT:
+                supply_increase += 1
+                if supply_increase == max_supply_increase:
+                    break
+        else:
+            build_first = self.bot.supply_cap == 0 or (supply_increase == 0 and self.bot.supply_left / self.bot.supply_cap < 0.3 and self.bot.supply_cap < 200)
+            build_second = self.bot.supply_cap > 0 and self.bot.supply_left / self.bot.supply_cap < 0.2 and self.bot.supply_cap < 200
+            if build_first or build_second:
+                self.build_supply = BuildStep(UnitTypeId.SUPPLYDEPOT, self.bot, self.workers, self.production)
+                # self.add_to_build_order(UnitTypeId.SUPPLYDEPOT, 1)
+        self.stop_timer("queue_supply")
 
     def queue_command_center(self) -> None:
         self.start_timer("queue_command_center")
@@ -129,16 +149,6 @@ class BuildOrder(TimerMixin):
             self.add_to_build_order(UnitTypeId.REFINERY, 0)
         # should also build a new one if current bases run out of resources
         self.stop_timer("queue_refinery")
-
-    def queue_supply(self) -> None:
-        self.start_timer("queue_supply")
-        for build_step in self.started + self.pending:
-            if build_step.unit_type_id == UnitTypeId.SUPPLYDEPOT:
-                break
-        else:
-            if self.bot.supply_cap == 0 or (self.bot.supply_left / self.bot.supply_cap < 0.3 and self.bot.supply_cap < 200):
-                self.add_to_build_order(UnitTypeId.SUPPLYDEPOT, 1)
-        self.stop_timer("queue_supply")
 
     def queue_production(self) -> None:
         self.start_timer("queue_production")
@@ -214,6 +224,9 @@ class BuildOrder(TimerMixin):
         if self.build_a_worker:
             needed_resources.minerals += self.build_a_worker.cost.minerals
             needed_resources.vespene += self.build_a_worker.cost.vespene
+        if self.build_supply:
+            needed_resources.minerals += self.build_supply.cost.minerals
+            needed_resources.vespene += self.build_supply.cost.vespene
         if self.pending:
             # find first shortage
             for idx, build_step in enumerate(self.pending):
@@ -237,6 +250,11 @@ class BuildOrder(TimerMixin):
             needed_resources.vespene += self.build_a_worker.cost.vespene
             if needed_resources.minerals < 0 and needed_resources.vespene < 0:
                 affordable_items.append(self.build_a_worker.unit_type_id)
+        if self.build_supply:
+            needed_resources.minerals += self.build_supply.cost.minerals
+            needed_resources.vespene += self.build_supply.cost.vespene
+            if needed_resources.minerals < 0 and needed_resources.vespene < 0:
+                affordable_items.append(self.build_supply.unit_type_id)
 
         # find first shortage
         for idx, build_step in enumerate(self.pending):
@@ -359,6 +377,20 @@ class BuildOrder(TimerMixin):
         execution_index = -1
         failed_types: list[UnitTypeId] = []
         remaining_resources = Cost(self.bot.minerals, self.bot.vespene)
+
+        if self.build_supply:
+            build_step = self.build_supply
+            if self.can_afford(remaining_resources, build_step.cost):
+                self.start_timer("build_step.execute")
+                build_response = await build_step.execute(special_locations=self.special_locations, needed_resources=needed_resources)
+                self.stop_timer("build_step.execute")
+                self.start_timer(f"handle response {build_response}")
+                logger.info(f"build_response: {build_response}")
+                if build_response == build_step.ResponseCode.SUCCESS:
+                    self.started.append(build_step)
+                    remaining_resources -= build_step.cost
+                    self.build_supply = None
+
         if self.build_a_worker:
             build_step = self.build_a_worker
             if self.can_afford(remaining_resources, build_step.cost):

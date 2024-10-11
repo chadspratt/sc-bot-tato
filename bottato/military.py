@@ -90,7 +90,9 @@ class Military(GeometryMixin, DebugMixin):
         # only run this every three steps
         if iteration % 3:
             return
-        enemies_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id not in {UnitTypeId.OBSERVER, UnitTypeId.SCV}).in_distance_of_group(self.bot.structures, 20)
+        scout_types = {UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
+        scouts_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id in scout_types).in_distance_of_group(self.bot.structures, 25)
+        enemies_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id not in scout_types).in_distance_of_group(self.bot.structures, 25)
         logger.info(f"enemies in base {enemies_in_base}")
 
         mount_defense = len(enemies_in_base) > 0
@@ -121,6 +123,9 @@ class Military(GeometryMixin, DebugMixin):
                     await squad.attack(self.bot.enemy_structures)
                 else:
                     await squad.attack(self.bot.enemy_start_locations[0])
+            elif scouts_in_base:
+                logger.info(f"squad {squad.name} attacking enemy scout(s) {scouts_in_base}")
+                await squad.attack(scouts_in_base)
             else:
                 logger.info(f"squad {squad} staging")
                 enemy_position = self.bot.enemy_start_locations[0]

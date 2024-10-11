@@ -112,6 +112,8 @@ class BaseUnitMicro(GeometryMixin):
         return False
 
     async def move(self, unit: Unit, target: Point2, enemy: Enemy) -> None:
+        if unit.tag in self.bot.unit_tags_received_action:
+            return
         if await self.use_ability(unit, enemy, health_threshold=self.ability_health):
             logger.debug(f"unit {unit} used ability")
         elif self.attack_something(unit, health_threshold=self.attack_health):
