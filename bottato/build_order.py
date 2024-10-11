@@ -1,6 +1,6 @@
 import math
 from loguru import logger
-from typing import Dict, List, Union, Iterable
+from typing import Dict, List, Union
 
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
@@ -35,6 +35,7 @@ class BuildOrder(TimerMixin):
         ]
         self.upgrades = Upgrades(bot)
         self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
+        self.build_a_worker: BuildStep = None
         logger.info(f"Starting position: {self.bot.start_location}")
 
     def update_references(self) -> None:
@@ -82,27 +83,24 @@ class BuildOrder(TimerMixin):
 
     def queue_worker(self) -> None:
         self.start_timer("queue_worker")
-        requested_worker_count = 0
-        for build_step in self.pending:
-            if build_step.unit_type_id == UnitTypeId.SCV:
-                requested_worker_count += 1
-        worker_build_capacity: int = len(self.bot.townhalls.ready)
-        # desired_worker_count = min(worker_build_capacity * 16, self.workers.max_workers)
-        desired_worker_count = self.workers.max_workers
-        logger.debug(f"requested_worker_count={requested_worker_count}")
-        logger.debug(f"worker_build_capacity={worker_build_capacity}")
-        if (
-            requested_worker_count < worker_build_capacity
-            and requested_worker_count + len(self.workers.assignments_by_worker) < desired_worker_count
-        ):
-            self.add_to_build_order(UnitTypeId.SCV, 0)
+        if not self.build_a_worker:
+            requested_worker_count = 1 if self.build_a_worker else 0
+            worker_build_capacity: int = len(self.bot.townhalls.idle)
+            desired_worker_count = self.workers.max_workers
+            logger.debug(f"requested_worker_count={requested_worker_count}")
+            logger.debug(f"worker_build_capacity={worker_build_capacity}")
+            if (
+                requested_worker_count < worker_build_capacity
+                and requested_worker_count + len(self.workers.assignments_by_worker) < desired_worker_count
+            ):
+                self.build_a_worker = BuildStep(UnitTypeId.SCV, self.bot, self.workers, self.production)
         self.stop_timer("queue_worker")
 
     def queue_command_center(self) -> None:
         self.start_timer("queue_command_center")
         worker_count = len(self.bot.workers)
         cc_count = 0
-        for build_step in self.started + self.pending:
+        for build_step in self.started:
             if build_step.unit_type_id == UnitTypeId.SCV:
                 worker_count += 1
             elif build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
@@ -155,8 +153,6 @@ class BuildOrder(TimerMixin):
         self.add_to_build_order(extra_production)
         self.stop_timer("queue_production-add_to_build_order")
         self.stop_timer("queue_production")
-
-    upgrades_started = False
 
     def queue_upgrade(self) -> None:
         self.start_timer("queue_upgrade")
@@ -214,17 +210,17 @@ class BuildOrder(TimerMixin):
 
     def get_first_resource_shortage(self) -> Cost:
         self.start_timer("get_first_resource_shortage")
-        needed_resources: Cost = Cost(0, 0)
+        needed_resources: Cost = Cost(-self.bot.minerals, -self.bot.vespene)
+        if self.build_a_worker:
+            needed_resources.minerals += self.build_a_worker.cost.minerals
+            needed_resources.vespene += self.build_a_worker.cost.vespene
         if self.pending:
-            needed_resources.minerals = -self.bot.minerals
-            needed_resources.vespene = -self.bot.vespene
-
             # find first shortage
             for idx, build_step in enumerate(self.pending):
-                needed_resources.minerals += build_step.cost.minerals
-                needed_resources.vespene += build_step.cost.vespene
                 if needed_resources.minerals > 0 or needed_resources.vespene > 0:
                     break
+                needed_resources.minerals += build_step.cost.minerals
+                needed_resources.vespene += build_step.cost.vespene
             logger.info(
                 f"next {idx + 1} builds "
                 f"vespene: {self.bot.vespene}/{needed_resources.vespene + self.bot.vespene}, "
@@ -235,12 +231,12 @@ class BuildOrder(TimerMixin):
 
     def get_affordable_build_list(self) -> List[UnitTypeId]:
         affordable_items: List[UnitTypeId] = []
-        needed_resources: Cost = Cost(0, 0)
-        if not self.pending:
-            return affordable_items
-
-        needed_resources.minerals = -self.bot.minerals
-        needed_resources.vespene = -self.bot.vespene
+        needed_resources: Cost = Cost(-self.bot.minerals, -self.bot.vespene)
+        if self.build_a_worker:
+            needed_resources.minerals += self.build_a_worker.cost.minerals
+            needed_resources.vespene += self.build_a_worker.cost.vespene
+            if needed_resources.minerals < 0 and needed_resources.vespene < 0:
+                affordable_items.append(self.build_a_worker.unit_type_id)
 
         # find first shortage
         for idx, build_step in enumerate(self.pending):
@@ -358,20 +354,24 @@ class BuildOrder(TimerMixin):
         for idx in reversed(to_promote):
             self.pending.insert(0, self.started.pop(idx))
 
-    # returns true if any of the types are queued
-    def already_queued(self, unit_types: Union[UnitTypeId, Iterable[UnitTypeId]]) -> bool:
-        if isinstance(unit_types, UnitTypeId):
-            unit_types = [unit_types]
-        for unit_type in unit_types:
-            for build_step in self.pending + self.started:
-                if build_step.unit_type_id == unit_type:
-                    return True
-        return False
-
     async def execute_first_pending(self, needed_resources: Cost) -> None:
         self.start_timer("execute_first_pending")
         execution_index = -1
         failed_types: list[UnitTypeId] = []
+        remaining_resources = Cost(self.bot.minerals, self.bot.vespene)
+        if self.build_a_worker:
+            build_step = self.build_a_worker
+            if self.can_afford(remaining_resources, build_step.cost):
+                self.start_timer("build_step.execute")
+                build_response = await build_step.execute(special_locations=self.special_locations, needed_resources=needed_resources)
+                self.stop_timer("build_step.execute")
+                self.start_timer(f"handle response {build_response}")
+                logger.info(f"build_response: {build_response}")
+                if build_response == build_step.ResponseCode.SUCCESS:
+                    self.started.append(build_step)
+                    remaining_resources -= build_step.cost
+                    self.build_a_worker = None
+
         while execution_index < len(self.pending):
             execution_index += 1
             try:
@@ -380,7 +380,7 @@ class BuildOrder(TimerMixin):
                 break
             if build_step.unit_type_id in failed_types:
                 continue
-            if not self.can_afford(build_step.cost):
+            if not self.can_afford(remaining_resources, build_step.cost):
                 logger.info(f"Cannot afford {build_step.friendly_name}")
                 break
 
@@ -398,27 +398,14 @@ class BuildOrder(TimerMixin):
             else:
                 failed_types.append(build_step.unit_type_id)
                 logger.debug(f"!!! {build_step.unit_type_id} failed to start building, {build_response}")
-                # if build_step.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
-                #     for started_step in self.started:
-                #         if started_step.unit_type_id == build_step.builder_type:
-                #             break
-                #     else:
-                #         self.add_to_build_order(build_step.builder_type)
             self.stop_timer(f"handle response {build_response}")
             logger.debug(f"pending loop: {execution_index} < {len(self.pending)}")
         self.stop_timer("execute_first_pending")
 
-    def can_afford(self, requested_cost: Cost) -> bool:
-        prior_requested_cost = Cost(0, 0)
-        for build_step in self.started:
-            if build_step.unit_in_charge.is_structure:
-                continue
-            if build_step.unit_being_built is None:
-                prior_requested_cost += build_step.cost
-        total_requested_cost = requested_cost + prior_requested_cost
+    def can_afford(self, remaining_resources: Cost, requested_cost: Cost) -> bool:
         return (
-            total_requested_cost.minerals <= self.bot.minerals
-            and total_requested_cost.vespene <= self.bot.vespene
+            requested_cost.minerals <= remaining_resources.minerals
+            and requested_cost.vespene <= remaining_resources.vespene
         )
 
     def get_build_start(self, build_name: str) -> List[UnitTypeId]:

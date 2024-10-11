@@ -106,7 +106,8 @@ class Workers(UnitReferenceMixin, TimerMixin):
             mineral_fields: Units = self.minerals.nodes_with_capacity().filter(lambda x: x not in self.mule_queue)
             if mineral_fields:
                 fullest_mineral_field: Unit = max(mineral_fields, key=lambda x: x.mineral_contents)
-                orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE, fullest_mineral_field)
+                nearest_townhall: Unit = self.bot.townhalls.closest_to(fullest_mineral_field)
+                orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE, fullest_mineral_field.position.towards(nearest_townhall))
                 logger.info(f"dropping mule on mineral field {fullest_mineral_field}({fullest_mineral_field.position}) {fullest_mineral_field.mineral_contents}")
                 self.mule_queue.append(fullest_mineral_field)
 
