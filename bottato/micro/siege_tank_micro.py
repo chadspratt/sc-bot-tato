@@ -67,7 +67,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 enemy_range_after_sieging = unit_distance - enemy_unit.calculate_speed() * self.max_siege_time
             is_last_unseiged = len(self.unsieged_tags) == 1
             enemy_distance = unit_distance if is_last_unseiged else enemy_range_after_sieging + self.siege_buffer
-            if enemy_range_after_sieging > self.sieged_minimum_range + 1 and (enemy_distance <= self.sieged_range or structure_distance < self.sieged_range):
+            if enemy_range_after_sieging > self.sieged_minimum_range + 0.5 and (enemy_distance <= self.sieged_range or structure_distance < self.sieged_range):
                 self.siege(unit)
                 self.last_transform_time[unit.tag] = self.bot.time
                 return True

@@ -168,12 +168,12 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
         if friendly_unit.type_id != UnitTypeId.RAVEN:
             candidates = candidates.filter(lambda enemy: self.can_attack(friendly_unit, enemy))
         for enemy in candidates:
-            enemy_distance = friendly_unit.distance_to(self.predicted_position[enemy.tag])
+            enemy_distance = friendly_unit.distance_to(self.predicted_position[enemy.tag]) - enemy.radius - friendly_unit.radius
             if (enemy_distance < nearest_distance):
                 nearest_enemy = enemy
                 nearest_distance = enemy_distance
         # can attack a destructable if no enemies in sight range
-        if include_destructables and nearest_distance > 20:
+        if include_destructables and nearest_distance > 30:
             for destructable in self.bot.destructables:
                 enemy_distance = friendly_unit.distance_to(destructable)
                 if (enemy_distance < nearest_distance):
