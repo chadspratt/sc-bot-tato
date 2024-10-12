@@ -359,7 +359,7 @@ class BuildOrder(TimerMixin):
     def move_interupted_to_pending(self) -> None:
         to_promote = []
         for idx, build_step in enumerate(self.started):
-            logger.info(
+            logger.debug(
                 f"In progress {build_step.unit_type_id} {build_step.upgrade_id}"
                 f"> Builder {build_step.unit_in_charge}"
             )

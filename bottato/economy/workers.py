@@ -96,7 +96,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
                 assignment.unit_available = True
             except UnitReferenceMixin.UnitNotFound:
                 assignment.unit_available = False
-                logger.info(f"{assignment.unit} unavailable, maybe already working on {assignment.target}")
+                logger.debug(f"{assignment.unit} unavailable, maybe already working on {assignment.target}")
             if assignment.job_type in self.assignments_by_job:
                 self.assignments_by_job[assignment.job_type].append(assignment)
             else:

@@ -55,8 +55,9 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             if enemy_unit:
                 self.bot.client.debug_line_out(unit, enemy_unit)
                 enemy_range_after_sieging = unit_distance - any_enemy_unit.calculate_speed() * self.max_siege_time
-            all_sieged = len(self.unsieged_tags) == 0
-            enemy_distance = any_enemy_unit_distance if all_sieged else enemy_range_after_sieging + self.unsiege_buffer
+            # all_sieged = len(self.unsieged_tags) == 0
+            most_are_seiged = len(self.unsieged_tags) < len(self.sieged_tags)
+            enemy_distance = any_enemy_unit_distance if most_are_seiged else (enemy_range_after_sieging + self.unsiege_buffer)
             if enemy_distance > self.sieged_range and structure_distance > self.sieged_range:
                 self.unsiege(unit)
                 self.last_transform_time[unit.tag] = self.bot.time
@@ -65,8 +66,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             if enemy_unit:
                 self.bot.client.debug_line_out(unit, enemy_unit)
                 enemy_range_after_sieging = unit_distance - enemy_unit.calculate_speed() * self.max_siege_time
-            is_last_unseiged = len(self.unsieged_tags) == 1
-            enemy_distance = unit_distance if is_last_unseiged else enemy_range_after_sieging + self.siege_buffer
+            most_are_seiged = len(self.unsieged_tags) < len(self.sieged_tags)
+            enemy_distance = unit_distance if most_are_seiged else (enemy_range_after_sieging + self.siege_buffer)
             if enemy_range_after_sieging > self.sieged_minimum_range + 0.5 and (enemy_distance <= self.sieged_range or structure_distance < self.sieged_range):
                 self.siege(unit)
                 self.last_transform_time[unit.tag] = self.bot.time
@@ -79,6 +80,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     def siege(self, unit: Unit):
         logger.info(f"{unit} sieging")
         unit(AbilityId.SIEGEMODE_SIEGEMODE)
+        # intersect with current unit tags to remove any dead unit tags
+        self.sieged_tags = self.bot.units.tags.intersection(self.sieged_tags)
         if unit.tag not in self.sieged_tags:
             self.sieged_tags.add(unit.tag)
         else:
@@ -91,6 +94,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     def unsiege(self, unit: Unit):
         logger.info(f"{unit} unsieging")
         unit(AbilityId.UNSIEGE_UNSIEGE)
+        self.unsieged_tags = self.bot.units.tags.intersection(self.unsieged_tags)
         if unit.tag not in self.unsieged_tags:
             self.unsieged_tags.add(unit.tag)
         else:
