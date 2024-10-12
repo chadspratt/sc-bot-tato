@@ -35,6 +35,7 @@ class WorkerAssignment():
         self.last_stop: Point2 = None
         self.dropoff_position: Point2 = None
         self.returning: bool = False
+        self.visit_count = 0
 
     def __repr__(self) -> str:
         return f"WorkerAssignment({self.unit}({self.unit_available}), {self.job_type.name}, {self.target})"
@@ -119,31 +120,27 @@ class Workers(UnitReferenceMixin, TimerMixin):
                     assignment.last_stop = worker.position
                 if worker.is_carrying_resource:
                     if not assignment.returning:
+                        assignment.visit_count += 1
                         assignment.returning = True
-                        # if assignment.target.distance_to(assignment.last_stop) < assignment.target.radius + 0.1:
-                        #     assignment.gather_position = assignment.last_stop
+                    if assignment.gather_position is None and assignment.visit_count > 1:
+                        assignment.gather_position = assignment.last_stop
                     if len(worker.orders) == 1:
                         # might be none ready if converting first cc to orbital
                         candidates: Units = self.bot.townhalls.ready or self.bot.townhalls
                         if candidates:
                             dropoff: Unit = candidates.closest_to(worker)
-                            self.speed_smart(worker, dropoff, assignment.dropoff_position)
+                            self.speed_smart(worker, dropoff)
                 else:
                     assignment.returning = False
                     if len(worker.orders) == 1 and assignment.target:
                         self.speed_smart(worker, assignment.target, assignment.gather_position)
 
-    def speed_smart(self, worker: Unit, target: Unit, position: Union[Point2, None]) -> None:
+    def speed_smart(self, worker: Unit, target: Unit, position: Union[Point2, None] = None) -> None:
         if position is None:
-            position: Point2 = target.position
             min_distance = target.radius + worker.radius
-            position = position.towards(worker, min_distance, limit=True)
+            position = target.position.towards(worker, min_distance, limit=True)
         remaining_distance = worker.distance_to(position)
-        if remaining_distance > 2:
-            worker(AbilityId.SMART, target)
-        elif remaining_distance < 0.2:
-            pass
-        else:
+        if 0.75 < remaining_distance < 2:
             worker.move(position)
             worker(AbilityId.SMART, target, True)
 
@@ -196,7 +193,8 @@ class Workers(UnitReferenceMixin, TimerMixin):
         else:
             if assignment.job_type == JobType.MINERALS:
                 new_target = self.minerals.add_worker(worker)
-                worker.smart(new_target)
+                if worker.type_id != UnitTypeId.MULE:
+                    worker.smart(new_target)
             elif assignment.job_type == JobType.VESPENE:
                 new_target = self.vespene.add_worker(worker)
                 worker.smart(new_target)
@@ -250,7 +248,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
             logger.info(f"idle workers {self.bot.workers.idle}")
         for worker in self.bot.workers.idle:
             assigment: WorkerAssignment = self.assignments_by_worker[worker.tag]
-            if assigment.job_type != JobType.BUILD:
+            if assigment.job_type != JobType.BUILD and assigment.unit.type_id != UnitTypeId.MULE:
                 self.update_job(worker, JobType.IDLE)
         for worker in self.minerals.get_workers_from_depleted():
             self.update_job(worker, JobType.IDLE)
@@ -370,10 +368,10 @@ class Workers(UnitReferenceMixin, TimerMixin):
                     break
 
     def get_repair_target(self, repairer: Unit, injured_units: Units) -> Unit:
-        self_excluded = injured_units.filter(lambda unit: unit.tag != repairer.tag)
+        other_units = injured_units.filter(lambda unit: unit.tag != repairer.tag)
         new_target: Unit = None
-        if self_excluded:
-            new_target = self_excluded.closest_to(repairer)
+        if other_units:
+            new_target = other_units.closest_to(repairer)
         return new_target
 
     def units_needing_repair(self) -> Units:

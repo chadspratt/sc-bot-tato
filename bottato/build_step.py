@@ -197,8 +197,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         else:
             facility_candidates = self.bot.structures.filter(lambda x: x.type_id in self.builder_type and x.is_ready and x.is_idle)
             logger.info(f"training facility candidates {facility_candidates}")
-            if facility_candidates:
-                self.unit_in_charge = facility_candidates[0]
+            self.unit_in_charge = facility_candidates[0] if facility_candidates else None
 
         if self.unit_in_charge is None:
             logger.debug("no idle training facility")
