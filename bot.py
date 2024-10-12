@@ -30,7 +30,7 @@ def main():
             maps.get(os.environ.get("SCII_MAP", "Equilibrium513AIE")),
             [
                 Bot(Race.Terran, bot, name="BotTato"),
-                Computer(Race.Terran, Difficulty.Medium),
+                Computer(Race.Terran, Difficulty.VeryHard),
             ],
             realtime=False,
             # save_replay_as=".\\replays\\bottato.sc2replay",

@@ -36,6 +36,7 @@ class WorkerAssignment():
         self.dropoff_position: Point2 = None
         self.returning: bool = False
         self.visit_count = 0
+        self.on_attack_break = False
 
     def __repr__(self) -> str:
         return f"WorkerAssignment({self.unit}({self.unit_available}), {self.job_type.name}, {self.target})"
@@ -146,16 +147,22 @@ class Workers(UnitReferenceMixin, TimerMixin):
 
     def attack_nearby_enemies(self) -> None:
         for assignment in self.assignments_by_worker.values():
-            reference_unit: Unit = assignment.target
-            if self.bot.townhalls:
-                reference_unit = reference_unit or self.bot.townhalls.closest_to(assignment.unit.position)
-            else:
-                reference_unit = reference_unit or assignment.unit
-            if self.bot.enemy_units and reference_unit:
-                nearest_enemy = self.bot.enemy_units.closest_to(reference_unit.position)
-                if nearest_enemy.distance_to(reference_unit.position) < 10:
-                    logger.info(f"worker {assignment.unit} attacking enemy to defend {reference_unit} which is maybe {assignment.target}")
-                    assignment.unit.attack(nearest_enemy)
+            if assignment.job_type in {JobType.MINERALS, JobType.VESPENE}:
+                reference_unit: Unit = assignment.target
+                if self.bot.townhalls:
+                    reference_unit = reference_unit or self.bot.townhalls.closest_to(assignment.unit.position)
+                else:
+                    reference_unit = reference_unit or assignment.unit
+                if self.bot.enemy_units and reference_unit:
+                    nearest_enemy = self.bot.enemy_units.closest_to(reference_unit.position)
+                    if nearest_enemy.distance_to(reference_unit.position) < 10:
+                        assignment.on_attack_break = True
+                        logger.info(f"worker {assignment.unit} attacking enemy to defend {reference_unit} which is maybe {assignment.target}")
+                        assignment.unit.attack(nearest_enemy)
+                    elif assignment.on_attack_break:
+                        assignment.on_attack_break = False
+                        if assignment.target:
+                            assignment.unit.smart(assignment.target)
 
     def update_assigment(self, worker: Unit, new_job: JobType, new_target: Union[Unit, None]):
         self.update_job(worker, new_job)
@@ -248,7 +255,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
             logger.info(f"idle workers {self.bot.workers.idle}")
         for worker in self.bot.workers.idle:
             assigment: WorkerAssignment = self.assignments_by_worker[worker.tag]
-            if assigment.job_type != JobType.BUILD and assigment.unit.type_id != UnitTypeId.MULE:
+            if (assigment.job_type != JobType.BUILD or (assigment.target and assigment.target.is_ready)) and assigment.unit.type_id != UnitTypeId.MULE:
                 self.update_job(worker, JobType.IDLE)
         for worker in self.minerals.get_workers_from_depleted():
             self.update_job(worker, JobType.IDLE)
@@ -386,10 +393,10 @@ class Workers(UnitReferenceMixin, TimerMixin):
         return injured_mechanical_units + injured_structures
 
     def move_workers_to_minerals(self, number_to_move: int) -> int:
-        self.move_workers_between_resources(self.vespene, self.minerals, JobType.MINERALS, number_to_move)
+        return self.move_workers_between_resources(self.vespene, self.minerals, JobType.MINERALS, number_to_move)
 
     def move_workers_to_vespene(self, number_to_move: int) -> int:
-        self.move_workers_between_resources(self.minerals, self.vespene, JobType.VESPENE, number_to_move)
+        return self.move_workers_between_resources(self.minerals, self.vespene, JobType.VESPENE, number_to_move)
 
     def move_workers_between_resources(self, source: Resources, target: Resources, target_job: JobType, number_to_move: int) -> int:
         moved_count = 0

@@ -86,7 +86,7 @@ class BaseUnitMicro(GeometryMixin):
         targeting_destructable = False
         if not targets:
             targeting_destructable = True
-            targets = self.bot.destructables.in_attack_range_of(unit)
+            targets = self.bot.destructables.in_attack_range_of(unit, -1)
         if targets:
             if unit.weapon_cooldown == 0:
                 lowest_target = targets.sorted(key=lambda enemy_unit: enemy_unit.health).first
