@@ -81,7 +81,7 @@ class BotTato(BotAI, TimerMixin):
         self.my_workers.distribute_idle()
         self.stop_timer("my_workers.distribute_idle")
         self.start_timer("my_workers.speed_mine")
-        self.my_workers.speed_mine()
+        # self.my_workers.speed_mine()
         self.stop_timer("my_workers.speed_mine")
         self.my_workers.drop_mules()
 
