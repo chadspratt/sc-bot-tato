@@ -20,7 +20,7 @@ class Resources(UnitReferenceMixin):
     @property
     def has_unused_capacity(self):
         for node in self.nodes:
-            logger.info(f"{node} has workers {self.worker_tags_by_node_tag[node.tag]}")
+            logger.debug(f"{node} has workers {self.worker_tags_by_node_tag[node.tag]}")
             if self.needed_workers_for_node(node):
                 return True
         return False

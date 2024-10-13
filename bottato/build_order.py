@@ -391,7 +391,7 @@ class BuildOrder(TimerMixin):
                     remaining_resources -= build_step.cost
                     self.build_supply = None
 
-        if self.build_a_worker:
+        if self.build_a_worker and not (self.pending and self.pending[0].unit_type_id == UnitTypeId.ORBITALCOMMAND):
             build_step = self.build_a_worker
             if self.can_afford(remaining_resources, build_step.cost):
                 self.start_timer("build_step.execute")
