@@ -200,8 +200,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
         else:
             if assignment.job_type == JobType.MINERALS:
                 new_target = self.minerals.add_worker(worker)
-                if worker.type_id != UnitTypeId.MULE:
-                    worker.smart(new_target)
+                worker.smart(new_target)
             elif assignment.job_type == JobType.VESPENE:
                 new_target = self.vespene.add_worker(worker)
                 worker.smart(new_target)

@@ -498,7 +498,7 @@ class BuildOrder(TimerMixin):
                 UnitTypeId.MARINE,
                 UnitTypeId.RAVEN,
             ]
-        elif build_name == 'uthermal tvt':
+        elif build_name == 'bottato1':
             return [
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.BARRACKS,

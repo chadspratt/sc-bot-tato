@@ -33,7 +33,7 @@ class BotTato(BotAI, TimerMixin):
         self.structure_micro: StructureMicro = StructureMicro(self)
         self.production: Production = Production(self)
         self.build_order: BuildOrder = BuildOrder(
-            "uthermal tvt", bot=self, workers=self.my_workers, production=self.production
+            "bottato1", bot=self, workers=self.my_workers, production=self.production
         )
         # await self.client.debug_fast_build()
         # await self.client.debug_minerals()
