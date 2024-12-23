@@ -63,6 +63,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
         for worker in self.bot.workers:
             self.add_worker(worker)
         self.mule_queue = []
+        self.orbitals_calling_mules = []
 
     def add_worker(self, worker: Unit) -> bool:
         if worker.tag not in self.assignments_by_worker:
@@ -103,15 +104,29 @@ class Workers(UnitReferenceMixin, TimerMixin):
                 self.assignments_by_job[assignment.job_type] = [assignment]
         logger.debug(f"assignment summary {self.assignments_by_job}")
 
+        for orbital_tag in self.orbitals_calling_mules.copy():
+            logger.info(f"orbital tag {orbital_tag}")
+            orbital: Unit = self.get_updated_unit_reference_by_tag(orbital_tag)
+            logger.info(f"orbital {orbital} has {orbital.energy} energy")
+            if orbital.energy < 50:
+                self.orbitals_calling_mules.remove(orbital.tag)
+
     def drop_mules(self):
-        for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND).filter(lambda x: x.energy >= 50):
+        for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND):
+            if orbital.energy < 50 or orbital.tag in self.orbitals_calling_mules:
+                continue
             mineral_fields: Units = self.minerals.nodes_with_capacity().filter(lambda x: x not in self.mule_queue)
             if mineral_fields:
                 fullest_mineral_field: Unit = max(mineral_fields, key=lambda x: x.mineral_contents)
                 nearest_townhall: Unit = self.bot.townhalls.closest_to(fullest_mineral_field)
                 orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE, fullest_mineral_field.position.towards(nearest_townhall))
-                logger.info(f"dropping mule on mineral field {fullest_mineral_field}({fullest_mineral_field.position}) {fullest_mineral_field.mineral_contents}")
+                logger.info(f"dropping mule on mineral field {fullest_mineral_field}({fullest_mineral_field.position} near {orbital}) {fullest_mineral_field.mineral_contents}")
                 self.mule_queue.append(fullest_mineral_field)
+                self.orbitals_calling_mules.append(orbital.tag)
+
+    # MULE TODO:
+    # double up on minerals with SCVs
+    # take them off before they expire
 
     def speed_mine(self):
         for assignment in self.assignments_by_worker.values():

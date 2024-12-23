@@ -9,7 +9,18 @@ from sc2.player import Bot, Computer
 from bottato.bottato import BotTato
 
 
-logger.add("logs/bot_tato.log", level="INFO", format="{message}", rotation=True)
+HAS_ROTATED_LOG = False
+
+
+def rotate_at_start(message, file):
+    global HAS_ROTATED_LOG
+    try:
+        return not HAS_ROTATED_LOG
+    finally:
+        HAS_ROTATED_LOG = True
+
+
+logger.add("logs/bot_tato.log", level="INFO", format="{message}", rotation=rotate_at_start)
 
 
 def main():
