@@ -109,7 +109,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
             try:
                 orbital: Unit = self.get_updated_unit_reference_by_tag(orbital_tag)
             except UnitReferenceMixin.UnitNotFound:
-                self.orbitals_calling_mules.remove(orbital.tag)
+                self.orbitals_calling_mules.remove(orbital_tag)
 
             logger.info(f"orbital {orbital} has {orbital.energy} energy")
             if orbital.energy < 50:
