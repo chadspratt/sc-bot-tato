@@ -106,7 +106,11 @@ class Workers(UnitReferenceMixin, TimerMixin):
 
         for orbital_tag in self.orbitals_calling_mules.copy():
             logger.info(f"orbital tag {orbital_tag}")
-            orbital: Unit = self.get_updated_unit_reference_by_tag(orbital_tag)
+            try:
+                orbital: Unit = self.get_updated_unit_reference_by_tag(orbital_tag)
+            except UnitReferenceMixin.UnitNotFound:
+                self.orbitals_calling_mules.remove(orbital.tag)
+
             logger.info(f"orbital {orbital} has {orbital.energy} energy")
             if orbital.energy < 50:
                 self.orbitals_calling_mules.remove(orbital.tag)
