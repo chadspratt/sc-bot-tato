@@ -108,12 +108,12 @@ class Workers(UnitReferenceMixin, TimerMixin):
             logger.info(f"orbital tag {orbital_tag}")
             try:
                 orbital: Unit = self.get_updated_unit_reference_by_tag(orbital_tag)
+                logger.info(f"orbital {orbital} has {orbital.energy} energy")
+                if orbital.energy < 50:
+                    self.orbitals_calling_mules.remove(orbital.tag)
             except UnitReferenceMixin.UnitNotFound:
                 self.orbitals_calling_mules.remove(orbital_tag)
 
-            logger.info(f"orbital {orbital} has {orbital.energy} energy")
-            if orbital.energy < 50:
-                self.orbitals_calling_mules.remove(orbital.tag)
 
     def drop_mules(self):
         for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND):
