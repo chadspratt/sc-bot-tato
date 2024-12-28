@@ -11,6 +11,7 @@ class Minerals(Resources):
         super().__init__(bot)
         self.known_townhall_tags = []
         self.max_workers_per_node = 2
+        self.nodes_with_mules = []
 
     def update_references(self):
         super().update_references()
@@ -38,6 +39,11 @@ class Minerals(Resources):
                     if added == count:
                         break
         return added
+
+    def nodes_with_mule_capacity(self) -> Units:
+        return self.nodes.filter(
+            lambda unit: unit.tag not in self.nodes_with_mules
+        )
 
     def get_workers_from_depleted(self) -> Units:
         workers = Units([], self.bot)
