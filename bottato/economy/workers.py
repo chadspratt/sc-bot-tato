@@ -111,9 +111,9 @@ class Workers(UnitReferenceMixin, TimerMixin):
             self.assignments_by_job[JobType.IDLE].append(new_assignment)
             if worker.type_id == UnitTypeId.MULE:
                 self.aged_mules.append(worker)
-                closest_minerals = self.mule_queue.pop(0)
+                closest_minerals: Unit = self.mule_queue.pop(0)
                 self.update_assigment(worker, JobType.MINERALS, closest_minerals)
-                self.minerals.nodes_with_mules.append(closest_minerals)
+                self.minerals.add_mule(worker, closest_minerals)
                 logger.info(f"added mule {worker.tag}({worker.position}) to minerals {closest_minerals}({closest_minerals.position})")
             return True
         return False
@@ -126,12 +126,11 @@ class Workers(UnitReferenceMixin, TimerMixin):
                     updated_mule = self.bot.units.by_tag(mule.tag)
                     if not updated_mule.is_carrying_resource:
                         updated_mule.move(self.bot.enemy_start_locations[0])
-                        self.update_assigment(updated_mule, JobType.IDLE, None)
                         self.remove_mule(mule)
+                        self.update_assigment(updated_mule, JobType.IDLE, None)
                 except KeyError:
-                    self.aged_mules.remove(mule)
                     self.remove_mule(mule)
-                    
+
         for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND):
             if orbital.energy < self.mule_energy_threshold or orbital.tag in self.orbitals_calling_mules:
                 continue
@@ -145,11 +144,11 @@ class Workers(UnitReferenceMixin, TimerMixin):
                 self.orbitals_calling_mules.append(orbital.tag)
 
     def remove_mule(self, mule):
-        current_assignment: WorkerAssignment = self.assignments_by_worker(mule.tag)
+        logger.info(f"removing mule {mule}")
+        self.minerals.remove_mule(mule)
         self.aged_mules.remove(mule)
-        self.minerals.nodes_with_mules.remove(current_assignment.target.tag)
-        
-     def speed_mine(self):
+
+    def speed_mine(self):
         for assignment in self.assignments_by_worker.values():
             if assignment.unit_available and assignment.job_type in [JobType.MINERALS]:
                 worker: Unit = assignment.unit
