@@ -44,8 +44,8 @@ class WorkerAssignment():
 
 class Workers(UnitReferenceMixin, TimerMixin):
     def __init__(self, bot: BotAI) -> None:
-        self.last_worker_stop = -1000
         self.bot: BotAI = bot
+        self.last_worker_stop = -1000
         self.assignments_by_worker: dict[int, WorkerAssignment] = {}
         self.assignments_by_job: dict[JobType, list[WorkerAssignment]] = {
             JobType.IDLE: [],
@@ -60,22 +60,12 @@ class Workers(UnitReferenceMixin, TimerMixin):
         self.max_workers = 75
         self.health_per_repairer = 50
         self.max_repairers = 25
+        self.mule_energy_threshold = 50
         for worker in self.bot.workers:
             self.add_worker(worker)
         self.mule_queue = []
         self.orbitals_calling_mules = []
-
-    def add_worker(self, worker: Unit) -> bool:
-        if worker.tag not in self.assignments_by_worker:
-            new_assignment = WorkerAssignment(worker)
-            self.assignments_by_worker[worker.tag] = new_assignment
-            self.assignments_by_job[JobType.IDLE].append(new_assignment)
-            if worker.type_id == UnitTypeId.MULE:
-                closest_minerals = self.mule_queue.pop(0)
-                self.update_assigment(worker, JobType.MINERALS, closest_minerals)
-                logger.info(f"added mule {worker.tag}({worker.position}) to minerals {closest_minerals}({closest_minerals.position})")
-            return True
-        return False
+        self.aged_mules: Units = Units([], bot)
 
     def update_references(self):
         self.start_timer("minerals.update_references")
@@ -109,17 +99,42 @@ class Workers(UnitReferenceMixin, TimerMixin):
             try:
                 orbital: Unit = self.get_updated_unit_reference_by_tag(orbital_tag)
                 logger.info(f"orbital {orbital} has {orbital.energy} energy")
-                if orbital.energy < 50:
+                if orbital.energy < self.mule_energy_threshold:
                     self.orbitals_calling_mules.remove(orbital.tag)
             except UnitReferenceMixin.UnitNotFound:
                 self.orbitals_calling_mules.remove(orbital_tag)
 
+    def add_worker(self, worker: Unit) -> bool:
+        if worker.tag not in self.assignments_by_worker:
+            new_assignment = WorkerAssignment(worker)
+            self.assignments_by_worker[worker.tag] = new_assignment
+            self.assignments_by_job[JobType.IDLE].append(new_assignment)
+            if worker.type_id == UnitTypeId.MULE:
+                self.aged_mules.append(worker)
+                closest_minerals: Unit = self.mule_queue.pop(0)
+                self.update_assigment(worker, JobType.MINERALS, closest_minerals)
+                self.minerals.add_mule(worker, closest_minerals)
+                logger.info(f"added mule {worker.tag}({worker.position}) to minerals {closest_minerals}({closest_minerals.position})")
+            return True
+        return False
 
     def drop_mules(self):
+        # take off mules that are about to expire so they don't waste minerals
+        for mule in self.aged_mules.copy():
+            if mule.age > 58:
+                try:
+                    updated_mule = self.bot.units.by_tag(mule.tag)
+                    if not updated_mule.is_carrying_resource:
+                        updated_mule.move(self.bot.enemy_start_locations[0])
+                        self.remove_mule(mule)
+                        self.update_assigment(updated_mule, JobType.IDLE, None)
+                except KeyError:
+                    self.remove_mule(mule)
+
         for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND):
-            if orbital.energy < 50 or orbital.tag in self.orbitals_calling_mules:
+            if orbital.energy < self.mule_energy_threshold or orbital.tag in self.orbitals_calling_mules:
                 continue
-            mineral_fields: Units = self.minerals.nodes_with_capacity().filter(lambda x: x not in self.mule_queue)
+            mineral_fields: Units = self.minerals.nodes_with_mule_capacity().filter(lambda x: x not in self.mule_queue)
             if mineral_fields:
                 fullest_mineral_field: Unit = max(mineral_fields, key=lambda x: x.mineral_contents)
                 nearest_townhall: Unit = self.bot.townhalls.closest_to(fullest_mineral_field)
@@ -128,9 +143,10 @@ class Workers(UnitReferenceMixin, TimerMixin):
                 self.mule_queue.append(fullest_mineral_field)
                 self.orbitals_calling_mules.append(orbital.tag)
 
-    # MULE TODO:
-    # double up on minerals with SCVs
-    # take them off before they expire
+    def remove_mule(self, mule):
+        logger.info(f"removing mule {mule}")
+        self.minerals.remove_mule(mule)
+        self.aged_mules.remove(mule)
 
     def speed_mine(self):
         for assignment in self.assignments_by_worker.values():

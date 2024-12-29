@@ -2,6 +2,7 @@ from loguru import logger
 
 from sc2.bot_ai import BotAI
 from sc2.units import Units
+from sc2.unit import Unit
 
 from .resources import Resources
 
@@ -11,6 +12,8 @@ class Minerals(Resources):
         super().__init__(bot)
         self.known_townhall_tags = []
         self.max_workers_per_node = 2
+        self.max_mules_per_node = 1
+        self.mule_tags_by_node_tag = {}
 
     def update_references(self):
         super().update_references()
@@ -31,13 +34,29 @@ class Minerals(Resources):
     def add_long_distance_minerals(self, count: int) -> int:
         added = 0
         if self.bot.townhalls:
-            for minerals in self.bot.mineral_field.sorted_by_distance_to(self.bot.townhalls[0]):
-                if minerals.mineral_contents and self.add_node(minerals):
-                    logger.info(f"adding long distance mining node {minerals}")
+            for mineral_node in self.bot.mineral_field.sorted_by_distance_to(self.bot.townhalls[0]):
+                if mineral_node.mineral_contents and self.add_node(mineral_node):
+                    logger.info(f"adding long distance mining node {mineral_node}")
                     added += 1
                     if added == count:
                         break
         return added
+
+    def add_mule(self, mule: Unit, minerals: Unit):
+        self.mule_tags_by_node_tag[minerals.tag] = mule.tag
+
+    def remove_mule(self, mule: Unit):
+        tags_to_remove = []
+        for mineral_tag in self.mule_tags_by_node_tag.keys():
+            if self.mule_tags_by_node_tag[mineral_tag] == mule.tag:
+                tags_to_remove.append(mineral_tag)
+        for tag in tags_to_remove:
+            del self.mule_tags_by_node_tag[tag]
+
+    def nodes_with_mule_capacity(self) -> Units:
+        return self.nodes.filter(
+            lambda mineral_node: mineral_node.tag not in self.mule_tags_by_node_tag
+        )
 
     def get_workers_from_depleted(self) -> Units:
         workers = Units([], self.bot)
@@ -56,4 +75,6 @@ class Minerals(Resources):
                         pass
         for depleted_node in depleted_nodes:
             del self.worker_tags_by_node_tag[depleted_node]
+            if depleted_node in self.mule_tags_by_node_tag:
+                del self.mule_tags_by_node_tag[depleted_node]
         return workers
