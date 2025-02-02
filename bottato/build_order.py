@@ -2,6 +2,7 @@ import math
 from loguru import logger
 from typing import Dict, List, Union
 
+from sc2.ids.ability_id import AbilityId
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -36,7 +37,7 @@ class BuildOrder(TimerMixin):
         self.upgrades = Upgrades(bot)
         self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
         self.build_a_worker: BuildStep = None
-        self.build_supply: BuildStep = None
+        self.supply_build_step: BuildStep = None
         logger.info(f"Starting position: {self.bot.start_location}")
 
     def update_references(self) -> None:
@@ -112,7 +113,7 @@ class BuildOrder(TimerMixin):
             build_first = self.bot.supply_cap == 0 or (supply_increase == 0 and self.bot.supply_left / self.bot.supply_cap < 0.3 and self.bot.supply_cap < 200)
             build_second = self.bot.supply_cap > 0 and self.bot.supply_left / self.bot.supply_cap < 0.2 and self.bot.supply_cap < 200
             if build_first or build_second:
-                self.build_supply = BuildStep(UnitTypeId.SUPPLYDEPOT, self.bot, self.workers, self.production)
+                self.supply_build_step = BuildStep(UnitTypeId.SUPPLYDEPOT, self.bot, self.workers, self.production)
                 # self.add_to_build_order(UnitTypeId.SUPPLYDEPOT, 1)
         self.stop_timer("queue_supply")
 
@@ -224,9 +225,9 @@ class BuildOrder(TimerMixin):
         if self.build_a_worker:
             needed_resources.minerals += self.build_a_worker.cost.minerals
             needed_resources.vespene += self.build_a_worker.cost.vespene
-        if self.build_supply:
-            needed_resources.minerals += self.build_supply.cost.minerals
-            needed_resources.vespene += self.build_supply.cost.vespene
+        if self.supply_build_step:
+            needed_resources.minerals += self.supply_build_step.cost.minerals
+            needed_resources.vespene += self.supply_build_step.cost.vespene
         if self.pending:
             # find first shortage
             for idx, build_step in enumerate(self.pending):
@@ -250,11 +251,11 @@ class BuildOrder(TimerMixin):
             needed_resources.vespene += self.build_a_worker.cost.vespene
             if needed_resources.minerals < 0 and needed_resources.vespene < 0:
                 affordable_items.append(self.build_a_worker.unit_type_id)
-        if self.build_supply:
-            needed_resources.minerals += self.build_supply.cost.minerals
-            needed_resources.vespene += self.build_supply.cost.vespene
+        if self.supply_build_step:
+            needed_resources.minerals += self.supply_build_step.cost.minerals
+            needed_resources.vespene += self.supply_build_step.cost.vespene
             if needed_resources.minerals < 0 and needed_resources.vespene < 0:
-                affordable_items.append(self.build_supply.unit_type_id)
+                affordable_items.append(self.supply_build_step.unit_type_id)
 
         # find first shortage
         for idx, build_step in enumerate(self.pending):
@@ -356,6 +357,20 @@ class BuildOrder(TimerMixin):
                 self.move_to_complete(self.started.pop(idx))
                 break
 
+    def cancel_damaged_structure(self, unit: Unit, damage_amount: float):
+        if unit.health > damage_amount * 2:
+            return
+        for idx, build_step in enumerate(self.started):
+            if build_step.unit_being_built is not None and build_step.unit_being_built is not True and build_step.unit_being_built.tag == unit.tag:
+                unit(AbilityId.BUILDINPROGRESSNONCANCELLABLE_CANCEL)
+                logger.info(f"canceling build of {unit}")
+                build_step.unit_being_built = None
+                build_step.last_cancel = self.bot.time
+                if build_step.unit_in_charge.type_id == UnitTypeId.SCV:
+                    self.workers.update_assigment(build_step.unit_in_charge, JobType.IDLE, None)
+                self.pending.insert(0, self.started.pop(idx))
+                break
+
     def move_interupted_to_pending(self) -> None:
         to_promote = []
         for idx, build_step in enumerate(self.started):
@@ -378,8 +393,8 @@ class BuildOrder(TimerMixin):
         failed_types: list[UnitTypeId] = []
         remaining_resources = Cost(self.bot.minerals, self.bot.vespene)
 
-        if self.build_supply:
-            build_step = self.build_supply
+        if self.supply_build_step:
+            build_step = self.supply_build_step
             if self.can_afford(remaining_resources, build_step.cost):
                 self.start_timer("build_step.execute")
                 build_response = await build_step.execute(special_locations=self.special_locations, needed_resources=needed_resources)
@@ -389,7 +404,7 @@ class BuildOrder(TimerMixin):
                 if build_response == build_step.ResponseCode.SUCCESS:
                     self.started.append(build_step)
                     remaining_resources -= build_step.cost
-                    self.build_supply = None
+                    self.supply_build_step = None
 
         if self.build_a_worker and not (self.pending and self.pending[0].unit_type_id == UnitTypeId.ORBITALCOMMAND):
             build_step = self.build_a_worker
@@ -411,6 +426,10 @@ class BuildOrder(TimerMixin):
             except IndexError:
                 break
             if build_step.unit_type_id in failed_types:
+                continue
+            time_since_last_cancel = self.bot.time - build_step.last_cancel
+            if time_since_last_cancel < 5:
+                # delay rebuilding canceled structures
                 continue
             if not self.can_afford(remaining_resources, build_step.cost):
                 logger.info(f"Cannot afford {build_step.friendly_name}")

@@ -164,10 +164,13 @@ class BotTato(BotAI, TimerMixin):
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         logger.info(
-            f"Unit taking damage {unit}, "
+            f"Unit took {amount_damage_taken} damage {unit}, "
             f"current health: {unit.health}/{unit.health_max})"
         )
-        self.military.report_damage(unit, amount_damage_taken)
+        if unit.is_structure:
+            self.build_order.cancel_damaged_structure(unit, amount_damage_taken)
+        else:
+            self.military.report_damage(unit, amount_damage_taken)
 
     async def on_unit_destroyed(self, unit_tag: int):
         self.enemy.record_death(unit_tag)

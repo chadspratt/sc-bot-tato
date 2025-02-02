@@ -10,7 +10,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.game_data import Cost
-from sc2.protocol import ConnectionAlreadyClosed, ProtocolError
+from sc2.protocol import ConnectionAlreadyClosedError, ProtocolError
 
 from .mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
 from bottato.economy.workers import Workers
@@ -27,6 +27,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     unit_being_built: Optional[Unit] = None
     pos: Union[Unit, Point2]
     check_idle: bool = False
+    last_cancel: float = -10
 
     def __init__(self, unit_type: Union[UnitTypeId, UpgradeId], bot: BotAI, workers: Workers = None, production: Production = None):
         self.bot: BotAI = bot
@@ -270,7 +271,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                                 placement_step=2,
                                 addon_place=addon_place,
                             )
-                    except (ConnectionAlreadyClosed, ConnectionResetError, ProtocolError):
+                    except (ConnectionAlreadyClosedError, ConnectionResetError, ProtocolError):
                         return None
                     # try to not block addons
                     for no_addon_facility in self.production.get_no_addon_facilities():
