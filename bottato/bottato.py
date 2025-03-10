@@ -14,7 +14,7 @@ from .economy.workers import Workers
 from .economy.production import Production
 from .military import Military
 from .mixins import TimerMixin
-from .map import Map
+from .map.map import Map
 
 
 class BotTato(BotAI, TimerMixin):
@@ -41,7 +41,7 @@ class BotTato(BotAI, TimerMixin):
         self.last_replay_save_time = 0
         logger.info(os.getcwd())
         logger.info(f"vision blockers: {self.game_info.vision_blockers}")
-        logger.info(f"destructables: {self.destructables}")
+        logger.info(f"destructibles: {self.destructables}")
         # self.bot.state.action_errors
         # self.bot.state.actions
         # self.bot.state.effects
@@ -55,6 +55,11 @@ class BotTato(BotAI, TimerMixin):
         # XXX very slow
         await self.update_unit_references()
         self.stop_timer("update_unit_references")
+
+        self.start_timer("update_influence_maps")
+        # XXX very slow
+        self.map.update_influence_maps()
+        self.stop_timer("update_influence_maps")
 
         self.start_timer("military.manage_squads")
         # XXX extremely slow
@@ -90,7 +95,7 @@ class BotTato(BotAI, TimerMixin):
         await self.build_order.execute()
         self.stop_timer("build_order.execute")
         self.print_all_timers(30)
-        self.map.draw()
+        # self.map.draw()
 
     async def on_end(self, game_result: Result):
         print("Game ended.")

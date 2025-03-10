@@ -15,7 +15,7 @@ from ..micro.base_unit_micro import BaseUnitMicro
 from ..micro.micro_factory import MicroFactory
 from .base_squad import BaseSquad
 from ..enemy import Enemy
-from ..map import Map
+from ..map.map import Map
 
 
 class SquadOrderEnum(enum.Enum):

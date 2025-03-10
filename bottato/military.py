@@ -13,7 +13,7 @@ from .squad.base_squad import BaseSquad
 from .squad.scouting import Scouting
 from .squad.formation_squad import FormationSquad
 from .enemy import Enemy
-from .map import Map
+from .map.map import Map
 
 from .mixins import GeometryMixin, DebugMixin
 

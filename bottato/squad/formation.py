@@ -11,7 +11,7 @@ from sc2.units import Units
 # from sc2.units import Units
 
 from ..mixins import GeometryMixin, UnitReferenceMixin
-from ..map import Map
+from ..map.map import Map
 
 
 class FormationType(enum.Enum):
@@ -263,8 +263,9 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
                 if not formation_units:
                     break
                 unit = formation_units.closest_to(position)
+                valid_position = position if unit.is_flying else self.map.get_pathable_position(position)
                 formation_units.remove(unit)
-                unit_destinations[unit.tag] = position
+                unit_destinations[unit.tag] = valid_position
 
         return unit_destinations
 
