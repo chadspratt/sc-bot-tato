@@ -224,9 +224,10 @@ class Map(TimerMixin, GeometryMixin):
         return point2_path
 
     def get_pathable_position(self, position: Point2) -> Point2:
-        if self.ground_grid[position] != numpy.inf:
+        rounded_position = position.rounded
+        if self.ground_grid[rounded_position.x, rounded_position.y] != numpy.inf:
             return position
-        return self.map_data.closest_towards_point(self.map_data.find_lowest_cost_points(position, 3, self.ground_grid), position)
+        return self.influence_maps.closest_towards_point(self.influence_maps.find_lowest_cost_points(position, 3, self.ground_grid), position)
         # pathing_grid = self.bot.game_info.pathing_grid
         # pathable_ground = position
         # if pathing_grid[position] == 0:
@@ -236,7 +237,7 @@ class Map(TimerMixin, GeometryMixin):
         # return pathable_ground
 
     def update_influence_maps(self) -> None:
-        self.ground_grid = self.map_data.get_pyastar_grid()
+        self.ground_grid = self.influence_maps.get_pyastar_grid()
 
     def draw(self) -> None:
         if self.first_draw:
