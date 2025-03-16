@@ -227,29 +227,36 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         self, formation_destination: Point2, units: Units, destination_facing: float = None
     ) -> dict[int, Point2]:
         unit_destinations = {}
-
-        new_front_center = self.calculate_formation_front_center(units, formation_destination)
-        # limit front_center jumping around
-        self.front_center = self.front_center.towards(new_front_center, 2, limit=True)
-
-        self.path = self.map.get_path(self.front_center, formation_destination)
-
-        if self.path:
-            self.destination = self.front_center.towards(self.path[1], distance=2, limit=True)
-        else:
-            # if no path, tell all units to go to the destination. happens if already in destination zone or if reference point passes over non-pathable area
-            self.destination = formation_destination
-
         reference_point: Point2 = Point2((0, 0))
         facing = destination_facing
 
+        if not self.front_center:
+            # initialize
+            self.front_center = units.closest_n_units(formation_destination, 1).first.position
         distance_remaining = (self.front_center - formation_destination).length
-        if distance_remaining > 5:
-            facing = self.get_facing(self.front_center, self.destination)
-            for formation in self.formations:
-                if self.closest_unit.tag in formation.unit_tags:
-                    reference_point = formation.offset
-                    break
+        if distance_remaining < 5:
+            self.destination = formation_destination
+            logger.info(f"distance to {self.destination} < 5")
+        else:
+            new_front_center = self.calculate_formation_front_center(units, formation_destination)
+            # limit front_center jumping around
+            self.front_center = self.front_center.towards(new_front_center, 2, limit=True)
+            self.path = self.map.get_path(self.front_center, formation_destination)
+
+            if self.path:
+                logger.info(f"following path {self.path} to {self.destination}")
+                self.destination = self.front_center.towards(self.path[1], distance=2, limit=True)
+            else:
+                logger.info(f"heading directly to {self.destination}")
+                # if no path, tell all units to go to the destination. happens if already in destination zone or if reference point passes over non-pathable area
+                self.destination = formation_destination
+
+            if distance_remaining > 5:
+                facing = self.get_facing(self.front_center, self.destination)
+                for formation in self.formations:
+                    if self.closest_unit.tag in formation.unit_tags:
+                        reference_point = formation.offset
+                        break
 
         for formation in self.formations:
             # create list of positions to fill
@@ -270,10 +277,6 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         return unit_destinations
 
     def calculate_formation_front_center(self, units: Units, destination: Point2) -> Point2:
-        if not self.front_center:
-            # initialize
-            self.front_center = units.closest_n_units(destination, 1).first.position
-
         close_units = units.closer_than(10, self.front_center)
         in_formation_units: Units = close_units if close_units else units
         units_center = in_formation_units.center

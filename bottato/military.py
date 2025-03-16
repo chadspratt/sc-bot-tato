@@ -1,4 +1,3 @@
-import math
 from typing import List
 from loguru import logger
 
@@ -127,10 +126,10 @@ class Military(GeometryMixin, DebugMixin):
                 logger.info(f"squad {squad.name} attacking enemy scout(s) {scouts_in_base}")
                 await squad.attack(scouts_in_base)
             else:
-                logger.info(f"squad {squad} staging")
+                logger.info(f"squad {squad} staging at {squad.staging_location}")
                 enemy_position = self.bot.enemy_start_locations[0]
                 if self.bot.townhalls:
-                    squad.staging_location = self.bot.townhalls.closest_to(enemy_position).position.towards_with_random_angle(enemy_position, 4, math.pi / 2)
+                    squad.staging_location = self.bot.townhalls.closest_to(enemy_position).position.towards(enemy_position, 4)
                 else:
                     squad.staging_location = self.bot.start_location
                 facing = self.get_facing(squad.staging_location, enemy_position)

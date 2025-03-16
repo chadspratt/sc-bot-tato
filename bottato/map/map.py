@@ -219,8 +219,9 @@ class Map(TimerMixin, GeometryMixin):
             path: Path = start_zone.path_to(end_zone)
             if path:
                 logger.debug(f"found path {path}")
-                for zone in path.zones:
+                for zone in path.zones[:-1]:
                     point2_path.append(zone.midpoint)
+                point2_path.append(end)
         return point2_path
 
     def get_pathable_position(self, position: Point2) -> Point2:
