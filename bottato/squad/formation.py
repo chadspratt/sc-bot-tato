@@ -243,7 +243,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             self.front_center = self.front_center.towards(new_front_center, 2, limit=True)
             self.path = self.map.get_path(self.front_center, formation_destination)
 
-            if self.path:
+            if self.path and len(self.path) > 1:
                 logger.info(f"following path {self.path} to {self.destination}")
                 self.destination = self.front_center.towards(self.path[1], distance=2, limit=True)
             else:

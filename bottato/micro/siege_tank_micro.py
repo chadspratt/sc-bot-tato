@@ -55,6 +55,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             if enemy_unit:
                 self.bot.client.debug_line_out(unit, enemy_unit)
                 enemy_range_after_sieging = unit_distance - any_enemy_unit.calculate_speed() * self.max_siege_time
+                if not enemy_unit.is_facing(unit):
+                    enemy_range_after_sieging += 3
             # all_sieged = len(self.unsieged_tags) == 0
             most_are_seiged = len(self.unsieged_tags) < len(self.sieged_tags)
             enemy_distance = any_enemy_unit_distance if most_are_seiged else (enemy_range_after_sieging + self.unsiege_buffer)
@@ -66,6 +68,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             if enemy_unit:
                 self.bot.client.debug_line_out(unit, enemy_unit)
                 enemy_range_after_sieging = unit_distance - enemy_unit.calculate_speed() * self.max_siege_time
+                if not enemy_unit.is_facing(unit):
+                    enemy_range_after_sieging += 3
             most_are_seiged = len(self.unsieged_tags) < len(self.sieged_tags)
             enemy_distance = unit_distance if most_are_seiged else (enemy_range_after_sieging + self.siege_buffer)
             if enemy_range_after_sieging > self.sieged_minimum_range + 0.5 and (enemy_distance <= self.sieged_range or structure_distance < self.sieged_range):

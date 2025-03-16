@@ -204,7 +204,7 @@ class Map(TimerMixin, GeometryMixin):
         return zones
 
     def get_path(self, start: Point2, end: Point2) -> List[Point2]:
-        point2_path: List[Point2] = []
+        point2_path: List[Point2] = [start]
         start_rounded: Point2 = start.rounded
         end_rounded: Point2 = end.rounded
         try:
@@ -219,7 +219,7 @@ class Map(TimerMixin, GeometryMixin):
             path: Path = start_zone.path_to(end_zone)
             if path:
                 logger.debug(f"found path {path}")
-                for zone in path.zones[:-1]:
+                for zone in path.zones[1:-1]:
                     point2_path.append(zone.midpoint)
                 point2_path.append(end)
         return point2_path
