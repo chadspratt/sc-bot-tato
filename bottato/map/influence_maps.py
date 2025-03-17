@@ -248,7 +248,7 @@ class InfluenceMaps():
         return points[self.closest_node_idx(node=target, nodes=points)]
 
     def set_position_unpathable(self, position: Point2, grid: np.ndarray, unit: Unit):
-        self.add_cost(position, unit.radius, grid, np.Inf)
+        self.add_cost(position, unit.radius, grid, np.inf)
 
     def add_cost(self, position: Tuple[float, float], radius: float, grid: np.ndarray, weight: float = 100,
                  safe: bool = True,
