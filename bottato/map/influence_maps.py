@@ -1,6 +1,7 @@
 from itertools import chain
 from typing import List, Optional, Tuple, Union
 
+from sc2.unit import Unit
 from sc2.position import Point2
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.bot_ai import BotAI
@@ -81,6 +82,29 @@ class InfluenceMaps():
         grid = np.where(grid != 0, default_weight, np.inf).astype(np.float32)
         return grid
 
+    def add_building_to_grid(self, type_id: UnitTypeId, position: Point2, grid: np.ndarray, weight=0):
+        size = 1
+        if type_id in buildings["2x2"]:
+            size = 2
+        elif type_id in buildings["3x3"]:
+            size = 3
+        elif type_id in buildings["5x5"]:
+            size = 5
+        left_bottom = position.offset((-size / 2, -size / 2))
+        x_start = int(left_bottom[0])
+        y_start = int(left_bottom[1])
+        x_end = int(x_start + size)
+        y_end = int(y_start + size)
+
+        grid[x_start:x_end, y_start:y_end] = weight
+
+        # townhall sized buildings should have their corner spots pathable
+        if size == 5:
+            grid[x_start, y_start] = 1
+            grid[x_start, y_end - 1] = 1
+            grid[x_end - 1, y_start] = 1
+            grid[x_end - 1, y_end - 1] = 1
+
     def _add_non_pathables_ground(self, grid: np.ndarray, include_destructables: bool = True) -> np.ndarray:
         ret_grid = grid.copy()
         nonpathables = self.bot.structures.not_flying
@@ -93,31 +117,10 @@ class InfluenceMaps():
             )
         )
 
-        for obj in nonpathables:
-            size = 1
-            if obj.type_id in buildings["2x2"]:
-                size = 2
-            elif obj.type_id in buildings["3x3"]:
-                size = 3
-            elif obj.type_id in buildings["5x5"]:
-                size = 5
-            left_bottom = obj.position.offset((-size / 2, -size / 2))
-            x_start = int(left_bottom[0])
-            y_start = int(left_bottom[1])
-            x_end = int(x_start + size)
-            y_end = int(y_start + size)
-
-            ret_grid[x_start:x_end, y_start:y_end] = 0
-
-            # townhall sized buildings should have their corner spots pathable
-            if size == 5:
-                ret_grid[x_start, y_start] = 1
-                ret_grid[x_start, y_end - 1] = 1
-                ret_grid[x_end - 1, y_start] = 1
-                ret_grid[x_end - 1, y_end - 1] = 1
+        for structure in nonpathables:
+            self.add_building_to_grid(structure.type_id, structure.position, ret_grid)
 
         if len(self.minerals_included) != self.bot.mineral_field.amount:
-
             new_positions = set(m.position for m in self.bot.mineral_field)
             old_mf_positions = set(self.minerals_included)
 
@@ -243,3 +246,61 @@ class InfluenceMaps():
             logger.warning(type(points))
 
         return points[self.closest_node_idx(node=target, nodes=points)]
+
+    def set_position_unpathable(self, position: Point2, grid: np.ndarray, unit: Unit):
+        self.add_cost(position, unit.radius, grid, np.Inf)
+
+    def add_cost(self, position: Tuple[float, float], radius: float, grid: np.ndarray, weight: float = 100,
+                 safe: bool = True,
+                 initial_default_weights: float = 0) -> np.ndarray:
+        """
+        :rtype: numpy.ndarray
+
+        Will add cost to a `circle-shaped` area with a center ``position`` and radius ``radius``
+
+        weight of 100
+
+        Warning:
+            When ``safe=False`` the Pather will not adjust illegal values below 1 which could result in a crash`
+
+        See Also:
+            * :meth:`.MapData.add_cost_to_multiple_grids`
+
+        """
+        disk = tuple(self.draw_circle(position, radius, grid.shape))
+
+        arr: np.ndarray = self._add_disk_to_grid(
+            position, grid, disk, weight, safe, initial_default_weights
+        )
+
+        return arr
+
+    @staticmethod
+    def _add_disk_to_grid(
+        position: Tuple[float, float],
+        arr: np.ndarray,
+        disk: Tuple,
+        weight: float = 100,
+        safe: bool = True,
+        initial_default_weights: float = 0,
+    ) -> np.ndarray:
+        # if we don't touch any cell origins due to a small radius, add at least the cell
+        # the given position is in
+        if (
+            len(disk[0]) == 0
+            and 0 <= position[0] < arr.shape[0]
+            and 0 <= position[1] < arr.shape[1]
+        ):
+            disk = (int(position[0]), int(position[1]))
+
+        if initial_default_weights > 0:
+            arr[disk] = np.where(arr[disk] == 1, initial_default_weights, arr[disk])
+
+        arr[disk] += weight
+        if safe and np.any(arr[disk] < 1):
+            logger.warning(
+                "You are attempting to set weights that are below 1. falling back to the minimum (1)"
+            )
+            arr[disk] = np.where(arr[disk] < 1, 1, arr[disk])
+
+        return arr

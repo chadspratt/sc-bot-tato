@@ -2,8 +2,9 @@ from __future__ import annotations
 from typing import List, Dict
 
 from loguru import logger
-import numpy
+import numpy as np
 
+from sc2.unit import Unit
 from sc2.bot_ai import BotAI
 from sc2.pixel_map import PixelMap
 from sc2.position import Point2, Point3
@@ -224,21 +225,19 @@ class Map(TimerMixin, GeometryMixin):
                 point2_path.append(end)
         return point2_path
 
-    def get_pathable_position(self, position: Point2) -> Point2:
+    def get_pathable_position(self, position: Point2, unit: Unit) -> Point2:
         rounded_position = position.rounded
-        if self.ground_grid[rounded_position.x, rounded_position.y] != numpy.inf:
-            return position
-        return self.influence_maps.closest_towards_point(self.influence_maps.find_lowest_cost_points(position, 3, self.ground_grid), position)
-        # pathing_grid = self.bot.game_info.pathing_grid
-        # pathable_ground = position
-        # if pathing_grid[position] == 0:
-        #     if position not in self.nearest_ground:
-        #         self.nearest_ground[position]
-        #     pathable_ground = self.nearest_ground[position]
-        # return pathable_ground
+        if self.ground_grid[rounded_position.x, rounded_position.y] != np.inf:
+            pathable_position = position
+        else:
+            pathable_position: Point2 = self.influence_maps.closest_towards_point(self.influence_maps.find_lowest_cost_points(position, 3, self.ground_grid), position)
+        self.influence_maps.set_position_unpathable(pathable_position, self.ground_grid, unit)
+        return pathable_position
 
-    def update_influence_maps(self) -> None:
+    def update_influence_maps(self, pending_buildings) -> None:
         self.ground_grid = self.influence_maps.get_pyastar_grid()
+        for pending in pending_buildings:
+            self.influence_maps.add_building_to_grid(pending["type_id"], pending["position"], self.ground_grid, np.inf)
 
     def draw(self) -> None:
         if self.first_draw:

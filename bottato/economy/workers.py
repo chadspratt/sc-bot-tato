@@ -204,6 +204,8 @@ class Workers(UnitReferenceMixin, TimerMixin):
         self.update_target(worker, new_target)
 
     def update_job(self, worker: Unit, new_job: JobType):
+        if worker.tag not in self.assignments_by_worker:
+            return
         assignment = self.assignments_by_worker[worker.tag]
         logger.info(f"worker {worker} changing from {assignment.job_type} to {new_job}")
         if assignment.job_type == JobType.MINERALS:

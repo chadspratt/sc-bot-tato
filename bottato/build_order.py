@@ -52,6 +52,15 @@ class BuildOrder(TimerMixin):
             logger.debug(f"started step {build_step}")
         self.move_interupted_to_pending()
 
+    def get_pending_buildings(self):
+        return [
+            {
+                "type_id": p.unit_type_id,
+                "position": p.pos
+            }
+            for p in self.pending if p.pos is not None
+        ]
+
     @property
     def remaining_cap(self) -> int:
         remaining = self.bot.supply_left

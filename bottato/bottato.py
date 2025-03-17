@@ -58,7 +58,7 @@ class BotTato(BotAI, TimerMixin):
 
         self.start_timer("update_influence_maps")
         # XXX very slow
-        self.map.update_influence_maps()
+        self.map.update_influence_maps(self.build_order.get_pending_buildings())
         self.stop_timer("update_influence_maps")
 
         self.start_timer("military.manage_squads")
