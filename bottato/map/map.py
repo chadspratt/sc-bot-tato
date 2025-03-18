@@ -226,18 +226,18 @@ class Map(TimerMixin, GeometryMixin):
         return point2_path
 
     def get_pathable_position(self, position: Point2, unit: Unit) -> Point2:
-        rounded_position = position.rounded
-        if self.ground_grid[rounded_position.x, rounded_position.y] != np.inf:
-            pathable_position = position
-        else:
-            pathable_position: Point2 = self.influence_maps.closest_towards_point(self.influence_maps.find_lowest_cost_points(position, 3, self.ground_grid), position)
-        self.influence_maps.set_position_unpathable(pathable_position, self.ground_grid, unit)
+        pathable_position: Point2 = self.influence_maps.closest_towards_point(self.influence_maps.find_lowest_cost_points(position, 3, self.ground_grid), position)
+        self.influence_maps.add_cost(pathable_position, unit.radius, self.ground_grid, np.inf)
         return pathable_position
 
     def update_influence_maps(self, pending_buildings) -> None:
         self.ground_grid = self.influence_maps.get_pyastar_grid()
         for pending in pending_buildings:
+            logger.info(f"adding to influence maps {pending}")
             self.influence_maps.add_building_to_grid(pending["type_id"], pending["position"], self.ground_grid, np.inf)
+
+    def draw_influence(self) -> None:
+        self.influence_maps.draw_influence_in_game(self.ground_grid, 1, 2000)
 
     def draw(self) -> None:
         if self.first_draw:

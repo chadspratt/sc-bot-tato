@@ -2,7 +2,7 @@ from itertools import chain
 from typing import List, Optional, Tuple, Union
 
 from sc2.unit import Unit
-from sc2.position import Point2
+from sc2.position import Point2, Point3
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.bot_ai import BotAI
 
@@ -304,3 +304,39 @@ class InfluenceMaps():
             arr[disk] = np.where(arr[disk] < 1, 1, arr[disk])
 
         return arr
+
+    def draw_influence_in_game(self, grid: np.ndarray,
+                               lower_threshold: int = 1,
+                               upper_threshold: int = 1000,
+                               color: Tuple[int, int, int] = (201, 168, 79),
+                               size: int = 13) -> None:
+        """
+        :rtype: None
+        Draws influence (cost) values of a grid in game.
+
+        Caution:
+            Setting the lower threshold too low impacts performance since almost every value will get drawn.
+
+            It's recommended that this is set to the relevant grid's default weight value.
+
+        Example:
+                >>> self.ground_grid = self.get_pyastar_grid(default_weight=1)
+                >>> self.ground_grid = self.add_cost((100, 100), radius=15, grid=self.ground_grid, weight=50)
+                >>> # self.draw_influence_in_game(self.ground_grid, lower_threshold=1) # commented out for doctest
+
+        See Also:
+            * :meth:`.MapData.get_pyastar_grid`
+            * :meth:`.MapData.get_climber_grid`
+            * :meth:`.MapData.get_clean_air_grid`
+            * :meth:`.MapData.get_air_vs_ground_grid`
+            * :meth:`.MapData.add_cost`
+
+        """
+        height: float = self.bot.get_terrain_z_height(self.bot.start_location)
+        for x, y in zip(*np.where((grid > lower_threshold) & (grid <= upper_threshold))):
+            pos: Point3 = Point3((x, y, height))
+            if grid[x, y] == np.inf:
+                val: int = 9999
+            else:
+                val: int = int(grid[x, y])
+            self.bot.client.debug_text_world(str(val), pos, color, size)

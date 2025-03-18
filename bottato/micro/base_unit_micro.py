@@ -19,7 +19,7 @@ class BaseUnitMicro(GeometryMixin):
     def __init__(self, bot: BotAI):
         self.bot: BotAI = bot
 
-    async def use_ability(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
+    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float) -> bool:
         return False
 
     async def retreat(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
@@ -114,7 +114,7 @@ class BaseUnitMicro(GeometryMixin):
     async def move(self, unit: Unit, target: Point2, enemy: Enemy) -> None:
         if unit.tag in self.bot.unit_tags_received_action:
             return
-        if await self.use_ability(unit, enemy, health_threshold=self.ability_health):
+        if await self.use_ability(unit, enemy, target, health_threshold=self.ability_health):
             logger.debug(f"unit {unit} used ability")
         elif self.attack_something(unit, health_threshold=self.attack_health):
             logger.debug(f"unit {unit} attacked something")
@@ -127,7 +127,7 @@ class BaseUnitMicro(GeometryMixin):
     async def scout(self, unit: Unit, scouting_location: Point2, enemy: Enemy):
         logger.debug(f"scout {unit} health {unit.health}/{unit.health_max} ({unit.health_percentage}) health")
 
-        if await self.use_ability(unit, enemy, health_threshold=1.0):
+        if await self.use_ability(unit, enemy, scouting_location, health_threshold=1.0):
             pass
         elif await self.retreat(unit, enemy, health_threshold=1.0):
             pass

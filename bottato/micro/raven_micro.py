@@ -1,6 +1,7 @@
 from __future__ import annotations
 from loguru import logger
 
+from sc2.position import Point2
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from .base_unit_micro import BaseUnitMicro
@@ -20,7 +21,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     def __init__(self, bot: BotAI):
         super().__init__(bot)
 
-    async def use_ability(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
+    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float) -> bool:
         enemy_unit, enemy_distance = enemy.get_closest_target(unit, distance_limit=20, include_destructables=False)
         logger.info(f"raven {unit} closest unit {enemy_unit}({enemy_distance}), energy={unit.energy}")
         if enemy_unit is None:

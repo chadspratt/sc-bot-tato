@@ -53,13 +53,16 @@ class BuildOrder(TimerMixin):
         self.move_interupted_to_pending()
 
     def get_pending_buildings(self):
-        return [
+        buildings = [
             {
                 "type_id": p.unit_type_id,
                 "position": p.pos
             }
-            for p in self.pending if p.pos is not None
+            for p in self.pending + self.started if p.pos is not None
         ]
+        if self.supply_build_step is not None and self.supply_build_step.pos is not None:
+            buildings.append(self.supply_build_step)
+        return buildings
 
     @property
     def remaining_cap(self) -> int:

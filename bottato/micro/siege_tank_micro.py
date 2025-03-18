@@ -1,6 +1,7 @@
 from __future__ import annotations
 from loguru import logger
 
+from sc2.position import Point2
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from .base_unit_micro import BaseUnitMicro
@@ -28,7 +29,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     def __init__(self, bot: BotAI):
         super().__init__(bot)
 
-    async def use_ability(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
+    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float) -> bool:
         if unit.tag not in self.known_tags:
             self.known_tags.add(unit.tag)
             self.unsieged_tags.add(unit.tag)
@@ -50,6 +51,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         enemy_structure, structure_distance = enemy.get_closest_target(unit, include_units=False, include_destructables=False)
         logger.info(f"{unit} seiged={is_sieged}, closest enemy {enemy_unit}({unit_distance}), structure {enemy_structure}({structure_distance})")
         enemy_range_after_sieging = 9999
+        reached_destination = unit.position.distance_to(target) < 0.5
 
         if is_sieged:
             if enemy_unit:
@@ -60,7 +62,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             # all_sieged = len(self.unsieged_tags) == 0
             most_are_seiged = len(self.unsieged_tags) < len(self.sieged_tags)
             enemy_distance = any_enemy_unit_distance if most_are_seiged else (enemy_range_after_sieging + self.unsiege_buffer)
-            if enemy_distance > self.sieged_range and structure_distance > self.sieged_range:
+            if enemy_distance > self.sieged_range and structure_distance > self.sieged_range and not reached_destination:
                 self.unsiege(unit)
                 self.last_transform_time[unit.tag] = self.bot.time
                 return True
@@ -72,10 +74,13 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     enemy_range_after_sieging += 3
             most_are_seiged = len(self.unsieged_tags) < len(self.sieged_tags)
             enemy_distance = unit_distance if most_are_seiged else (enemy_range_after_sieging + self.siege_buffer)
-            if enemy_range_after_sieging > self.sieged_minimum_range + 0.5 and (enemy_distance <= self.sieged_range or structure_distance < self.sieged_range):
+            enemy_will_be_far_enough = enemy_range_after_sieging > self.sieged_minimum_range + 0.5
+            enemy_will_be_close_enough = enemy_distance <= self.sieged_range or structure_distance < self.sieged_range
+            if enemy_will_be_far_enough and (enemy_will_be_close_enough or reached_destination):
                 self.siege(unit)
                 self.last_transform_time[unit.tag] = self.bot.time
                 return True
+
         return False
 
     # def attack_something(self, unit: Unit, health_threshold: float) -> bool:
