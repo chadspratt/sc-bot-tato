@@ -61,7 +61,10 @@ class BuildOrder(TimerMixin):
             for p in self.pending + self.started if p.pos is not None
         ]
         if self.supply_build_step is not None and self.supply_build_step.pos is not None:
-            buildings.append(self.supply_build_step)
+            buildings.append({
+                "type_id": self.supply_build_step.unit_type_id,
+                "position": self.supply_build_step.pos
+            })
         return buildings
 
     @property
