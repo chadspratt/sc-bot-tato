@@ -128,10 +128,21 @@ class Military(GeometryMixin, DebugMixin):
             else:
                 logger.info(f"squad {squad} staging at {squad.staging_location}")
                 enemy_position = self.bot.enemy_start_locations[0]
-                if self.bot.townhalls:
-                    squad.staging_location = self.bot.townhalls.closest_to(enemy_position).position.towards(enemy_position, 4)
+                if len(self.bot.townhalls) > 1:
+                    closest_base = self.bot.townhalls.closest_to(enemy_position)
+                    second_closest_base = self.bot.townhalls.filter(lambda base: base.tag != closest_base.tag).closest_to(enemy_position)
+                    path = self.map.get_path(closest_base.position, second_closest_base.position)
+                    backtrack_distance = 15
+                    i = 0
+                    while backtrack_distance > 0 and i + 1 < len(path):
+                        next_node_distance = path[i].distance_to(path[i + 1])
+                        if backtrack_distance <= next_node_distance:
+                            squad.staging_location = path[i].towards(path[i + 1], backtrack_distance)
+                            break
+                        backtrack_distance -= next_node_distance
+                        i += 1
                 else:
-                    squad.staging_location = self.bot.start_location
+                    squad.staging_location = self.bot.start_location.towards(enemy_position, 5)
                 facing = self.get_facing(squad.staging_location, enemy_position)
                 await squad.move(squad.staging_location, facing)
 
