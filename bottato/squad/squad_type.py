@@ -10,18 +10,25 @@ class SquadType():
 
 
 SquadTypeDefinitions: dict[str, SquadType] = {
-    'none': SquadType('none', Composition(initial_units=[])),
-    'early marines': SquadType('none', Composition(initial_units=[UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE])),
-    'worker scout': SquadType('worker scout', Composition(initial_units=[UnitTypeId.SCV])),
-    'defensive tank': SquadType('defensive tank', Composition(initial_units=[UnitTypeId.SIEGETANK])),
-    'reaper scouts': SquadType('reaper scouts',
-                               Composition(initial_units=[UnitTypeId.REAPER],
-                                           max_size=2)),
-    'reaper skirmish': SquadType('reaper scouts',
-                                 Composition(initial_units=[UnitTypeId.REAPER, UnitTypeId.REAPER, UnitTypeId.REAPER, UnitTypeId.REAPER])),
-    'banshee harass': SquadType('banshee harass', Composition(initial_units=[UnitTypeId.BANSHEE])),
-    'hellion harass': SquadType('hellion harass', Composition(initial_units=[UnitTypeId.HELLION, UnitTypeId.REAPER, UnitTypeId.HELLION])),
+    'none': SquadType('none', Composition({})),
+    'early marines': SquadType('none', Composition({UnitTypeId.MARINE: 8})),
+    'worker scout': SquadType('worker scout', Composition({UnitTypeId.SCV: 1})),
+    'defensive tank': SquadType('defensive tank', Composition({UnitTypeId.SIEGETANK: 1})),
+    'reaper scouts': SquadType('reaper scouts', Composition({UnitTypeId.REAPER: 1})),
+    'reaper skirmish': SquadType('reaper scouts', Composition({UnitTypeId.REAPER: 4})),
+    'banshee harass': SquadType('banshee harass', Composition({UnitTypeId.BANSHEE: 1})),
+    'hellion harass': SquadType('hellion harass', Composition({UnitTypeId.HELLION: 2, UnitTypeId.REAPER: 1})),
     'tanks with support': SquadType('tanks with support', Composition(
-        initial_units=[UnitTypeId.SIEGETANK, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.RAVEN, UnitTypeId.MEDIVAC, UnitTypeId.BANSHEE])),
-    'anti air': SquadType('anti air', Composition(initial_units=[UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.VIKINGFIGHTER])),
+        {UnitTypeId.SIEGETANK: 1, UnitTypeId.MARINE: 4, UnitTypeId.RAVEN: 1, UnitTypeId.MEDIVAC: 1, UnitTypeId.BANSHEE: 1})),
+    'full army': SquadType('full army', Composition({
+        UnitTypeId.SIEGETANK: 2,
+        UnitTypeId.MARINE: 8,
+        UnitTypeId.RAVEN: 1,
+        UnitTypeId.MEDIVAC: 2,
+        UnitTypeId.BANSHEE: 2,
+        UnitTypeId.VIKINGFIGHTER: 3,
+        UnitTypeId.THOR: 1,
+        UnitTypeId.BATTLECRUISER: 1
+    })),
+    'anti air': SquadType('anti air', Composition({UnitTypeId.MARINE: 2, UnitTypeId.VIKINGFIGHTER: 1})),
 }

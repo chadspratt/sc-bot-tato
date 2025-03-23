@@ -1,21 +1,17 @@
-from typing import List
+from typing import Dict, List
 
 from sc2.ids.unit_typeid import UnitTypeId
 
 
 class Composition():
-    def __init__(self, initial_units: List[UnitTypeId], expansion_units: List[UnitTypeId] = [], max_size=0) -> None:
-        self.minimum_units = initial_units
-        self.expansion_units = expansion_units
-        self.current_units = initial_units
-        if max_size == 0:
-            self.max_size = len(initial_units) + len(expansion_units)
-        else:
-            self.max_size = max_size
+    unit_ids: List[UnitTypeId] = []
+    unit_counts: Dict[UnitTypeId, int] = {}
+
+    def __init__(self, unit_counts: Dict[UnitTypeId, int]) -> None:
+        self.unit_counts = unit_counts
+        for unit_id in unit_counts:
+            for x in range(unit_counts[unit_id]):
+                self.unit_ids.append(unit_id)
 
     def count_type(self, type: UnitTypeId) -> int:
-        count = 0
-        for unit_type in self.current_units:
-            if unit_type == type:
-                count += 1
-        return count
+        return self.unit_counts[type]

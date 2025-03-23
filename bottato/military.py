@@ -168,13 +168,13 @@ class Military(GeometryMixin, DebugMixin):
                 if property_summary['flying'] >= property_summary['ground']:
                     squad_type = SquadTypeDefinitions['anti air']
                 else:
-                    squad_type = SquadTypeDefinitions['tanks with support']
+                    squad_type = SquadTypeDefinitions['full army']
             elif unmatched_friendlies:
                 # seem to be ahead,
                 squad_type = SquadTypeDefinitions['banshee harass']
             else:
-                squad_type = SquadTypeDefinitions['tanks with support']
-            for unit_type in squad_type.composition.current_units:
+                squad_type = SquadTypeDefinitions['full army']
+            for unit_type in squad_type.composition.unit_ids:
                 new_units.append(unit_type)
                 new_supply += self.bot.calculate_supply_cost(unit_type)
 
