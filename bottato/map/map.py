@@ -226,7 +226,10 @@ class Map(TimerMixin, GeometryMixin):
         return point2_path
 
     def get_pathable_position(self, position: Point2, unit: Unit) -> Point2:
-        pathable_position: Point2 = self.influence_maps.closest_towards_point(self.influence_maps.find_lowest_cost_points(position, 3, self.ground_grid), position)
+        candidates = self.influence_maps.find_lowest_cost_points(position, 3, self.ground_grid)
+        if candidates is None:
+            return position
+        pathable_position: Point2 = self.influence_maps.closest_towards_point(candidates, position)
         self.influence_maps.add_cost(pathable_position, unit.radius, self.ground_grid, np.inf)
         return pathable_position
 
