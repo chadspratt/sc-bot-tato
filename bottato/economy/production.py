@@ -379,7 +379,10 @@ class Production(UnitReferenceMixin):
                 facility: Facility
                 logger.info(f"checking facilities with no addon {self.facilities[facility_type][UnitTypeId.NOTAUNIT]}")
                 for facility in self.facilities[facility_type][UnitTypeId.NOTAUNIT]:
-                    facility.unit = self.get_updated_unit_reference(facility.unit)
+                    try:
+                        facility.unit = self.get_updated_unit_reference(facility.unit)
+                    except UnitReferenceMixin.UnitNotFound:
+                        continue
                     if facility.unit.add_on_tag:
                         add_on = self.get_updated_unit_reference_by_tag(facility.unit.add_on_tag)
                         generic_type = list(UNIT_TECH_ALIAS[add_on.type_id])[0]
