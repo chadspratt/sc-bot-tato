@@ -72,15 +72,15 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             )
             self.last_seen[enemy_unit.tag] = self.bot.time
             self.last_seen_position[enemy_unit.tag] = enemy_unit.position
-            self.predicted_position[enemy_unit.tag] = self.predict_future_unit_position(
-                enemy_unit, self.bot.time - self.last_seen[enemy_unit.tag])
+            self.predicted_position[enemy_unit.tag] = enemy_unit.position
             if enemy_unit.tag not in self.first_seen:
                 self.first_seen[enemy_unit.tag] = self.bot.time
         # add not visible to out_of_view
         for enemy_unit in self.enemies_in_view:
             if enemy_unit.tag not in visible_tags:
                 self.enemies_out_of_view.append(enemy_unit)
-                self.predicted_position[enemy_unit.tag] = enemy_unit.position
+                self.predicted_position[enemy_unit.tag] = self.predict_future_unit_position(
+                    enemy_unit, self.bot.time - self.last_seen[enemy_unit.tag])
         self.enemies_in_view = new_visible_enemies
         # self.update_squads()
 

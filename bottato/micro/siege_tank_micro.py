@@ -13,6 +13,7 @@ from ..mixins import GeometryMixin
 
 class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     sieged_range = 13.5
+    sight_range = 11
     sieged_minimum_range = 2
     unsieged_range = 7
     max_siege_time = 3.24
@@ -21,10 +22,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     known_tags = set()
     min_seconds_between_transform = max_siege_time + 1
     last_transform_time: dict[int, float] = {}
-    # siege when enemy can get within this range of siege range
-    siege_buffer = -1
-    # unsiege when enemy is at least this far away from being able to run back in to range before re-seiging
-    unsiege_buffer = 2
 
     def __init__(self, bot: BotAI):
         super().__init__(bot)
@@ -33,18 +30,25 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if unit.tag not in self.known_tags:
             self.known_tags.add(unit.tag)
             self.unsieged_tags.add(unit.tag)
+
+        # skip currently or recently transformed
         if unit.is_transforming:
             return False
+        if unit.tag in self.last_transform_time and ((self.bot.time - self.last_transform_time[unit.tag]) < self.min_seconds_between_transform):
+            logger.info(f"unit last transformed {self.bot.time - self.last_transform_time[unit.tag]}s ago, need to wait {self.min_seconds_between_transform}")
+            return False
+
+        # remove missing
+        self.sieged_tags = self.bot.units.tags.intersection(self.sieged_tags)
+        self.unsieged_tags = self.bot.units.tags.intersection(self.unsieged_tags)
+
         is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
+        # fix miscategorizations
         if is_sieged != (unit.tag in self.sieged_tags):
-            # fix miscategorizations
             if is_sieged:
                 self.siege(unit)
             else:
                 self.unsiege(unit)
-        if unit.tag in self.last_transform_time and ((self.bot.time - self.last_transform_time[unit.tag]) < self.min_seconds_between_transform):
-            logger.info(f"unit last transformed {self.bot.time - self.last_transform_time[unit.tag]}s ago, need to wait {self.min_seconds_between_transform}")
-            return False
 
         excluded_enemy_types = [] if is_sieged else [UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.DRONEBURROWED, UnitTypeId.MULE]
         enemy_unit, enemy_unit_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
@@ -59,24 +63,20 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             self.bot.client.debug_line_out(unit, enemy_unit)
             enemy_range_after_sieging = enemy_unit_distance
             if enemy_unit.is_facing(unit, 0.2):
-                enemy_range_after_sieging -= enemy_unit.calculate_speed() * self.max_siege_time
+                enemy_range_after_sieging -= enemy_unit.calculate_speed() * self.max_siege_time * 0.8
 
         most_are_seiged = len(self.unsieged_tags) < len(self.sieged_tags)
         enemy_distance = enemy_unit_distance if most_are_seiged else enemy_range_after_sieging
         if is_sieged:
             # all_sieged = len(self.unsieged_tags) == 0
-            enemy_distance += self.unsiege_buffer
-            if enemy_distance > self.sieged_range and structure_distance > self.sieged_range and not reached_destination:
+            if enemy_distance > self.sieged_range and structure_distance > self.sight_range - 1 and not reached_destination:
                 self.unsiege(unit)
-                self.last_transform_time[unit.tag] = self.bot.time
                 return True
         else:
-            enemy_distance += self.siege_buffer
             enemy_will_be_far_enough = enemy_range_after_sieging > self.sieged_minimum_range + 0.5
-            enemy_will_be_close_enough = enemy_distance <= self.sieged_range or structure_distance < self.sieged_range
+            enemy_will_be_close_enough = enemy_distance <= self.sieged_range or structure_distance <= self.sight_range - 1
             if enemy_will_be_far_enough and enemy_will_be_close_enough:
                 self.siege(unit)
-                self.last_transform_time[unit.tag] = self.bot.time
                 return True
 
         return False
@@ -87,26 +87,21 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     def siege(self, unit: Unit):
         logger.info(f"{unit} sieging")
         unit(AbilityId.SIEGEMODE_SIEGEMODE)
-        # intersect with current unit tags to remove any dead unit tags
-        self.sieged_tags = self.bot.units.tags.intersection(self.sieged_tags)
-        if unit.tag not in self.sieged_tags:
-            self.sieged_tags.add(unit.tag)
-        else:
-            logger.info(f"{unit.tag} already in sieged_tags")
-        if unit.tag in self.unsieged_tags:
-            self.unsieged_tags.remove(unit.tag)
-        else:
-            logger.info(f"{unit.tag} not in unsieged_tags")
+        self.update_siege_state(unit, self.unsieged_tags, self.sieged_tags)
 
     def unsiege(self, unit: Unit):
         logger.info(f"{unit} unsieging")
         unit(AbilityId.UNSIEGE_UNSIEGE)
-        self.unsieged_tags = self.bot.units.tags.intersection(self.unsieged_tags)
-        if unit.tag not in self.unsieged_tags:
-            self.unsieged_tags.add(unit.tag)
+        self.update_siege_state(unit, self.sieged_tags, self.unsieged_tags)
+
+    def update_siege_state(self, unit: Unit, old_list: set, new_list: set):
+        self.last_transform_time[unit.tag] = self.bot.time
+        new_list = self.bot.units.tags.intersection(new_list)
+        if unit.tag not in new_list:
+            new_list.add(unit.tag)
         else:
             logger.info(f"{unit.tag} already in unsieged_tags")
-        if unit.tag in self.sieged_tags:
-            self.sieged_tags.remove(unit.tag)
+        if unit.tag in old_list:
+            old_list.remove(unit.tag)
         else:
             logger.info(f"{unit.tag} not in sieged_tags")
