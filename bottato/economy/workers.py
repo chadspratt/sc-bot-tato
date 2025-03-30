@@ -59,7 +59,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
         self.vespene = Vespene(bot)
         self.max_workers = 75
         self.health_per_repairer = 50
-        self.max_repairers = 25
+        self.max_repairers = 15
         self.mule_energy_threshold = 50
         for worker in self.bot.workers:
             self.add_worker(worker)
@@ -223,9 +223,10 @@ class Workers(UnitReferenceMixin, TimerMixin):
         logger.debug(f"worker {worker} changing from {assignment.target} to {new_target}")
         if new_target:
             if assignment.job_type == JobType.REPAIR:
-                worker.repair(new_target)
                 if new_target.tag not in self.bot.unit_tags_received_action:
                     new_target.move(worker)
+                if not self.bot.enemy_units or self.bot.enemy_units.closest_distance_to(new_target) > 5:
+                    worker.repair(new_target)
             elif assignment.job_type == JobType.VESPENE:
                 self.vespene.add_worker_to_node(worker, new_target)
                 worker.smart(new_target)
