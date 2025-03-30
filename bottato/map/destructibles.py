@@ -3,7 +3,7 @@ https://github.com/DrInfy/sharpy-sc2/blob/develop/sharpy/managers/unit_value.py
 """
 from sc2.ids.unit_typeid import UnitTypeId
 
-buildings = {
+BUILDINGS = {
     "2x2": {
         UnitTypeId.SUPPLYDEPOT,
         UnitTypeId.PYLON,
@@ -71,7 +71,7 @@ buildings = {
     }
 }
 
-BUILDING_IDS = buildings["5x5"].union(buildings["3x3"]).union(buildings["2x2"])
+BUILDING_IDS = BUILDINGS["5x5"].union(BUILDINGS["3x3"]).union(BUILDINGS["2x2"])
 
 destructibles = {
     "2x2": {

@@ -7,7 +7,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.bot_ai import BotAI
 
 from .utils import change_destructible_status_in_grid
-from .destructibles import buildings
+from .destructibles import BUILDINGS
 
 from loguru import logger
 import numpy as np
@@ -84,11 +84,11 @@ class InfluenceMaps():
 
     def add_building_to_grid(self, type_id: UnitTypeId, position: Point2, grid: np.ndarray, weight=0):
         size = 1
-        if type_id in buildings["2x2"]:
+        if type_id in BUILDINGS["2x2"]:
             size = 2
-        elif type_id in buildings["3x3"]:
+        elif type_id in BUILDINGS["3x3"]:
             size = 3
-        elif type_id in buildings["5x5"]:
+        elif type_id in BUILDINGS["5x5"]:
             size = 5
         left_bottom = position.offset((-size / 2, -size / 2))
         x_start = int(left_bottom[0])

@@ -12,10 +12,11 @@ from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.game_data import Cost
 from sc2.protocol import ConnectionAlreadyClosedError, ProtocolError
 
-from .mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
+from bottato.map.map import Map
+from bottato.mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
-from .special_locations import SpecialLocations
+from bottato.special_locations import SpecialLocations
 from bottato.upgrades import RESEARCH_ABILITIES
 
 
@@ -29,10 +30,11 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     check_idle: bool = False
     last_cancel: float = -10
 
-    def __init__(self, unit_type: Union[UnitTypeId, UpgradeId], bot: BotAI, workers: Workers = None, production: Production = None):
+    def __init__(self, unit_type: Union[UnitTypeId, UpgradeId], bot: BotAI, workers: Workers, production: Production, map: Map):
         self.bot: BotAI = bot
         self.workers: Workers = workers
         self.production: Production = production
+        self.map: Map = map
         self.unit_type_id = None
         self.cost = Cost(9999, 9999)
         # build cheapest option in set of unit_types
@@ -255,6 +257,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     UnitTypeId.STARPORT,
                 )
                 map_center = self.bot.game_info.map_center
+                max_distance = 20
                 while True:
                     try:
                         if self.bot.townhalls:
@@ -263,6 +266,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                                 near=self.bot.townhalls.random.position.towards(map_center, distance=8),
                                 placement_step=2,
                                 addon_place=addon_place,
+                                max_distance=max_distance,
                             )
                         else:
                             new_build_position = await self.bot.find_placement(
@@ -270,9 +274,20 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                                 near=self.bot.start_location,
                                 placement_step=2,
                                 addon_place=addon_place,
+                                max_distance=max_distance,
                             )
                     except (ConnectionAlreadyClosedError, ConnectionResetError, ProtocolError):
                         return None
+                    # don't build near edge to avoid trapping units
+                    if unit_type_id != UnitTypeId.SUPPLYDEPOT:
+                        edge_distance = self.map.get_distance_from_edge(new_build_position.rounded)
+                        if edge_distance <= 3:
+                            max_distance += 1
+                            logger.info(f"{new_build_position} is {edge_distance} from edge")
+                            # accept defeat, is ok to do it sometimes
+                            if max_distance > 50:
+                                break
+                            continue
                     # try to not block addons
                     for no_addon_facility in self.production.get_no_addon_facilities():
                         if no_addon_facility.add_on_position.distance_to(new_build_position) < 3:

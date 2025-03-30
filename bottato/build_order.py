@@ -9,12 +9,13 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
 from sc2.game_data import Cost
 
-from .build_step import BuildStep
-from .economy.workers import Workers, JobType
-from .economy.production import Production
-from .mixins import TimerMixin
-from .upgrades import Upgrades
-from .special_locations import SpecialLocations, SpecialLocation
+from bottato.build_step import BuildStep
+from bottato.economy.workers import Workers, JobType
+from bottato.economy.production import Production
+from bottato.mixins import TimerMixin
+from bottato.upgrades import Upgrades
+from bottato.special_locations import SpecialLocations, SpecialLocation
+from bottato.map.map import Map
 
 
 class BuildOrder(TimerMixin):
@@ -24,15 +25,16 @@ class BuildOrder(TimerMixin):
     # next_unfinished_step_index: int
     tech_tree: Dict[UnitTypeId, List[UnitTypeId]] = {}
 
-    def __init__(self, build_name: str, bot: BotAI, workers: Workers, production: Production):
+    def __init__(self, build_name: str, bot: BotAI, workers: Workers, production: Production, map: Map):
         self.recently_completed_units: List[Unit] = []
         # self.recently_completed_transformations: List[UnitTypeId] = []
         self.recently_started_units: List[Unit] = []
         self.bot: BotAI = bot
         self.workers: Workers = workers
         self.production: Production = production
+        self.map: Map = map
         self.pending = [
-            BuildStep(unit, bot, workers, production) for unit in self.get_build_start(build_name)
+            BuildStep(unit, bot, workers, production, map) for unit in self.get_build_start(build_name)
         ]
         self.upgrades = Upgrades(bot)
         self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
@@ -112,7 +114,7 @@ class BuildOrder(TimerMixin):
                 requested_worker_count < worker_build_capacity
                 and requested_worker_count + len(self.workers.assignments_by_worker) < desired_worker_count
             ):
-                self.build_a_worker = BuildStep(UnitTypeId.SCV, self.bot, self.workers, self.production)
+                self.build_a_worker = BuildStep(UnitTypeId.SCV, self.bot, self.workers, self.production, self.map)
         self.stop_timer("queue_worker")
 
     def queue_supply(self) -> None:
@@ -128,7 +130,7 @@ class BuildOrder(TimerMixin):
             build_first = self.bot.supply_cap == 0 or (supply_increase == 0 and self.bot.supply_left / self.bot.supply_cap < 0.3 and self.bot.supply_cap < 200)
             build_second = self.bot.supply_cap > 0 and self.bot.supply_left / self.bot.supply_cap < 0.2 and self.bot.supply_cap < 200
             if build_first or build_second:
-                self.supply_build_step = BuildStep(UnitTypeId.SUPPLYDEPOT, self.bot, self.workers, self.production)
+                self.supply_build_step = BuildStep(UnitTypeId.SUPPLYDEPOT, self.bot, self.workers, self.production, self.map)
                 # self.add_to_build_order(UnitTypeId.SUPPLYDEPOT, 1)
         self.stop_timer("queue_supply")
 
@@ -228,9 +230,9 @@ class BuildOrder(TimerMixin):
                 # not already started or pending
                 added_to_build_order.append(build_item)
                 if position > -1:
-                    self.pending.insert(position, BuildStep(build_item, self.bot, self.workers, self.production))
+                    self.pending.insert(position, BuildStep(build_item, self.bot, self.workers, self.production, self.map))
                 else:
-                    self.pending.append(BuildStep(build_item, self.bot, self.workers, self.production))
+                    self.pending.append(BuildStep(build_item, self.bot, self.workers, self.production, self.map))
         logger.info(f"already in build order {already_in_build_order}")
         logger.info(f"adding to build order: {added_to_build_order}")
 
@@ -489,6 +491,50 @@ class BuildOrder(TimerMixin):
             # https://lotv.spawningtool.com/build/171779/
             # Standard Terran vs Terran (3 Reaper 2 Hellion) (TvT Economic)
             # Very Standard Reaper Hellion Opening that transitions into Marine-Tank-Raven. As solid it as it gets
+            return [
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.BARRACKS,
+                UnitTypeId.REFINERY,
+                UnitTypeId.REFINERY,
+                UnitTypeId.REAPER,
+                UnitTypeId.ORBITALCOMMAND,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.FACTORY,
+                UnitTypeId.REAPER,
+                UnitTypeId.COMMANDCENTER,
+                UnitTypeId.HELLION,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.REAPER,
+                UnitTypeId.STARPORT,
+                UnitTypeId.HELLION,
+                UnitTypeId.BARRACKSREACTOR,
+                UnitTypeId.REFINERY,
+                UnitTypeId.FACTORYTECHLAB,
+                UnitTypeId.STARPORTTECHLAB,
+                UnitTypeId.ORBITALCOMMAND,
+                UnitTypeId.CYCLONE,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.RAVEN,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.SIEGETANK,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.RAVEN,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.SIEGETANK,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.MEDIVAC,
+                UnitTypeId.BANSHEE,
+                UnitTypeId.SUPPLYDEPOT,
+            ]
+        elif build_name == "tvt2":
+            # tweaked tvt1
             return [
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.BARRACKS,

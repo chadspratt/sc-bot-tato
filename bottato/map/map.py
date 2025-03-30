@@ -71,6 +71,12 @@ class Map(TimerMixin, GeometryMixin):
                         # logger.debug(f"self.distance_from_edge {neighbor} is {self.distance_from_edge[neighbor]}")
                         next_layer.append(neighbor)
 
+    def get_distance_from_edge(self, point: Point2) -> int:
+        coords = (point.x, point.y)
+        if coords in self.distance_from_edge:
+            return self.distance_from_edge[coords]
+        return 0
+
     def neighbors8(self, coords: tuple) -> list:
         if coords not in self.cached_neighbors8:
             coord_height = self.bot.get_terrain_z_height(Point2(coords))
