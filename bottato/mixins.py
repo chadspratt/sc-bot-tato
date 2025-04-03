@@ -4,6 +4,7 @@ from loguru import logger
 from typing import List
 from time import perf_counter
 
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2, Point3
@@ -45,6 +46,47 @@ class UnitReferenceMixin:
             except self.UnitNotFound:
                 logger.debug(f"Couldn't find unit {tag}!")
         return _units
+
+    def count_units_by_property(self, units: Units) -> dict[UnitTypeId, int]:
+        counts: dict[UnitTypeId, int] = {
+            'flying': 0,
+            'ground': 0,
+            'armored': 0,
+            'biological': 0,
+            'hidden': 0,
+            'light': 0,
+            'mechanical': 0,
+            'psionic': 0,
+            'attacks ground': 0,
+            'attacks air': 0,
+        }
+
+        unit: Unit
+        for unit in units:
+            if unit.is_hallucination:
+                continue
+            if unit.is_flying:
+                counts['flying'] += 1
+            else:
+                counts['ground'] += 1
+            if unit.is_armored:
+                counts['armored'] += 1
+            if unit.is_biological:
+                counts['biological'] += 1
+            if unit.is_burrowed or unit.is_cloaked or not unit.is_visible:
+                counts['hidden'] += 1
+            if unit.is_light:
+                counts['light'] += 1
+            if unit.is_mechanical:
+                counts['mechanical'] += 1
+            if unit.is_psionic:
+                counts['psionic'] += 1
+            if unit.can_attack_ground:
+                counts['attacks ground'] += 1
+            if unit.can_attack_air:
+                counts['attacks air'] += 1
+
+        return counts
 
 
 class GeometryMixin:

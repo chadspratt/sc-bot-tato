@@ -2,6 +2,7 @@ from __future__ import annotations
 import enum
 
 from loguru import logger
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.units import Units
@@ -87,6 +88,17 @@ class BaseSquad(UnitReferenceMixin):
     def transfer(self, unit: Unit, to_squad: BaseSquad):
         self.remove(unit)
         to_squad.recruit(unit)
+
+    def transfer_all(self, to_squad: BaseSquad):
+        for unit in self.units:
+            self.transfer(unit, to_squad)
+
+    def transfer_by_type(self, unit_type: UnitTypeId, to_squad: BaseSquad) -> bool:
+        for unit in self.units:
+            if unit.type_id == unit_type:
+                self.transfer(unit, to_squad)
+                return True
+        return False
 
     def unit_count(self, unit: Unit) -> int:
         _has = sum([1 for u in self.units if u.type_id is unit.type_id])

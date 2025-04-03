@@ -86,6 +86,11 @@ class FormationSquad(BaseSquad, GeometryMixin):
 
     def transfer(self, unit: Unit, to_squad: BaseSquad):
         super().transfer(unit, to_squad)
+        self.update_formation(reset=True)
+
+    def transfer_all(self, to_squad: BaseSquad):
+        super().transfer_all(to_squad)
+        self.update_formation(reset=True)
 
     def recruit(self, unit: Unit):
         super().recruit(unit)
@@ -119,14 +124,16 @@ class FormationSquad(BaseSquad, GeometryMixin):
             return True
         return False
 
-    async def attack(self, targets: Union[Point2, Units]):
+    async def attack(self, targets: Union[Point2, Units, Unit]):
         if not targets or not self.units:
             return
         target_position = targets
-        if isinstance(targets, Units):
+        self.current_order = SquadOrderEnum.ATTACK
+        if isinstance(targets, Unit):
+            self.targets = Units([targets], self.bot)
+            target_position = targets.position
+        elif isinstance(targets, Units):
             self.targets = Units(targets, self.bot)
-            self.current_order = SquadOrderEnum.ATTACK
-
             reference_point = self.parent_formation.front_center or self.units.center
             closest_target = self.targets.closest_to(reference_point)
             target_position = closest_target.position

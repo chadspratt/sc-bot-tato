@@ -59,7 +59,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
         self.vespene = Vespene(bot)
         self.max_workers = 75
         self.health_per_repairer = 50
-        self.max_repairers = 15
+        self.max_repairers = 5
         self.mule_energy_threshold = 50
         for worker in self.bot.workers:
             self.add_worker(worker)

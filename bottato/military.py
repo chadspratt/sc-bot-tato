@@ -7,21 +7,22 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from .squad.squad_type import SquadType, SquadTypeDefinitions
-from .squad.base_squad import BaseSquad
-from .squad.scouting import Scouting
-from .squad.formation_squad import FormationSquad
-from .enemy import Enemy
-from .map.map import Map
+from bottato.economy.workers import Workers
+from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
+from bottato.squad.base_squad import BaseSquad
+from bottato.squad.scouting import Scouting
+from bottato.squad.formation_squad import FormationSquad
+from bottato.enemy import Enemy
+from bottato.map.map import Map
+from bottato.mixins import GeometryMixin, DebugMixin, UnitReferenceMixin
 
-from .mixins import GeometryMixin, DebugMixin
 
-
-class Military(GeometryMixin, DebugMixin):
-    def __init__(self, bot: BotAI, enemy: Enemy, map: Map) -> None:
+class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
+    def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers) -> None:
         self.bot: BotAI = bot
         self.enemy = enemy
         self.map = map
+        self.workers = workers
         self.main_army = FormationSquad(
             bot=bot,
             enemy=enemy,
@@ -37,6 +38,7 @@ class Military(GeometryMixin, DebugMixin):
         self.squads.append(self.main_army)
         self.created_squad_type_counts: dict[int, int] = {}
         self.offense_start_supply = 200
+        self.countered_enemies: dict[int, FormationSquad] = {}
 
     def add_to_main(self, unit: Unit) -> None:
         self.main_army.recruit(unit)
@@ -89,13 +91,56 @@ class Military(GeometryMixin, DebugMixin):
         # only run this every three steps
         if iteration % 3:
             return
-        scout_types = {UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
-        scouts_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id in scout_types).in_distance_of_group(self.bot.structures, 25)
-        enemies_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id not in scout_types).in_distance_of_group(self.bot.structures, 25)
+        # scout_types = {UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
+        # scouts_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id in scout_types).in_distance_of_group(self.bot.structures, 25)
+        all_enemies: Units = self.enemy.enemies_in_view + self.enemy.recent_out_of_view()
+        enemies_in_base: Units = self.bot.enemy_units.in_distance_of_group(self.bot.structures, 25)
+        for enemy in self.enemy.recent_out_of_view():
+            if self.bot.structures.closest_distance_to(enemy.position) <= 25:
+                enemies_in_base.append(enemy)
+        # .filter(lambda unit: unit.type_id not in scout_types)
+        # enemy_structures_in_base = self.bot.enemy_structures.filter(lambda unit: unit.type_id not in scout_types).in_distance_of_group(self.bot.structures, 25)
         logger.info(f"enemies in base {enemies_in_base}")
+        defend_with_main_army = False
 
-        mount_defense = len(enemies_in_base) > 0
-        mount_offense = not mount_defense and (self.bot.supply_used >= 150 or self.bot.supply_army / self.offense_start_supply > 0.7)
+        # disband squads for missing enemies
+        tags_to_remove = []
+        for enemy_tag in self.countered_enemies:
+            if enemy_tag not in all_enemies.tags:
+                defense_squad: FormationSquad = self.countered_enemies[enemy_tag]
+                defense_squad.transfer_all(self.main_army)
+                tags_to_remove.append(enemy_tag)
+        for enemy_tag in tags_to_remove:
+            del self.countered_enemies[enemy_tag]
+
+        # assign squads to enemies
+        for enemy in enemies_in_base:
+            if defend_with_main_army:
+                break
+
+            defense_squad: FormationSquad
+            if enemy.tag not in self.countered_enemies:
+                defense_squad = FormationSquad(self.enemy, self.map, bot=self.bot)
+                self.squads.append(defense_squad)
+                self.countered_enemies[enemy.tag] = defense_squad
+            else:
+                defense_squad: FormationSquad = self.countered_enemies[enemy.tag]
+
+            desired_counters: List[UnitTypeId] = self.get_counter_units(enemy)
+            current_counters: List[UnitTypeId] = [unit.type_id for unit in defense_squad.units]
+            for unit_type in desired_counters:
+                if unit_type in current_counters:
+                    current_counters.remove(unit_type)
+                else:
+                    if not self.main_army.transfer_by_type(unit_type, defense_squad):
+                        defense_squad.transfer_all(self.main_army)
+                        defend_with_main_army = True
+                        break
+            else:
+                await defense_squad.attack(enemy)
+
+        # XXX compare army values (((minerals / 0.9) + gas) * supply) / 50
+        mount_offense = not defend_with_main_army and (self.bot.supply_used >= 150 or self.bot.supply_army / self.offense_start_supply > 0.7)
 
         if mount_offense:
             if self.offense_start_supply == 200:
@@ -104,29 +149,24 @@ class Military(GeometryMixin, DebugMixin):
         else:
             self.offense_start_supply = 200
 
-        squad: FormationSquad
-        for i, squad in enumerate(self.squads):
-            if not squad.units:
-                logger.debug(f"squad {squad} is empty")
-                continue
-            squad.draw_debug_box()
-            squad.update_formation()
-            if mount_defense:
-                logger.info(f"squad {squad.name} mounting defense")
-                await squad.attack(enemies_in_base)
+        # squad: FormationSquad
+        # for i, squad in enumerate(self.squads):
+        if self.main_army.units:
+            self.main_army.draw_debug_box()
+            self.main_army.update_formation()
+            if defend_with_main_army:
+                logger.info(f"squad {self.main_army.name} mounting defense")
+                await self.main_army.attack(enemies_in_base)
             elif mount_offense:
-                logger.info(f"squad {squad.name} mounting offense")
+                logger.info(f"squad {self.main_army.name} mounting offense")
                 if self.enemy.enemies_in_view:
-                    await squad.attack(self.enemy.enemies_in_view)
+                    await self.main_army.attack(self.enemy.enemies_in_view)
                 elif self.bot.enemy_structures:
-                    await squad.attack(self.bot.enemy_structures)
+                    await self.main_army.attack(self.bot.enemy_structures)
                 else:
-                    await squad.attack(self.bot.enemy_start_locations[0])
-            elif scouts_in_base:
-                logger.info(f"squad {squad.name} attacking enemy scout(s) {scouts_in_base}")
-                await squad.attack(scouts_in_base)
+                    await self.main_army.attack(self.bot.enemy_start_locations[0])
             else:
-                logger.info(f"squad {squad} staging at {squad.staging_location}")
+                logger.info(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = self.bot.enemy_start_locations[0]
                 if len(self.bot.townhalls) > 1:
                     closest_base = self.bot.townhalls.closest_to(enemy_position)
@@ -137,17 +177,27 @@ class Military(GeometryMixin, DebugMixin):
                     while backtrack_distance > 0 and i + 1 < len(path):
                         next_node_distance = path[i].distance_to(path[i + 1])
                         if backtrack_distance <= next_node_distance:
-                            squad.staging_location = path[i].towards(path[i + 1], backtrack_distance)
+                            self.main_army.staging_location = path[i].towards(path[i + 1], backtrack_distance)
                             break
                         backtrack_distance -= next_node_distance
                         i += 1
                 else:
-                    squad.staging_location = self.bot.start_location.towards(enemy_position, 5)
-                facing = self.get_facing(squad.staging_location, enemy_position)
-                await squad.move(squad.staging_location, facing)
+                    self.main_army.staging_location = self.bot.start_location.towards(enemy_position, 5)
+                facing = self.get_facing(self.main_army.staging_location, enemy_position)
+                await self.main_army.move(self.main_army.staging_location, facing)
 
         self.report()
         self.new_damage_taken.clear()
+
+    def get_counter_units(self, unit: Unit):
+        if unit.type_id in (UnitTypeId.LIBERATOR, UnitTypeId.LIBERATORAG, UnitTypeId.WARPPRISM, UnitTypeId.BANSHEE, UnitTypeId.MEDIVAC):
+            return [UnitTypeId.VIKINGFIGHTER]
+        elif unit.type_id in (UnitTypeId.REAPER, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.ADEPT, UnitTypeId.ZEALOT, UnitTypeId.ZERGLING):
+            return [UnitTypeId.BANSHEE]
+        elif unit.type_id in (UnitTypeId.OBSERVER, ):
+            return [UnitTypeId.RAVEN, UnitTypeId.VIKINGFIGHTER]
+        else:
+            return [UnitTypeId.MARINE, UnitTypeId.MARINE]
 
     def get_squad_request(self, remaining_cap: int) -> list[UnitTypeId]:
         # squad_to_fill: BaseSquad = None
@@ -281,47 +331,6 @@ class Military(GeometryMixin, DebugMixin):
                 counts[unit.type_id] = 1
             else:
                 counts[unit.type_id] = counts[unit.type_id] + 1
-
-        return counts
-
-    def count_units_by_property(self, units: Units) -> dict[UnitTypeId, int]:
-        counts: dict[UnitTypeId, int] = {
-            'flying': 0,
-            'ground': 0,
-            'armored': 0,
-            'biological': 0,
-            'hidden': 0,
-            'light': 0,
-            'mechanical': 0,
-            'psionic': 0,
-            'attacks ground': 0,
-            'attacks air': 0,
-        }
-
-        unit: Unit
-        for unit in units:
-            if unit.is_hallucination:
-                continue
-            if unit.is_flying:
-                counts['flying'] += 1
-            else:
-                counts['ground'] += 1
-            if unit.is_armored:
-                counts['armored'] += 1
-            if unit.is_biological:
-                counts['biological'] += 1
-            if unit.is_burrowed or unit.is_cloaked or not unit.is_visible:
-                counts['hidden'] += 1
-            if unit.is_light:
-                counts['light'] += 1
-            if unit.is_mechanical:
-                counts['mechanical'] += 1
-            if unit.is_psionic:
-                counts['psionic'] += 1
-            if unit.can_attack_ground:
-                counts['attacks ground'] += 1
-            if unit.can_attack_air:
-                counts['attacks air'] += 1
 
         return counts
 
