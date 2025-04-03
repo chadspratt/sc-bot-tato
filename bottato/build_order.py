@@ -78,9 +78,13 @@ class BuildOrder(TimerMixin):
         return remaining
 
     async def execute(self):
-        enemies_in_base = self.bot.enemy_units.filter(
-            lambda unit: unit.type_id not in {UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
-        ).in_distance_of_group(self.bot.structures, 25)
+        enemies_in_base = True
+        try:
+            enemies_in_base = self.bot.enemy_units.filter(
+                lambda unit: unit.type_id not in {UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
+            ).in_distance_of_group(self.bot.structures, 25)
+        except IndexError:
+            enemies_in_base = False
         if not enemies_in_base:
             self.queue_worker()
             self.queue_upgrade()
