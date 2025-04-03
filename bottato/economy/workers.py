@@ -59,7 +59,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
         self.vespene = Vespene(bot)
         self.max_workers = 75
         self.health_per_repairer = 50
-        self.max_repairers = 5
+        self.max_repairers = 10
         self.mule_energy_threshold = 50
         for worker in self.bot.workers:
             self.add_worker(worker)
@@ -358,7 +358,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
         needed_repairers: int = 0
         missing_health = 0
         # limit to percentage of total workers
-        max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 2))
+        max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 10))
         if injured_units:
             for unit in injured_units:
                 missing_health += unit.health_max - unit.health

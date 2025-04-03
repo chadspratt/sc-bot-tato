@@ -51,6 +51,9 @@ class BaseSquad(UnitReferenceMixin):
     def __repr__(self) -> str:
         return f"BaseSquad({self.name},{self.state},{len(self.units)})"
 
+    def update_references(self):
+        self.units = self.get_updated_unit_references(self.units)
+
     @property
     def is_empty(self) -> bool:
         return len(self.units) == 0
@@ -90,7 +93,7 @@ class BaseSquad(UnitReferenceMixin):
         to_squad.recruit(unit)
 
     def transfer_all(self, to_squad: BaseSquad):
-        for unit in self.units:
+        for unit in [u for u in self.units]:
             self.transfer(unit, to_squad)
 
     def transfer_by_type(self, unit_type: UnitTypeId, to_squad: BaseSquad) -> bool:

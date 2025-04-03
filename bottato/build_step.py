@@ -18,6 +18,7 @@ from bottato.economy.workers import Workers
 from bottato.economy.production import Production
 from bottato.special_locations import SpecialLocations
 from bottato.upgrades import RESEARCH_ABILITIES
+from bottato.map.destructibles import BUILDING_RADIUS
 
 
 class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
@@ -290,7 +291,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                             continue
                     # try to not block addons
                     for no_addon_facility in self.production.get_no_addon_facilities():
-                        if no_addon_facility.add_on_position.distance_to(new_build_position) < 3:
+                        if no_addon_facility.add_on_position.distance_to(new_build_position) < BUILDING_RADIUS[unit_type_id]:
                             break
                     else:
                         break

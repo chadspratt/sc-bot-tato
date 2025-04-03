@@ -300,6 +300,8 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         if units_center.x == next_waypoint.x:
             # avoid div by zero, but is also much simpler
             intersect_point = Point2((units_center.x, closest_position.y))
+        elif units_center.y == next_waypoint.y:
+            intersect_point = Point2((units_center.y, closest_position.x))
         else:
             # make triangle of destination, frontline center, and nearest unit to destination
             # treating frontline to destination as base, find point where triangle height intersects base
@@ -310,5 +312,5 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             closest_front_b: float = closest_position.y - closest_front_slope * closest_position.x
             x_intersect = (closest_front_b - dest_center_b) / (dest_center_slope - closest_front_slope)
             y_intersect = x_intersect * dest_center_slope + dest_center_b
-            intersect_point: Point2 = Point2((x_intersect, y_intersect))
+            intersect_point = Point2((x_intersect, y_intersect))
         return intersect_point.towards(next_waypoint, 1, limit=True)

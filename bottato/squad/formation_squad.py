@@ -101,7 +101,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         return f"{self.name}({has})"
 
     def update_references(self):
-        self.units = self.get_updated_unit_references(self.units)
+        super().update_references()
         self.targets = self.get_updated_unit_references(self.targets)
 
     def update_formation(self, reset=False):

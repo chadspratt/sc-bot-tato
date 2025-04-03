@@ -39,7 +39,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
 
     def attack_with_turret(self, unit: Unit, target: Unit):
         if self.turret_available(unit):
-            turret_position = target.position.towards(unit, self.turret_attack_range - 1, limit=True)
+            turret_position = target.position.towards(unit, self.turret_attack_range - 1.5, limit=True)
             self.drop_turret(unit, turret_position)
             logger.info(f"{unit} trying to drop turret at {turret_position} to attack {target} at {target.position}")
             return True

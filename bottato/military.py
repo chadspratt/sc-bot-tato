@@ -35,7 +35,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         self.new_damage_taken: dict[int, float] = {}
         self.squads_by_unit_tag: dict[int, BaseSquad] = {}
         self.squads: List[BaseSquad] = []
-        self.squads.append(self.main_army)
         self.created_squad_type_counts: dict[int, int] = {}
         self.offense_start_supply = 200
         self.countered_enemies: dict[int, FormationSquad] = {}
@@ -93,10 +92,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             return
         # scout_types = {UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
         # scouts_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id in scout_types).in_distance_of_group(self.bot.structures, 25)
-        all_enemies: Units = self.enemy.enemies_in_view + self.enemy.recent_out_of_view()
         enemies_in_base: Units = self.bot.enemy_units.in_distance_of_group(self.bot.structures, 25)
         for enemy in self.enemy.recent_out_of_view():
-            if self.bot.structures.closest_distance_to(enemy.position) <= 25:
+            if self.bot.structures.closest_distance_to(self.enemy.predicted_position[enemy.tag]) <= 25:
                 enemies_in_base.append(enemy)
         # .filter(lambda unit: unit.type_id not in scout_types)
         # enemy_structures_in_base = self.bot.enemy_structures.filter(lambda unit: unit.type_id not in scout_types).in_distance_of_group(self.bot.structures, 25)
@@ -106,10 +104,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         # disband squads for missing enemies
         tags_to_remove = []
         for enemy_tag in self.countered_enemies:
-            if enemy_tag not in all_enemies.tags:
+            if enemy_tag not in enemies_in_base.tags:
                 defense_squad: FormationSquad = self.countered_enemies[enemy_tag]
                 defense_squad.transfer_all(self.main_army)
                 tags_to_remove.append(enemy_tag)
+                self.squads.remove(defense_squad)
         for enemy_tag in tags_to_remove:
             del self.countered_enemies[enemy_tag]
 
@@ -119,12 +118,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 break
 
             defense_squad: FormationSquad
-            if enemy.tag not in self.countered_enemies:
-                defense_squad = FormationSquad(self.enemy, self.map, bot=self.bot)
+            if enemy.tag in self.countered_enemies:
+                defense_squad: FormationSquad = self.countered_enemies[enemy.tag]
+            else:
+                defense_squad = FormationSquad(self.enemy, self.map, bot=self.bot, name=f"defense{len(self.countered_enemies.keys())}")
                 self.squads.append(defense_squad)
                 self.countered_enemies[enemy.tag] = defense_squad
-            else:
-                defense_squad: FormationSquad = self.countered_enemies[enemy.tag]
 
             desired_counters: List[UnitTypeId] = self.get_counter_units(enemy)
             current_counters: List[UnitTypeId] = [unit.type_id for unit in defense_squad.units]
@@ -134,10 +133,13 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 else:
                     if not self.main_army.transfer_by_type(unit_type, defense_squad):
                         defense_squad.transfer_all(self.main_army)
+                        self.squads.remove(defense_squad)
+                        del self.countered_enemies[enemy.tag]
                         defend_with_main_army = True
                         break
             else:
-                await defense_squad.attack(enemy)
+                await defense_squad.attack(self.enemy.predicted_position[enemy.tag])
+                logger.info(f"defending against {enemy} with {defense_squad}")
 
         # XXX compare army values (((minerals / 0.9) + gas) * supply) / 50
         mount_offense = not defend_with_main_army and (self.bot.supply_used >= 150 or self.bot.supply_army / self.offense_start_supply > 0.7)

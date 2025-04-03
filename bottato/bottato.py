@@ -29,7 +29,7 @@ class BotTato(BotAI, TimerMixin):
         #     self.map.get_path(self.game_info.player_start_location, loc)
         self.my_workers: Workers = Workers(self)
         self.enemy: Enemy = Enemy(self)
-        self.military: Military = Military(self, self.enemy, self.map)
+        self.military: Military = Military(self, self.enemy, self.map, self.my_workers)
         self.structure_micro: StructureMicro = StructureMicro(self)
         self.production: Production = Production(self)
         self.build_order: BuildOrder = BuildOrder(
