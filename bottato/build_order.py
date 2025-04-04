@@ -252,11 +252,6 @@ class BuildOrder(TimerMixin):
                     break
                 needed_resources.minerals += build_step.cost.minerals
                 needed_resources.vespene += build_step.cost.vespene
-        logger.info(
-            f"next {idx + 1} builds "
-            f"vespene: {self.bot.vespene}/{needed_resources.vespene + self.bot.vespene}, "
-            f"minerals: {self.bot.minerals}/{needed_resources.minerals + self.bot.minerals}"
-        )
         self.stop_timer("get_first_resource_shortage")
         return needed_resources
 
