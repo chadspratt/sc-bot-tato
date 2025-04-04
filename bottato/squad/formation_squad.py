@@ -165,3 +165,9 @@ class FormationSquad(BaseSquad, GeometryMixin):
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot)
             logger.debug(f"unit {unit} using micro {micro}")
             await micro.move(unit, formation_positions[unit.tag], self.enemy)
+
+    def is_grouped(self) -> bool:
+        if self.parent_formation.front_center and self.units:
+            units_out_of_formation = self.units.further_than(18, self.parent_formation.front_center)
+            return len(units_out_of_formation) / len(self.units) < 0.3
+        return False

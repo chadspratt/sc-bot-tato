@@ -13,7 +13,7 @@ from .squad.enemy_squad import EnemySquad
 
 class Enemy(UnitReferenceMixin, GeometryMixin):
     unit_probably_moved_seconds = 10
-    unit_may_not_exist_seconds = 60
+    unit_may_not_exist_seconds = 180
     enemy_squad_counter = 0
 
     def __init__(self, bot: BotAI):
@@ -148,6 +148,9 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
 
     def get_enemies(self) -> Units:
         return self.enemies_in_view + self.recent_out_of_view()
+
+    def get_army(self) -> Units:
+        return (self.enemies_in_view + self.enemies_out_of_view).filter(lambda unit: not unit.is_structure and unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.DRONE, UnitTypeId.PROBE))
 
     def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True, include_destructables=True, excluded_types=[]) -> tuple[Unit, float]:
         nearest_enemy: Unit = None

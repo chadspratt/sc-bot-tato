@@ -92,7 +92,7 @@ class BotTato(BotAI, TimerMixin):
 
         self.start_timer("build_order.execute")
         # XXX slow
-        await self.build_order.execute()
+        await self.build_order.execute(self.military.army_ratio)
         self.stop_timer("build_order.execute")
         self.print_all_timers(30)
         # self.map.draw()

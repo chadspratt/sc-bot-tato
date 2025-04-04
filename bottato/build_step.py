@@ -240,7 +240,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             bases = self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS})
             turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
             for base in bases:
-                if not turrets or turrets.closest_distance_to(base) > 10:
+                if not turrets or self.closest_distance(base, turrets) > 10:
                     new_build_position = await self.bot.find_placement(
                         unit_type_id,
                         near=base.position.towards(self.bot.game_info.map_center, distance=4),

@@ -6,10 +6,10 @@ from sc2.units import Units
 from sc2.unit import Unit
 from sc2.constants import UnitTypeId
 
-from ..mixins import UnitReferenceMixin
+from ..mixins import GeometryMixin, UnitReferenceMixin
 
 
-class Resources(UnitReferenceMixin):
+class Resources(UnitReferenceMixin, GeometryMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
         self.nodes: Units = Units([], bot)
@@ -85,6 +85,6 @@ class Resources(UnitReferenceMixin):
 
     def get_worker_capacity(self) -> int:
         if self.bot.townhalls:
-            nodes_near_base = self.nodes.filter(lambda unit: self.bot.townhalls.closest_distance_to(unit) < 8)
+            nodes_near_base = self.nodes.filter(lambda unit: self.closest_distance(unit, self.bot.townhalls) < 8)
             return len(nodes_near_base) * self.max_workers_per_node
         return 0

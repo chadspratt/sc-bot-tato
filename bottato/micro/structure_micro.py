@@ -5,10 +5,11 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit
 
-from .base_unit_micro import BaseUnitMicro
+from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.mixins import GeometryMixin
 
 
-class StructureMicro(BaseUnitMicro):
+class StructureMicro(BaseUnitMicro, GeometryMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot: BotAI = bot
         self.formations = []
@@ -22,16 +23,13 @@ class StructureMicro(BaseUnitMicro):
         # Raise depos when enemies are nearby
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
             for enemy_unit in self.bot.enemy_units:
-                try:
-                    if enemy_unit.distance_to(depot) < 3:
-                        depot(AbilityId.MORPH_SUPPLYDEPOT_RAISE)
-                        break
-                except IndexError:
-                    continue
+                if self.distance(enemy_unit, depot) < 3:
+                    depot(AbilityId.MORPH_SUPPLYDEPOT_RAISE)
+                    break
         # Lower depos when no enemies are nearby
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:
             for enemy_unit in self.bot.enemy_units:
-                if enemy_unit.distance_to(depot) < 8:
+                if self.distance(enemy_unit, depot) < 8:
                     break
             else:
                 depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)

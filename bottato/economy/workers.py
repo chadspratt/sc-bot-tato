@@ -10,7 +10,7 @@ from sc2.constants import UnitTypeId, AbilityId
 from sc2.position import Point2
 from sc2.game_data import Cost
 
-from ..mixins import UnitReferenceMixin, TimerMixin
+from ..mixins import GeometryMixin, UnitReferenceMixin, TimerMixin
 from .minerals import Minerals
 from .vespene import Vespene
 from .resources import Resources
@@ -42,7 +42,7 @@ class WorkerAssignment():
         return f"WorkerAssignment({self.unit}({self.unit_available}), {self.job_type.name}, {self.target})"
 
 
-class Workers(UnitReferenceMixin, TimerMixin):
+class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot: BotAI = bot
         self.last_worker_stop = -1000
@@ -225,7 +225,7 @@ class Workers(UnitReferenceMixin, TimerMixin):
             if assignment.job_type == JobType.REPAIR:
                 if new_target.tag not in self.bot.unit_tags_received_action:
                     new_target.move(worker)
-                if not self.bot.enemy_units or self.bot.enemy_units.closest_distance_to(new_target) > 5:
+                if not self.bot.enemy_units or self.closest_distance(new_target, self.bot.enemy_units) > 5:
                     worker.repair(new_target)
             elif assignment.job_type == JobType.VESPENE:
                 self.vespene.add_worker_to_node(worker, new_target)

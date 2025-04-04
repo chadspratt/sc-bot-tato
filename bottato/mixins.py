@@ -4,6 +4,7 @@ from loguru import logger
 from typing import List
 from time import perf_counter
 
+from sc2.game_data import Cost
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
@@ -88,6 +89,22 @@ class UnitReferenceMixin:
 
         return counts
 
+    def get_army_value(self, units: Units) -> float:
+        army_value = 0
+        type_costs = {}
+        for unit in units:
+            if unit.is_structure:
+                continue
+            if unit.type_id not in type_costs:
+                try:
+                    cost: Cost = self.bot.calculate_cost(unit.type_id)
+                except AttributeError:
+                    continue
+                supply = self.bot.calculate_supply_cost(unit.type_id)
+                type_costs[unit.type_id] = ((cost.minerals * 0.9) + cost.vespene) * supply
+            army_value += type_costs[unit.type_id]
+        return army_value
+
 
 class GeometryMixin:
     def convert_point2_to_3(self, point2: Point2) -> Point3:
@@ -155,6 +172,18 @@ class GeometryMixin:
             remaining_distance -= 1
             if remaining_distance <= 0:
                 return future_position
+
+    def distance(self, unit1: Unit, unit2: Unit) -> float:
+        try:
+            return unit1.distance_to(unit2)
+        except IndexError:
+            return unit1.distance_to(unit2.position)
+
+    def closest_distance(self, unit1: Unit, units: Units) -> float:
+        distance = 9999
+        for unit in units:
+            distance = min(distance, self.distance(unit1, unit))
+        return distance
 
 
 class TimerMixin:

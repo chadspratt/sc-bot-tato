@@ -38,6 +38,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         self.created_squad_type_counts: dict[int, int] = {}
         self.offense_start_supply = 200
         self.countered_enemies: dict[int, FormationSquad] = {}
+        self.army_ratio: float = 1.0
+        self.status_message = ""
 
     def add_to_main(self, unit: Unit) -> None:
         self.main_army.recruit(unit)
@@ -89,10 +91,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
 
         # only run this every three steps
         if iteration % 3:
+            self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
             return
         # scout_types = {UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
         # scouts_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id in scout_types).in_distance_of_group(self.bot.structures, 25)
-        enemies_in_base: Units = self.bot.enemy_units.in_distance_of_group(self.bot.structures, 25)
+        base_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET)
+        enemies_in_base: Units = self.bot.enemy_units.in_distance_of_group(base_structures, 25)
         for enemy in self.enemy.recent_out_of_view():
             if self.bot.structures.closest_distance_to(self.enemy.predicted_position[enemy.tag]) <= 25:
                 enemies_in_base.append(enemy)
@@ -142,7 +146,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 logger.info(f"defending against {enemy} with {defense_squad}")
 
         # XXX compare army values (((minerals / 0.9) + gas) * supply) / 50
-        mount_offense = not defend_with_main_army and (self.bot.supply_used >= 150 or self.bot.supply_army / self.offense_start_supply > 0.7)
+        enemy_value = self.get_army_value(self.enemy.get_army())
+        main_army_value = self.get_army_value(self.main_army.units)
+        army_is_bigger = main_army_value > enemy_value * 1.3
+        army_is_grouped = self.main_army.is_grouped()
+        self.army_ratio = main_army_value / max(enemy_value, 1)
+        mount_offense = not defend_with_main_army and army_is_bigger and army_is_grouped and (self.bot.supply_used >= 110 or enemy_value > 700)
+        self.status_message = f"main_army_value: {main_army_value}\nenemy_value: {enemy_value}\nbigger: {army_is_bigger}, grouped: {army_is_grouped}\nattacking: {mount_offense}"
+        self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
 
         if mount_offense:
             if self.offense_start_supply == 200:
@@ -167,6 +178,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                     await self.main_army.attack(self.bot.enemy_structures)
                 else:
                     await self.main_army.attack(self.bot.enemy_start_locations[0])
+            elif not army_is_grouped:
+                army_center = self.main_army.units.center
+                enemy_position = self.bot.enemy_start_locations[0]
+                facing = self.get_facing(army_center, enemy_position)
+                await self.main_army.move(army_center, facing)
             else:
                 logger.info(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = self.bot.enemy_start_locations[0]
@@ -238,8 +254,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         remaining_dps: dict[int, float] = {}
         remaining_health: dict[int, float] = {}
 
-        enemy_units: Units = self.enemy.get_enemies().filter(lambda unit: not unit.is_structure)
-        unmatched_enemies: Units = enemy_units.copy()
+        unmatched_enemies: Units = self.enemy.get_enemies().filter(lambda unit: not unit.is_structure)
         unmatched_friendlies: Units = self.bot.units.copy()
         unattackable_enemies: Units = Units([], bot_object=self.bot)
         unattackable_friendly_tags = unmatched_friendlies.tags

@@ -6,7 +6,7 @@ import numpy as np
 
 from sc2.unit import Unit
 from sc2.bot_ai import BotAI
-from sc2.pixel_map import PixelMap
+# from sc2.pixel_map import PixelMap
 from sc2.position import Point2, Point3
 
 from ..mixins import TimerMixin, GeometryMixin
@@ -23,7 +23,7 @@ class Map(TimerMixin, GeometryMixin):
         self.cached_neighbors4: Dict[tuple, set[tuple]] = {}
         self.coords_by_distance: Dict[int, List[tuple]] = {}
         self.start_timer("init_distance_from_edge")
-        self.init_distance_from_edge(self.bot.game_info.pathing_grid)
+        self.init_distance_from_edge(self.influence_maps.get_base_pathing_grid())
         self.stop_timer("init_distance_from_edge")
         # self.start_timer("init_open_area_midpoints")
         # self.open_area_midpoints: List[tuple] = self.init_open_area_midpoints(self.distance_from_edge)
@@ -35,7 +35,7 @@ class Map(TimerMixin, GeometryMixin):
         logger.debug(f"zones {self.zones}")
         self.first_draw = True
 
-    def init_distance_from_edge(self, pathing_grid: PixelMap):
+    def init_distance_from_edge(self, pathing_grid: np.ndarray):
         self.distance_from_edge: Dict[tuple, int] = {}
         # init array with unpathable and put 9999 placeholder for other spots
         previous_layer = []
@@ -43,11 +43,10 @@ class Map(TimerMixin, GeometryMixin):
         unpathable = []
 
         self.start_timer("init distance 0")
-        for x in range(pathing_grid.width):
-            for y in range(pathing_grid.height):
+        for x in range(pathing_grid.shape[0]):
+            for y in range(pathing_grid.shape[1]):
                 coords = (x, y)
-                point = Point2(coords)
-                if pathing_grid[point] == 0:
+                if pathing_grid[coords] == 0:
                     next_layer.append(coords)
                     unpathable.append(coords)
                     self.distance_from_edge[coords] = 0
