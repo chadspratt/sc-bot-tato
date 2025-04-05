@@ -148,10 +148,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         # XXX compare army values (((minerals / 0.9) + gas) * supply) / 50
         enemy_value = self.get_army_value(self.enemy.get_army())
         main_army_value = self.get_army_value(self.main_army.units)
-        army_is_bigger = main_army_value > enemy_value * 1.3
+        army_is_bigger = main_army_value > enemy_value * 1.5
         army_is_grouped = self.main_army.is_grouped()
         self.army_ratio = main_army_value / max(enemy_value, 1)
-        mount_offense = not defend_with_main_army and army_is_bigger and army_is_grouped and (self.bot.supply_used >= 110 or enemy_value > 700)
+        mount_offense = not defend_with_main_army and army_is_bigger and army_is_grouped and (self.bot.supply_used >= 110 or self.bot.time > 600)
         self.status_message = f"main_army_value: {main_army_value}\nenemy_value: {enemy_value}\nbigger: {army_is_bigger}, grouped: {army_is_grouped}\nattacking: {mount_offense}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
 
@@ -182,7 +182,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 army_center = self.main_army.units.center
                 enemy_position = self.bot.enemy_start_locations[0]
                 facing = self.get_facing(army_center, enemy_position)
-                await self.main_army.move(army_center, facing)
+                await self.main_army.move(army_center, facing, force_move=True)
             else:
                 logger.info(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = self.bot.enemy_start_locations[0]
@@ -202,7 +202,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 else:
                     self.main_army.staging_location = self.bot.start_location.towards(enemy_position, 5)
                 facing = self.get_facing(self.main_army.staging_location, enemy_position)
-                await self.main_army.move(self.main_army.staging_location, facing)
+                await self.main_army.move(self.main_army.staging_location, facing, force_move=True)
 
         self.report()
         self.new_damage_taken.clear()

@@ -18,8 +18,8 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     turret_energy_cost = 50
     ability_health = 0.6
 
-    def __init__(self, bot: BotAI):
-        super().__init__(bot)
+    def __init__(self, bot: BotAI, enemy: Enemy):
+        super().__init__(bot, enemy)
 
     async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float) -> bool:
         enemy_unit, enemy_distance = enemy.get_closest_target(unit, distance_limit=20, include_destructables=False)

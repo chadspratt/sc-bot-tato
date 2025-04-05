@@ -148,7 +148,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         facing = self.get_facing(self.units.center, target_position)
         await self.move(target_position, facing)
 
-    async def move(self, destination: Point2, destination_facing: float):
+    async def move(self, destination: Point2, destination_facing: float, force_move: bool = False):
         self.current_order = SquadOrderEnum.MOVE
         self._destination = destination
         self.destination_facing = destination_facing
@@ -162,9 +162,9 @@ class FormationSquad(BaseSquad, GeometryMixin):
             if unit.tag in self.bot.unit_tags_received_action:
                 logger.debug(f"unit {unit} already received an order {unit.orders}")
                 continue
-            micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot)
+            micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
             logger.debug(f"unit {unit} using micro {micro}")
-            await micro.move(unit, formation_positions[unit.tag], self.enemy)
+            await micro.move(unit, formation_positions[unit.tag], self.enemy, force_move)
 
     def is_grouped(self) -> bool:
         if self.parent_formation.front_center and self.units:

@@ -27,7 +27,7 @@ def main():
     bot = BotTato()
     try:
         run_game(
-            maps.get(os.environ.get("SCII_MAP", "Equilibrium513AIE")),
+            maps.get(os.environ.get("SCII_MAP", "InterloperAIE")),
             [
                 Bot(Race.Terran, bot, name="BotTato"),
                 Computer(Race.Terran, Difficulty.VeryHard),

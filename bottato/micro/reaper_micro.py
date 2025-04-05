@@ -19,16 +19,22 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     grenade_cooldowns: dict[int, int] = {}
     unconfirmed_grenade_throwers: list[int] = []
 
-    def __init__(self, bot: BotAI):
-        super().__init__(bot)
+    def __init__(self, bot: BotAI, enemy: Enemy):
+        super().__init__(bot, enemy)
 
     async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float) -> bool:
         return await self.grenade_knock_away(unit, enemy.threats_to(unit))
+
+    def attack_something(self, unit, health_threshold, targets: Unit = None):
+        targets = self.enemy.get_enemies_in_range(unit, include_structures=False, include_units=True, include_destructables=False)
+        return super().attack_something(unit, health_threshold, targets)
 
     async def grenade_knock_away(self, unit: Unit, targets: Units) -> bool:
         grenade_targets = []
         if targets and await self.grenade_available(unit):
             for target in targets:
+                if target.is_flying:
+                    continue
                 future_target_position = self.predict_future_unit_position(target, self.grenade_timer)
                 grenade_target = future_target_position.towards(unit)
                 if unit.in_ability_cast_range(AbilityId.KD8CHARGE_KD8CHARGE, grenade_target):

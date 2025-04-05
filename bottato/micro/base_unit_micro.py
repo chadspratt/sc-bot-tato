@@ -2,6 +2,7 @@ from __future__ import annotations
 # import math
 from loguru import logger
 
+from sc2.units import Units
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.position import Point2
@@ -16,19 +17,22 @@ class BaseUnitMicro(GeometryMixin):
     attack_health: float = 0.1
     retreat_health: float = 0.75
 
-    def __init__(self, bot: BotAI):
+    def __init__(self, bot: BotAI, enemy: Enemy):
         self.bot: BotAI = bot
+        self.enemy: Enemy = enemy
 
     async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float) -> bool:
         return False
 
     async def retreat(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
+        if unit.tag in self.bot.unit_tags_received_action:
+            return False
         do_retreat = False
         if unit.health_percentage < health_threshold:
             # already below min
             do_retreat = True
         else:
-            threats = enemy.threats_to(unit)
+            threats = enemy.threats_to(unit, 3)
             if not threats:
                 return False
 
@@ -79,41 +83,40 @@ class BaseUnitMicro(GeometryMixin):
 
         return do_retreat
 
-    def attack_something(self, unit: Unit, health_threshold: float) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float, targets: Units = None) -> bool:
+        if unit.tag in self.bot.unit_tags_received_action:
+            return False
         if unit.health_percentage < health_threshold:
             return False
-        targets = self.bot.all_enemy_units.in_attack_range_of(unit)
-        targeting_destructable = False
-        # if not targets:
-        #     targeting_destructable = True
-        #     targets = self.bot.destructables.in_attack_range_of(unit, -1)
+        if targets is None:
+            targets = self.bot.all_enemy_units.in_attack_range_of(unit)
         if targets:
             if unit.weapon_cooldown == 0:
                 lowest_target = targets.sorted(key=lambda enemy_unit: enemy_unit.health).first
                 unit.attack(lowest_target)
                 logger.info(f"unit {unit} attacking enemy {lowest_target}({lowest_target.position})")
-                return True
-            elif targeting_destructable:
-                # don't linger to shoot destructables
-                return False
-            else:
-                extra_range = -0.5
-                # move away if
-                if unit.weapon_cooldown > 1:
-                    extra_range = 3
-                nearest_target = targets.closest_to(unit)
-                attack_range = unit.ground_range
-                if nearest_target.is_flying:
-                    attack_range = unit.air_range
-                target_position = nearest_target.position.towards(unit, attack_range + extra_range)
-                unit.move(target_position)
-                logger.info(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
-                return True
+            return True
+            # else:
+            #     extra_range = -0.5
+            #     # move away if
+            #     if unit.weapon_cooldown > 1:
+            #         extra_range = 3
+            #     nearest_target = targets.closest_to(unit)
+            #     attack_range = unit.ground_range
+            #     if nearest_target.is_flying:
+            #         attack_range = unit.air_range
+            #     target_position = nearest_target.position.towards(unit, attack_range + extra_range)
+            #     unit.move(target_position)
+            #     logger.info(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
+            #     return True
         return False
 
-    async def move(self, unit: Unit, target: Point2, enemy: Enemy) -> None:
+    async def move(self, unit: Unit, target: Point2, enemy: Enemy, force_move: bool = False) -> None:
         if unit.tag in self.bot.unit_tags_received_action:
             return
+        if force_move:
+            unit.move(target)
+            logger.debug(f"unit {unit} moving to {target}")
         if await self.use_ability(unit, enemy, target, health_threshold=self.ability_health):
             logger.debug(f"unit {unit} used ability")
         elif self.attack_something(unit, health_threshold=self.attack_health):

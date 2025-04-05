@@ -152,21 +152,12 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
     def get_army(self) -> Units:
         return (self.enemies_in_view + self.enemies_out_of_view).filter(lambda unit: not unit.is_structure and unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.DRONE, UnitTypeId.PROBE))
 
-    def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True, include_destructables=True, excluded_types=[]) -> tuple[Unit, float]:
+    def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True, include_destructables=False, excluded_types=[]) -> tuple[Unit, float]:
         nearest_enemy: Unit = None
         nearest_distance = distance_limit
 
-        candidates: Units = None
-        if include_structures and include_units:
-            candidates = self.bot.enemy_units + self.bot.enemy_structures + self.recent_out_of_view()
-        elif include_units:
-            candidates = self.bot.enemy_units + self.recent_out_of_view().filter(lambda unit: not unit.is_structure)
-        elif include_structures:
-            candidates = self.bot.enemy_structures + self.recent_out_of_view().filter(lambda unit: unit.is_structure)
-        logger.debug(f"{friendly_unit} target candidates {candidates}")
+        candidates: Units = self.get_candidates(include_structures, include_units, include_destructables, excluded_types)
 
-        if excluded_types:
-            candidates = candidates.filter(lambda unit: unit.type_id not in excluded_types)
         # ravens technically can't attack
         if friendly_unit.type_id != UnitTypeId.RAVEN:
             candidates = candidates.filter(lambda enemy: self.can_attack(friendly_unit, enemy))
@@ -184,6 +175,32 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                     nearest_distance = enemy_distance
 
         return (nearest_enemy, nearest_distance)
+
+    def get_enemies_in_range(self, friendly_unit: Unit, include_structures=True, include_units=True, include_destructables=False, excluded_types=[]) -> Units:
+        enemies_in_range: Units = Units([], self.bot)
+        candidates = self.get_candidates(include_structures, include_units, include_destructables, excluded_types)
+        for candidate in candidates:
+            range = self.distance(friendly_unit, candidate)
+            if candidate.is_flying:
+                if range < friendly_unit.air_range:
+                    enemies_in_range.append(candidate)
+            elif range < friendly_unit.ground_range or candidate.type_id == UnitTypeId.COLOSSUS and range < friendly_unit.air_range:
+                enemies_in_range.append(candidate)
+        return enemies_in_range
+
+    def get_candidates(self, include_structures=True, include_units=True, include_destructables=False, excluded_types=[]):
+        candidates: Units = None
+        if include_structures and include_units:
+            candidates = self.bot.enemy_units + self.bot.enemy_structures + self.recent_out_of_view()
+        elif include_units:
+            candidates = self.bot.enemy_units + self.recent_out_of_view().filter(lambda unit: not unit.is_structure)
+        elif include_structures:
+            candidates = self.bot.enemy_structures + self.recent_out_of_view().filter(lambda unit: unit.is_structure)
+        if include_destructables:
+            candidates += self.bot.destructables
+        if excluded_types:
+            candidates = candidates.filter(lambda unit: unit.type_id not in excluded_types)
+        return candidates
 
     def recent_out_of_view(self) -> Units:
         return self.enemies_out_of_view.filter(

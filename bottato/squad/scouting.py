@@ -59,7 +59,7 @@ class Scout(UnitReferenceMixin):
         assignment: ScoutingLocation = self.scouting_locations[self.scouting_locations_index]
         logger.debug(f"scout {self.unit} previous assignment: {assignment}")
 
-        micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot)
+        micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot, self.enemy)
 
         # move to next location if taking damage
         next_index = self.scouting_locations_index

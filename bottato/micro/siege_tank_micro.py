@@ -23,8 +23,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     min_seconds_between_transform = max_siege_time + 1
     last_transform_time: dict[int, float] = {}
 
-    def __init__(self, bot: BotAI):
-        super().__init__(bot)
+    def __init__(self, bot: BotAI, enemy: Enemy):
+        super().__init__(bot, enemy)
 
     async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float) -> bool:
         if unit.tag not in self.known_tags:

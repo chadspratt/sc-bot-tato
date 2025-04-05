@@ -105,7 +105,8 @@ class BuildOrder(TimerMixin):
         if not self.build_a_worker:
             requested_worker_count = 1 if self.build_a_worker else 0
             worker_build_capacity: int = len(self.bot.townhalls.idle)
-            desired_worker_count = self.workers.max_workers
+            # desired_worker_count = self.workers.max_workers
+            desired_worker_count = max(30, self.bot.supply_cap / 3)
             logger.debug(f"requested_worker_count={requested_worker_count}")
             logger.debug(f"worker_build_capacity={worker_build_capacity}")
             if (

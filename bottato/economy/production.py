@@ -1,6 +1,7 @@
 from typing import List, Union
 from loguru import logger
 
+from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit, UnitOrder
 from sc2.ids.unit_typeid import UnitTypeId
@@ -399,41 +400,35 @@ class Production(UnitReferenceMixin):
     def build_order_with_prereqs_recurse(self,
                                          unit_type: Union[UnitTypeId, UpgradeId],
                                          previous_types: List[Union[UnitTypeId, UpgradeId]] = []) -> List[Union[UnitTypeId, UpgradeId]]:
+        if unit_type in previous_types:
+            return []
+        elif isinstance(unit_type, UnitTypeId) and self.bot.structure_type_build_progress(unit_type) > 0:
+            return []
+        elif isinstance(unit_type, UpgradeId) and self.bot.already_pending_upgrade(unit_type):
+            return []
         build_order = [unit_type]
-        new_previous = [unit_type]
-        new_previous.extend(previous_types)
+        # requirement_bom = [unit_type].extend(previous_types)
+        previous_types.append(unit_type)
 
         if isinstance(unit_type, UpgradeId):
             requirement = UPGRADE_RESEARCHED_FROM[unit_type]
-            prereq_progress = self.bot.structure_type_build_progress(requirement)
-            logger.debug(f"{requirement} progress: {prereq_progress}")
+            build_order += self.build_order_with_prereqs_recurse(requirement, previous_types)
 
-            if prereq_progress == 0:
-                requirement_bom = self.build_order_with_prereqs_recurse(requirement, new_previous)
-                # if same prereq appears at a higher level, skip adding it
-                if unit_type in requirement_bom:
-                    build_order = requirement_bom
-                else:
-                    build_order.extend(requirement_bom)
+            research_structure_type: UnitTypeId = UPGRADE_RESEARCHED_FROM[unit_type]
+            required_tech_building: UnitTypeId | None = RESEARCH_INFO[research_structure_type][unit_type].get(
+                "required_building", None
+            )
+            build_order += self.build_order_with_prereqs_recurse(required_tech_building, previous_types)
         else:
             if unit_type in TECH_TREE:
                 # check that all tech requirements are met
                 for requirement in TECH_TREE[unit_type]:
-                    prereq_progress = self.bot.structure_type_build_progress(requirement)
-                    logger.debug(f"{requirement} progress: {prereq_progress}")
-
-                    if prereq_progress == 0:
-                        requirement_bom = self.build_order_with_prereqs_recurse(requirement, new_previous)
-                        # if same prereq appears at a higher level, skip adding it
-                        if unit_type in requirement_bom:
-                            build_order = requirement_bom
-                        else:
-                            build_order.extend(requirement_bom)
+                    build_order += self.build_order_with_prereqs_recurse(requirement, previous_types)
 
             if unit_type in UNIT_TRAINED_FROM:
                 # check that one training facility exists
                 for trainer in UNIT_TRAINED_FROM[unit_type]:
-                    if trainer in build_order:
+                    if trainer in previous_types:
                         break
                     if trainer == UnitTypeId.SCV and self.bot.workers:
                         break
@@ -442,11 +437,10 @@ class Production(UnitReferenceMixin):
                 else:
                     # no trainers available
                     for trainer in UNIT_TRAINED_FROM[unit_type]:
-                        if trainer not in previous_types:
-                            requirement_bom = self.build_order_with_prereqs_recurse(trainer, new_previous)
-                            if requirement_bom:
-                                build_order.extend(requirement_bom)
-                                break
+                        requirement_bom = self.build_order_with_prereqs_recurse(trainer, previous_types)
+                        if requirement_bom:
+                            build_order.extend(requirement_bom)
+                            break
                     else:
                         return []
 

@@ -2,6 +2,7 @@ import enum
 from loguru import logger
 from typing import Optional, Union
 
+from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
@@ -135,6 +136,15 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         else:
             # successful_action: bool = self.unit_in_charge.research(self.upgrade_id)
             ability = RESEARCH_ABILITIES[self.upgrade_id]
+
+            required_tech_building: UnitTypeId | None = RESEARCH_INFO[self.unit_in_charge.type_id][self.upgrade_id].get(
+                "required_building", None
+            )
+            requirement_met = (
+                required_tech_building is None or self.bot.structure_type_build_progress(required_tech_building) == 1
+            )
+            if not requirement_met:
+                return self.ResponseCode.NO_TECH
             logger.info(f"{self.unit_in_charge} researching upgrade with ability {ability}")
             successful_action: bool = self.unit_in_charge(ability)
             if successful_action:

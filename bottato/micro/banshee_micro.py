@@ -11,8 +11,8 @@ from ..mixins import GeometryMixin
 class BansheeMicro(BaseUnitMicro, GeometryMixin):
     attack_health: float = 0.51
 
-    def __init__(self, bot: BotAI):
-        super().__init__(bot)
+    def __init__(self, bot: BotAI, enemy: Enemy):
+        super().__init__(bot, enemy)
 
     async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float) -> bool:
         return False
