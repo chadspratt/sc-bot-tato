@@ -21,7 +21,7 @@ class BaseUnitMicro(GeometryMixin):
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
 
-    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float) -> bool:
+    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         return False
 
     async def retreat(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
@@ -114,11 +114,11 @@ class BaseUnitMicro(GeometryMixin):
     async def move(self, unit: Unit, target: Point2, enemy: Enemy, force_move: bool = False) -> None:
         if unit.tag in self.bot.unit_tags_received_action:
             return
-        if force_move:
+        if await self.use_ability(unit, enemy, target, health_threshold=self.ability_health, force_move=force_move):
+            logger.debug(f"unit {unit} used ability")
+        elif force_move:
             unit.move(target)
             logger.debug(f"unit {unit} moving to {target}")
-        if await self.use_ability(unit, enemy, target, health_threshold=self.ability_health):
-            logger.debug(f"unit {unit} used ability")
         elif self.attack_something(unit, health_threshold=self.attack_health):
             logger.debug(f"unit {unit} attacked something")
         elif await self.retreat(unit, enemy, health_threshold=self.retreat_health):

@@ -22,7 +22,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot, enemy)
 
-    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float) -> bool:
+    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         return await self.grenade_knock_away(unit, enemy.threats_to(unit))
 
     def attack_something(self, unit, health_threshold, targets: Unit = None):

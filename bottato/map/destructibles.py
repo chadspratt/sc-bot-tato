@@ -73,7 +73,7 @@ BUILDINGS = {
 
 BUILDING_RADIUS = {}
 for type_id in BUILDINGS["2x2"]:
-    BUILDING_RADIUS[type_id] = 1
+    BUILDING_RADIUS[type_id] = 1.5
 for type_id in BUILDINGS["3x3"]:
     BUILDING_RADIUS[type_id] = 2
 for type_id in BUILDINGS["5x5"]:

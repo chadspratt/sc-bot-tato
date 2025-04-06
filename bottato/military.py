@@ -148,11 +148,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         # XXX compare army values (((minerals / 0.9) + gas) * supply) / 50
         enemy_value = self.get_army_value(self.enemy.get_army())
         main_army_value = self.get_army_value(self.main_army.units)
-        army_is_bigger = main_army_value > enemy_value * 1.5
+        army_is_big_enough = main_army_value > enemy_value * 1.5 or self.bot.supply_used > 160
         army_is_grouped = self.main_army.is_grouped()
         self.army_ratio = main_army_value / max(enemy_value, 1)
-        mount_offense = not defend_with_main_army and army_is_bigger and army_is_grouped and (self.bot.supply_used >= 110 or self.bot.time > 600)
-        self.status_message = f"main_army_value: {main_army_value}\nenemy_value: {enemy_value}\nbigger: {army_is_bigger}, grouped: {army_is_grouped}\nattacking: {mount_offense}"
+        mount_offense = not defend_with_main_army and army_is_big_enough and army_is_grouped and (self.bot.supply_used >= 110 or self.bot.time > 600)
+        self.status_message = f"main_army_value: {main_army_value}\nenemy_value: {enemy_value}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
 
         if mount_offense:

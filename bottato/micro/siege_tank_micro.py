@@ -26,7 +26,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot, enemy)
 
-    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float) -> bool:
+    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag not in self.known_tags:
             self.known_tags.add(unit.tag)
             self.unsieged_tags.add(unit.tag)
@@ -43,6 +43,12 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         self.unsieged_tags = self.bot.units.tags.intersection(self.unsieged_tags)
 
         is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
+        if force_move:
+            if is_sieged:
+                self.unsiege(unit)
+                return True
+            else:
+                return False
         # fix miscategorizations
         if is_sieged != (unit.tag in self.sieged_tags):
             if is_sieged:

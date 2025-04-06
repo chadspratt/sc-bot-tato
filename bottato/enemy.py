@@ -13,7 +13,7 @@ from .squad.enemy_squad import EnemySquad
 
 class Enemy(UnitReferenceMixin, GeometryMixin):
     unit_probably_moved_seconds = 10
-    unit_may_not_exist_seconds = 180
+    unit_may_not_exist_seconds = 300
     enemy_squad_counter = 0
 
     def __init__(self, bot: BotAI):
