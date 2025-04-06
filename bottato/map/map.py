@@ -173,7 +173,7 @@ class Map(TimerMixin, GeometryMixin):
                                 points_to_check.extend(point_zone.unchecked_points)
                                 zones_to_remove.append(point_zone)
                                 zone.merge_with(point_zone)
-                            elif distance_from_edge[neighbor] > 0:
+                            elif distance_from_edge[neighbor] > 1:
                                 # if next_point in [(37, 89), (38, 89), (39, 89)]:
                                 #     logger.debug(f"neighbor in adjacent zone {neighbor}")
                                 zone.add_adjacent_zone(point_zone)
