@@ -21,7 +21,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
         return False
 
     async def retreat(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
-        if unit.health_percentage < 0.8:
+        if unit.health_percentage < 0.7:
             return self.retreat_to_medivac(unit)
         elif unit.tag in self.healing_unit_tags:
             if unit.health_percentage < 0.9:
@@ -32,10 +32,11 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
 
     def retreat_to_medivac(self, unit: Unit) -> bool:
         medivacs = self.bot.units.filter(lambda unit: unit.type_id == UnitTypeId.MEDIVAC and unit.energy > 5)
-        if not medivacs:
-            return False
-        nearest_medivac = medivacs.closest_to(unit)
-        unit.move(nearest_medivac)
-        logger.info(f"{unit} marine retreating to heal at {nearest_medivac} hp {unit.health_percentage}")
-        self.healing_unit_tags.add(unit.tag)
+        if medivacs:
+            nearest_medivac = medivacs.closest_to(unit)
+            unit.move(nearest_medivac)
+            logger.info(f"{unit} marine retreating to heal at {nearest_medivac} hp {unit.health_percentage}")
+            self.healing_unit_tags.add(unit.tag)
+        else:
+            unit.move(self.bot.townhalls.closest_to(unit))
         return True

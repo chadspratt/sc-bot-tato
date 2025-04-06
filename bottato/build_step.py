@@ -20,6 +20,7 @@ from bottato.economy.production import Production
 from bottato.special_locations import SpecialLocations
 from bottato.upgrades import RESEARCH_ABILITIES
 from bottato.map.destructibles import BUILDING_RADIUS
+from bottato.tech_tree import TECH_TREE
 
 
 class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
@@ -131,7 +132,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         if self.unit_in_charge is None:
             self.unit_in_charge = self.production.get_research_facility(self.upgrade_id)
             logger.debug(f"research facility: {self.unit_in_charge}")
-        if self.unit_in_charge is None:
+        if self.unit_in_charge is None or self.unit_in_charge.type_id == UnitTypeId.TECHLAB:
             response = self.ResponseCode.NO_FACILITY
         else:
             # successful_action: bool = self.unit_in_charge.research(self.upgrade_id)
@@ -158,6 +159,12 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     async def execute_scv_build(self, special_locations: SpecialLocations, needed_resources: Cost = None) -> ResponseCode:
         response = None
         logger.info(f"Trying to build {self.unit_type_id} with SCV")
+
+        if self.unit_type_id in TECH_TREE:
+            # check that all tech requirements are met
+            for requirement in TECH_TREE[self.unit_type_id]:
+                if self.bot.structure_type_build_progress(requirement) != 1:
+                    return self.ResponseCode.NO_TECH
 
         build_response: bool = None
         if self.unit_type_id == UnitTypeId.REFINERY:
@@ -206,6 +213,12 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         logger.debug(
             f"Trying to train unit {self.unit_type_id} with {self.builder_type}"
         )
+
+        if self.unit_type_id in TECH_TREE:
+            # check that all tech requirements are met
+            for requirement in TECH_TREE[self.unit_type_id]:
+                if self.bot.structure_type_build_progress(requirement) != 1:
+                    return self.ResponseCode.NO_TECH
         if self.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
             self.unit_in_charge = self.production.get_builder(self.unit_type_id)
         else:

@@ -105,8 +105,8 @@ class Upgrades:
             # UpgradeId.DRILLCLAWS,
         ],
         UnitTypeId.STARPORTTECHLAB: [
+            UpgradeId.BANSHEECLOAK,
             UpgradeId.BANSHEESPEED,
-            # UpgradeId.BANSHEECLOAK,
             # UpgradeId.INTERFERENCEMATRIX,
         ],
         UnitTypeId.ARMORY: [

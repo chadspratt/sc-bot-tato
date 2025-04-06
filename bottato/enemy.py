@@ -193,7 +193,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
         if include_structures and include_units:
             candidates = self.bot.enemy_units + self.bot.enemy_structures + self.recent_out_of_view()
         elif include_units:
-            candidates = self.bot.enemy_units + self.recent_out_of_view().filter(lambda unit: not unit.is_structure)
+            candidates = self.bot.enemy_units + self.recent_out_of_view().filter(lambda unit: not unit.is_structure or unit.type_id == UnitTypeId.CREEPTUMOR)
         elif include_structures:
             candidates = self.bot.enemy_structures + self.recent_out_of_view().filter(lambda unit: unit.is_structure)
         if include_destructables:

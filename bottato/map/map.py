@@ -34,6 +34,13 @@ class Map(TimerMixin, GeometryMixin):
         self.stop_timer("init_zones")
         logger.debug(f"zones {self.zones}")
         self.first_draw = True
+        self.last_refresh_time = 0
+
+    def refresh_map(self):
+        if self.bot.time - self.last_refresh_time > 60:
+            self.init_distance_from_edge(self.influence_maps.get_base_pathing_grid())
+            self.zones: Dict[int, Zone] = self.init_zones(self.distance_from_edge)
+            self.last_refresh_time = self.bot.time
 
     def init_distance_from_edge(self, pathing_grid: np.ndarray):
         self.distance_from_edge: Dict[tuple, int] = {}

@@ -105,8 +105,8 @@ class BuildOrder(TimerMixin):
         if not self.build_a_worker:
             requested_worker_count = 1 if self.build_a_worker else 0
             worker_build_capacity: int = len(self.bot.townhalls.idle)
-            # desired_worker_count = self.workers.max_workers
-            desired_worker_count = max(30, self.bot.supply_cap / 3)
+            desired_worker_count = self.workers.max_workers
+            # desired_worker_count = max(30, self.bot.supply_cap / 3)
             logger.debug(f"requested_worker_count={requested_worker_count}")
             logger.debug(f"worker_build_capacity={worker_build_capacity}")
             if (
@@ -144,7 +144,7 @@ class BuildOrder(TimerMixin):
                 cc_count += 1
         # adds number of townhalls to account for near-term production
         surplus_worker_count = worker_count - self.workers.get_mineral_capacity() + len(self.bot.townhalls)
-        needed_cc_count = math.ceil(surplus_worker_count / 13)
+        needed_cc_count = math.ceil(surplus_worker_count / 12)
         logger.info(f"expansion: {surplus_worker_count} surplus workers need {needed_cc_count} cc(s)")
         # expand if running out of room for workers at current bases
         if needed_cc_count > 0:
