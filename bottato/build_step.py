@@ -313,7 +313,10 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                                 break
                             continue
                     # try to not block addons
-                    for no_addon_facility in self.production.get_no_addon_facilities():
+                    in_progress = [u for u in self.bot.structures
+                                   if u.type_id in (UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT)
+                                   and u.build_progress < 1]
+                    for no_addon_facility in in_progress + self.production.get_no_addon_facilities():
                         if no_addon_facility.add_on_position.distance_to(new_build_position) < BUILDING_RADIUS[unit_type_id]:
                             break
                     else:
