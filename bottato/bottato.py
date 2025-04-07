@@ -27,8 +27,8 @@ class BotTato(BotAI, TimerMixin):
         self.map = Map(self)
         # for loc in self.expansion_locations_list:
         #     self.map.get_path(self.game_info.player_start_location, loc)
-        self.my_workers: Workers = Workers(self)
         self.enemy: Enemy = Enemy(self)
+        self.my_workers: Workers = Workers(self, self.enemy)
         self.military: Military = Military(self, self.enemy, self.map, self.my_workers)
         self.structure_micro: StructureMicro = StructureMicro(self)
         self.production: Production = Production(self)
@@ -45,11 +45,15 @@ class BotTato(BotAI, TimerMixin):
         # self.bot.state.action_errors
         # self.bot.state.actions
         # self.bot.state.effects
+        # build_order = self.production.build_order_with_prereqs(UnitTypeId.THOR)
+        # print(build_order)
 
     async def on_step(self, iteration):
         logger.info(f"======starting step {iteration} ({self.time}s)======")
         if not self.ladder_mode:
             await self.save_replay()
+
+        # self.map.refresh_map()
 
         self.start_timer("update_unit_references")
         # XXX very slow

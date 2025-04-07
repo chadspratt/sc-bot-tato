@@ -10,10 +10,11 @@ from sc2.constants import UnitTypeId, AbilityId
 from sc2.position import Point2
 from sc2.game_data import Cost
 
-from ..mixins import GeometryMixin, UnitReferenceMixin, TimerMixin
-from .minerals import Minerals
-from .vespene import Vespene
-from .resources import Resources
+from bottato.enemy import Enemy
+from bottato.mixins import GeometryMixin, UnitReferenceMixin, TimerMixin
+from bottato.economy.minerals import Minerals
+from bottato.economy.vespene import Vespene
+from bottato.economy.resources import Resources
 
 
 class JobType(enum.Enum):
@@ -43,8 +44,9 @@ class WorkerAssignment():
 
 
 class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
-    def __init__(self, bot: BotAI) -> None:
+    def __init__(self, bot: BotAI, enemy: Enemy) -> None:
         self.bot: BotAI = bot
+        self.enemy = enemy
         self.last_worker_stop = -1000
         self.assignments_by_worker: dict[int, WorkerAssignment] = {}
         self.assignments_by_job: dict[JobType, list[WorkerAssignment]] = {
@@ -420,12 +422,14 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
     def units_needing_repair(self) -> Units:
         injured_mechanical_units = self.bot.units.filter(lambda unit: unit.is_mechanical
-                                                         and unit.health < unit.health_max)
+                                                         and unit.health < unit.health_max
+                                                         and len(self.enemy.threats_to_repairer(unit)) == 0)
         logger.debug(f"injured mechanical units {injured_mechanical_units}")
 
         injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
                                                         and unit.build_progress == 1
-                                                        and unit.health < unit.health_max)
+                                                        and unit.health < unit.health_max
+                                                        and len(self.enemy.threats_to_repairer(unit)) == 0)
         logger.debug(f"injured structures {injured_structures}")
         return injured_mechanical_units + injured_structures
 

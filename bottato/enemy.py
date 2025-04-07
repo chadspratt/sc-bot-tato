@@ -146,6 +146,16 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 threats.append(enemy_unit)
         return threats
 
+    def threats_to_repairer(self, friendly_unit: Unit, attack_range_buffer=2) -> Units:
+        threats = Units([enemy_unit for enemy_unit in self.enemies_in_view
+                         if enemy_unit.target_in_range(friendly_unit, attack_range_buffer)],
+                        self.bot)
+        for enemy_unit in self.recent_out_of_view():
+            enemy_attack_range = enemy_unit.ground_range
+            if friendly_unit.distance_to(self.predicted_position[enemy_unit.tag]) < enemy_attack_range:
+                threats.append(enemy_unit)
+        return threats
+
     def get_enemies(self) -> Units:
         return self.enemies_in_view + self.recent_out_of_view()
 
