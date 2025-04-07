@@ -36,7 +36,7 @@ class UnitReferenceMixin:
             try:
                 _units.append(self.get_updated_unit_reference(unit))
             except self.UnitNotFound:
-                logger.info(f"Couldn't find unit {unit}!")
+                logger.debug(f"Couldn't find unit {unit}!")
         return _units
 
     def get_updated_unit_references_by_tags(self, tags: List[int]) -> Units:
@@ -202,7 +202,7 @@ class TimerMixin:
     def print_timers(self, prefix: str = '') -> None:
         for timer_name in self.timers.keys():
             timer = self.timers[timer_name]
-            logger.info(f"{prefix}{timer_name} execution time: {timer['total']}")
+            logger.debug(f"{prefix}{timer_name} execution time: {timer['total']}")
 
 
 class DebugMixin:

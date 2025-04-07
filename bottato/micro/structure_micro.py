@@ -15,7 +15,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         self.formations = []
 
     async def execute(self):
-        # logger.info("adjust_supply_depots_for_enemies step")
+        # logger.debug("adjust_supply_depots_for_enemies step")
         self.adjust_supply_depots_for_enemies()
         self.target_autoturrets()
 

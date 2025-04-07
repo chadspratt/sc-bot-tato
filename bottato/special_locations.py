@@ -13,7 +13,7 @@ class SpecialLocation:
         self.unit_tag: int | None = None
         self.unit_type_id = unit_type_id
         self.position = position
-        logger.info(f"Will build {unit_type_id} at {position} to block ramp")
+        logger.debug(f"Will build {unit_type_id} at {position} to block ramp")
 
     def __eq__(self, other):
         return self.unit_type_id == other.type_id and self.position == other.position

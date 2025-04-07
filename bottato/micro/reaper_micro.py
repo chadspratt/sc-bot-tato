@@ -39,13 +39,13 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 future_target_position = target.position
                 grenade_target = future_target_position.towards(unit)
                 if unit.in_ability_cast_range(AbilityId.KD8CHARGE_KD8CHARGE, grenade_target):
-                    logger.info(f"{unit} grenade candidates {target}: {future_target_position} -> {grenade_target}")
+                    logger.debug(f"{unit} grenade candidates {target}: {future_target_position} -> {grenade_target}")
                     grenade_targets.append(grenade_target)
 
         if grenade_targets:
             # choose furthest to reduce chance of grenading self
             grenade_target = unit.position.furthest(grenade_targets)
-            logger.info(f"{unit} grenading {grenade_target}")
+            logger.debug(f"{unit} grenading {grenade_target}")
             self.throw_grenade(unit, grenade_target)
             return True
 
@@ -53,7 +53,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
     async def grenade_jump(self, unit: Unit, target: Unit) -> bool:
         if await self.grenade_available(unit):
-            logger.info(f"{unit} grenading {target}")
+            logger.debug(f"{unit} grenading {target}")
             self.throw_grenade(unit, self.predict_future_unit_position(target, self.grenade_timer))
             return True
         return False

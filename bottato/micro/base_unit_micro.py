@@ -49,7 +49,7 @@ class BaseUnitMicro(GeometryMixin):
         # map_center_vector = self.bot.game_info.map_center - unit.position
         # retreat_vector = retreat_vector + map_center_vector.normalized
 
-        # logger.info(f"unit {unit} retreating from {threats} in direction {retreat_vector}")
+        # logger.debug(f"unit {unit} retreating from {threats} in direction {retreat_vector}")
         # desired_position = unit.position + retreat_vector
         # attempted_position = unit.position.towards(desired_position, 5)
         # is_pathable = self.bot.in_map_bounds if unit.is_flying else self.bot.in_pathing_grid
@@ -67,7 +67,7 @@ class BaseUnitMicro(GeometryMixin):
         #     attempted_position = unit.position.towards_with_random_angle(desired_position, 5, deflection)
         # unit.move(unit.position + retreat_vector)
         if do_retreat:
-            logger.info(f"{unit} retreating")
+            logger.debug(f"{unit} retreating")
             if unit.is_mechanical:
                 repairers = self.bot.workers.filter(lambda unit: unit.is_repairing) or self.bot.workers
                 if repairers:
@@ -94,7 +94,7 @@ class BaseUnitMicro(GeometryMixin):
             if unit.weapon_cooldown == 0:
                 lowest_target = targets.sorted(key=lambda enemy_unit: enemy_unit.health).first
                 unit.attack(lowest_target)
-                logger.info(f"unit {unit} attacking enemy {lowest_target}({lowest_target.position})")
+                logger.debug(f"unit {unit} attacking enemy {lowest_target}({lowest_target.position})")
             return True
             # else:
             #     extra_range = -0.5
@@ -107,7 +107,7 @@ class BaseUnitMicro(GeometryMixin):
             #         attack_range = unit.air_range
             #     target_position = nearest_target.position.towards(unit, attack_range + extra_range)
             #     unit.move(target_position)
-            #     logger.info(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
+            #     logger.debug(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
             #     return True
         return False
 

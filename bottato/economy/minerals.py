@@ -28,7 +28,7 @@ class Minerals(Resources):
             if townhall.tag not in self.known_townhall_tags:
                 self.known_townhall_tags.append(townhall.tag)
                 for mineral in self.bot.mineral_field.closer_than(8, townhall):
-                    logger.info(f"adding mineral patch {mineral}")
+                    logger.debug(f"adding mineral patch {mineral}")
                     self.add_node(mineral)
 
     def add_long_distance_minerals(self, count: int) -> int:
@@ -36,7 +36,7 @@ class Minerals(Resources):
         if self.bot.townhalls:
             for mineral_node in self.bot.mineral_field.sorted_by_distance_to(self.bot.townhalls[0]):
                 if mineral_node.mineral_contents and self.add_node(mineral_node):
-                    logger.info(f"adding long distance mining node {mineral_node}")
+                    logger.debug(f"adding long distance mining node {mineral_node}")
                     added += 1
                     if added == count:
                         break

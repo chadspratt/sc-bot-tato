@@ -137,11 +137,11 @@ class FormationSquad(BaseSquad, GeometryMixin):
             reference_point = self.parent_formation.front_center or self.units.center
             closest_target = self.targets.closest_to(reference_point)
             target_position = closest_target.position
-            logger.info(
+            logger.debug(
                 f"{self.name} Squad attacking {closest_target};"
             )
         else:
-            logger.info(
+            logger.debug(
                 f"{self.name} Squad attacking {target_position};"
             )
 

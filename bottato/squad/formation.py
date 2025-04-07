@@ -236,7 +236,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         distance_remaining = (self.front_center - formation_destination).length
         if distance_remaining < 5:
             self.destination = formation_destination
-            logger.info(f"distance to {self.destination} < 5")
+            logger.debug(f"distance to {self.destination} < 5")
         else:
             new_front_center = self.calculate_formation_front_center(units, formation_destination)
             # limit front_center jumping around
@@ -244,10 +244,10 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             self.path = self.map.get_path(self.front_center, formation_destination)
 
             if self.path and len(self.path) > 1:
-                logger.info(f"following path {self.path} to {self.destination}")
+                logger.debug(f"following path {self.path} to {self.destination}")
                 self.destination = self.front_center.towards(self.path[1], distance=2, limit=True)
             else:
-                logger.info(f"heading directly to {self.destination}")
+                logger.debug(f"heading directly to {self.destination}")
                 # if no path, tell all units to go to the destination. happens if already in destination zone or if reference point passes over non-pathable area
                 self.destination = formation_destination
 

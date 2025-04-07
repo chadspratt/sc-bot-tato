@@ -23,11 +23,11 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
 
     async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         enemy_unit, enemy_distance = enemy.get_closest_target(unit, distance_limit=20, include_destructables=False)
-        logger.info(f"raven {unit} closest unit {enemy_unit}({enemy_distance}), energy={unit.energy}")
+        logger.debug(f"raven {unit} closest unit {enemy_unit}({enemy_distance}), energy={unit.energy}")
         if enemy_unit is None:
             return False
         elif enemy_distance < self.ideal_enemy_distance - 2:
-            logger.info(f"{unit} too close to {enemy_unit} ({enemy_distance})")
+            logger.debug(f"{unit} too close to {enemy_unit} ({enemy_distance})")
             # unit.move(enemy_unit.position.towards(unit, self.ideal_enemy_distance))
             # too close
             return False
@@ -41,7 +41,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         if self.turret_available(unit):
             turret_position = target.position.towards(unit, self.turret_attack_range - 1.5, limit=True)
             self.drop_turret(unit, turret_position)
-            logger.info(f"{unit} trying to drop turret at {turret_position} to attack {target} at {target.position}")
+            logger.debug(f"{unit} trying to drop turret at {turret_position} to attack {target} at {target.position}")
             return True
 
         return False

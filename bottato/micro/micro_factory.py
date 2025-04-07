@@ -31,10 +31,10 @@ class MicroFactory:
     def get_unit_micro(unit: Unit, bot: BotAI, enemy: Enemy) -> BaseUnitMicro:
         if unit.type_id not in micro_instances:
             if unit.type_id in micro_lookup:
-                logger.info(f"creating {unit.type_id} micro for {unit}")
+                logger.debug(f"creating {unit.type_id} micro for {unit}")
                 micro_instances[unit.type_id] = micro_lookup[unit.type_id](bot, enemy)
             else:
-                logger.info(f"creating generic micro for {unit}")
+                logger.debug(f"creating generic micro for {unit}")
                 if UnitTypeId.NOTAUNIT not in micro_instances:
                     micro_instances[UnitTypeId.NOTAUNIT] = BaseUnitMicro(bot, enemy)
                 micro_instances[unit.type_id] = micro_instances[UnitTypeId.NOTAUNIT]

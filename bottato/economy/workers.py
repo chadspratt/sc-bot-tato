@@ -97,10 +97,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         logger.debug(f"assignment summary {self.assignments_by_job}")
 
         for orbital_tag in self.orbitals_calling_mules.copy():
-            logger.info(f"orbital tag {orbital_tag}")
+            logger.debug(f"orbital tag {orbital_tag}")
             try:
                 orbital: Unit = self.get_updated_unit_reference_by_tag(orbital_tag)
-                logger.info(f"orbital {orbital} has {orbital.energy} energy")
+                logger.debug(f"orbital {orbital} has {orbital.energy} energy")
                 if orbital.energy < self.mule_energy_threshold:
                     self.orbitals_calling_mules.remove(orbital.tag)
             except UnitReferenceMixin.UnitNotFound:
@@ -116,7 +116,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 closest_minerals: Unit = self.mule_queue.pop(0)
                 self.update_assigment(worker, JobType.MINERALS, closest_minerals)
                 self.minerals.add_mule(worker, closest_minerals)
-                logger.info(f"added mule {worker.tag}({worker.position}) to minerals {closest_minerals}({closest_minerals.position})")
+                logger.debug(f"added mule {worker.tag}({worker.position}) to minerals {closest_minerals}({closest_minerals.position})")
             return True
         return False
 
@@ -146,7 +146,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 self.orbitals_calling_mules.append(orbital.tag)
 
     def remove_mule(self, mule):
-        logger.info(f"removing mule {mule}")
+        logger.debug(f"removing mule {mule}")
         self.minerals.remove_mule(mule)
         self.aged_mules.remove(mule)
 
@@ -194,7 +194,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     nearest_enemy = self.bot.enemy_units.closest_to(reference_unit.position)
                     if nearest_enemy.distance_to(reference_unit.position) < 10:
                         assignment.on_attack_break = True
-                        logger.info(f"worker {assignment.unit} attacking enemy to defend {reference_unit} which is maybe {assignment.target}")
+                        logger.debug(f"worker {assignment.unit} attacking enemy to defend {reference_unit} which is maybe {assignment.target}")
                         assignment.unit.attack(nearest_enemy)
                     elif assignment.on_attack_break:
                         assignment.on_attack_break = False
@@ -209,7 +209,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if worker.tag not in self.assignments_by_worker:
             return
         assignment = self.assignments_by_worker[worker.tag]
-        logger.info(f"worker {worker} changing from {assignment.job_type} to {new_job}")
+        logger.debug(f"worker {worker} changing from {assignment.job_type} to {new_job}")
         if assignment.job_type == JobType.MINERALS:
             self.minerals.remove_worker(worker)
         elif assignment.job_type == JobType.VESPENE:
@@ -265,12 +265,12 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             or self.availiable_workers_on_job(JobType.REPAIR)
         )
         if not candidates:
-            logger.info("FAILED TO GET BUILDER")
+            logger.debug("FAILED TO GET BUILDER")
         else:
             builder = candidates.closest_to(building_position)
             if builder is not None:
                 self.update_assigment(builder, JobType.BUILD, None)
-                logger.info(f"found builder {builder}")
+                logger.debug(f"found builder {builder}")
 
         return builder
 
@@ -283,7 +283,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if worker.is_carrying_resource:
             nearest_cc = self.bot.townhalls.ready.closest_to(worker)
             worker.smart(nearest_cc)
-            logger.info(f"{worker} delivering resources to {nearest_cc}")
+            logger.debug(f"{worker} delivering resources to {nearest_cc}")
 
     def set_as_idle(self, worker: Unit):
         if worker.tag in self.assignments_by_worker:
@@ -291,7 +291,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
     def distribute_idle(self):
         if self.bot.workers.idle:
-            logger.info(f"idle workers {self.bot.workers.idle}")
+            logger.debug(f"idle workers {self.bot.workers.idle}")
         for worker in self.bot.workers.idle:
             assigment: WorkerAssignment = self.assignments_by_worker[worker.tag]
             if (assigment.job_type != JobType.BUILD or (assigment.target and assigment.target.is_ready)) and assigment.unit.type_id != UnitTypeId.MULE:
@@ -301,23 +301,23 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
         idle_workers: Units = self.availiable_workers_on_job(JobType.IDLE)
         if idle_workers:
-            logger.info(f"idle or new workers {idle_workers}")
+            logger.debug(f"idle or new workers {idle_workers}")
             for worker in idle_workers:
                 if self.minerals.has_unused_capacity:
-                    logger.info(f"adding {worker.tag} to minerals")
+                    logger.debug(f"adding {worker.tag} to minerals")
                     self.update_assigment(worker, JobType.MINERALS, None)
                     continue
 
                 if self.vespene.has_unused_capacity:
-                    logger.info(f"adding {worker.tag} to gas")
+                    logger.debug(f"adding {worker.tag} to gas")
                     self.update_assigment(worker, JobType.VESPENE, None)
                     continue
 
                 # if self.minerals.add_long_distance_minerals(1) > 0:
-                #     logger.info(f"adding {worker.tag} to long-distance")
+                #     logger.debug(f"adding {worker.tag} to long-distance")
                 #     self.minerals.add_worker(worker)
 
-        logger.info(
+        logger.debug(
             f"[==WORKERS==] minerals({len(self.assignments_by_job[JobType.MINERALS])}), "
             f"vespene({len(self.assignments_by_job[JobType.VESPENE])}), "
             f"builders({len(self.assignments_by_job[JobType.BUILD])}), "
@@ -331,15 +331,15 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
         remaining_cooldown = 3 - (self.bot.time - self.last_worker_stop)
         if remaining_cooldown > 0:
-            logger.info(f"Distribute workers is on cooldown for {remaining_cooldown}")
+            logger.debug(f"Distribute workers is on cooldown for {remaining_cooldown}")
             return -1
 
         max_workers_to_move = 10
         if needed_resources.minerals <= 0:
-            logger.info("saturate vespene")
+            logger.debug("saturate vespene")
             return self.move_workers_to_vespene(max_workers_to_move)
         if needed_resources.vespene <= 0:
-            logger.info("saturate minerals")
+            logger.debug("saturate minerals")
             return self.move_workers_to_minerals(max_workers_to_move)
 
         # both positive
@@ -364,14 +364,14 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if injured_units:
             for unit in injured_units:
                 missing_health += unit.health_max - unit.health
-                logger.info(f"{unit} missing health {unit.health_max - unit.health}")
+                logger.debug(f"{unit} missing health {unit.health_max - unit.health}")
             needed_repairers = missing_health / self.health_per_repairer
             if needed_repairers > max_repairers:
                 needed_repairers = max_repairers
 
         current_repairers: Units = self.availiable_workers_on_job(JobType.REPAIR)
         repairer_shortage: int = round(needed_repairers) - len(current_repairers)
-        logger.info(f"missing health {missing_health} need repairers {needed_repairers} have {len(current_repairers)} shortage {repairer_shortage}")
+        logger.debug(f"missing health {missing_health} need repairers {needed_repairers} have {len(current_repairers)} shortage {repairer_shortage}")
 
         # remove excess repairers
         if repairer_shortage < 0:
@@ -382,7 +382,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 elif self.minerals.has_unused_capacity:
                     self.update_assigment(retiring_repairer, JobType.MINERALS, None)
                 else:
-                    logger.info(f"nowhere for {retiring_repairer} to retire to, staying repairer")
+                    logger.debug(f"nowhere for {retiring_repairer} to retire to, staying repairer")
                     break
                 current_repairers.remove(retiring_repairer)
 
@@ -450,7 +450,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             candidates = self.availiable_workers_on_job(JobType.MINERALS)
         else:
             candidates = self.availiable_workers_on_job(JobType.VESPENE)
-        # logger.info(f"candidates to move to {target_job}: {candidates}")
+        # logger.debug(f"candidates to move to {target_job}: {candidates}")
 
         next_node: Unit = mineral_nodes.pop()
         while moved_count < number_to_move and candidates and target.has_unused_capacity:

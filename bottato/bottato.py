@@ -20,8 +20,8 @@ from .map.map import Map
 class BotTato(BotAI, TimerMixin):
     async def on_start(self):
         self.ladder_mode = True
-        if self.ladder_mode:
-            self.disable_logging()
+        # if self.ladder_mode:
+        #     self.disable_logging()
         # name clash with BotAI.workers
         self.last_timer_print = 0
         self.map = Map(self)
@@ -39,9 +39,9 @@ class BotTato(BotAI, TimerMixin):
         # await self.client.debug_minerals()
         # self.client.save_replay_path = "..\replays\bottato.mpq"
         self.last_replay_save_time = 0
-        logger.info(os.getcwd())
-        logger.info(f"vision blockers: {self.game_info.vision_blockers}")
-        logger.info(f"destructibles: {self.destructables}")
+        logger.debug(os.getcwd())
+        logger.debug(f"vision blockers: {self.game_info.vision_blockers}")
+        logger.debug(f"destructibles: {self.destructables}")
         # self.bot.state.action_errors
         # self.bot.state.actions
         # self.bot.state.effects
@@ -49,7 +49,7 @@ class BotTato(BotAI, TimerMixin):
         # print(build_order)
 
     async def on_step(self, iteration):
-        logger.info(f"======starting step {iteration} ({self.time}s)======")
+        logger.debug(f"======starting step {iteration} ({self.time}s)======")
         if not self.ladder_mode:
             await self.save_replay()
 
@@ -74,7 +74,7 @@ class BotTato(BotAI, TimerMixin):
         remaining_cap = self.build_order.remaining_cap
         if remaining_cap > 0:
             self.start_timer("military.get_squad_request")
-            logger.info(f"requesting at least {remaining_cap} supply of units for military")
+            logger.debug(f"requesting at least {remaining_cap} supply of units for military")
             unit_request: list[UnitTypeId] = self.military.get_squad_request(remaining_cap)
             self.stop_timer("military.get_squad_request")
             self.start_timer("build_order.queue_military")
@@ -105,7 +105,7 @@ class BotTato(BotAI, TimerMixin):
         print("Game ended.")
         self.print_all_timers()
         try:
-            logger.info(self.build_order.complete)
+            logger.debug(self.build_order.complete)
         except AttributeError:
             pass
 
@@ -133,7 +133,7 @@ class BotTato(BotAI, TimerMixin):
             self.build_order.print_timers("build_order-")
             self.my_workers.print_timers("my_workers-")
             self.map.print_timers("map-")
-            logger.info(f"upgrades: {self.state.upgrades}")
+            logger.debug(f"upgrades: {self.state.upgrades}")
 
     async def save_replay(self):
         if self.time - self.last_replay_save_time > 30:
@@ -148,31 +148,31 @@ class BotTato(BotAI, TimerMixin):
         logger.disable("bottato")
 
     async def on_building_construction_started(self, unit: Unit):
-        logger.info(f"building started! {unit}")
+        logger.debug(f"building started! {unit}")
         self.build_order.update_started_structure(unit)
 
     async def on_building_construction_complete(self, unit: Unit):
-        logger.info(f"building complete! {unit}")
+        logger.debug(f"building complete! {unit}")
         self.build_order.update_completed_structure(unit)
         self.production.add_builder(unit)
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        logger.info(f"transformation complete! {previous_type} to {unit.type_id}")
+        logger.debug(f"transformation complete! {previous_type} to {unit.type_id}")
         if unit.is_structure and unit.type_id not in {UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED}:
             self.build_order.update_completed_structure(unit, previous_type)
 
     async def on_unit_created(self, unit: Unit):
-        logger.info(f"raising complete! {unit}")
+        logger.debug(f"raising complete! {unit}")
         if unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE):
             self.build_order.update_completed_unit(unit)
-            logger.info(f"assigned to {self.military.main_army.name}")
+            logger.debug(f"assigned to {self.military.main_army.name}")
             self.military.add_to_main(unit)
         elif self.my_workers.add_worker(unit):
             # not an old worker that just popped out of a building
             self.build_order.update_completed_unit(unit)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
-        logger.info(
+        logger.debug(
             f"Unit took {amount_damage_taken} damage {unit}, "
             f"current health: {unit.health}/{unit.health_max})"
         )
@@ -185,8 +185,8 @@ class BotTato(BotAI, TimerMixin):
         self.enemy.record_death(unit_tag)
         self.military.record_death(unit_tag)
         self.my_workers.record_death(unit_tag)
-        logger.info(f"Unit {unit_tag} destroyed")
+        logger.debug(f"Unit {unit_tag} destroyed")
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
-        logger.info(f"upgrade completed {upgrade}")
+        logger.debug(f"upgrade completed {upgrade}")
         self.build_order.update_completed_upgrade(upgrade)

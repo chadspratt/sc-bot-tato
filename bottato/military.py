@@ -53,7 +53,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                                    color=self.random_color(),
                                    name=self.create_squad_name(squad_type))
         self.squads.append(new_squad)
-        logger.info(f"add squad {new_squad} of type {squad_type}")
+        logger.debug(f"add squad {new_squad} of type {squad_type}")
         return new_squad
 
     def create_squad_name(self, squad_type: SquadType) -> str:
@@ -79,7 +79,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             logger.debug(f"scouts needed: {self.scouting.scouts_needed}")
             for unit in self.main_army.units:
                 if self.scouting.needs(unit):
-                    logger.info(f"adding {unit} to scouts")
+                    logger.debug(f"adding {unit} to scouts")
                     self.main_army.transfer(unit, self.scouting)
                     self.squads_by_unit_tag[unit.tag] = self.scouting
                     break
@@ -102,7 +102,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 enemies_in_base.append(enemy)
         # .filter(lambda unit: unit.type_id not in scout_types)
         # enemy_structures_in_base = self.bot.enemy_structures.filter(lambda unit: unit.type_id not in scout_types).in_distance_of_group(self.bot.structures, 25)
-        logger.info(f"enemies in base {enemies_in_base}")
+        logger.debug(f"enemies in base {enemies_in_base}")
         defend_with_main_army = False
 
         # disband squads for missing enemies
@@ -143,7 +143,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                         break
             else:
                 await defense_squad.attack(self.enemy.predicted_position[enemy.tag])
-                logger.info(f"defending against {enemy} with {defense_squad}")
+                logger.debug(f"defending against {enemy} with {defense_squad}")
 
         # XXX compare army values (((minerals / 0.9) + gas) * supply) / 50
         enemy_value = self.get_army_value(self.enemy.get_army())
@@ -168,10 +168,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             self.main_army.draw_debug_box()
             self.main_army.update_formation()
             if defend_with_main_army:
-                logger.info(f"squad {self.main_army.name} mounting defense")
+                logger.debug(f"squad {self.main_army.name} mounting defense")
                 await self.main_army.attack(enemies_in_base)
             elif mount_offense:
-                logger.info(f"squad {self.main_army.name} mounting offense")
+                logger.debug(f"squad {self.main_army.name} mounting offense")
                 if self.enemy.enemies_in_view:
                     await self.main_army.attack(self.enemy.enemies_in_view)
                 elif self.bot.enemy_structures:
@@ -184,7 +184,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 facing = self.get_facing(army_center, enemy_position)
                 await self.main_army.move(army_center, facing, force_move=True)
             else:
-                logger.info(f"squad {self.main_army} staging at {self.main_army.staging_location}")
+                logger.debug(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = self.bot.enemy_start_locations[0]
                 if len(self.bot.townhalls) > 1:
                     closest_base = self.bot.townhalls.closest_to(enemy_position)
@@ -226,7 +226,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             new_supply += self.bot.calculate_supply_cost(unit_type)
 
         unmatched_friendlies, unmatched_enemies = self.simulate_battle()
-        logger.info(f"simulated battle results: friendlies {self.count_units_by_type(unmatched_friendlies)}, enemies {self.count_units_by_type(unmatched_enemies)}")
+        logger.debug(f"simulated battle results: friendlies {self.count_units_by_type(unmatched_friendlies)}, enemies {self.count_units_by_type(unmatched_enemies)}")
         while new_supply < remaining_cap:
             squad_type: SquadType = None
             if unmatched_enemies:
@@ -246,8 +246,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 new_units.append(unit_type)
                 new_supply += self.bot.calculate_supply_cost(unit_type)
 
-        logger.info(f"new_supply: {new_supply} remaining_cap: {remaining_cap}")
-        logger.info(f"military requesting {new_units}")
+        logger.debug(f"new_supply: {new_supply} remaining_cap: {remaining_cap}")
+        logger.debug(f"military requesting {new_units}")
         return new_units
 
     def simulate_battle(self):
@@ -321,7 +321,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                     logger.debug(f"no matching friendlies for {enemy_unit}")
                     unmatched_enemies.append(enemy_unit)
                 if not enemy_can_be_attacked:
-                    logger.info(f"unattackable enemy {enemy_unit}")
+                    logger.debug(f"unattackable enemy {enemy_unit}")
                     unattackable_enemies.append(enemy_unit)
 
             for friendly_unit in remaining_friendlies:
@@ -329,7 +329,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                     logger.debug(f"no matching enemies for {friendly_unit}")
                     unmatched_friendlies.append(friendly_unit)
             if unattackable_enemies or unattackable_friendly_tags:
-                logger.info(f"unattackables: {unattackable_enemies} {unattackable_friendly_tags}")
+                logger.debug(f"unattackables: {unattackable_enemies} {unattackable_friendly_tags}")
                 # stalemate of stuff that can't attack (not considering abilities)
                 break
         return (unmatched_friendlies, unmatched_enemies)
@@ -356,7 +356,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         for squad in self.squads:
             _report += squad.get_report() + ", "
         _report += self.main_army.get_report()
-        logger.info(_report)
+        logger.debug(_report)
 
     def update_references(self):
         self.main_army.update_references()

@@ -29,14 +29,14 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
             if injured_bio and self.heal_available(unit):
                 if injured_bio.closer_than(self.heal_range, unit):
                     unit.stop()
-                    logger.info(f"{unit} stopping to heal")
+                    logger.debug(f"{unit} stopping to heal")
                     stopped = True
                 else:
                     nearest_injured = injured_bio.closest_to(unit)
-                    logger.info(f"{unit} moving to heal {nearest_injured}")
+                    logger.debug(f"{unit} moving to heal {nearest_injured}")
                     unit.move(nearest_injured)
         else:
-            logger.info(f"{unit} below health threshold to heal {unit.health_percentage} < {health_threshold}")
+            logger.debug(f"{unit} below health threshold to heal {unit.health_percentage} < {health_threshold}")
         if stopped:
             self.stopped_for_healing.add(unit.tag)
         elif unit.tag in self.stopped_for_healing:

@@ -59,7 +59,7 @@ class BaseSquad(UnitReferenceMixin):
         return len(self.units) == 0
 
     def remove(self, unit: Unit):
-        logger.info(f"Removing {unit} from {self.name} squad")
+        logger.debug(f"Removing {unit} from {self.name} squad")
         try:
             self.units.remove(unit)
             if self.name == "unassigned":
@@ -73,7 +73,7 @@ class BaseSquad(UnitReferenceMixin):
                 if has < 5:
                     self.state = SquadState.CRIPPLED
         except ValueError:
-            logger.info("Unit not found in squad")
+            logger.debug("Unit not found in squad")
 
     def remove_by_tag(self, unit_tag: int):
         for unit in self.units:

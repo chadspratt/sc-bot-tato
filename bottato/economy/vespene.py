@@ -22,4 +22,4 @@ class Vespene(Resources):
                 self.bot.client.debug_line_out(worker, node, color="(128, 0, 128)")
             self.bot.client.debug_text_world(f"{len(self.worker_tags_by_node_tag[node.tag])} assigned", node)
             if node.assigned_harvesters != len(self.worker_tags_by_node_tag[node.tag]):
-                logger.info(f"{node} has the wrong number of workers expected {len(self.worker_tags_by_node_tag[node.tag])} actual {node.assigned_harvesters} ({self.worker_tags_by_node_tag[node.tag]})")
+                logger.debug(f"{node} has the wrong number of workers expected {len(self.worker_tags_by_node_tag[node.tag])} actual {node.assigned_harvesters} ({self.worker_tags_by_node_tag[node.tag]})")

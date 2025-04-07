@@ -128,7 +128,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     def execute_upgrade(self) -> ResponseCode:
         response = None
-        logger.info(f"researching upgrade {self.upgrade_id}")
+        logger.debug(f"researching upgrade {self.upgrade_id}")
         if self.unit_in_charge is None:
             self.unit_in_charge = self.production.get_research_facility(self.upgrade_id)
             logger.debug(f"research facility: {self.unit_in_charge}")
@@ -146,19 +146,19 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             )
             if not requirement_met:
                 return self.ResponseCode.NO_TECH
-            logger.info(f"{self.unit_in_charge} researching upgrade with ability {ability}")
+            logger.debug(f"{self.unit_in_charge} researching upgrade with ability {ability}")
             successful_action: bool = self.unit_in_charge(ability)
             if successful_action:
                 response = self.ResponseCode.SUCCESS
         if response is None:
-            logger.info("upgrade failed to start")
+            logger.debug("upgrade failed to start")
             response = self.ResponseCode.FAILED
 
         return response
 
     async def execute_scv_build(self, special_locations: SpecialLocations, needed_resources: Cost = None) -> ResponseCode:
         response = None
-        logger.info(f"Trying to build {self.unit_type_id} with SCV")
+        logger.debug(f"Trying to build {self.unit_type_id} with SCV")
 
         if self.unit_type_id in TECH_TREE:
             # check that all tech requirements are met
@@ -190,7 +190,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 if self.unit_in_charge is None:
                     response = self.ResponseCode.NO_BUILDER
                 else:
-                    logger.info(
+                    logger.debug(
                         f"Trying to build structure {self.unit_type_id} at {self.pos}"
                     )
                     self.unit_in_charge.move(self.pos)
@@ -201,7 +201,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                         )
                     else:
                         build_response = self.unit_in_charge.smart(self.unit_being_built)
-                        logger.info(f"{self.unit_in_charge} in charge is doing {self.unit_in_charge.orders}")
+                        logger.debug(f"{self.unit_in_charge} in charge is doing {self.unit_in_charge.orders}")
         if build_response is not None:
             response = self.ResponseCode.SUCCESS if build_response else self.ResponseCode.FAILED
 
@@ -271,7 +271,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     )
                     break
         else:
-            logger.info(f"finding placement for {unit_type_id}")
+            logger.debug(f"finding placement for {unit_type_id}")
             if not special_locations.is_blocked:
                 new_build_position = special_locations.find_placement(unit_type_id)
             if new_build_position is None:
@@ -307,7 +307,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                         edge_distance = self.map.get_distance_from_edge(new_build_position.rounded)
                         if edge_distance <= 3:
                             max_distance += 1
-                            logger.info(f"{new_build_position} is {edge_distance} from edge")
+                            logger.debug(f"{new_build_position} is {edge_distance} from edge")
                             # accept defeat, is ok to do it sometimes
                             if max_distance > 50:
                                 break
@@ -340,7 +340,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     def is_interrupted(self) -> bool:
         if self.unit_in_charge is None:
-            logger.info(f"{self} builder is missing")
+            logger.debug(f"{self} builder is missing")
             return True
 
         self.check_idle: bool = self.check_idle or self.upgrade_id or (
@@ -349,6 +349,6 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
         if self.check_idle:
             if self.unit_in_charge.is_idle:
-                logger.info(f"unit_in_charge {self.unit_in_charge}")
+                logger.debug(f"unit_in_charge {self.unit_in_charge}")
                 return True
         return False

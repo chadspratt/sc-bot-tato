@@ -40,13 +40,13 @@ class BuildOrder(TimerMixin):
         self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
         self.build_a_worker: BuildStep = None
         self.supply_build_step: BuildStep = None
-        logger.info(f"Starting position: {self.bot.start_location}")
+        logger.debug(f"Starting position: {self.bot.start_location}")
 
     def update_references(self) -> None:
-        logger.info(
+        logger.debug(
             f"pending={','.join([step.friendly_name for step in self.pending])}"
         )
-        logger.info(
+        logger.debug(
             f"started={','.join([step.friendly_name for step in self.started])}"
         )
         for build_step in self.started:
@@ -93,7 +93,7 @@ class BuildOrder(TimerMixin):
         self.start_timer("redistribute_workers")
         moved_workers = await self.workers.redistribute_workers(needed_resources)
         self.stop_timer("redistribute_workers")
-        logger.info(f"needed gas {needed_resources.vespene}, minerals {needed_resources.minerals}, moved workers {moved_workers}")
+        logger.debug(f"needed gas {needed_resources.vespene}, minerals {needed_resources.minerals}, moved workers {moved_workers}")
 
         if needed_resources.vespene > 0 and moved_workers == 0:
             self.queue_refinery()
@@ -145,11 +145,11 @@ class BuildOrder(TimerMixin):
         # adds number of townhalls to account for near-term production
         surplus_worker_count = worker_count - self.workers.get_mineral_capacity() + len(self.bot.townhalls)
         needed_cc_count = math.ceil(surplus_worker_count / 12)
-        logger.info(f"expansion: {surplus_worker_count} surplus workers need {needed_cc_count} cc(s)")
+        logger.debug(f"expansion: {surplus_worker_count} surplus workers need {needed_cc_count} cc(s)")
         # expand if running out of room for workers at current bases
         if needed_cc_count > 0:
             for i in range(needed_cc_count - cc_count):
-                logger.info("queuing command center")
+                logger.debug("queuing command center")
                 self.add_to_build_order(UnitTypeId.COMMANDCENTER, 1)
         self.stop_timer("queue_command_center")
 
@@ -160,9 +160,9 @@ class BuildOrder(TimerMixin):
             if build_step.unit_type_id == UnitTypeId.REFINERY:
                 refinery_count += 1
         # build refinery if less than 2 per town hall (function is only called if gas is needed but no room to move workers)
-        logger.info(f"refineries: {refinery_count}, townhalls: {len(self.bot.townhalls)}")
+        logger.debug(f"refineries: {refinery_count}, townhalls: {len(self.bot.townhalls)}")
         if refinery_count < len(self.bot.townhalls) * 2:
-            logger.info("adding refinery to build order")
+            logger.debug("adding refinery to build order")
             self.add_to_build_order(UnitTypeId.REFINERY, 0)
         # should also build a new one if current bases run out of resources
         self.stop_timer("queue_refinery")
@@ -188,11 +188,11 @@ class BuildOrder(TimerMixin):
             for next_upgrade in next_upgrades:
                 for build_step in self.started + self.pending:
                     if next_upgrade == build_step.upgrade_id:
-                        logger.info(f"upgrade {next_upgrade} already in build order, progress: {self.bot.already_pending_upgrade(build_step.upgrade_id)}")
+                        logger.debug(f"upgrade {next_upgrade} already in build order, progress: {self.bot.already_pending_upgrade(build_step.upgrade_id)}")
                         break
                 else:
                     # not already started or pending
-                    logger.info(f"adding upgrade {next_upgrade} to build order")
+                    logger.debug(f"adding upgrade {next_upgrade} to build order")
                     self.add_to_build_order(self.production.build_order_with_prereqs(next_upgrade), 1)
         self.stop_timer("queue_upgrade")
 
@@ -232,8 +232,8 @@ class BuildOrder(TimerMixin):
                     self.pending.insert(position, BuildStep(build_item, self.bot, self.workers, self.production, self.map))
                 else:
                     self.pending.append(BuildStep(build_item, self.bot, self.workers, self.production, self.map))
-        logger.info(f"already in build order {already_in_build_order}")
-        logger.info(f"adding to build order: {added_to_build_order}")
+        logger.debug(f"already in build order {already_in_build_order}")
+        logger.debug(f"adding to build order: {added_to_build_order}")
 
     def get_first_resource_shortage(self, only_build_units: bool) -> Cost:
         self.start_timer("get_first_resource_shortage")
@@ -280,11 +280,11 @@ class BuildOrder(TimerMixin):
                 affordable_items.append(build_step.unit_type_id)
             elif build_step.upgrade_id:
                 affordable_items.append(build_step.upgrade_id)
-        logger.info(f"affordable items {affordable_items}")
+        logger.debug(f"affordable items {affordable_items}")
         return affordable_items
 
     def update_completed_unit(self, completed_unit: Unit) -> None:
-        logger.info(
+        logger.debug(
             f"construction of {completed_unit.type_id} completed at {completed_unit.position}"
         )
         for idx, in_progress_step in enumerate(self.started):
@@ -305,18 +305,18 @@ class BuildOrder(TimerMixin):
                 self.timers[timer_name] = build_step.timers[timer_name]
             else:
                 self.timers[timer_name]['total'] += build_step.timers[timer_name]['total']
-                logger.info(f"adding to existing timer for {timer_name}={self.timers[timer_name]['total']}")
+                logger.debug(f"adding to existing timer for {timer_name}={self.timers[timer_name]['total']}")
 
     def update_started_structure(self, started_structure: Unit) -> None:
-        logger.info(
+        logger.debug(
             f"construction of {started_structure.type_id} started at {started_structure.position}"
         )
         for in_progress_step in self.started:
             if isinstance(in_progress_step.unit_being_built, Unit):
                 continue
-            logger.info(f"{in_progress_step.unit_type_id} {started_structure.type_id}")
+            logger.debug(f"{in_progress_step.unit_type_id} {started_structure.type_id}")
             if in_progress_step.unit_type_id == started_structure.type_id or (in_progress_step.unit_type_id == UnitTypeId.REFINERY and started_structure.type_id == UnitTypeId.REFINERYRICH):
-                logger.info(f"found matching step: {in_progress_step}")
+                logger.debug(f"found matching step: {in_progress_step}")
                 in_progress_step.unit_being_built = started_structure
                 in_progress_step.pos = started_structure.position
                 if in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
@@ -326,14 +326,14 @@ class BuildOrder(TimerMixin):
         ramp_blocker: SpecialLocation
         for ramp_blocker in self.special_locations.ramp_blockers:
             if ramp_blocker == started_structure:
-                logger.info(">> is ramp blocker")
+                logger.debug(">> is ramp blocker")
                 ramp_blocker.unit_tag = started_structure.tag
                 ramp_blocker.is_started = True
 
     def update_completed_structure(self, completed_structure: Unit, previous_type: UnitTypeId = UnitTypeId.NOTAUNIT) -> None:
         if completed_structure.type_id == UnitTypeId.AUTOTURRET:
             return
-        logger.info(
+        logger.debug(
             f"construction of {completed_structure.type_id} completed at {completed_structure.position}"
         )
         for idx, in_progress_step in enumerate(self.started):
@@ -342,7 +342,7 @@ class BuildOrder(TimerMixin):
             )
             structure: Union[bool, Unit] = in_progress_step.unit_being_built
             builder: Unit = in_progress_step.unit_in_charge
-            logger.info(f"type {in_progress_step.unit_type_id}, structure {structure}, upgrade {in_progress_step.upgrade_id}, builder {builder}, pos {in_progress_step.pos}")
+            logger.debug(f"type {in_progress_step.unit_type_id}, structure {structure}, upgrade {in_progress_step.upgrade_id}, builder {builder}, pos {in_progress_step.pos}")
             is_same_structure = isinstance(structure, Unit) and structure.tag == completed_structure.tag
             if is_same_structure or in_progress_step.pos and completed_structure.position.distance_to(in_progress_step.pos) < 1.5:
                 in_progress_step.completed_time = self.bot.time
@@ -357,14 +357,14 @@ class BuildOrder(TimerMixin):
         ramp_blocker: SpecialLocation
         for ramp_blocker in self.special_locations.ramp_blockers:
             if ramp_blocker == completed_structure:
-                logger.info(">> is ramp blocker")
+                logger.debug(">> is ramp blocker")
                 ramp_blocker.unit_tag = completed_structure.tag
                 ramp_blocker.is_complete = True
 
     def update_completed_upgrade(self, upgrade: UpgradeId):
         for idx, in_progress_step in enumerate(self.started):
             if in_progress_step.upgrade_id == upgrade:
-                logger.info(
+                logger.debug(
                     f"upgrade {upgrade} completed by {in_progress_step.unit_in_charge}"
                 )
                 self.move_to_complete(self.started.pop(idx))
@@ -376,7 +376,7 @@ class BuildOrder(TimerMixin):
         for idx, build_step in enumerate(self.started):
             if build_step.unit_being_built is not None and build_step.unit_being_built is not True and build_step.unit_being_built.tag == unit.tag:
                 unit(AbilityId.BUILDINPROGRESSNONCANCELLABLE_CANCEL)
-                logger.info(f"canceling build of {unit}")
+                logger.debug(f"canceling build of {unit}")
                 build_step.unit_being_built = None
                 build_step.last_cancel = self.bot.time
                 if build_step.unit_in_charge.type_id == UnitTypeId.SCV:
@@ -413,7 +413,7 @@ class BuildOrder(TimerMixin):
                 build_response = await build_step.execute(special_locations=self.special_locations, needed_resources=needed_resources)
                 self.stop_timer("build_step.execute")
                 self.start_timer(f"handle response {build_response}")
-                logger.info(f"build_response: {build_response}")
+                logger.debug(f"build_response: {build_response}")
                 if build_response == build_step.ResponseCode.SUCCESS:
                     self.started.append(build_step)
                     remaining_resources -= build_step.cost
@@ -426,7 +426,7 @@ class BuildOrder(TimerMixin):
                 build_response = await build_step.execute(special_locations=self.special_locations, needed_resources=needed_resources)
                 self.stop_timer("build_step.execute")
                 self.start_timer(f"handle response {build_response}")
-                logger.info(f"build_response: {build_response}")
+                logger.debug(f"build_response: {build_response}")
                 if build_response == build_step.ResponseCode.SUCCESS:
                     self.started.append(build_step)
                     remaining_resources -= build_step.cost
@@ -445,7 +445,7 @@ class BuildOrder(TimerMixin):
                 # delay rebuilding canceled structures
                 continue
             if not self.can_afford(remaining_resources, build_step.cost):
-                logger.info(f"Cannot afford {build_step.friendly_name}")
+                logger.debug(f"Cannot afford {build_step.friendly_name}")
                 break
 
             # XXX slightly slow
@@ -453,7 +453,7 @@ class BuildOrder(TimerMixin):
             build_response = await build_step.execute(special_locations=self.special_locations, needed_resources=needed_resources)
             self.stop_timer("build_step.execute")
             self.start_timer(f"handle response {build_response}")
-            logger.info(f"build_response: {build_response}")
+            logger.debug(f"build_response: {build_response}")
             if build_response == build_step.ResponseCode.SUCCESS:
                 self.started.append(self.pending.pop(execution_index))
                 break

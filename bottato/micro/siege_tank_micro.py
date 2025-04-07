@@ -35,7 +35,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if unit.is_transforming:
             return False
         if unit.tag in self.last_transform_time and ((self.bot.time - self.last_transform_time[unit.tag]) < self.min_seconds_between_transform):
-            logger.info(f"unit last transformed {self.bot.time - self.last_transform_time[unit.tag]}s ago, need to wait {self.min_seconds_between_transform}")
+            logger.debug(f"unit last transformed {self.bot.time - self.last_transform_time[unit.tag]}s ago, need to wait {self.min_seconds_between_transform}")
             return False
 
         # remove missing
@@ -60,7 +60,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         enemy_unit, enemy_unit_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
         enemy_structure, structure_distance = enemy.get_closest_target(unit, include_units=False, include_destructables=False)
 
-        logger.info(f"{unit} seiged={is_sieged}, closest enemy {enemy_unit}({enemy_unit_distance}), structure {enemy_structure}({structure_distance})")
+        logger.debug(f"{unit} seiged={is_sieged}, closest enemy {enemy_unit}({enemy_unit_distance}), structure {enemy_structure}({structure_distance})")
 
         reached_destination = unit.position.distance_to(target) < 0.5
 
@@ -91,12 +91,12 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     #     return super().attack_something(unit, health_threshold)
 
     def siege(self, unit: Unit):
-        logger.info(f"{unit} sieging")
+        logger.debug(f"{unit} sieging")
         unit(AbilityId.SIEGEMODE_SIEGEMODE)
         self.update_siege_state(unit, self.unsieged_tags, self.sieged_tags)
 
     def unsiege(self, unit: Unit):
-        logger.info(f"{unit} unsieging")
+        logger.debug(f"{unit} unsieging")
         unit(AbilityId.UNSIEGE_UNSIEGE)
         self.update_siege_state(unit, self.sieged_tags, self.unsieged_tags)
 
@@ -106,8 +106,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if unit.tag not in new_list:
             new_list.add(unit.tag)
         else:
-            logger.info(f"{unit.tag} already in unsieged_tags")
+            logger.debug(f"{unit.tag} already in unsieged_tags")
         if unit.tag in old_list:
             old_list.remove(unit.tag)
         else:
-            logger.info(f"{unit.tag} not in sieged_tags")
+            logger.debug(f"{unit.tag} not in sieged_tags")

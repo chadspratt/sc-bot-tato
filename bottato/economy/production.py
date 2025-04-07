@@ -66,7 +66,7 @@ class Facility(UnitReferenceMixin):
             self.addon_blocked = closest_structure_to_addon.radius > closest_structure_to_addon.distance_to(updated_unit.add_on_position)
             # not (await self.bot.can_place_single(UnitTypeId.SUPPLYDEPOT, updated_unit.add_on_position))
             if self.addon_blocked:
-                logger.info(f"addon blocked for {updated_unit}")
+                logger.debug(f"addon blocked for {updated_unit}")
 
         self.unit = updated_unit
 
@@ -164,14 +164,14 @@ class Production(UnitReferenceMixin):
             logger.debug(f"{add_on_type} facilities {candidates}")
             for candidate in candidates:
                 if unit_type in self.add_on_types and candidate.addon_blocked:
-                    logger.info(f"can't build addon {unit_type} at {candidate}")
+                    logger.debug(f"can't build addon {unit_type} at {candidate}")
                     continue
 
                 if candidate.has_capacity:
                     candidate.add_queued_unit_id(unit_type)
                     return candidate.unit
                 else:
-                    logger.info
+                    logger.debug
 
         return None
 
@@ -372,13 +372,13 @@ class Production(UnitReferenceMixin):
             facility_type = UnitTypeId.STARPORT
 
         if facility_type is not None:
-            logger.info(f"adding builder {unit}")
+            logger.debug(f"adding builder {unit}")
             if unit.type_id in [UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT]:
                 self.facilities[facility_type][UnitTypeId.NOTAUNIT].append(Facility(self.bot, unit))
-                logger.info(f"adding to {facility_type}-NOTAUNIT")
+                logger.debug(f"adding to {facility_type}-NOTAUNIT")
             else:
                 facility: Facility
-                logger.info(f"checking facilities with no addon {self.facilities[facility_type][UnitTypeId.NOTAUNIT]}")
+                logger.debug(f"checking facilities with no addon {self.facilities[facility_type][UnitTypeId.NOTAUNIT]}")
                 for facility in self.facilities[facility_type][UnitTypeId.NOTAUNIT]:
                     try:
                         facility.unit = self.get_updated_unit_reference(facility.unit)
@@ -390,7 +390,7 @@ class Production(UnitReferenceMixin):
                         self.facilities[facility_type][generic_type].append(facility)
                         self.facilities[facility_type][UnitTypeId.NOTAUNIT].remove(facility)
                         facility.set_add_on_type(generic_type)
-                        logger.info(f"adding to {facility_type}-{generic_type}")
+                        logger.debug(f"adding to {facility_type}-{generic_type}")
 
     def build_order_with_prereqs(self, unit_type: Union[UnitTypeId, UpgradeId]) -> List[Union[UnitTypeId, UpgradeId]]:
         build_order = self.build_order_with_prereqs_recurse(unit_type)

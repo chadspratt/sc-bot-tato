@@ -141,7 +141,7 @@ class Upgrades:
     }
 
     def __init__(self, bot: BotAI) -> None:
-        logger.info("created upgrades manager")
+        logger.debug("created upgrades manager")
         self.bot = bot
         self.index = 0
 
@@ -151,7 +151,7 @@ class Upgrades:
         if number_needed > 0:
             for upgrade_type in self.upgrades_by_facility[facility_type]:
                 upgrade_progress = self.bot.already_pending_upgrade(upgrade_type)
-                logger.info(f"upgrade progress {upgrade_type}: {upgrade_progress}")
+                logger.debug(f"upgrade progress {upgrade_type}: {upgrade_progress}")
                 if upgrade_progress > 0:
                     continue
                 new_upgrades.append(upgrade_type)

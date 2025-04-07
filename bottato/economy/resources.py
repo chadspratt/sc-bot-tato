@@ -29,7 +29,7 @@ class Resources(UnitReferenceMixin, GeometryMixin):
         if node in self.nodes:
             logger.debug(f"node {node} already added")
             return False
-        logger.info(f"added node {node}")
+        logger.debug(f"added node {node}")
         self.nodes.append(node)
         self.worker_tags_by_node_tag[node.tag] = []
         return True
@@ -76,7 +76,7 @@ class Resources(UnitReferenceMixin, GeometryMixin):
         for node_tag in self.worker_tags_by_node_tag.keys():
             if tag in self.worker_tags_by_node_tag[node_tag]:
                 self.worker_tags_by_node_tag[node_tag].remove(tag)
-                logger.info(f"removing worker {tag} from {node_tag}")
+                logger.debug(f"removing worker {tag} from {node_tag}")
                 return True
         return False
 

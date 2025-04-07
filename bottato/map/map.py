@@ -251,7 +251,7 @@ class Map(TimerMixin, GeometryMixin):
     def update_influence_maps(self, pending_buildings) -> None:
         self.ground_grid = self.influence_maps.get_pyastar_grid()
         for pending in pending_buildings:
-            logger.info(f"adding to influence maps {pending}")
+            logger.debug(f"adding to influence maps {pending}")
             self.influence_maps.add_building_to_grid(pending["type_id"], pending["position"], self.ground_grid, np.inf)
 
     def draw_influence(self) -> None:
