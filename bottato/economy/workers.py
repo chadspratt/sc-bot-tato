@@ -65,7 +65,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.mule_energy_threshold = 100
         for worker in self.bot.workers:
             self.add_worker(worker)
-        self.mule_mineral_queue = Units([], bot)
         self.aged_mules: Units = Units([], bot)
 
     def update_references(self):
@@ -102,8 +101,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.assignments_by_job[JobType.IDLE].append(new_assignment)
             if worker.type_id == UnitTypeId.MULE:
                 self.aged_mules.append(worker)
-                closest_minerals: Unit = self.mule_mineral_queue.closest_to(worker)
-                self.mule_mineral_queue.remove(closest_minerals)
+                closest_minerals: Unit = self.minerals.nodes_with_mule_capacity().closest_to(worker)
                 self.update_assigment(worker, JobType.MINERALS, closest_minerals)
                 self.minerals.add_mule(worker, closest_minerals)
                 logger.debug(f"added mule {worker.tag}({worker.position}) to minerals {closest_minerals}({closest_minerals.position})")
@@ -126,13 +124,12 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND):
             if orbital.energy < self.mule_energy_threshold:
                 continue
-            mineral_fields: Units = self.minerals.nodes_with_mule_capacity().filter(lambda x: x not in self.mule_mineral_queue)
+            mineral_fields: Units = self.minerals.nodes_with_mule_capacity()
             if mineral_fields:
                 fullest_mineral_field: Unit = max(mineral_fields, key=lambda x: x.mineral_contents)
                 nearest_townhall: Unit = self.bot.townhalls.closest_to(fullest_mineral_field)
-                orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE, fullest_mineral_field.position.towards(nearest_townhall))
+                orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE, target=fullest_mineral_field.position.towards(nearest_townhall), queue=True)
                 logger.info(f"dropping mule on mineral field {fullest_mineral_field}({fullest_mineral_field.position} near {orbital}) {fullest_mineral_field.mineral_contents}")
-                self.mule_mineral_queue.append(fullest_mineral_field)
 
     def remove_mule(self, mule):
         logger.debug(f"removing mule {mule}")
