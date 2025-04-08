@@ -187,9 +187,13 @@ class GeometryMixin:
         return distance
 
     def closest_unit(self, unit1: Unit, units: Units) -> float:
+        closest_distance = 9999
         closest_unit = None
-        if units:
-            closest_unit = max(units, lambda unit: self.distance(unit1, unit))
+        for unit in units:
+            new_distance = self.distance(unit1, unit)
+            if new_distance < closest_distance:
+                closest_distance = new_distance
+                closest_unit = unit
         return closest_unit
 
 
