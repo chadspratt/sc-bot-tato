@@ -177,6 +177,7 @@ class GeometryMixin:
         try:
             return unit1.distance_to(unit2)
         except IndexError:
+            logger.info(f"cached distance error on {unit1} ({unit1.game_loop}), {unit2}({unit2.game_loop})")
             return unit1.distance_to(unit2.position)
 
     def closest_distance(self, unit1: Unit, units: Units) -> float:
@@ -184,6 +185,12 @@ class GeometryMixin:
         for unit in units:
             distance = min(distance, self.distance(unit1, unit))
         return distance
+
+    def closest_unit(self, unit1: Unit, units: Units) -> float:
+        closest_unit = None
+        if units:
+            closest_unit = max(units, lambda unit: self.distance(unit1, unit))
+        return closest_unit
 
 
 class TimerMixin:
