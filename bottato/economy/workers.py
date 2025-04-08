@@ -62,11 +62,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.max_workers = 75
         self.health_per_repairer = 50
         self.max_repairers = 10
-        self.mule_energy_threshold = 50
+        self.mule_energy_threshold = 100
         for worker in self.bot.workers:
             self.add_worker(worker)
-        self.mule_queue = []
-        self.orbitals_calling_mules = []
+        self.mule_mineral_queue = Units([], bot)
         self.aged_mules: Units = Units([], bot)
 
     def update_references(self):
@@ -96,16 +95,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 self.assignments_by_job[assignment.job_type] = [assignment]
         logger.debug(f"assignment summary {self.assignments_by_job}")
 
-        for orbital_tag in self.orbitals_calling_mules.copy():
-            logger.debug(f"orbital tag {orbital_tag}")
-            try:
-                orbital: Unit = self.get_updated_unit_reference_by_tag(orbital_tag)
-                logger.debug(f"orbital {orbital} has {orbital.energy} energy")
-                if orbital.energy < self.mule_energy_threshold:
-                    self.orbitals_calling_mules.remove(orbital.tag)
-            except UnitReferenceMixin.UnitNotFound:
-                self.orbitals_calling_mules.remove(orbital_tag)
-
     def add_worker(self, worker: Unit) -> bool:
         if worker.tag not in self.assignments_by_worker:
             new_assignment = WorkerAssignment(worker)
@@ -113,7 +102,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.assignments_by_job[JobType.IDLE].append(new_assignment)
             if worker.type_id == UnitTypeId.MULE:
                 self.aged_mules.append(worker)
-                closest_minerals: Unit = self.mule_queue.pop(0)
+                closest_minerals: Unit = self.mule_mineral_queue.closest_to(worker)
+                self.mule_mineral_queue.remove(closest_minerals)
                 self.update_assigment(worker, JobType.MINERALS, closest_minerals)
                 self.minerals.add_mule(worker, closest_minerals)
                 logger.debug(f"added mule {worker.tag}({worker.position}) to minerals {closest_minerals}({closest_minerals.position})")
@@ -134,16 +124,15 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     self.remove_mule(mule)
 
         for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND):
-            if orbital.energy < self.mule_energy_threshold or orbital.tag in self.orbitals_calling_mules:
+            if orbital.energy < self.mule_energy_threshold:
                 continue
-            mineral_fields: Units = self.minerals.nodes_with_mule_capacity().filter(lambda x: x not in self.mule_queue)
+            mineral_fields: Units = self.minerals.nodes_with_mule_capacity().filter(lambda x: x not in self.mule_mineral_queue)
             if mineral_fields:
                 fullest_mineral_field: Unit = max(mineral_fields, key=lambda x: x.mineral_contents)
                 nearest_townhall: Unit = self.bot.townhalls.closest_to(fullest_mineral_field)
                 orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE, fullest_mineral_field.position.towards(nearest_townhall))
                 logger.info(f"dropping mule on mineral field {fullest_mineral_field}({fullest_mineral_field.position} near {orbital}) {fullest_mineral_field.mineral_contents}")
-                self.mule_queue.append(fullest_mineral_field)
-                self.orbitals_calling_mules.append(orbital.tag)
+                self.mule_mineral_queue.append(fullest_mineral_field)
 
     def remove_mule(self, mule):
         logger.debug(f"removing mule {mule}")
