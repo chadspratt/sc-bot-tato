@@ -15,6 +15,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     sieged_range = 13.5
     sight_range = 11
     sieged_minimum_range = 2
+    sieged_weapon_cooldown = 2.14
     unsieged_range = 7
     max_siege_time = 3.24
     sieged_tags = set()
@@ -43,7 +44,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         self.unsieged_tags = self.bot.units.tags.intersection(self.unsieged_tags)
 
         is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
-        if force_move:
+        if force_move and unit.weapon_cooldown > 2:
             if is_sieged:
                 self.unsiege(unit)
                 return True
