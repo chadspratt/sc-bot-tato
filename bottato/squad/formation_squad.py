@@ -169,5 +169,5 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def is_grouped(self) -> bool:
         if self.parent_formation.front_center and self.units:
             units_out_of_formation = self.units.further_than(18, self.parent_formation.front_center)
-            return len(units_out_of_formation) / len(self.units) < 0.3
+            return len(units_out_of_formation) / len(self.units) < 0.35
         return False

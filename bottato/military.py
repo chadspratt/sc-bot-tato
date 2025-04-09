@@ -96,10 +96,13 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         # scout_types = {UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
         # scouts_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id in scout_types).in_distance_of_group(self.bot.structures, 25)
         base_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET)
-        enemies_in_base: Units = self.bot.enemy_units.in_distance_of_group(base_structures, 25)
+        enemies_in_base: Units = Units([], self.bot)
+        enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: base_structures.closest_distance_to(unit) < 25))
+        out_of_view_in_base = []
         for enemy in self.enemy.recent_out_of_view():
-            if self.bot.structures.closest_distance_to(self.enemy.predicted_position[enemy.tag]) <= 25:
-                enemies_in_base.append(enemy)
+            if base_structures.closest_distance_to(self.enemy.predicted_position[enemy.tag]) <= 25:
+                out_of_view_in_base.append(enemy)
+        enemies_in_base.extend(out_of_view_in_base)
         # .filter(lambda unit: unit.type_id not in scout_types)
         # enemy_structures_in_base = self.bot.enemy_structures.filter(lambda unit: unit.type_id not in scout_types).in_distance_of_group(self.bot.structures, 25)
         logger.debug(f"enemies in base {enemies_in_base}")
@@ -118,32 +121,33 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
 
         # assign squads to enemies
         for enemy in enemies_in_base:
-            if defend_with_main_army:
-                break
-
             defense_squad: FormationSquad
             if enemy.tag in self.countered_enemies:
-                defense_squad: FormationSquad = self.countered_enemies[enemy.tag]
+                defense_squad = self.countered_enemies[enemy.tag]
+                await defense_squad.attack(self.enemy.predicted_position[enemy.tag])
+                logger.debug(f"defending against {enemy} with {defense_squad}")
+            elif defend_with_main_army:
+                continue
             else:
                 defense_squad = FormationSquad(self.enemy, self.map, bot=self.bot, name=f"defense{len(self.countered_enemies.keys())}")
                 self.squads.append(defense_squad)
                 self.countered_enemies[enemy.tag] = defense_squad
 
-            desired_counters: List[UnitTypeId] = self.get_counter_units(enemy)
-            current_counters: List[UnitTypeId] = [unit.type_id for unit in defense_squad.units]
-            for unit_type in desired_counters:
-                if unit_type in current_counters:
-                    current_counters.remove(unit_type)
+                desired_counters: List[UnitTypeId] = self.get_counter_units(enemy)
+                current_counters: List[UnitTypeId] = [unit.type_id for unit in defense_squad.units]
+                for unit_type in desired_counters:
+                    if unit_type in current_counters:
+                        current_counters.remove(unit_type)
+                    else:
+                        if not self.main_army.transfer_by_type(unit_type, defense_squad):
+                            defense_squad.transfer_all(self.main_army)
+                            del self.countered_enemies[enemy.tag]
+                            self.squads.remove(defense_squad)
+                            defend_with_main_army = True
+                            break
                 else:
-                    if not self.main_army.transfer_by_type(unit_type, defense_squad):
-                        defense_squad.transfer_all(self.main_army)
-                        self.squads.remove(defense_squad)
-                        del self.countered_enemies[enemy.tag]
-                        defend_with_main_army = True
-                        break
-            else:
-                await defense_squad.attack(self.enemy.predicted_position[enemy.tag])
-                logger.debug(f"defending against {enemy} with {defense_squad}")
+                    await defense_squad.attack(self.enemy.predicted_position[enemy.tag])
+                    logger.debug(f"defending against {enemy} with {defense_squad}")
 
         # XXX compare army values (((minerals / 0.9) + gas) * supply) / 50
         enemy_value = self.get_army_value(self.enemy.get_army())
@@ -152,7 +156,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         army_is_grouped = self.main_army.is_grouped()
         self.army_ratio = main_army_value / max(enemy_value, 1)
         mount_offense = not defend_with_main_army and army_is_big_enough and army_is_grouped and (self.bot.supply_used >= 110 or self.bot.time > 600)
-        self.status_message = f"main_army_value: {main_army_value}\nenemy_value: {enemy_value}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}"
+        self.status_message = f"main_army_value: {main_army_value}\nenemy_value: {enemy_value}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
 
         if mount_offense:

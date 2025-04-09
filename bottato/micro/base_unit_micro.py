@@ -88,11 +88,19 @@ class BaseUnitMicro(GeometryMixin):
             return False
         if unit.health_percentage < health_threshold:
             return False
-        if targets is None:
-            targets = self.bot.all_enemy_units.in_attack_range_of(unit)
+        candidates = []
         if targets:
+            candidates = targets.filter(lambda unit: not unit.is_structure)
+            if len(candidates) == 0:
+                candidates = targets
+        else:
+            candidates = self.bot.enemy_units.in_attack_range_of(unit)
+            if len(candidates) == 0:
+                candidates = self.bot.enemy_structures.in_attack_range_of(unit)
+
+        if candidates:
             if unit.weapon_cooldown == 0:
-                lowest_target = targets.sorted(key=lambda enemy_unit: enemy_unit.health).first
+                lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first
                 unit.attack(lowest_target)
                 logger.debug(f"unit {unit} attacking enemy {lowest_target}({lowest_target.position})")
             return True
