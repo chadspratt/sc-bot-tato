@@ -302,6 +302,8 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                             )
                     except (ConnectionAlreadyClosedError, ConnectionResetError, ProtocolError):
                         return None
+                    if new_build_position is None:
+                        return None
                     # don't build near edge to avoid trapping units
                     if unit_type_id != UnitTypeId.SUPPLYDEPOT:
                         edge_distance = self.map.get_distance_from_edge(new_build_position.rounded)
