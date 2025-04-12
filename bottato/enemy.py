@@ -1,5 +1,6 @@
 from typing import List
 from loguru import logger
+from collections import deque
 
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
@@ -13,8 +14,9 @@ from .squad.enemy_squad import EnemySquad
 
 class Enemy(UnitReferenceMixin, GeometryMixin):
     unit_probably_moved_seconds = 10
-    unit_may_not_exist_seconds = 300
+    unit_may_not_exist_seconds = 600
     enemy_squad_counter = 0
+    frames_of_movement_history = 5
 
     def __init__(self, bot: BotAI):
         self.bot: BotAI = bot
@@ -24,10 +26,14 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
         self.new_units: Units = Units([], bot)
         self.first_seen: dict[int, float] = {}
         self.last_seen: dict[int, float] = {}
+        self.last_seen_step: dict[int, int] = {}
         self.last_seen_position: dict[int, Point2] = {}
+        self.last_seen_positions: dict[int, deque] = {}
         self.predicted_position: dict[int, Point2] = {}
+        self.predicted_frame_vector: dict[int, Point2] = {}
         self.enemy_squads: List[EnemySquad] = []
         self.squads_by_unit_tag: dict[int, EnemySquad] = {}
+        self.bot.state.game_loop
 
     def update_references(self):
         for squad in self.enemy_squads:
@@ -43,7 +49,9 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             else:
                 # assume unit continues in same direction
                 new_prediction = self.predict_future_unit_position(
-                    enemy_unit, self.bot.time - self.last_seen[enemy_unit.tag])
+                    enemy_unit,
+                    self.bot.time - self.last_seen[enemy_unit.tag],
+                    frame_vector=self.predicted_frame_vector[enemy_unit.tag])
                 # back the projection up to edge of visibility we can see that it isn't there
                 reverse_vector = None
                 while self.bot.is_visible(new_prediction):
@@ -62,6 +70,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                         half_vertex_length=enemy_unit.radius,
                         color=(255, 0, 0)
                     )
+
         # set last_seen for visible
         new_visible_enemies: Units = self.bot.enemy_units + self.bot.enemy_structures
         for enemy_unit in new_visible_enemies:
@@ -71,18 +80,46 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 color=(255, 0, 0)
             )
             self.last_seen[enemy_unit.tag] = self.bot.time
+            self.last_seen_step[enemy_unit.tag] = self.bot.state.game_loop
             self.last_seen_position[enemy_unit.tag] = enemy_unit.position
+            if enemy_unit.tag not in self.last_seen_positions:
+                self.last_seen_positions[enemy_unit.tag] = deque(maxlen=self.frames_of_movement_history)
+            self.last_seen_positions[enemy_unit.tag].append(enemy_unit.position)
             self.predicted_position[enemy_unit.tag] = enemy_unit.position
+            self.predicted_frame_vector[enemy_unit.tag] = self.get_average_movement_per_step(self.last_seen_positions[enemy_unit.tag])
             if enemy_unit.tag not in self.first_seen:
                 self.first_seen[enemy_unit.tag] = self.bot.time
+
         # add not visible to out_of_view
         for enemy_unit in self.enemies_in_view:
             if enemy_unit.tag not in visible_tags:
                 self.enemies_out_of_view.append(enemy_unit)
                 self.predicted_position[enemy_unit.tag] = self.predict_future_unit_position(
-                    enemy_unit, self.bot.time - self.last_seen[enemy_unit.tag])
+                    enemy_unit,
+                    self.bot.time - self.last_seen[enemy_unit.tag],
+                    frame_vector=self.predicted_frame_vector[enemy_unit.tag])
         self.enemies_in_view = new_visible_enemies
         # self.update_squads()
+
+    def get_predicted_position(self, unit: Unit, seconds_ahead: float) -> Point2:
+        return self.predict_future_unit_position(unit, seconds_ahead, frame_vector=self.predicted_frame_vector[unit.tag])
+
+    def get_average_movement_per_step(self, recent_positions: deque):
+        sum: Point2 = Point2((0, 0))
+        sample_count = len(recent_positions)
+        if sample_count <= 1:
+            return sum
+        elif sample_count > 2 and recent_positions[-1] == recent_positions[-2] == recent_positions[-3]:
+            # last 3 positions were all the same
+            return sum
+        start: Point2 = recent_positions[0]
+        i = 1
+        while i < sample_count:
+            end: Point2 = recent_positions[i]
+            sum += end - start
+            i += 1
+        sum /= sample_count - 1
+        return sum
 
     def record_death(self, unit_tag):
         found = False
@@ -162,11 +199,11 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
     def get_army(self) -> Units:
         return (self.enemies_in_view + self.enemies_out_of_view).filter(lambda unit: not unit.is_structure and unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.DRONE, UnitTypeId.PROBE))
 
-    def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True, include_destructables=False, excluded_types=[]) -> tuple[Unit, float]:
+    def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True, include_destructables=False, include_out_of_view=True, excluded_types=[]) -> tuple[Unit, float]:
         nearest_enemy: Unit = None
         nearest_distance = distance_limit
 
-        candidates: Units = self.get_candidates(include_structures, include_units, include_destructables, excluded_types)
+        candidates: Units = self.get_candidates(include_structures, include_units, include_destructables, include_out_of_view, excluded_types)
 
         # ravens technically can't attack
         if friendly_unit.type_id != UnitTypeId.RAVEN:
@@ -198,16 +235,24 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 enemies_in_range.append(candidate)
         return enemies_in_range
 
-    def get_candidates(self, include_structures=True, include_units=True, include_destructables=False, excluded_types=[]):
+    def get_candidates(self, include_structures=True, include_units=True, include_destructables=False, include_out_of_view=True, excluded_types=[]):
         candidates: Units = None
         if include_structures and include_units:
-            candidates = self.bot.enemy_units + self.bot.enemy_structures + self.recent_out_of_view()
+            candidates = self.bot.enemy_units + self.bot.enemy_structures
+            if include_out_of_view:
+                candidates += self.recent_out_of_view()
         elif include_units:
-            candidates = self.bot.enemy_units + self.recent_out_of_view().filter(lambda unit: not unit.is_structure or unit.type_id == UnitTypeId.CREEPTUMOR)
+            candidates = self.bot.enemy_units + []
+            if include_out_of_view:
+                candidates += self.recent_out_of_view().filter(lambda unit: not unit.is_structure or unit.type_id == UnitTypeId.CREEPTUMOR)
         elif include_structures:
-            candidates = self.bot.enemy_structures + self.recent_out_of_view().filter(lambda unit: unit.is_structure)
+            candidates = self.bot.enemy_structures
+            if include_out_of_view:
+                candidates += self.recent_out_of_view().filter(lambda unit: unit.is_structure)
         if include_destructables:
             candidates += self.bot.destructables
+        else:
+            candidates += self.bot.destructables(UnitTypeId.COLLAPSIBLEROCKTOWERDEBRIS)
         if excluded_types:
             candidates = candidates.filter(lambda unit: unit.type_id not in excluded_types)
         return candidates

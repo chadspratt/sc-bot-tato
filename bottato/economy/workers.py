@@ -129,7 +129,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 fullest_mineral_field: Unit = max(mineral_fields, key=lambda x: x.mineral_contents)
                 nearest_townhall: Unit = self.bot.townhalls.closest_to(fullest_mineral_field)
                 orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE, target=fullest_mineral_field.position.towards(nearest_townhall), queue=True)
-                logger.info(f"dropping mule on mineral field {fullest_mineral_field}({fullest_mineral_field.position} near {orbital}) {fullest_mineral_field.mineral_contents}")
+                logger.debug(f"dropping mule on mineral field {fullest_mineral_field}({fullest_mineral_field.position} near {orbital}) {fullest_mineral_field.mineral_contents}")
 
     def remove_mule(self, mule):
         logger.debug(f"removing mule {mule}")

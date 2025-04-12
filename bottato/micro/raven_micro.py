@@ -22,7 +22,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         super().__init__(bot, enemy)
 
     async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
-        enemy_unit, enemy_distance = enemy.get_closest_target(unit, distance_limit=20, include_destructables=False)
+        enemy_unit, enemy_distance = enemy.get_closest_target(unit, distance_limit=20, include_destructables=False, include_out_of_view=False)
         logger.debug(f"raven {unit} closest unit {enemy_unit}({enemy_distance}), energy={unit.energy}")
         if enemy_unit is None:
             return False
@@ -31,22 +31,23 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             # unit.move(enemy_unit.position.towards(unit, self.ideal_enemy_distance))
             # too close
             return False
-        return self.attack_with_turret(unit, enemy_unit)
+        return self.attack_with_turret(unit, enemy.get_predicted_position(enemy_unit, 2.0))
 
     def attack_something(self, unit: Unit, health_threshold: float) -> bool:
         # doesn't have an auto attack
         return False
 
-    def attack_with_turret(self, unit: Unit, target: Unit):
+    def attack_with_turret(self, unit: Unit, target: Point2):
         if self.turret_available(unit):
-            turret_position = target.position.towards(unit, self.turret_attack_range - 1.5, limit=True)
+            self.bot.client.debug_line_out(unit, self.convert_point2_to_3(target), (100, 255, 50))
+            turret_position = target.towards(unit, self.turret_attack_range - 1, limit=True)
             self.drop_turret(unit, turret_position)
             logger.debug(f"{unit} trying to drop turret at {turret_position} to attack {target} at {target.position}")
             return True
 
         return False
 
-    def drop_turret(self, unit: Unit, target: Unit):
+    def drop_turret(self, unit: Unit, target: Point2):
         unit(AbilityId.BUILDAUTOTURRET_AUTOTURRET, target)
 
     def fire_missile(self, unit: Unit, target: Unit):

@@ -149,13 +149,22 @@ class GeometryMixin:
                                      unit: Unit,
                                      seconds_ahead: float,
                                      check_pathable: bool = True,
+                                     frame_vector: Point2 = None
                                      ) -> Point2:
-        unit_speed = unit.calculate_speed()
+        unit_speed: float
+        forward_unit_vector: Point2
+        max_speed = unit.calculate_speed()
+        if frame_vector:
+            speed_per_frame = frame_vector.length
+            if speed_per_frame == 0:
+                return unit.position
+            unit_speed = min(speed_per_frame * 22.4, max_speed)
+            forward_unit_vector = frame_vector.normalized
+        else:
+            unit_speed = max_speed
+            forward_unit_vector = self.apply_rotation(unit.facing, Point2([0, 1]))
 
         remaining_distance = unit_speed * seconds_ahead
-
-        forward_unit_vector = self.apply_rotation(unit.facing, Point2([0, 1]))
-
         if not check_pathable:
             return unit.position + forward_unit_vector * remaining_distance
 
@@ -177,7 +186,7 @@ class GeometryMixin:
         try:
             return unit1.distance_to(unit2)
         except IndexError:
-            logger.info(f"cached distance error on {unit1} ({unit1.game_loop}), {unit2}({unit2.game_loop})")
+            logger.debug(f"cached distance error on {unit1} ({unit1.game_loop}), {unit2}({unit2.game_loop})")
             return unit1.distance_to(unit2.position)
 
     def closest_distance(self, unit1: Unit, units: Units) -> float:
