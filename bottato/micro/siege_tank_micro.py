@@ -58,30 +58,31 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 self.unsiege(unit)
 
         excluded_enemy_types = [] if is_sieged else [UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.DRONEBURROWED, UnitTypeId.MULE]
-        enemy_unit, enemy_unit_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
-        enemy_structure, structure_distance = enemy.get_closest_target(unit, include_units=False, include_destructables=False)
+        closest_enemy, closest_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
+        closest_enemy_after_siege, closest_distance_after_siege = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time)
+        closest_structure, closest_structure_distance = enemy.get_closest_target(unit, include_units=False, include_destructables=False)
 
-        logger.debug(f"{unit} seiged={is_sieged}, closest enemy {enemy_unit}({enemy_unit_distance}), structure {enemy_structure}({structure_distance})")
+        # logger.debug(f"{unit} seiged={is_sieged}, closest enemy {closest_enemy}({closest_distance}), structure {closest_structure}({closest_structure_distance})")
 
         reached_destination = unit.position.distance_to(target) < 0.5
 
-        enemy_range_after_sieging = 9999
-        if enemy_unit:
-            self.bot.client.debug_line_out(unit, enemy_unit)
-            enemy_range_after_sieging = enemy_unit_distance
-            if enemy_unit.is_facing(unit, 0.2):
-                enemy_range_after_sieging -= enemy_unit.calculate_speed() * self.max_siege_time * 0.8
+        # enemy_range_after_sieging = 9999
+        # if closest_enemy:
+        #     self.bot.client.debug_line_out(unit, closest_enemy)
+        #     enemy_range_after_sieging = enemy_unit_distance
+        #     if closest_enemy.is_facing(unit, 0.2):
+        #         enemy_range_after_sieging -= closest_enemy.calculate_speed() * self.max_siege_time * 0.8
 
         most_are_seiged = len(self.unsieged_tags) < len(self.sieged_tags)
-        enemy_distance = enemy_unit_distance if most_are_seiged else enemy_range_after_sieging
+        enemy_distance = closest_distance if most_are_seiged else closest_distance_after_siege
         if is_sieged:
             # all_sieged = len(self.unsieged_tags) == 0
-            if enemy_distance > self.sieged_range and structure_distance > self.sight_range - 1 and not reached_destination:
+            if enemy_distance > self.sieged_range and closest_structure_distance > self.sight_range - 1 and not reached_destination:
                 self.unsiege(unit)
                 return True
         else:
-            enemy_will_be_far_enough = enemy_range_after_sieging > self.sieged_minimum_range + 0.5
-            enemy_will_be_close_enough = enemy_distance <= self.sieged_range or structure_distance <= self.sight_range - 1
+            enemy_will_be_far_enough = closest_distance_after_siege > self.sieged_minimum_range + 0.5
+            enemy_will_be_close_enough = enemy_distance <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
             if enemy_will_be_far_enough and enemy_will_be_close_enough:
                 self.siege(unit)
                 return True

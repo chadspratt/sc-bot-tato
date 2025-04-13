@@ -48,10 +48,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 self.enemies_out_of_view.remove(enemy_unit)
             else:
                 # assume unit continues in same direction
-                new_prediction = self.predict_future_unit_position(
-                    enemy_unit,
-                    self.bot.time - self.last_seen[enemy_unit.tag],
-                    frame_vector=self.predicted_frame_vector[enemy_unit.tag])
+                new_prediction = self.get_predicted_position(enemy_unit, 0)
                 # back the projection up to edge of visibility we can see that it isn't there
                 reverse_vector = None
                 while self.bot.is_visible(new_prediction):
@@ -94,15 +91,14 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
         for enemy_unit in self.enemies_in_view:
             if enemy_unit.tag not in visible_tags:
                 self.enemies_out_of_view.append(enemy_unit)
-                self.predicted_position[enemy_unit.tag] = self.predict_future_unit_position(
-                    enemy_unit,
-                    self.bot.time - self.last_seen[enemy_unit.tag],
-                    frame_vector=self.predicted_frame_vector[enemy_unit.tag])
+                self.predicted_position[enemy_unit.tag] = self.get_predicted_position(enemy_unit, 0)
         self.enemies_in_view = new_visible_enemies
         # self.update_squads()
 
     def get_predicted_position(self, unit: Unit, seconds_ahead: float) -> Point2:
-        return self.predict_future_unit_position(unit, seconds_ahead, frame_vector=self.predicted_frame_vector[unit.tag])
+        time_since_last_seen = self.bot.time - self.last_seen[unit.tag]
+        frame_vector = self.predicted_frame_vector[unit.tag]
+        return self.predict_future_unit_position(unit, time_since_last_seen + seconds_ahead, frame_vector=frame_vector)
 
     def get_average_movement_per_step(self, recent_positions: deque):
         sum: Point2 = Point2((0, 0))
@@ -199,7 +195,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
     def get_army(self) -> Units:
         return (self.enemies_in_view + self.enemies_out_of_view).filter(lambda unit: not unit.is_structure and unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.DRONE, UnitTypeId.PROBE))
 
-    def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True, include_destructables=False, include_out_of_view=True, excluded_types=[]) -> tuple[Unit, float]:
+    def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True, include_destructables=False, include_out_of_view=True, excluded_types=[], seconds_ahead=0) -> tuple[Unit, float]:
         nearest_enemy: Unit = None
         nearest_distance = distance_limit
 
@@ -209,7 +205,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
         if friendly_unit.type_id != UnitTypeId.RAVEN:
             candidates = candidates.filter(lambda enemy: self.can_attack(friendly_unit, enemy))
         for enemy in candidates:
-            enemy_distance = friendly_unit.distance_to(self.predicted_position[enemy.tag]) - enemy.radius - friendly_unit.radius
+            enemy_distance = friendly_unit.distance_to(self.get_predicted_position(enemy, seconds_ahead)) - enemy.radius - friendly_unit.radius
             if (enemy_distance < nearest_distance):
                 nearest_enemy = enemy
                 nearest_distance = enemy_distance

@@ -154,7 +154,7 @@ class GeometryMixin:
         unit_speed: float
         forward_unit_vector: Point2
         max_speed = unit.calculate_speed()
-        if frame_vector:
+        if frame_vector is not None:
             speed_per_frame = frame_vector.length
             if speed_per_frame == 0:
                 return unit.position

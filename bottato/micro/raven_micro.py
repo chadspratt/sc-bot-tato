@@ -17,6 +17,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     # XXX use shorter range if enemy unit is facing away from raven, likely fleeing
     turret_energy_cost = 50
     ability_health = 0.6
+    turret_drop_time = 1.5
 
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot, enemy)
@@ -31,7 +32,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             # unit.move(enemy_unit.position.towards(unit, self.ideal_enemy_distance))
             # too close
             return False
-        return self.attack_with_turret(unit, enemy.get_predicted_position(enemy_unit, 2.0))
+        return self.attack_with_turret(unit, enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
 
     def attack_something(self, unit: Unit, health_threshold: float) -> bool:
         # doesn't have an auto attack
