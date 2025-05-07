@@ -16,10 +16,16 @@ from bottato.mixins import TimerMixin
 from bottato.upgrades import Upgrades
 from bottato.special_locations import SpecialLocations, SpecialLocation
 from bottato.map.map import Map
+from bottato.build_starts import BuildStarts
 
 
 class BuildOrder(TimerMixin):
-    pending: List[BuildStep] = []
+    # gets processed first, for supply depots and workers
+    priority_queue: List[BuildStep] = []
+    # initial build order and interrupted builds
+    static_queue: List[BuildStep] = []
+    # dynamic queue for army units and production
+    build_queue: List[BuildStep] = []
     started: List[BuildStep] = []
     complete: List[BuildStep] = []
     # next_unfinished_step_index: int
@@ -33,18 +39,19 @@ class BuildOrder(TimerMixin):
         self.workers: Workers = workers
         self.production: Production = production
         self.map: Map = map
-        self.pending = [
-            BuildStep(unit, bot, workers, production, map) for unit in self.get_build_start(build_name)
-        ]
+        for unit_type in BuildStarts.get_build_start(build_name):
+            step = BuildStep(unit_type, bot, workers, production, map)
+            self.static_queue.append(step)
         self.upgrades = Upgrades(bot)
         self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
-        self.build_a_worker: BuildStep = None
-        self.supply_build_step: BuildStep = None
+        # self.build_a_worker: BuildStep = None
+        # self.supply_build_step: BuildStep = None
         logger.debug(f"Starting position: {self.bot.start_location}")
+        # self.queue_unit_type(UnitTypeId.BATTLECRUISER)
 
     def update_references(self) -> None:
         logger.debug(
-            f"pending={','.join([step.friendly_name for step in self.pending])}"
+            f"pending={','.join([step.friendly_name for step in self.static_queue])}"
         )
         logger.debug(
             f"started={','.join([step.friendly_name for step in self.started])}"
@@ -60,33 +67,40 @@ class BuildOrder(TimerMixin):
                 "type_id": p.unit_type_id,
                 "position": p.pos
             }
-            for p in self.pending + self.started if p.pos is not None
+            for p in self.static_queue + self.started if p.pos is not None
         ]
-        if self.supply_build_step is not None and self.supply_build_step.pos is not None:
-            buildings.append({
-                "type_id": self.supply_build_step.unit_type_id,
-                "position": self.supply_build_step.pos
-            })
+        # if self.supply_build_step is not None and self.supply_build_step.pos is not None:
+        #     buildings.append({
+        #         "type_id": self.supply_build_step.unit_type_id,
+        #         "position": self.supply_build_step.pos
+        #     })
         return buildings
 
     @property
     def remaining_cap(self) -> int:
         remaining = self.bot.supply_left
-        for step in self.pending:
-            if step.unit_type_id:
-                remaining -= self.bot.calculate_supply_cost(step.unit_type_id)
+        # for step in self.pending:
+        # for step in self.build_queue:
+        #     if step.unit_type_id:
+        #         remaining -= self.bot.calculate_supply_cost(step.unit_type_id)
         return remaining
 
     async def execute(self, army_ratio: float):
+        self.build_queue.clear()
+
+        if self.static_queue and self.static_queue[0].unit_type_id in (UnitTypeId.ORBITALCOMMAND, UnitTypeId.SUPPLYDEPOT):
+            self.priority_queue.insert(0, self.static_queue.pop(0))
+
         self.queue_worker()
+        self.queue_supply()
         self.queue_upgrade()
         self.queue_turret()
         self.queue_planetary()
-        self.queue_production()
         self.queue_command_center()
-        self.queue_supply()
+        self.queue_production()
+        self.build_queue.extend(self.unit_queue)
 
-        only_build_units = army_ratio < 0.8
+        only_build_units = army_ratio > 0.0 and army_ratio < 0.8
 
         needed_resources: Cost = self.get_first_resource_shortage(only_build_units)
 
@@ -98,72 +112,104 @@ class BuildOrder(TimerMixin):
         if needed_resources.vespene > 0 and moved_workers == 0:
             self.queue_refinery()
 
-        await self.execute_first_pending(needed_resources, only_build_units)
+        build_order_message = f"priority={'\n'.join([step.friendly_name for step in self.priority_queue])}"
+        build_order_message += f"\nstatic={'\n'.join([step.friendly_name for step in self.static_queue])}"
+        build_order_message += f"\nbuild_queue={'\n'.join([step.friendly_name for step in self.build_queue])}"
+        self.bot.client.debug_text_screen(build_order_message, (0.01, 0.1))
+
+        await self.execute_pending_builds(needed_resources, only_build_units)
+
+    def add_to_build_queue(self, unit_types: Union[UnitTypeId, List[UnitTypeId]], position=None, queue: List[BuildStep] = None) -> None:
+        if isinstance(unit_types, UnitTypeId):
+            unit_types = [unit_types]
+        if queue is None:
+            queue = self.build_queue
+        in_progress = [] + self.started + queue
+        steps_to_add = []
+        for build_item in unit_types:
+            for build_step in in_progress:
+                if build_item == build_step.unit_type_id or build_item == build_step.upgrade_id:
+                    in_progress.remove(build_step)
+                    break
+            else:
+                steps_to_add.append(self.create_build_step(build_item))
+        if position is None:
+            queue.extend(steps_to_add)
+        else:
+            queue = queue[:position] + steps_to_add + queue[position:]
+
+    def create_build_step(self, unit_type: UnitTypeId) -> BuildStep:
+        return BuildStep(unit_type, self.bot, self.workers, self.production, self.map)
+
+    def queue_units(self, unit_types: List[UnitTypeId]) -> None:
+        self.unit_queue = [self.create_build_step(unit_type) for unit_type in unit_types]
 
     def queue_worker(self) -> None:
-        self.start_timer("queue_worker")
-        if not self.build_a_worker:
-            requested_worker_count = 1 if self.build_a_worker else 0
-            worker_build_capacity: int = len(self.bot.townhalls.idle)
-            desired_worker_count = self.workers.max_workers
-            # desired_worker_count = max(30, self.bot.supply_cap / 3)
-            logger.debug(f"requested_worker_count={requested_worker_count}")
-            logger.debug(f"worker_build_capacity={worker_build_capacity}")
-            if (
-                requested_worker_count < worker_build_capacity
-                and requested_worker_count + len(self.workers.assignments_by_worker) < desired_worker_count
-            ):
-                self.build_a_worker = BuildStep(UnitTypeId.SCV, self.bot, self.workers, self.production, self.map)
-        self.stop_timer("queue_worker")
+        self.start_timer("get_queued_worker")
+        worker_build_capacity: int = len(self.bot.townhalls.idle)
+        desired_worker_count = self.workers.max_workers
+        # desired_worker_count = max(30, self.bot.supply_cap / 3)
+        logger.debug(f"worker_build_capacity={worker_build_capacity}")
+        if (
+            worker_build_capacity > 0
+            and len(self.workers.assignments_by_worker) < desired_worker_count
+        ):
+            self.add_to_build_queue(UnitTypeId.SCV, queue=self.priority_queue)
+        self.stop_timer("get_queued_worker")
 
     def queue_supply(self) -> None:
         self.start_timer("queue_supply")
-        max_supply_increase = 2
-        supply_increase = 0
-        for build_step in self.started + self.pending:
-            if build_step.unit_type_id == UnitTypeId.SUPPLYDEPOT:
-                supply_increase += 1
-                if supply_increase == max_supply_increase:
-                    break
-        else:
-            build_first = self.bot.supply_cap == 0 or (supply_increase == 0 and self.bot.supply_left / self.bot.supply_cap < 0.3 and self.bot.supply_cap < 200)
-            build_second = self.bot.supply_cap > 0 and self.bot.supply_left / self.bot.supply_cap < 0.2 and self.bot.supply_cap < 200
-            if build_first or build_second:
-                self.supply_build_step = BuildStep(UnitTypeId.SUPPLYDEPOT, self.bot, self.workers, self.production, self.map)
-                # self.add_to_build_order(UnitTypeId.SUPPLYDEPOT, 1)
+        if self.bot.supply_cap < 200 and UnitTypeId.SUPPLYDEPOT not in self.static_queue:
+            if self.bot.supply_cap == 0:
+                self.add_to_build_queue(UnitTypeId.SUPPLYDEPOT)
+            else:
+                supply_percent_remaining = self.bot.supply_left / self.bot.supply_cap
+                if supply_percent_remaining <= 0.3:
+                    in_progress_supply = 0
+                    for build_step in self.started + self.static_queue:
+                        if build_step.unit_type_id == UnitTypeId.SUPPLYDEPOT:
+                            in_progress_supply += 1
+                    new_ids = []
+                    if in_progress_supply == 0:
+                        new_ids.append(UnitTypeId.SUPPLYDEPOT)
+                    if supply_percent_remaining <= 0.2 and in_progress_supply == 1:
+                        new_ids.append(UnitTypeId.SUPPLYDEPOT)
+                    self.add_to_build_queue(new_ids, queue=self.priority_queue)
         self.stop_timer("queue_supply")
 
     def queue_command_center(self) -> None:
         self.start_timer("queue_command_center")
-        worker_count = len(self.bot.workers)
-        cc_count = 0
-        for build_step in self.started:
-            if build_step.unit_type_id == UnitTypeId.SCV:
-                worker_count += 1
-            elif build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
-                cc_count += 1
-        # adds number of townhalls to account for near-term production
-        surplus_worker_count = worker_count - self.workers.get_mineral_capacity() + len(self.bot.townhalls)
-        needed_cc_count = math.ceil(surplus_worker_count / 12)
-        logger.debug(f"expansion: {surplus_worker_count} surplus workers need {needed_cc_count} cc(s)")
-        # expand if running out of room for workers at current bases
-        if needed_cc_count > 0:
-            for i in range(needed_cc_count - cc_count):
-                logger.debug("queuing command center")
-                self.add_to_build_order(UnitTypeId.COMMANDCENTER, 1)
+        if self.bot.time > 100:
+            worker_count = len(self.bot.workers)
+            cc_count = 0
+            for build_step in self.started + self.static_queue:
+                if build_step.unit_type_id == UnitTypeId.SCV:
+                    worker_count += 1
+                elif build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
+                    cc_count += 1
+            # adds number of townhalls to account for near-term production
+            surplus_worker_count = worker_count - self.workers.get_mineral_capacity() + len(self.bot.townhalls)
+            needed_cc_count = math.ceil(surplus_worker_count / 12)
+            logger.debug(f"expansion: {surplus_worker_count} surplus workers need {needed_cc_count} cc(s)")
+            # expand if running out of room for workers at current bases
+            if needed_cc_count > 0:
+                for i in range(needed_cc_count - cc_count):
+                    logger.debug("queuing command center")
+                    self.add_to_build_queue(UnitTypeId.COMMANDCENTER, queue=self.priority_queue)
+                    # self.build_queue.append(self.create_build_step(UnitTypeId.COMMANDCENTER))
         self.stop_timer("queue_command_center")
 
     def queue_refinery(self) -> None:
         self.start_timer("queue_refinery")
         refinery_count = len(self.bot.gas_buildings)
-        for build_step in self.started + self.pending:
+        for build_step in self.started + self.static_queue:
             if build_step.unit_type_id == UnitTypeId.REFINERY:
                 refinery_count += 1
         # build refinery if less than 2 per town hall (function is only called if gas is needed but no room to move workers)
         logger.debug(f"refineries: {refinery_count}, townhalls: {len(self.bot.townhalls)}")
         if refinery_count < len(self.bot.townhalls) * 2:
             logger.debug("adding refinery to build order")
-            self.add_to_build_order(UnitTypeId.REFINERY, 0)
+            self.add_to_build_queue(UnitTypeId.REFINERY, queue=self.priority_queue)
         # should also build a new one if current bases run out of resources
         self.stop_timer("queue_refinery")
 
@@ -172,12 +218,14 @@ class BuildOrder(TimerMixin):
         # add more barracks/factories/starports to handle backlog of pending affordable units
         self.start_timer("queue_production-get_affordable_build_list")
         affordable_units: List[UnitTypeId] = self.get_affordable_build_list()
+        if len(affordable_units) == 0 and self.unit_queue:
+            affordable_units.append(self.unit_queue[0].unit_type_id)
         self.stop_timer("queue_production-get_affordable_build_list")
         self.start_timer("queue_production-additional_needed_production")
         extra_production: List[UnitTypeId] = self.production.additional_needed_production(affordable_units)
         self.stop_timer("queue_production-additional_needed_production")
         self.start_timer("queue_production-add_to_build_order")
-        self.add_to_build_order(extra_production)
+        self.add_to_build_queue(extra_production)
         self.stop_timer("queue_production-add_to_build_order")
         self.stop_timer("queue_production")
 
@@ -186,22 +234,23 @@ class BuildOrder(TimerMixin):
         if self.bot.time > 360:
             next_upgrades: List[UpgradeId] = self.upgrades.get_upgrades()
             for next_upgrade in next_upgrades:
-                for build_step in self.started + self.pending:
+                for build_step in self.started:
                     if next_upgrade == build_step.upgrade_id:
                         logger.debug(f"upgrade {next_upgrade} already in build order, progress: {self.bot.already_pending_upgrade(build_step.upgrade_id)}")
                         break
                 else:
                     # not already started or pending
                     logger.debug(f"adding upgrade {next_upgrade} to build order")
-                    self.add_to_build_order(self.production.build_order_with_prereqs(next_upgrade), 1)
+                    self.add_to_build_queue(self.production.build_order_with_prereqs(next_upgrade))
+                    # self.add_to_build_order(self.production.build_order_with_prereqs(next_upgrade), 1)
         self.stop_timer("queue_upgrade")
 
     def queue_planetary(self) -> None:
         self.start_timer("queue_planetary")
         planetary_count = len(self.bot.structures.of_type(UnitTypeId.PLANETARYFORTRESS))
         cc_count = len(self.bot.structures.of_type(UnitTypeId.COMMANDCENTER))
-        if planetary_count < cc_count:
-            self.add_to_build_order(self.production.build_order_with_prereqs(UnitTypeId.PLANETARYFORTRESS))
+        if self.bot.time > 500 and planetary_count < cc_count:
+            self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.PLANETARYFORTRESS))
         self.stop_timer("queue_planetary")
 
     def queue_turret(self) -> None:
@@ -210,43 +259,15 @@ class BuildOrder(TimerMixin):
             turret_count = len(self.bot.structures.of_type(UnitTypeId.MISSILETURRET))
             base_count = len(self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}))
             if turret_count < base_count:
-                self.add_to_build_order(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
+                self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
         self.stop_timer("queue_turret")
-
-    def add_to_build_order(self, unit_types: Union[UnitTypeId, List[UnitTypeId]], position: int = -1) -> None:
-        in_progress = self.started + self.pending
-        already_in_build_order = []
-        added_to_build_order = []
-        if isinstance(unit_types, UnitTypeId):
-            unit_types = [unit_types]
-        for build_item in unit_types:
-            for build_step in in_progress:
-                if build_item == build_step.unit_type_id or build_item == build_step.upgrade_id:
-                    already_in_build_order.append(build_item)
-                    in_progress.remove(build_step)
-                    break
-            else:
-                # not already started or pending
-                added_to_build_order.append(build_item)
-                if position > -1:
-                    self.pending.insert(position, BuildStep(build_item, self.bot, self.workers, self.production, self.map))
-                else:
-                    self.pending.append(BuildStep(build_item, self.bot, self.workers, self.production, self.map))
-        logger.debug(f"already in build order {already_in_build_order}")
-        logger.debug(f"adding to build order: {added_to_build_order}")
 
     def get_first_resource_shortage(self, only_build_units: bool) -> Cost:
         self.start_timer("get_first_resource_shortage")
         needed_resources: Cost = Cost(-self.bot.minerals, -self.bot.vespene)
-        if self.build_a_worker:
-            needed_resources.minerals += self.build_a_worker.cost.minerals
-            needed_resources.vespene += self.build_a_worker.cost.vespene
-        if self.supply_build_step and not only_build_units:
-            needed_resources.minerals += self.supply_build_step.cost.minerals
-            needed_resources.vespene += self.supply_build_step.cost.vespene
-        if self.pending:
+        if self.build_queue:
             # find first shortage
-            for idx, build_step in enumerate(self.pending):
+            for idx, build_step in enumerate(self.build_queue):
                 if only_build_units and build_step.builder_type == UnitTypeId.SCV:
                     continue
                 if needed_resources.minerals > 0 or needed_resources.vespene > 0:
@@ -259,22 +280,10 @@ class BuildOrder(TimerMixin):
     def get_affordable_build_list(self) -> List[UnitTypeId]:
         affordable_items: List[UnitTypeId] = []
         needed_resources: Cost = Cost(-self.bot.minerals, -self.bot.vespene)
-        if self.build_a_worker:
-            needed_resources.minerals += self.build_a_worker.cost.minerals
-            needed_resources.vespene += self.build_a_worker.cost.vespene
-            if needed_resources.minerals < 0 and needed_resources.vespene < 0:
-                affordable_items.append(self.build_a_worker.unit_type_id)
-        if self.supply_build_step:
-            needed_resources.minerals += self.supply_build_step.cost.minerals
-            needed_resources.vespene += self.supply_build_step.cost.vespene
-            if needed_resources.minerals < 0 and needed_resources.vespene < 0:
-                affordable_items.append(self.supply_build_step.unit_type_id)
 
-        # find first shortage
-        for idx, build_step in enumerate(self.pending):
-            needed_resources.minerals += build_step.cost.minerals
-            needed_resources.vespene += build_step.cost.vespene
-            if needed_resources.minerals > 0 or needed_resources.vespene > 0:
+        # find first shortage, unit_queue hasn't been added to build_queue yet
+        for build_step in self.priority_queue + self.static_queue + self.build_queue + self.unit_queue:
+            if not self.subtract_and_can_afford(needed_resources, build_step.cost):
                 break
             if build_step.unit_type_id:
                 affordable_items.append(build_step.unit_type_id)
@@ -282,6 +291,11 @@ class BuildOrder(TimerMixin):
                 affordable_items.append(build_step.upgrade_id)
         logger.debug(f"affordable items {affordable_items}")
         return affordable_items
+
+    def subtract_and_can_afford(self, needed_resources: Cost, step_cost: Cost) -> bool:
+        needed_resources.minerals += step_cost.minerals
+        needed_resources.vespene += step_cost.vespene
+        return needed_resources.minerals <= 0 and needed_resources.vespene <= 0
 
     def update_completed_unit(self, completed_unit: Unit) -> None:
         logger.debug(
@@ -381,7 +395,7 @@ class BuildOrder(TimerMixin):
                 build_step.last_cancel = self.bot.time
                 if build_step.unit_in_charge.type_id == UnitTypeId.SCV:
                     self.workers.update_assigment(build_step.unit_in_charge, JobType.IDLE, None)
-                self.pending.insert(0, self.started.pop(idx))
+                # self.pending.insert(0, self.started.pop(idx))
                 break
 
     def move_interupted_to_pending(self) -> None:
@@ -398,44 +412,25 @@ class BuildOrder(TimerMixin):
                 to_promote.append(idx)
                 continue
         for idx in reversed(to_promote):
-            self.pending.insert(0, self.started.pop(idx))
+            self.static_queue.insert(0, self.started.pop(idx))
 
-    async def execute_first_pending(self, needed_resources: Cost, only_build_units: bool) -> None:
-        self.start_timer("execute_first_pending")
+    async def execute_pending_builds(self, needed_resources: Cost, only_build_units: bool) -> None:
+        self.start_timer("execute_pending_builds")
+        if self.priority_queue:
+            await self.build_from_queue(self.priority_queue, needed_resources, only_build_units)
+        elif self.static_queue:
+            await self.build_from_queue(self.static_queue, needed_resources, only_build_units)
+        else:
+            await self.build_from_queue(self.build_queue, needed_resources, only_build_units)
+
+    async def build_from_queue(self, build_queue: List[BuildStep], needed_resources: Cost, only_build_units: bool = False) -> None:
         execution_index = -1
         failed_types: list[UnitTypeId] = []
         remaining_resources = Cost(self.bot.minerals, self.bot.vespene)
-
-        if self.supply_build_step and not only_build_units:
-            build_step = self.supply_build_step
-            if self.can_afford(remaining_resources, build_step.cost):
-                self.start_timer("build_step.execute")
-                build_response = await build_step.execute(special_locations=self.special_locations, needed_resources=needed_resources)
-                self.stop_timer("build_step.execute")
-                self.start_timer(f"handle response {build_response}")
-                logger.debug(f"build_response: {build_response}")
-                if build_response == build_step.ResponseCode.SUCCESS:
-                    self.started.append(build_step)
-                    remaining_resources -= build_step.cost
-                    self.supply_build_step = None
-
-        if self.build_a_worker and not (self.pending and self.pending[0].unit_type_id == UnitTypeId.ORBITALCOMMAND):
-            build_step = self.build_a_worker
-            if self.can_afford(remaining_resources, build_step.cost):
-                self.start_timer("build_step.execute")
-                build_response = await build_step.execute(special_locations=self.special_locations, needed_resources=needed_resources)
-                self.stop_timer("build_step.execute")
-                self.start_timer(f"handle response {build_response}")
-                logger.debug(f"build_response: {build_response}")
-                if build_response == build_step.ResponseCode.SUCCESS:
-                    self.started.append(build_step)
-                    remaining_resources -= build_step.cost
-                    self.build_a_worker = None
-
-        while execution_index < len(self.pending):
+        while execution_index < len(build_queue):
             execution_index += 1
             try:
-                build_step = self.pending[execution_index]
+                build_step = build_queue[execution_index]
             except IndexError:
                 break
             if build_step.unit_type_id in failed_types or only_build_units and build_step.builder_type == UnitTypeId.SCV:
@@ -455,7 +450,7 @@ class BuildOrder(TimerMixin):
             self.start_timer(f"handle response {build_response}")
             logger.debug(f"build_response: {build_response}")
             if build_response == build_step.ResponseCode.SUCCESS:
-                self.started.append(self.pending.pop(execution_index))
+                self.started.append(build_queue.pop(execution_index))
                 break
             elif build_response == build_step.ResponseCode.NO_LOCATION:
                 continue
@@ -463,174 +458,11 @@ class BuildOrder(TimerMixin):
                 failed_types.append(build_step.unit_type_id)
                 logger.debug(f"!!! {build_step.unit_type_id} failed to start building, {build_response}")
             self.stop_timer(f"handle response {build_response}")
-            logger.debug(f"pending loop: {execution_index} < {len(self.pending)}")
-        self.stop_timer("execute_first_pending")
+            logger.debug(f"pending loop: {execution_index} < {len(build_queue)}")
+        self.stop_timer("execute_pending_builds")
 
     def can_afford(self, remaining_resources: Cost, requested_cost: Cost) -> bool:
         return (
             requested_cost.minerals <= remaining_resources.minerals
             and requested_cost.vespene <= remaining_resources.vespene
         )
-
-    def get_build_start(self, build_name: str) -> List[UnitTypeId]:
-        if build_name == "empty":
-            return []
-        elif build_name == "test":
-            return [
-                UnitTypeId.SUPPLYDEPOT,
-                # UnitTypeId.BARRACKS,
-                UnitTypeId.REFINERY,
-                # UnitTypeId.BARRACKSTECHLAB,
-                # UpgradeId.SHIELDWALL
-            ]
-        elif build_name == "tvt1":
-            # https://lotv.spawningtool.com/build/171779/
-            # Standard Terran vs Terran (3 Reaper 2 Hellion) (TvT Economic)
-            # Very Standard Reaper Hellion Opening that transitions into Marine-Tank-Raven. As solid it as it gets
-            return [
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.BARRACKS,
-                UnitTypeId.REFINERY,
-                UnitTypeId.REFINERY,
-                UnitTypeId.REAPER,
-                UnitTypeId.ORBITALCOMMAND,
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.FACTORY,
-                UnitTypeId.REAPER,
-                UnitTypeId.COMMANDCENTER,
-                UnitTypeId.HELLION,
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.REAPER,
-                UnitTypeId.STARPORT,
-                UnitTypeId.HELLION,
-                UnitTypeId.BARRACKSREACTOR,
-                UnitTypeId.REFINERY,
-                UnitTypeId.FACTORYTECHLAB,
-                UnitTypeId.STARPORTTECHLAB,
-                UnitTypeId.ORBITALCOMMAND,
-                UnitTypeId.CYCLONE,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
-                UnitTypeId.RAVEN,
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
-                UnitTypeId.SIEGETANK,
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
-                UnitTypeId.RAVEN,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
-                UnitTypeId.SIEGETANK,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
-                UnitTypeId.MEDIVAC,
-                UnitTypeId.BANSHEE,
-                UnitTypeId.SUPPLYDEPOT,
-            ]
-        elif build_name == "tvt2":
-            # tweaked tvt1
-            return [
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.BARRACKS,
-                UnitTypeId.REFINERY,
-                UnitTypeId.REFINERY,
-                UnitTypeId.REAPER,
-                UnitTypeId.BARRACKSREACTOR,
-                UnitTypeId.ORBITALCOMMAND,
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.STARPORT,
-                UnitTypeId.MEDIVAC,
-                UnitTypeId.STARPORTTECHLAB,
-                UnitTypeId.FACTORY,
-                UnitTypeId.FACTORYTECHLAB,
-                UnitTypeId.REAPER,
-                UnitTypeId.COMMANDCENTER,
-                UnitTypeId.HELLION,
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.REAPER,
-                UnitTypeId.BARRACKS,
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.REFINERY,
-                UnitTypeId.ORBITALCOMMAND,
-                UnitTypeId.CYCLONE,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
-                UnitTypeId.RAVEN,
-                UnitTypeId.BANSHEE,
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
-                UnitTypeId.SIEGETANK,
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
-                UnitTypeId.RAVEN,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
-                UnitTypeId.SIEGETANK,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
-                UnitTypeId.RAVEN,
-            ]
-        elif build_name == 'bottato1':
-            return [
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.BARRACKS,
-                UnitTypeId.REFINERY,
-                UnitTypeId.BARRACKSREACTOR,
-                UnitTypeId.MARINE,
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
-                UnitTypeId.ORBITALCOMMAND,
-                UnitTypeId.REAPER,
-                UnitTypeId.REFINERY,
-                UnitTypeId.FACTORY,
-                UnitTypeId.REAPER,
-                UnitTypeId.CYCLONE,
-                UnitTypeId.COMMANDCENTER,
-                UnitTypeId.FACTORYTECHLAB,
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.REFINERY,
-                UnitTypeId.SIEGETANK,
-                UnitTypeId.SIEGETANK,
-                UnitTypeId.STARPORT,
-                UnitTypeId.STARPORTTECHLAB,
-                UnitTypeId.RAVEN,
-                UnitTypeId.ORBITALCOMMAND,
-                UnitTypeId.COMMANDCENTER,
-                UnitTypeId.REFINERY,
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.RAVEN,
-                UnitTypeId.SIEGETANK,
-                UnitTypeId.ENGINEERINGBAY,
-                UnitTypeId.RAVEN,
-                UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.SIEGETANK,
-                UnitTypeId.ORBITALCOMMAND,
-                UnitTypeId.VIKINGFIGHTER,
-                UnitTypeId.ORBITALCOMMAND,
-                UnitTypeId.ARMORY,
-                UnitTypeId.SIEGETANK,
-                UnitTypeId.VIKINGFIGHTER,
-                UnitTypeId.REFINERY,
-                UnitTypeId.REFINERY,
-                UnitTypeId.BARRACKSTECHLAB,
-                UnitTypeId.FACTORY,
-                UnitTypeId.FACTORYTECHLAB,
-                UnitTypeId.FACTORY,
-                UnitTypeId.VIKINGFIGHTER,
-                UnitTypeId.VIKINGFIGHTER,
-                UnitTypeId.SIEGETANK,
-                UnitTypeId.SIEGETANK,
-                UnitTypeId.HELLION,
-                UnitTypeId.HELLION,
-                UnitTypeId.VIKINGFIGHTER,
-                UnitTypeId.HELLION,
-                UnitTypeId.HELLION,
-                UnitTypeId.FACTORY,
-                UnitTypeId.FACTORY,
-                UnitTypeId.COMMANDCENTER,
-            ]

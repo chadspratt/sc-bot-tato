@@ -66,6 +66,10 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
         reached_destination = unit.position.distance_to(target) < 0.5
 
+        has_friendly_buffer = True
+        if closest_enemy:
+            friendlies_nearest_to_enemy = self.bot.units.closest_n_units(closest_enemy.position, 5)
+            has_friendly_buffer = unit not in friendlies_nearest_to_enemy
         # enemy_range_after_sieging = 9999
         # if closest_enemy:
         #     self.bot.client.debug_line_out(unit, closest_enemy)
@@ -74,15 +78,20 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         #         enemy_range_after_sieging -= closest_enemy.calculate_speed() * self.max_siege_time * 0.8
 
         most_are_seiged = len(self.unsieged_tags) < len(self.sieged_tags)
-        enemy_distance = closest_distance if most_are_seiged else closest_distance_after_siege
+        enemy_distance = closest_distance if most_are_seiged or has_friendly_buffer else closest_distance_after_siege
         if is_sieged:
             # all_sieged = len(self.unsieged_tags) == 0
             if enemy_distance > self.sieged_range and closest_structure_distance > self.sight_range - 1 and not reached_destination:
                 self.unsiege(unit)
                 return True
         else:
-            enemy_will_be_far_enough = closest_distance_after_siege > self.sieged_minimum_range + 0.5
-            enemy_will_be_close_enough = enemy_distance <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
+            enemy_will_be_far_enough = enemy_will_be_close_enough = False
+            if has_friendly_buffer:
+                enemy_will_be_far_enough = closest_distance > self.sieged_minimum_range + 2
+                enemy_will_be_close_enough = closest_distance <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
+            else:
+                enemy_will_be_far_enough = closest_distance_after_siege > self.sieged_minimum_range + 0.5
+                enemy_will_be_close_enough = enemy_distance <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
             if enemy_will_be_far_enough and enemy_will_be_close_enough:
                 self.siege(unit)
                 return True

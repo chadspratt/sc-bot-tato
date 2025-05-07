@@ -78,7 +78,7 @@ class BotTato(BotAI, TimerMixin):
             unit_request: list[UnitTypeId] = self.military.get_squad_request(remaining_cap)
             self.stop_timer("military.get_squad_request")
             self.start_timer("build_order.queue_military")
-            self.build_order.add_to_build_order(unit_request)
+            self.build_order.queue_units(unit_request)
             self.stop_timer("build_order.queue_military")
 
         self.start_timer("structure_micro.execute")

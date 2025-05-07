@@ -54,7 +54,7 @@ BUILDINGS = {
         UnitTypeId.FACTORY,
         UnitTypeId.GHOSTACADEMY,
         UnitTypeId.STARPORT,
-        UnitTypeId.FUSIONREACTOR,
+        UnitTypeId.FUSIONCORE,
         UnitTypeId.BUNKER,
         UnitTypeId.ARMORY,
         UnitTypeId.REFINERY,

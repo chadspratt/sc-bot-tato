@@ -24,34 +24,28 @@ from bottato.tech_tree import TECH_TREE
 
 
 class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
-    supply_count: int
     unit_type_id: UnitTypeId = None
     upgrade_id: UpgradeId = None
     unit_in_charge: Optional[Unit] = None
     unit_being_built: Optional[Unit] = None
-    pos: Union[Unit, Point2]
+    pos: Union[Unit, Point2] = None
     check_idle: bool = False
     last_cancel: float = -10
+    completed_time: int = None
 
     def __init__(self, unit_type: Union[UnitTypeId, UpgradeId], bot: BotAI, workers: Workers, production: Production, map: Map):
         self.bot: BotAI = bot
         self.workers: Workers = workers
         self.production: Production = production
         self.map: Map = map
-        self.unit_type_id = None
-        self.cost = Cost(9999, 9999)
-        # build cheapest option in set of unit_types
+
         if isinstance(unit_type, UnitTypeId):
             self.unit_type_id = unit_type
         else:
             self.upgrade_id = unit_type
         self.friendly_name = unit_type.name
-        self.builder_type = self.production.get_builder_type(unit_type)
+        self.builder_type: UnitTypeId = self.production.get_builder_type(unit_type)
         self.cost = bot.calculate_cost(unit_type)
-
-        self.pos = None
-        self.unit_in_charge: Unit = None
-        self.completed_time: int = None
 
     def __repr__(self) -> str:
         builder = self.unit_in_charge if self.unit_in_charge else self.builder_type
@@ -61,7 +55,11 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             if self.unit_being_built and self.unit_being_built is not True
             else self.unit_type_id
         )
-        return f"{builder} has orders orders for target {target}"
+        return f"{target}-built by {builder}"
+
+    @property
+    def is_unit(self) -> bool:
+        return self.builder_type in {UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}
 
     def draw_debug_box(self):
         if self.unit_in_charge is not None:
@@ -221,9 +219,12 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     return self.ResponseCode.NO_TECH
         if self.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
             self.unit_in_charge = self.production.get_builder(self.unit_type_id)
+        elif self.unit_type_id == UnitTypeId.SCV:
+            # scv
+            facility_candidates = self.bot.townhalls.filter(lambda x: x.is_ready and x.is_idle)
+            self.unit_in_charge = facility_candidates[0] if facility_candidates else None
         else:
             facility_candidates = self.bot.structures.filter(lambda x: x.type_id in self.builder_type and x.is_ready and x.is_idle)
-            logger.debug(f"training facility candidates {facility_candidates}")
             self.unit_in_charge = facility_candidates[0] if facility_candidates else None
 
         if self.unit_in_charge is None:

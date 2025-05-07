@@ -212,6 +212,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         self.new_damage_taken.clear()
 
     def get_counter_units(self, unit: Unit):
+        unassigned = [UnitTypeId.STALKER, UnitTypeId.SENTRY, UnitTypeId.ADEPT, UnitTypeId.HIGHTEMPLAR, UnitTypeId.DARKTEMPLAR, UnitTypeId.ARCHON, UnitTypeId.IMMORTAL, UnitTypeId.COLOSSUS, UnitTypeId.DISRUPTOR, UnitTypeId.PHOENIX, UnitTypeId.VOIDRAY, UnitTypeId.ORACLE, UnitTypeId.TEMPEST, UnitTypeId.CARRIER, UnitTypeId.MOTHERSHIP]
+        unassigned.extend([UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.GHOST, UnitTypeId.HELLION, UnitTypeId.HELLIONTANK, UnitTypeId.WIDOWMINE, UnitTypeId.CYCLONE, UnitTypeId.THOR, UnitTypeId.VIKINGFIGHTER, UnitTypeId.RAVEN, UnitTypeId.BATTLECRUISER])
+        unassigned.extend([UnitTypeId.QUEEN, UnitTypeId.ZERGLING, UnitTypeId.BANELING, UnitTypeId.ROACH, UnitTypeId.RAVAGER, UnitTypeId.HYDRALISK, UnitTypeId.LURKER, UnitTypeId.MUTALISK, UnitTypeId.CORRUPTOR, UnitTypeId.SWARMHOSTMP, UnitTypeId.INFESTOR, UnitTypeId.VIPER, UnitTypeId.ULTRALISK, UnitTypeId.BROODLORD])
         if unit.type_id in (UnitTypeId.LIBERATOR, UnitTypeId.LIBERATORAG, UnitTypeId.WARPPRISM, UnitTypeId.BANSHEE, UnitTypeId.MEDIVAC):
             return [UnitTypeId.VIKINGFIGHTER]
         elif unit.type_id in (UnitTypeId.REAPER, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.ADEPT, UnitTypeId.ZEALOT, UnitTypeId.ZERGLING):
@@ -228,6 +231,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         new_units: list[UnitTypeId] = self.scouting.needed_unit_types()
         for unit_type in new_units:
             new_supply += self.bot.calculate_supply_cost(unit_type)
+
+        army_summary = self.count_units_by_type(self.bot.units)
 
         unmatched_friendlies, unmatched_enemies = self.simulate_battle()
         logger.debug(f"simulated battle results: friendlies {self.count_units_by_type(unmatched_friendlies)}, enemies {self.count_units_by_type(unmatched_enemies)}")
@@ -246,9 +251,17 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 squad_type = SquadTypeDefinitions['banshee harass']
             else:
                 squad_type = SquadTypeDefinitions['full army']
+
             for unit_type in squad_type.composition.unit_ids:
-                new_units.append(unit_type)
-                new_supply += self.bot.calculate_supply_cost(unit_type)
+                if unit_type not in army_summary:
+                    army_summary[unit_type] = 0
+                if army_summary[unit_type] > 0:
+                    army_summary[unit_type] -= 1
+                else:
+                    new_units.append(unit_type)
+                    new_supply += self.bot.calculate_supply_cost(unit_type)
+                    if new_supply > remaining_cap:
+                        break
 
         logger.debug(f"new_supply: {new_supply} remaining_cap: {remaining_cap}")
         logger.debug(f"military requesting {new_units}")

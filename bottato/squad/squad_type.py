@@ -31,5 +31,5 @@ SquadTypeDefinitions: dict[str, SquadType] = {
         UnitTypeId.THOR: 1,
         UnitTypeId.BATTLECRUISER: 1
     })),
-    'anti air': SquadType('anti air', Composition({UnitTypeId.MARINE: 2, UnitTypeId.VIKINGFIGHTER: 1})),
+    'anti air': SquadType('anti air', Composition({UnitTypeId.VIKINGFIGHTER: 1})),
 }

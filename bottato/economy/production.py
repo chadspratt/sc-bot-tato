@@ -3,7 +3,7 @@ from loguru import logger
 
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.bot_ai import BotAI
-from sc2.unit import Unit, UnitOrder
+from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
@@ -38,7 +38,7 @@ class Facility(UnitReferenceMixin):
             # addon_type.remove(facility)
 
         logger.debug(f"updated reference for facility {updated_unit}-{updated_unit.orders}")
-        updated_unit.orders.sort(reverse=True, key=Facility.order_sort_key)
+        updated_unit.orders.sort(reverse=True, key=lambda order: order.progress)
         for new_order in updated_unit.orders:
             for old_order in self.unit.orders:
                 if new_order.progress > old_order.progress:
@@ -69,9 +69,6 @@ class Facility(UnitReferenceMixin):
                 logger.debug(f"addon blocked for {updated_unit}")
 
         self.unit = updated_unit
-
-    def order_sort_key(order: UnitOrder) -> float:
-        return order.progress
 
     @property
     def has_capacity(self) -> bool:
@@ -210,6 +207,8 @@ class Production(UnitReferenceMixin):
             UnitTypeId.STARPORTTECHLAB,
         }:
             return {UnitTypeId.STARPORT}
+        if unit_type_id == UnitTypeId.SCV:
+            return {UnitTypeId.COMMANDCENTER}
         return UNIT_TRAINED_FROM[unit_type_id]
 
     def get_cheapest_builder_type(self, unit_type_id: Union[UnitTypeId, UpgradeId]) -> UnitTypeId:
