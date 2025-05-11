@@ -83,6 +83,12 @@ class Facility(UnitReferenceMixin):
     def add_queued_unit_id(self, unit_id: UnitTypeId) -> None:
         self.queued_unit_ids.append(unit_id)
 
+    def remove_queued_unit_id(self, unit_id: UnitTypeId) -> None:
+        if unit_id in self.queued_unit_ids:
+            self.queued_unit_ids.remove(unit_id)
+        else:
+            logger.debug(f"unit {unit_id} not in queued unit ids {self.queued_unit_ids}")
+
 
 class Production(UnitReferenceMixin):
     def __init__(self, bot: BotAI) -> None:
@@ -147,6 +153,15 @@ class Production(UnitReferenceMixin):
                         addon_type.remove(facility)
                     if self.bot.supply_left == 0:
                         facility.queued_unit_ids.clear()
+
+    def remove_type_from_facilty_queue(self, facility_unit: Unit, queued_type: UnitTypeId) -> None:
+        if facility_unit.type_id in self.facilities.keys():
+            for addon_type in self.facilities[facility_unit.type_id]:
+                facility: Facility
+                for facility in self.facilities[facility_unit.type_id][addon_type]:
+                    if facility.unit.tag == facility_unit.tag:
+                        facility.remove_queued_unit_id(queued_type)
+                        return
 
     def get_builder(self, unit_type: UnitTypeId) -> Unit:
         candidates = []
@@ -401,15 +416,17 @@ class Production(UnitReferenceMixin):
 
     def build_order_with_prereqs_recurse(self,
                                          unit_type: Union[UnitTypeId, UpgradeId],
-                                         previous_types: List[Union[UnitTypeId, UpgradeId]] = []) -> List[Union[UnitTypeId, UpgradeId]]:
-        if unit_type in previous_types:
-            return []
-        elif isinstance(unit_type, UnitTypeId) and self.bot.structure_type_build_progress(unit_type) > 0:
-            return []
-        elif isinstance(unit_type, UpgradeId) and self.bot.already_pending_upgrade(unit_type):
-            return []
+                                         previous_types: List[Union[UnitTypeId, UpgradeId]] = None) -> List[Union[UnitTypeId, UpgradeId]]:
+        if previous_types is None:
+            previous_types = []
+        else:
+            if unit_type in previous_types:
+                return []
+            elif isinstance(unit_type, UnitTypeId) and self.bot.structure_type_build_progress(unit_type) > 0:
+                return []
+            elif isinstance(unit_type, UpgradeId) and self.bot.already_pending_upgrade(unit_type):
+                return []
         build_order = [unit_type]
-        # requirement_bom = [unit_type].extend(previous_types)
         previous_types.append(unit_type)
 
         if isinstance(unit_type, UpgradeId):

@@ -43,7 +43,8 @@ class Minerals(Resources):
         return added
 
     def add_mule(self, mule: Unit, minerals: Unit):
-        self.mule_tags_by_node_tag[minerals.tag] = mule.tag
+        if minerals is not None:
+            self.mule_tags_by_node_tag[minerals.tag] = mule.tag
 
     def remove_mule(self, mule: Unit):
         tags_to_remove = []

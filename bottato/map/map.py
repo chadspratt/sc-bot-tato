@@ -1,9 +1,10 @@
 from __future__ import annotations
-from typing import List, Dict
+from typing import List, Dict, Tuple
 
 from loguru import logger
 import numpy as np
 
+from sc2.units import Units
 from sc2.unit import Unit
 from sc2.bot_ai import BotAI
 # from sc2.pixel_map import PixelMap
@@ -216,7 +217,26 @@ class Map(TimerMixin, GeometryMixin):
         logger.debug(f"all zones ({len(zones)}){zones}")
         return zones
 
-    def get_path(self, start: Point2, end: Point2) -> List[Point2]:
+    def get_shortest_path(self, units: Units, end: Point2) -> Tuple[Unit, List[Point2]]:
+        shortest_distance = 9999
+        shortest_path: List[Point2] = []
+        for unit in units:
+            path_points = self.get_path_points(unit.position, end)
+            distance = 0
+            previous_point: Point2 = None
+            for path_point in path_points:
+                if previous_point is None:
+                    previous_point = path_point
+                else:
+                    distance += previous_point.distance_to(path_point)
+                    previous_point = path_point
+            if distance < shortest_distance:
+                shortest_distance = distance
+                shortest_path = path_points
+
+        return shortest_path
+
+    def get_path_points(self, start: Point2, end: Point2) -> List[Point2]:
         point2_path: List[Point2] = [start]
         start_rounded: Point2 = start.rounded
         end_rounded: Point2 = end.rounded
@@ -227,14 +247,12 @@ class Map(TimerMixin, GeometryMixin):
             return point2_path
         logger.debug(f"start_zone {start_zone}")
         logger.debug(f"end_zone {end_zone}")
-        if start_zone.id != end_zone.id:
-            zone: Zone
-            path: Path = start_zone.path_to(end_zone)
-            if path:
-                logger.debug(f"found path {path}")
-                for zone in path.zones[1:-1]:
-                    point2_path.append(zone.midpoint)
-                point2_path.append(end)
+        zone: Zone
+        path: Path = start_zone.path_to(end_zone)
+        logger.debug(f"found path {path}")
+        for zone in path.zones[1:-1]:
+            point2_path.append(zone.midpoint)
+        point2_path.append(end)
         return point2_path
 
     def get_pathable_position(self, position: Point2, unit: Unit) -> Point2:

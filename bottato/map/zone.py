@@ -74,6 +74,9 @@ class Zone:
     def path_to(self, destination_zone: Zone) -> Path:
         destination_path: Path = Path([], 9999, False)
         logger.debug(f"checking {self} for path to {destination_zone}")
+        if destination_zone.id == self.id:
+            # same zone
+            return Path([], 0)
         if destination_zone.id in self.shortest_paths:
             destination_path = self.shortest_paths[destination_zone.id]
         if destination_path.is_shortest:

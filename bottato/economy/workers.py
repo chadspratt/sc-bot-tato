@@ -101,7 +101,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.assignments_by_job[JobType.IDLE].append(new_assignment)
             if worker.type_id == UnitTypeId.MULE:
                 self.aged_mules.append(worker)
-                closest_minerals: Unit = self.closest_unit(worker, self.minerals.nodes_with_mule_capacity())
+                closest_minerals: Unit = self.closest_unit_to_units(worker, self.minerals.nodes_with_mule_capacity())
                 self.update_assigment(worker, JobType.MINERALS, closest_minerals)
                 self.minerals.add_mule(worker, closest_minerals)
                 logger.debug(f"added mule {worker.tag}({worker.position}) to minerals {closest_minerals}({closest_minerals.position})")
@@ -262,7 +262,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
     def availiable_workers_on_job(self, job_type: JobType) -> Units:
         return Units([
-            assignment.unit for assignment in self.assignments_by_job[job_type] if assignment.unit_available and assignment.unit.type_id != UnitTypeId.MULE],
+            assignment.unit for assignment in self.assignments_by_job[job_type] if assignment.unit_available and assignment.unit.type_id != UnitTypeId.MULE and not assignment.unit.is_carrying_resource],
             bot_object=self.bot)
 
     def deliver_resources(self, worker: Unit):

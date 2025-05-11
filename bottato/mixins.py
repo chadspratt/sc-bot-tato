@@ -195,7 +195,7 @@ class GeometryMixin:
             distance = min(distance, self.distance(unit1, unit))
         return distance
 
-    def closest_unit(self, unit1: Unit, units: Units) -> float:
+    def closest_unit_to_units(self, unit1: Unit, units: Units) -> float:
         closest_distance = 9999
         closest_unit = None
         for unit in units:

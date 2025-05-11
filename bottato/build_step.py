@@ -23,6 +23,17 @@ from bottato.map.destructibles import BUILDING_RADIUS
 from bottato.tech_tree import TECH_TREE
 
 
+class ResponseCode(enum.Enum):
+    SUCCESS = 0
+    FAILED = 1
+    NO_BUILDER = 2
+    NO_FACILITY = 3
+    NO_TECH = 4
+    NO_LOCATION = 5
+    NO_RESOURCES = 6
+    QUEUE_EMPTY = 7
+
+
 class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     unit_type_id: UnitTypeId = None
     upgrade_id: UpgradeId = None
@@ -93,14 +104,6 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             except self.UnitNotFound:
                 self.unit_being_built = None
 
-    class ResponseCode(enum.Enum):
-        SUCCESS = 0
-        FAILED = 1
-        NO_BUILDER = 2
-        NO_FACILITY = 3
-        NO_TECH = 4
-        NO_LOCATION = 5
-
     async def execute(self, special_locations: SpecialLocations, needed_resources: Cost = None) -> ResponseCode:
         self.start_timer("build_step.execute inner")
         response = None
@@ -116,7 +119,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.start_timer(f"build_step.execute_facility_build {self.unit_type_id}")
             response = self.execute_facility_build()
             self.stop_timer(f"build_step.execute_facility_build {self.unit_type_id}")
-        if response == self.ResponseCode.SUCCESS:
+        if response == ResponseCode.SUCCESS:
             self.start_timer("build_step.draw_debug_box")
             self.draw_debug_box()
             self.stop_timer("build_step.draw_debug_box")
@@ -131,7 +134,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.unit_in_charge = self.production.get_research_facility(self.upgrade_id)
             logger.debug(f"research facility: {self.unit_in_charge}")
         if self.unit_in_charge is None or self.unit_in_charge.type_id == UnitTypeId.TECHLAB:
-            response = self.ResponseCode.NO_FACILITY
+            response = ResponseCode.NO_FACILITY
         else:
             # successful_action: bool = self.unit_in_charge.research(self.upgrade_id)
             ability = RESEARCH_ABILITIES[self.upgrade_id]
@@ -143,14 +146,14 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 required_tech_building is None or self.bot.structure_type_build_progress(required_tech_building) == 1
             )
             if not requirement_met:
-                return self.ResponseCode.NO_TECH
+                return ResponseCode.NO_TECH
             logger.debug(f"{self.unit_in_charge} researching upgrade with ability {ability}")
             successful_action: bool = self.unit_in_charge(ability)
             if successful_action:
-                response = self.ResponseCode.SUCCESS
+                response = ResponseCode.SUCCESS
         if response is None:
             logger.debug("upgrade failed to start")
-            response = self.ResponseCode.FAILED
+            response = ResponseCode.FAILED
 
         return response
 
@@ -162,31 +165,31 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             # check that all tech requirements are met
             for requirement in TECH_TREE[self.unit_type_id]:
                 if self.bot.structure_type_build_progress(requirement) != 1:
-                    return self.ResponseCode.NO_TECH
+                    return ResponseCode.NO_TECH
 
         build_response: bool = None
         if self.unit_type_id == UnitTypeId.REFINERY:
             # Vespene targets unit to build instead of position
             empty_gas: Union[Unit, None] = self.get_geysir()
             if empty_gas is None:
-                response = self.ResponseCode.NO_FACILITY
+                response = ResponseCode.NO_FACILITY
             else:
                 self.pos = empty_gas.position
                 if self.unit_in_charge is None:
                     self.unit_in_charge = self.workers.get_builder(self.pos, needed_resources)
                 if self.unit_in_charge is None:
-                    response = self.ResponseCode.NO_BUILDER
+                    response = ResponseCode.NO_BUILDER
                 else:
                     build_response = self.unit_in_charge.build_gas(empty_gas)
         else:
             self.pos = await self.find_placement(self.unit_type_id, special_locations)
             if self.pos is None:
-                response = self.ResponseCode.NO_LOCATION
+                response = ResponseCode.NO_LOCATION
             else:
                 if self.unit_in_charge is None:
                     self.unit_in_charge = self.workers.get_builder(self.pos, needed_resources)
                 if self.unit_in_charge is None:
-                    response = self.ResponseCode.NO_BUILDER
+                    response = ResponseCode.NO_BUILDER
                 else:
                     logger.debug(
                         f"Trying to build structure {self.unit_type_id} at {self.pos}"
@@ -201,7 +204,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                         build_response = self.unit_in_charge.smart(self.unit_being_built)
                         logger.debug(f"{self.unit_in_charge} in charge is doing {self.unit_in_charge.orders}")
         if build_response is not None:
-            response = self.ResponseCode.SUCCESS if build_response else self.ResponseCode.FAILED
+            response = ResponseCode.SUCCESS if build_response else ResponseCode.FAILED
 
         return response
 
@@ -216,7 +219,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             # check that all tech requirements are met
             for requirement in TECH_TREE[self.unit_type_id]:
                 if self.bot.structure_type_build_progress(requirement) != 1:
-                    return self.ResponseCode.NO_TECH
+                    return ResponseCode.NO_TECH
         if self.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
             self.unit_in_charge = self.production.get_builder(self.unit_type_id)
         elif self.unit_type_id == UnitTypeId.SCV:
@@ -229,7 +232,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
         if self.unit_in_charge is None:
             logger.debug("no idle training facility")
-            response = self.ResponseCode.NO_FACILITY
+            response = ResponseCode.NO_FACILITY
         else:
             if self.unit_type_id in {UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}:
                 self.unit_being_built = self.unit_in_charge
@@ -238,7 +241,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             # self.pos = self.unit_in_charge.position
             logger.debug(f"Found training facility {self.unit_in_charge}")
             build_response = self.unit_in_charge(self.get_build_ability())
-            response = self.ResponseCode.SUCCESS if build_response else self.ResponseCode.FAILED
+            response = ResponseCode.SUCCESS if build_response else ResponseCode.FAILED
         return response
 
     def get_build_ability(self) -> AbilityId:
@@ -346,12 +349,18 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             logger.debug(f"{self} builder is missing")
             return True
 
-        self.check_idle: bool = self.check_idle or self.upgrade_id or (
-            self.unit_in_charge.is_active and not self.unit_in_charge.is_gathering
+        self.check_idle: bool = (
+            self.check_idle
+            or self.upgrade_id is not None
+            or self.unit_in_charge.type_id in self.production.facilities.keys()
+            or (
+                self.unit_in_charge.is_active and not self.unit_in_charge.is_gathering
+            )
         )
 
         if self.check_idle:
             if self.unit_in_charge.is_idle:
+                self.production.remove_type_from_facilty_queue(self.unit_in_charge, self.unit_type_id)
                 logger.debug(f"unit_in_charge {self.unit_in_charge}")
                 return True
         return False

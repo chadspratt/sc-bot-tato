@@ -9,7 +9,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
 from sc2.game_data import Cost
 
-from bottato.build_step import BuildStep
+from bottato.build_step import BuildStep, ResponseCode
 from bottato.economy.workers import Workers, JobType
 from bottato.economy.production import Production
 from bottato.mixins import TimerMixin
@@ -133,10 +133,11 @@ class BuildOrder(TimerMixin):
                     break
             else:
                 steps_to_add.append(self.create_build_step(build_item))
-        if position is None:
+        if steps_to_add:
+            if position is not None:
+                steps_to_add = queue[:position] + steps_to_add + queue[position:]
+                queue.clear()
             queue.extend(steps_to_add)
-        else:
-            queue = queue[:position] + steps_to_add + queue[position:]
 
     def create_build_step(self, unit_type: UnitTypeId) -> BuildStep:
         return BuildStep(unit_type, self.bot, self.workers, self.production, self.map)
@@ -225,7 +226,7 @@ class BuildOrder(TimerMixin):
         extra_production: List[UnitTypeId] = self.production.additional_needed_production(affordable_units)
         self.stop_timer("queue_production-additional_needed_production")
         self.start_timer("queue_production-add_to_build_order")
-        self.add_to_build_queue(extra_production)
+        self.add_to_build_queue(extra_production, position=0, queue=self.static_queue)
         self.stop_timer("queue_production-add_to_build_order")
         self.stop_timer("queue_production")
 
@@ -344,7 +345,7 @@ class BuildOrder(TimerMixin):
                 ramp_blocker.unit_tag = started_structure.tag
                 ramp_blocker.is_started = True
 
-    def update_completed_structure(self, completed_structure: Unit, previous_type: UnitTypeId = UnitTypeId.NOTAUNIT) -> None:
+    def update_completed_structure(self, completed_structure: Unit) -> None:
         if completed_structure.type_id == UnitTypeId.AUTOTURRET:
             return
         logger.debug(
@@ -416,14 +417,15 @@ class BuildOrder(TimerMixin):
 
     async def execute_pending_builds(self, needed_resources: Cost, only_build_units: bool) -> None:
         self.start_timer("execute_pending_builds")
-        if self.priority_queue:
-            await self.build_from_queue(self.priority_queue, needed_resources, only_build_units)
-        elif self.static_queue:
-            await self.build_from_queue(self.static_queue, needed_resources, only_build_units)
-        else:
+        response = await self.build_from_queue(self.priority_queue, needed_resources, only_build_units)
+        if response != ResponseCode.NO_RESOURCES:
+            response = await self.build_from_queue(self.static_queue, needed_resources, only_build_units)
+        if response != ResponseCode.NO_RESOURCES:
             await self.build_from_queue(self.build_queue, needed_resources, only_build_units)
+        self.stop_timer("execute_pending_builds")
 
-    async def build_from_queue(self, build_queue: List[BuildStep], needed_resources: Cost, only_build_units: bool = False) -> None:
+    async def build_from_queue(self, build_queue: List[BuildStep], needed_resources: Cost, only_build_units: bool = False) -> ResponseCode:
+        build_response = ResponseCode.QUEUE_EMPTY
         execution_index = -1
         failed_types: list[UnitTypeId] = []
         remaining_resources = Cost(self.bot.minerals, self.bot.vespene)
@@ -441,6 +443,7 @@ class BuildOrder(TimerMixin):
                 continue
             if not self.can_afford(remaining_resources, build_step.cost):
                 logger.debug(f"Cannot afford {build_step.friendly_name}")
+                build_response = ResponseCode.NO_RESOURCES
                 break
 
             # XXX slightly slow
@@ -449,10 +452,10 @@ class BuildOrder(TimerMixin):
             self.stop_timer("build_step.execute")
             self.start_timer(f"handle response {build_response}")
             logger.debug(f"build_response: {build_response}")
-            if build_response == build_step.ResponseCode.SUCCESS:
+            if build_response == ResponseCode.SUCCESS:
                 self.started.append(build_queue.pop(execution_index))
                 break
-            elif build_response == build_step.ResponseCode.NO_LOCATION:
+            elif build_response == ResponseCode.NO_LOCATION:
                 continue
             else:
                 failed_types.append(build_step.unit_type_id)
@@ -460,6 +463,7 @@ class BuildOrder(TimerMixin):
             self.stop_timer(f"handle response {build_response}")
             logger.debug(f"pending loop: {execution_index} < {len(build_queue)}")
         self.stop_timer("execute_pending_builds")
+        return build_response
 
     def can_afford(self, remaining_resources: Cost, requested_cost: Cost) -> bool:
         return (

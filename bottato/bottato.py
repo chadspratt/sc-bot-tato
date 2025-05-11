@@ -7,97 +7,36 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 
-from .build_order import BuildOrder
-from .micro.structure_micro import StructureMicro
-from .enemy import Enemy
-from .economy.workers import Workers
-from .economy.production import Production
-from .military import Military
-from .mixins import TimerMixin
-from .map.map import Map
+from bottato.commander import Commander
+from bottato.mixins import TimerMixin
 
 
 class BotTato(BotAI, TimerMixin):
     async def on_start(self):
         self.ladder_mode = True
-        # if self.ladder_mode:
-        #     self.disable_logging()
-        # name clash with BotAI.workers
+        if self.ladder_mode:
+            self.disable_logging()
         self.last_timer_print = 0
-        self.map = Map(self)
-        # for loc in self.expansion_locations_list:
-        #     self.map.get_path(self.game_info.player_start_location, loc)
-        self.enemy: Enemy = Enemy(self)
-        self.my_workers: Workers = Workers(self, self.enemy)
-        self.military: Military = Military(self, self.enemy, self.map, self.my_workers)
-        self.structure_micro: StructureMicro = StructureMicro(self)
-        self.production: Production = Production(self)
-        self.build_order: BuildOrder = BuildOrder(
-            "tvt1", bot=self, workers=self.my_workers, production=self.production, map=self.map
-        )
+        self.commander = Commander(self)
         # await self.client.debug_fast_build()
         # await self.client.debug_minerals()
-        # self.client.save_replay_path = "..\replays\bottato.mpq"
         self.last_replay_save_time = 0
         logger.debug(os.getcwd())
         logger.debug(f"vision blockers: {self.game_info.vision_blockers}")
         logger.debug(f"destructibles: {self.destructables}")
-        # self.bot.state.action_errors
-        # self.bot.state.actions
-        # self.bot.state.effects
-        # build_order = self.production.build_order_with_prereqs(UnitTypeId.THOR)
-        # print(build_order)
 
     async def on_step(self, iteration):
         logger.debug(f"======starting step {iteration} ({self.time}s)======")
         if not self.ladder_mode:
             await self.save_replay()
 
-        # self.map.refresh_map()
-
         self.start_timer("update_unit_references")
         # XXX very slow
         await self.update_unit_references()
         self.stop_timer("update_unit_references")
 
-        self.start_timer("update_influence_maps")
-        # XXX very slow
-        self.map.update_influence_maps(self.build_order.get_pending_buildings())
-        self.stop_timer("update_influence_maps")
+        await self.commander.command(iteration)
 
-        self.start_timer("military.manage_squads")
-        # XXX extremely slow
-        await self.military.manage_squads(iteration)
-        self.stop_timer("military.manage_squads")
-
-        # squads_to_fill: List[BaseSquad] = [self.military.get_squad_request()]
-        remaining_cap = self.build_order.remaining_cap
-        if remaining_cap > 0:
-            self.start_timer("military.get_squad_request")
-            logger.debug(f"requesting at least {remaining_cap} supply of units for military")
-            unit_request: list[UnitTypeId] = self.military.get_squad_request(remaining_cap)
-            self.stop_timer("military.get_squad_request")
-            self.start_timer("build_order.queue_military")
-            self.build_order.queue_units(unit_request)
-            self.stop_timer("build_order.queue_military")
-
-        self.start_timer("structure_micro.execute")
-        await self.structure_micro.execute()
-        self.stop_timer("structure_micro.execute")
-
-        self.my_workers.attack_nearby_enemies()
-        self.start_timer("my_workers.distribute_idle")
-        self.my_workers.distribute_idle()
-        self.stop_timer("my_workers.distribute_idle")
-        self.start_timer("my_workers.speed_mine")
-        # self.my_workers.speed_mine()
-        self.stop_timer("my_workers.speed_mine")
-        self.my_workers.drop_mules()
-
-        self.start_timer("build_order.execute")
-        # XXX slow
-        await self.build_order.execute(self.military.army_ratio)
-        self.stop_timer("build_order.execute")
         self.print_all_timers(30)
         # self.map.draw()
 
@@ -110,29 +49,15 @@ class BotTato(BotAI, TimerMixin):
             pass
 
     async def update_unit_references(self):
-        self.start_timer("my_workers.update_references")
-        self.my_workers.update_references()
-        self.stop_timer("my_workers.update_references")
-        self.start_timer("military.update_references")
-        self.military.update_references()
-        self.stop_timer("military.update_references")
-        self.start_timer("enemy.update_references")
-        self.enemy.update_references()
-        self.stop_timer("enemy.update_references")
-        self.start_timer("build_order.update_references")
-        self.build_order.update_references()
-        self.stop_timer("build_order.update_references")
-        self.start_timer("production.update_references")
-        await self.production.update_references()
-        self.stop_timer("production.update_references")
+        self.start_timer("commander.update_references")
+        await self.commander.update_references()
+        self.stop_timer("commander.update_references")
 
     def print_all_timers(self, interval: int = 0):
         if self.time - self.last_timer_print > interval:
             self.last_timer_print = self.time
             self.print_timers("main-")
-            self.build_order.print_timers("build_order-")
-            self.my_workers.print_timers("my_workers-")
-            self.map.print_timers("map-")
+            self.commander.print_timers()
             logger.debug(f"upgrades: {self.state.upgrades}")
 
     async def save_replay(self):
@@ -148,45 +73,36 @@ class BotTato(BotAI, TimerMixin):
         logger.disable("bottato")
 
     async def on_building_construction_started(self, unit: Unit):
-        logger.debug(f"building started! {unit}")
-        self.build_order.update_started_structure(unit)
+        logger.debug(f"building started {unit}")
+        self.commander.update_started_structure(unit)
 
     async def on_building_construction_complete(self, unit: Unit):
-        logger.debug(f"building complete! {unit}")
-        self.build_order.update_completed_structure(unit)
-        self.production.add_builder(unit)
+        logger.debug(f"building complete {unit}")
+        self.commander.update_completed_structure(unit)
+
+    states_to_ignore = {UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.BARRACKSFLYING, UnitTypeId.FACTORYFLYING, UnitTypeId.STARPORTFLYING, UnitTypeId.COMMANDCENTERFLYING, UnitTypeId.ORBITALCOMMANDFLYING}
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
-        logger.debug(f"transformation complete! {previous_type} to {unit.type_id}")
-        if unit.is_structure and unit.type_id not in {UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED}:
-            self.build_order.update_completed_structure(unit, previous_type)
+        logger.debug(f"transformation complete {previous_type} to {unit.type_id}")
+
+        if unit.is_structure and unit.type_id not in self.states_to_ignore and previous_type not in self.states_to_ignore:
+            self.commander.update_completed_structure(unit)
 
     async def on_unit_created(self, unit: Unit):
-        logger.debug(f"raising complete! {unit}")
-        if unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE):
-            self.build_order.update_completed_unit(unit)
-            logger.debug(f"assigned to {self.military.main_army.name}")
-            self.military.add_to_main(unit)
-        elif self.my_workers.add_worker(unit):
-            # not an old worker that just popped out of a building
-            self.build_order.update_completed_unit(unit)
+        logger.debug(f"unit created {unit}")
+        self.commander.add_unit(unit)
 
     async def on_unit_took_damage(self, unit: Unit, amount_damage_taken: float):
         logger.debug(
             f"Unit took {amount_damage_taken} damage {unit}, "
             f"current health: {unit.health}/{unit.health_max})"
         )
-        if unit.is_structure:
-            self.build_order.cancel_damaged_structure(unit, amount_damage_taken)
-        else:
-            self.military.report_damage(unit, amount_damage_taken)
+        self.commander.log_damage(unit, amount_damage_taken)
 
     async def on_unit_destroyed(self, unit_tag: int):
-        self.enemy.record_death(unit_tag)
-        self.military.record_death(unit_tag)
-        self.my_workers.record_death(unit_tag)
         logger.debug(f"Unit {unit_tag} destroyed")
+        self.commander.remove_destroyed_unit(unit_tag)
 
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         logger.debug(f"upgrade completed {upgrade}")
-        self.build_order.update_completed_upgrade(upgrade)
+        self.commander.add_upgrade(upgrade)

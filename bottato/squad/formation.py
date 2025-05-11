@@ -238,10 +238,12 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             self.destination = formation_destination
             logger.debug(f"distance to {self.destination} < 5")
         else:
-            new_front_center = self.calculate_formation_front_center(units, formation_destination)
+            self.path = self.map.get_path_points(self.front_center, formation_destination)
+            # destination should be next waypoint, but need to
+            next_waypoint = self.path[1] if len(self.path) > 1 else formation_destination
+            self.front_center = self.calculate_formation_front_center(units, next_waypoint)
             # limit front_center jumping around
-            self.front_center = self.front_center.towards(new_front_center, 2, limit=True)
-            self.path = self.map.get_path(self.front_center, formation_destination)
+            # self.front_center = self.front_center.towards(new_front_center, 2, limit=True)
 
             if self.path and len(self.path) > 1:
                 logger.debug(f"following path {self.path} to {self.destination}")
@@ -281,21 +283,22 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         in_formation_units: Units = close_units if close_units else units
         units_center = in_formation_units.center
 
-        self.path = self.map.get_path(units_center, destination)
-        # find waypoint beyond the units
-        next_waypoint = destination
-        if self.path:
-            next_waypoint_index = 1
-            distance = 0
-            while distance < 2 and next_waypoint_index < len(self.path):
-                next_waypoint = self.path[next_waypoint_index]
-                distance = in_formation_units.closest_distance_to(next_waypoint)
-                distance = (self.front_center - next_waypoint).length
-                next_waypoint_index += 1
+        path_units = units.filter(lambda u: not u.is_flying)
+        if path_units.empty:
+            path_units = units
+        self.path = self.map.get_shortest_path(path_units, destination)
+        closest_position = self.path[0]
+        self.closest_unit = units.closest_to(closest_position)
 
-        position_out_in_front = units_center.towards(next_waypoint, 50)
-        self.closest_unit: Unit = in_formation_units.closest_to(position_out_in_front)
-        closest_position = self.closest_unit.position
+        # # find waypoint beyond the units
+        next_waypoint = destination
+        next_waypoint_index = 1
+        distance = 0
+        while distance < 2 and next_waypoint_index < len(self.path):
+            next_waypoint = self.path[next_waypoint_index]
+            distance = closest_position.distance_to(next_waypoint)
+            next_waypoint_index += 1
+        closest_elevation = self.bot.get_terrain_z_height(closest_position)
         intersect_point: Point2
         if units_center.x == next_waypoint.x:
             # avoid div by zero, but is also much simpler
@@ -313,4 +316,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             x_intersect = (closest_front_b - dest_center_b) / (dest_center_slope - closest_front_slope)
             y_intersect = x_intersect * dest_center_slope + dest_center_b
             intersect_point = Point2((x_intersect, y_intersect))
-        return intersect_point.towards(next_waypoint, 1, limit=True)
+        new_front_center = intersect_point.towards(next_waypoint, 1, limit=True)
+        while abs(self.bot.get_terrain_z_height(new_front_center) - closest_elevation) > 0.8:
+            new_front_center = new_front_center.towards(closest_position, 1, limit=True)
+        return new_front_center
