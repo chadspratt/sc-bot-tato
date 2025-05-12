@@ -417,6 +417,8 @@ class Production(UnitReferenceMixin):
     def build_order_with_prereqs_recurse(self,
                                          unit_type: Union[UnitTypeId, UpgradeId],
                                          previous_types: List[Union[UnitTypeId, UpgradeId]] = None) -> List[Union[UnitTypeId, UpgradeId]]:
+        if unit_type is None:
+            return []
         if previous_types is None:
             previous_types = []
         else:

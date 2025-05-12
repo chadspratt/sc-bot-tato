@@ -40,14 +40,15 @@ class Commander(TimerMixin, GeometryMixin):
         # self.map.refresh_map()
         # check for stuck units
         # pathable_destination: Point2 = self.military.main_army.parent_formation.front_center
-        pathable_destination: Point2 = self.bot.workers.furthest_to(self.bot.start_location).position
-        if pathable_destination is not None:
-            paths_to_check = [[unit, pathable_destination] for unit in self.military.main_army.units]
-            if paths_to_check:
-                distances = await self.bot.client.query_pathings(paths_to_check)
-                for path, distance in zip(paths_to_check, distances):
-                    if distance == 0:
-                        logger.info(f"unit is stuck {path[0]}")
+        if self.bot.workers:
+            pathable_destination: Point2 = self.bot.workers.furthest_to(self.bot.start_location).position
+            if pathable_destination is not None:
+                paths_to_check = [[unit, pathable_destination] for unit in self.military.main_army.units]
+                if paths_to_check:
+                    distances = await self.bot.client.query_pathings(paths_to_check)
+                    for path, distance in zip(paths_to_check, distances):
+                        if distance == 0:
+                            logger.info(f"unit is stuck {path[0]}")
 
         self.start_timer("update_influence_maps")
         # XXX very slow
