@@ -141,7 +141,7 @@ class Zone:
         is_shorter: bool = False
         try:
             existing_path: Path = self.shortest_paths[zone.id]
-            if existing_path.distance >= path.distance:
+            if round(existing_path.distance, 2) >= round(path.distance, 2):
                 is_shorter = True
                 self.shortest_paths[zone.id] = path
                 zone.shortest_paths[self.id] = path.get_reverse()
