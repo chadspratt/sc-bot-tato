@@ -323,7 +323,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                                    if u.type_id in (UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT)
                                    and u.build_progress < 1]
                     for no_addon_facility in in_progress + self.production.get_no_addon_facilities():
-                        if no_addon_facility.add_on_position.distance_to(new_build_position) < BUILDING_RADIUS[unit_type_id]:
+                        if no_addon_facility.add_on_position.distance_to(new_build_position) < BUILDING_RADIUS[unit_type_id] + 1:
                             break
                     else:
                         break

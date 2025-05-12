@@ -73,11 +73,11 @@ BUILDINGS = {
 
 BUILDING_RADIUS = {}
 for type_id in BUILDINGS["2x2"]:
-    BUILDING_RADIUS[type_id] = 1.5
+    BUILDING_RADIUS[type_id] = 1
 for type_id in BUILDINGS["3x3"]:
     BUILDING_RADIUS[type_id] = 2
 for type_id in BUILDINGS["5x5"]:
-    BUILDING_RADIUS[type_id] = 3
+    BUILDING_RADIUS[type_id] = 2.5
 
 BUILDING_IDS = BUILDINGS["5x5"].union(BUILDINGS["3x3"]).union(BUILDINGS["2x2"])
 
