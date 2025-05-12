@@ -186,6 +186,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         assignment.on_attack_break = False
                         if assignment.target:
                             assignment.unit.smart(assignment.target)
+                elif assignment.on_attack_break:
+                    assignment.on_attack_break = False
+                    if assignment.target:
+                        assignment.unit.smart(assignment.target)
 
     def update_assigment(self, worker: Unit, new_job: JobType, new_target: Union[Unit, None]):
         self.update_job(worker, new_job)
