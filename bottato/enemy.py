@@ -96,7 +96,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
         # self.update_squads()
 
     def get_predicted_position(self, unit: Unit, seconds_ahead: float) -> Point2:
-        if unit.tag in (UnitTypeId.COLLAPSIBLEROCKTOWERDEBRIS,):
+        if unit.type_id in (UnitTypeId.COLLAPSIBLEROCKTOWERDEBRIS,):
             return unit.position
         time_since_last_seen = self.bot.time - self.last_seen[unit.tag]
         frame_vector = self.predicted_frame_vector[unit.tag]
