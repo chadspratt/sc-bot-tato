@@ -308,6 +308,8 @@ class BuildOrder(TimerMixin):
             )
             if in_progress_step.unit_type_id == completed_unit.type_id:
                 in_progress_step.completed_time = self.bot.time
+                if in_progress_step.unit_in_charge is None:
+                    continue
                 if in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
                     self.workers.set_as_idle(in_progress_step.unit_in_charge)
                 self.move_to_complete(self.started.pop(idx))
