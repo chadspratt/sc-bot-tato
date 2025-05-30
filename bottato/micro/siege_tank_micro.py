@@ -44,8 +44,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         self.unsieged_tags = self.bot.units.tags.intersection(self.unsieged_tags)
 
         is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
-        if force_move and unit.weapon_cooldown > 2:
-            if is_sieged:
+        if force_move:
+            if is_sieged and unit.weapon_cooldown > 2:
                 self.unsiege(unit)
                 return True
             else:
