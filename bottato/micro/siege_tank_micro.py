@@ -23,6 +23,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     known_tags = set()
     min_seconds_between_transform = max_siege_time + 1
     last_transform_time: dict[int, float] = {}
+    last_force_move_time: dict[int, float] = {}
 
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot, enemy)
@@ -45,6 +46,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
         is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
         if force_move:
+            self.last_force_move_time[unit.tag] = self.bot.time
+        if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
             if is_sieged and unit.weapon_cooldown > 2:
                 self.unsiege(unit)
                 return True

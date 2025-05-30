@@ -31,7 +31,8 @@ class ResponseCode(enum.Enum):
     NO_TECH = 4
     NO_LOCATION = 5
     NO_RESOURCES = 6
-    QUEUE_EMPTY = 7
+    NO_SUPPLY = 7
+    QUEUE_EMPTY = 8
 
 
 class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
@@ -57,6 +58,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         self.friendly_name = unit_type.name
         self.builder_type: UnitTypeId = self.production.get_builder_type(unit_type)
         self.cost = bot.calculate_cost(unit_type)
+        self.supply_cost = bot.calculate_supply_cost(unit_type)
 
     def __repr__(self) -> str:
         builder = self.unit_in_charge if self.unit_in_charge else self.builder_type

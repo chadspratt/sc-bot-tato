@@ -37,6 +37,8 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             unit.move(nearest_medivac)
             logger.debug(f"{unit} marine retreating to heal at {nearest_medivac} hp {unit.health_percentage}")
             self.healing_unit_tags.add(unit.tag)
-        else:
+        elif self.bot.townhalls:
             unit.move(self.bot.townhalls.closest_to(unit))
+        else:
+            return False
         return True

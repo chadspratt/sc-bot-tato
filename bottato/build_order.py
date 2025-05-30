@@ -421,7 +421,11 @@ class BuildOrder(TimerMixin):
                 to_promote.append(idx)
                 continue
         for idx in reversed(to_promote):
-            self.static_queue.insert(0, self.started.pop(idx))
+            step: BuildStep = self.started.pop(idx)
+            if step.builder_type == UnitTypeId.SCV:
+                self.priority_queue.insert(0, step)
+            else:
+                self.static_queue.insert(0, step)
 
     async def execute_pending_builds(self, needed_resources: Cost, only_build_units: bool) -> None:
         self.start_timer("execute_pending_builds")
@@ -452,6 +456,10 @@ class BuildOrder(TimerMixin):
             if not self.can_afford(remaining_resources, build_step.cost):
                 logger.debug(f"Cannot afford {build_step.friendly_name}")
                 build_response = ResponseCode.NO_RESOURCES
+                break
+            if self.bot.supply_left < build_step.supply_cost:
+                logger.debug(f"Cannot afford supply for {build_step.friendly_name}")
+                build_response = ResponseCode.NO_SUPPLY
                 break
 
             # XXX slightly slow
