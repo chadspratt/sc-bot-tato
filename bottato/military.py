@@ -14,10 +14,10 @@ from bottato.squad.scouting import Scouting
 from bottato.squad.formation_squad import FormationSquad
 from bottato.enemy import Enemy
 from bottato.map.map import Map
-from bottato.mixins import GeometryMixin, DebugMixin, UnitReferenceMixin
+from bottato.mixins import GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin
 
 
-class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
+class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
     def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers) -> None:
         self.bot: BotAI = bot
         self.enemy = enemy
@@ -73,8 +73,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
     def muster_workers(self, position: Point2, count: int = 5):
         pass
 
-    async def manage_squads(self, iteration: int):
-        self.main_army.draw_debug_box()
+    async def scout(self):
+        self.start_timer("scout")
         while self.scouting.scouts_needed:
             logger.debug(f"scouts needed: {self.scouting.scouts_needed}")
             for unit in self.main_army.units:
@@ -88,6 +88,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
 
         self.scouting.update_visibility()
         await self.scouting.move_scouts(self.new_damage_taken)
+        self.start_timer("scout")
+
+    async def manage_squads(self, iteration: int):
+        self.start_timer("manage_squads")
+        self.main_army.draw_debug_box()
 
         # only run this every three steps
         if iteration % 3:
@@ -210,6 +215,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
 
         self.report()
         self.new_damage_taken.clear()
+        self.stop_timer("manage_squads")
 
     def get_counter_units(self, unit: Unit):
         unassigned = [UnitTypeId.STALKER, UnitTypeId.SENTRY, UnitTypeId.ADEPT, UnitTypeId.HIGHTEMPLAR, UnitTypeId.DARKTEMPLAR, UnitTypeId.ARCHON, UnitTypeId.IMMORTAL, UnitTypeId.COLOSSUS, UnitTypeId.DISRUPTOR, UnitTypeId.PHOENIX, UnitTypeId.VOIDRAY, UnitTypeId.ORACLE, UnitTypeId.TEMPEST, UnitTypeId.CARRIER, UnitTypeId.MOTHERSHIP]
@@ -225,6 +231,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             return [UnitTypeId.MARINE, UnitTypeId.MARINE]
 
     def get_squad_request(self, remaining_cap: int) -> list[UnitTypeId]:
+        self.start_timer("get_squad_request")
         # squad_to_fill: BaseSquad = None
         squad_type: SquadType = None
         new_supply = 0
@@ -265,6 +272,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
 
         logger.debug(f"new_supply: {new_supply} remaining_cap: {remaining_cap}")
         logger.debug(f"military requesting {new_units}")
+        self.stop_timer("get_squad_request")
         return new_units
 
     def simulate_battle(self):
@@ -376,9 +384,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         logger.debug(_report)
 
     def update_references(self):
+        self.start_timer("update_references")
         self.main_army.update_references()
         for squad in self.squads:
             squad.update_references()
+        self.stop_timer("update_references")
 
     def record_death(self, unit_tag):
         if unit_tag in self.squads_by_unit_tag:

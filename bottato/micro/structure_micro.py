@@ -6,18 +6,20 @@ from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit
 
 from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.mixins import GeometryMixin
+from bottato.mixins import GeometryMixin, TimerMixin
 
 
-class StructureMicro(BaseUnitMicro, GeometryMixin):
+class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot: BotAI = bot
         self.formations = []
 
     async def execute(self):
+        self.start_timer("structure_micro.execute")
         # logger.debug("adjust_supply_depots_for_enemies step")
         self.adjust_supply_depots_for_enemies()
         self.target_autoturrets()
+        self.stop_timer("structure_micro.execute")
 
     def adjust_supply_depots_for_enemies(self):
         # Raise depos when enemies are nearby

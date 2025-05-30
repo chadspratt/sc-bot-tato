@@ -267,10 +267,12 @@ class Map(TimerMixin, GeometryMixin):
         return pathable_position
 
     def update_influence_maps(self, pending_buildings) -> None:
+        self.start_timer("update_influence_maps")
         self.ground_grid = self.influence_maps.get_pyastar_grid()
         for pending in pending_buildings:
             logger.debug(f"adding to influence maps {pending}")
             self.influence_maps.add_building_to_grid(pending["type_id"], pending["position"], self.ground_grid, np.inf)
+        self.stop_timer("update_influence_maps")
 
     def draw_influence(self) -> None:
         self.influence_maps.draw_influence_in_game(self.ground_grid, 1, 2000)

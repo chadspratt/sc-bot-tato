@@ -68,12 +68,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.aged_mules: Units = Units([], bot)
 
     def update_references(self):
-        self.start_timer("minerals.update_references")
+        self.start_timer("update_references")
         self.minerals.update_references()
-        self.stop_timer("minerals.update_references")
-        self.start_timer("vespene.update_references")
         self.vespene.update_references()
-        self.stop_timer("vespene.update_references")
 
         self.assignments_by_job[JobType.IDLE].clear()
         self.assignments_by_job[JobType.MINERALS].clear()
@@ -93,6 +90,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             else:
                 self.assignments_by_job[assignment.job_type] = [assignment]
         logger.debug(f"assignment summary {self.assignments_by_job}")
+        self.stop_timer("update_references")
 
     def add_worker(self, worker: Unit) -> bool:
         if worker.tag not in self.assignments_by_worker:
@@ -137,6 +135,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.aged_mules.remove(mule)
 
     def speed_mine(self):
+        self.start_timer("my_workers.speed_mine")
         for assignment in self.assignments_by_worker.values():
             if assignment.unit_available and assignment.job_type in [JobType.MINERALS]:
                 worker: Unit = assignment.unit
@@ -158,6 +157,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     assignment.returning = False
                     if len(worker.orders) == 1 and assignment.target:
                         self.speed_smart(worker, assignment.target, assignment.gather_position)
+        self.stop_timer("my_workers.speed_mine")
 
     def speed_smart(self, worker: Unit, target: Unit, position: Union[Point2, None] = None) -> None:
         if position is None:
@@ -280,6 +280,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.update_assigment(worker, JobType.IDLE, None)
 
     def distribute_idle(self):
+        self.start_timer("my_workers.distribute_idle")
         if self.bot.workers.idle:
             logger.debug(f"idle workers {self.bot.workers.idle}")
         for worker in self.bot.workers.idle:
@@ -315,6 +316,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             f"idle({len(self.assignments_by_job[JobType.IDLE])}({len(self.bot.workers.idle)})), "
             f"total({len(self.assignments_by_worker.keys())}({len(self.bot.workers)}))"
         )
+        self.stop_timer("my_workers.distribute_idle")
 
     async def redistribute_workers(self, needed_resources: Cost) -> int:
         self.update_repairers(needed_resources)

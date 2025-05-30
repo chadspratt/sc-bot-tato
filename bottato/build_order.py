@@ -50,6 +50,7 @@ class BuildOrder(TimerMixin):
         # self.queue_unit_type(UnitTypeId.BATTLECRUISER)
 
     def update_references(self) -> None:
+        self.start_timer("update_references")
         logger.debug(
             f"pending={','.join([step.friendly_name for step in self.static_queue])}"
         )
@@ -60,6 +61,7 @@ class BuildOrder(TimerMixin):
             build_step.update_references()
             logger.debug(f"started step {build_step}")
         self.move_interupted_to_pending()
+        self.stop_timer("update_references")
 
     def get_pending_buildings(self):
         buildings = [
@@ -86,6 +88,7 @@ class BuildOrder(TimerMixin):
         return remaining
 
     async def execute(self, army_ratio: float):
+        self.start_timer("build_order.execute")
         self.build_queue.clear()
 
         if self.static_queue and self.static_queue[0].unit_type_id in (UnitTypeId.ORBITALCOMMAND, UnitTypeId.SUPPLYDEPOT):
@@ -118,6 +121,7 @@ class BuildOrder(TimerMixin):
         self.bot.client.debug_text_screen(build_order_message, (0.01, 0.1))
 
         await self.execute_pending_builds(needed_resources, only_build_units)
+        self.stop_timer("build_order.execute")
 
     def add_to_build_queue(self, unit_types: Union[UnitTypeId, List[UnitTypeId]], position=None, queue: List[BuildStep] = None) -> None:
         if isinstance(unit_types, UnitTypeId):
@@ -143,7 +147,9 @@ class BuildOrder(TimerMixin):
         return BuildStep(unit_type, self.bot, self.workers, self.production, self.map)
 
     def queue_units(self, unit_types: List[UnitTypeId]) -> None:
+        self.start_timer("build_order.queue_military")
         self.unit_queue = [self.create_build_step(unit_type) for unit_type in unit_types]
+        self.stop_timer("build_order.queue_military")
 
     def queue_worker(self) -> None:
         self.start_timer("get_queued_worker")

@@ -8,11 +8,11 @@ from sc2.units import Units
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
-from .mixins import UnitReferenceMixin, GeometryMixin
+from .mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
 from .squad.enemy_squad import EnemySquad
 
 
-class Enemy(UnitReferenceMixin, GeometryMixin):
+class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
     unit_probably_moved_seconds = 10
     unit_may_not_exist_seconds = 600
     enemy_squad_counter = 0
@@ -36,6 +36,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
         self.bot.state.game_loop
 
     def update_references(self):
+        self.start_timer("enemy.update_references")
         for squad in self.enemy_squads:
             squad.update_references()
         # remove visible from out_of_view
@@ -94,6 +95,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 self.predicted_position[enemy_unit.tag] = self.get_predicted_position(enemy_unit, 0)
         self.enemies_in_view = new_visible_enemies
         # self.update_squads()
+        self.stop_timer("enemy.update_references")
 
     def get_predicted_position(self, unit: Unit, seconds_ahead: float) -> Point2:
         if unit.type_id in (UnitTypeId.COLLAPSIBLEROCKTOWERDEBRIS,):

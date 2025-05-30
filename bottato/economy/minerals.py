@@ -4,10 +4,11 @@ from sc2.bot_ai import BotAI
 from sc2.units import Units
 from sc2.unit import Unit
 
+from bottato.mixins import TimerMixin
 from .resources import Resources
 
 
-class Minerals(Resources):
+class Minerals(Resources, TimerMixin):
     def __init__(self, bot: BotAI) -> None:
         super().__init__(bot)
         self.known_townhall_tags = []
@@ -16,8 +17,10 @@ class Minerals(Resources):
         self.mule_tags_by_node_tag = {}
 
     def update_references(self):
+        self.start_timer("minerals.update_references")
         super().update_references()
         self.add_mineral_fields_for_townhalls()
+        self.stop_timer("minerals.update_references")
 
     def record_non_worker_death(self, unit_tag):
         if unit_tag in self.known_townhall_tags:

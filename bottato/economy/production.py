@@ -11,7 +11,7 @@ from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.constants import abilityid_to_unittypeid
 
-from ..mixins import UnitReferenceMixin
+from ..mixins import UnitReferenceMixin, TimerMixin
 from ..tech_tree import TECH_TREE
 
 
@@ -90,7 +90,7 @@ class Facility(UnitReferenceMixin):
             logger.debug(f"unit {unit_id} not in queued unit ids {self.queued_unit_ids}")
 
 
-class Production(UnitReferenceMixin):
+class Production(UnitReferenceMixin, TimerMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
         self.facilities = {
@@ -143,6 +143,7 @@ class Production(UnitReferenceMixin):
         }
 
     async def update_references(self) -> None:
+        self.start_timer("update_references")
         for facility_type in self.facilities.values():
             for addon_type in facility_type.values():
                 facility: Facility
@@ -153,6 +154,7 @@ class Production(UnitReferenceMixin):
                         addon_type.remove(facility)
                     if self.bot.supply_left == 0:
                         facility.queued_unit_ids.clear()
+        self.stop_timer("update_references")
 
     def remove_type_from_facilty_queue(self, facility_unit: Unit, queued_type: UnitTypeId) -> None:
         if facility_unit.type_id in self.facilities.keys():

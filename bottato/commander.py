@@ -50,62 +50,37 @@ class Commander(TimerMixin, GeometryMixin):
                         if distance == 0:
                             logger.info(f"unit is stuck {path[0]}")
 
-        self.start_timer("update_influence_maps")
         # XXX very slow
         self.map.update_influence_maps(self.build_order.get_pending_buildings())
-        self.stop_timer("update_influence_maps")
 
-        self.start_timer("military.manage_squads")
+        await self.military.scout()
         # XXX extremely slow
         await self.military.manage_squads(iteration)
-        self.stop_timer("military.manage_squads")
 
         # squads_to_fill: List[BaseSquad] = [self.military.get_squad_request()]
         remaining_cap = self.build_order.remaining_cap
         if remaining_cap > 0:
-            self.start_timer("military.get_squad_request")
             logger.debug(f"requesting at least {remaining_cap} supply of units for military")
             unit_request: list[UnitTypeId] = self.military.get_squad_request(remaining_cap)
-            self.stop_timer("military.get_squad_request")
-            self.start_timer("build_order.queue_military")
             self.build_order.queue_units(unit_request)
-            self.stop_timer("build_order.queue_military")
 
-        self.start_timer("structure_micro.execute")
         await self.structure_micro.execute()
-        self.stop_timer("structure_micro.execute")
 
         self.my_workers.attack_nearby_enemies()
-        self.start_timer("my_workers.distribute_idle")
         self.my_workers.distribute_idle()
-        self.stop_timer("my_workers.distribute_idle")
-        self.start_timer("my_workers.speed_mine")
         # self.my_workers.speed_mine()
-        self.stop_timer("my_workers.speed_mine")
         self.my_workers.drop_mules()
 
-        self.start_timer("build_order.execute")
         # XXX slow
         await self.build_order.execute(self.military.army_ratio)
-        self.stop_timer("build_order.execute")
         self.stop_timer("command")
 
     async def update_references(self):
-        self.start_timer("my_workers.update_references")
         self.my_workers.update_references()
-        self.stop_timer("my_workers.update_references")
-        self.start_timer("military.update_references")
         self.military.update_references()
-        self.stop_timer("military.update_references")
-        self.start_timer("enemy.update_references")
         self.enemy.update_references()
-        self.stop_timer("enemy.update_references")
-        self.start_timer("build_order.update_references")
         self.build_order.update_references()
-        self.stop_timer("build_order.update_references")
-        self.start_timer("production.update_references")
         await self.production.update_references()
-        self.stop_timer("production.update_references")
 
     def update_started_structure(self, unit: Unit):
         self.build_order.update_started_structure(unit)
@@ -143,3 +118,6 @@ class Commander(TimerMixin, GeometryMixin):
         self.build_order.print_timers("build_order-")
         self.my_workers.print_timers("my_workers-")
         self.map.print_timers("map-")
+        self.military.print_timers("military-")
+        self.enemy.print_timers("enemy-")
+        self.production.print_timers("production-")
