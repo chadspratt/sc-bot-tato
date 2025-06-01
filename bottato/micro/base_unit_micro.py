@@ -125,11 +125,11 @@ class BaseUnitMicro(GeometryMixin):
             return
         if await self.use_ability(unit, enemy, target, health_threshold=self.ability_health, force_move=force_move):
             logger.debug(f"unit {unit} used ability")
+        elif self.attack_something(unit, health_threshold=self.attack_health):
+            logger.debug(f"unit {unit} attacked something")
         elif force_move:
             unit.move(target)
             logger.debug(f"unit {unit} moving to {target}")
-        elif self.attack_something(unit, health_threshold=self.attack_health):
-            logger.debug(f"unit {unit} attacked something")
         elif await self.retreat(unit, enemy, health_threshold=self.retreat_health):
             logger.debug(f"unit {unit} retreated")
         else:

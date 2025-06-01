@@ -10,7 +10,6 @@ from sc2.units import Units
 from bottato.economy.workers import Workers
 from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
 from bottato.squad.base_squad import BaseSquad
-from bottato.squad.scouting import Scouting
 from bottato.squad.formation_squad import FormationSquad
 from bottato.enemy import Enemy
 from bottato.map.map import Map
@@ -31,8 +30,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             color=self.random_color(),
             name='main'
         )
-        self.scouting = Scouting(self.bot, enemy, self.random_color())
-        self.new_damage_taken: dict[int, float] = {}
         self.squads_by_unit_tag: dict[int, BaseSquad] = {}
         self.squads: List[BaseSquad] = []
         self.created_squad_type_counts: dict[int, int] = {}
@@ -64,31 +61,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.created_squad_type_counts[squad_type.name] = next_value
         return f'{squad_type.name}_{next_value}'
 
-    def report_damage(self, unit: Unit, amount_damage_taken: float):
-        if unit.tag not in self.new_damage_taken:
-            self.new_damage_taken[unit.tag] = amount_damage_taken
-        else:
-            self.new_damage_taken[unit.tag] += amount_damage_taken
-
     def muster_workers(self, position: Point2, count: int = 5):
         pass
-
-    async def scout(self):
-        self.start_timer("scout")
-        while self.scouting.scouts_needed:
-            logger.debug(f"scouts needed: {self.scouting.scouts_needed}")
-            for unit in self.main_army.units:
-                if self.scouting.needs(unit):
-                    logger.debug(f"adding {unit} to scouts")
-                    self.main_army.transfer(unit, self.scouting)
-                    self.squads_by_unit_tag[unit.tag] = self.scouting
-                    break
-            else:
-                break
-
-        self.scouting.update_visibility()
-        await self.scouting.move_scouts(self.new_damage_taken)
-        self.start_timer("scout")
 
     async def manage_squads(self, iteration: int):
         self.start_timer("manage_squads")
@@ -214,7 +188,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 await self.main_army.move(self.main_army.staging_location, facing, force_move=True)
 
         self.report()
-        self.new_damage_taken.clear()
         self.stop_timer("manage_squads")
 
     def get_counter_units(self, unit: Unit):
@@ -230,12 +203,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         else:
             return [UnitTypeId.MARINE, UnitTypeId.MARINE]
 
-    def get_squad_request(self, remaining_cap: int) -> list[UnitTypeId]:
+    def get_squad_request(self, remaining_cap: int, scout_units: list[UnitTypeId]) -> list[UnitTypeId]:
         self.start_timer("get_squad_request")
         # squad_to_fill: BaseSquad = None
         squad_type: SquadType = None
         new_supply = 0
-        new_units: list[UnitTypeId] = self.scouting.needed_unit_types()
+        new_units: list[UnitTypeId] = scout_units
         for unit_type in new_units:
             new_supply += self.bot.calculate_supply_cost(unit_type)
 
@@ -395,5 +368,3 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             squad = self.squads_by_unit_tag[unit_tag]
             squad.remove_by_tag(unit_tag)
             del self.squads_by_unit_tag[unit_tag]
-            # if squad.state == SquadState.DESTROYED and not isinstance(squad, Scouting):
-            #     self.squads.remove(squad)

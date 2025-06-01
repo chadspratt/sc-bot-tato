@@ -15,6 +15,7 @@ from bottato.enemy import Enemy
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
 from bottato.military import Military
+from bottato.squad.scouting import Scouting
 from bottato.map.map import Map
 
 
@@ -33,6 +34,8 @@ class Commander(TimerMixin, GeometryMixin):
         self.build_order: BuildOrder = BuildOrder(
             "tvt2", bot=self.bot, workers=self.my_workers, production=self.production, map=self.map
         )
+        self.scouting = Scouting(self.bot, self.enemy)
+        self.new_damage_taken: dict[int, float] = {}
 
     async def command(self, iteration: int):
         self.start_timer("command")
@@ -53,15 +56,14 @@ class Commander(TimerMixin, GeometryMixin):
         # XXX very slow
         self.map.update_influence_maps(self.build_order.get_pending_buildings())
 
-        await self.military.scout()
+        await self.scout()
         # XXX extremely slow
         await self.military.manage_squads(iteration)
 
-        # squads_to_fill: List[BaseSquad] = [self.military.get_squad_request()]
         remaining_cap = self.build_order.remaining_cap
         if remaining_cap > 0:
             logger.debug(f"requesting at least {remaining_cap} supply of units for military")
-            unit_request: list[UnitTypeId] = self.military.get_squad_request(remaining_cap)
+            unit_request: list[UnitTypeId] = self.military.get_squad_request(remaining_cap, self.scouting.needed_unit_types())
             self.build_order.queue_units(unit_request)
 
         await self.structure_micro.execute()
@@ -73,7 +75,25 @@ class Commander(TimerMixin, GeometryMixin):
 
         # XXX slow
         await self.build_order.execute(self.military.army_ratio)
+        self.new_damage_taken.clear()
         self.stop_timer("command")
+
+    async def scout(self):
+        self.start_timer("scout")
+        while self.scouting.scouts_needed:
+            logger.debug(f"scouts needed: {self.scouting.scouts_needed}")
+            for unit in self.military.main_army.units:
+                if self.scouting.needs(unit):
+                    logger.debug(f"adding {unit} to scouts")
+                    self.military.main_army.transfer(unit, self.scouting)
+                    del self.military.squads_by_unit_tag[unit.tag]
+                    break
+            else:
+                break
+
+        self.scouting.update_visibility()
+        await self.scouting.move_scouts(self.new_damage_taken)
+        self.start_timer("scout")
 
     async def update_references(self):
         self.my_workers.update_references()
@@ -99,10 +119,12 @@ class Commander(TimerMixin, GeometryMixin):
             self.build_order.update_completed_unit(unit)
 
     def log_damage(self, unit: Unit, amount_damage_taken: float):
+        if unit.tag not in self.new_damage_taken:
+            self.new_damage_taken[unit.tag] = amount_damage_taken
+        else:
+            self.new_damage_taken[unit.tag] += amount_damage_taken
         if unit.is_structure:
             self.build_order.cancel_damaged_structure(unit, amount_damage_taken)
-        else:
-            self.military.report_damage(unit, amount_damage_taken)
 
     def remove_destroyed_unit(self, unit_tag: int):
         self.enemy.record_death(unit_tag)

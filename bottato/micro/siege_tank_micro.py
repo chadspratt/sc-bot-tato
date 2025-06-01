@@ -48,7 +48,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if force_move:
             self.last_force_move_time[unit.tag] = self.bot.time
         if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
-            if is_sieged and unit.weapon_cooldown > 2:
+            if is_sieged:
                 self.unsiege(unit)
                 return True
             else:

@@ -7,11 +7,11 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.constants import UnitTypeId
 
-from .base_squad import BaseSquad
-from ..enemy import Enemy
-from ..mixins import UnitReferenceMixin
-from ..micro.base_unit_micro import BaseUnitMicro
-from ..micro.micro_factory import MicroFactory
+from bottato.squad.base_squad import BaseSquad
+from bottato.enemy import Enemy
+from bottato.mixins import DebugMixin, UnitReferenceMixin
+from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.micro.micro_factory import MicroFactory
 
 
 class ScoutingLocation:
@@ -80,7 +80,7 @@ class Scout(UnitReferenceMixin):
         await micro.scout(self.unit, assignment.position, self.enemy)
 
 
-class Scouting(BaseSquad):
+class Scouting(BaseSquad, DebugMixin):
     """finds enemy town halls, and tracks last time it saw them.
     Must find enemy. Includes structures and units.
     Must cover map
@@ -88,8 +88,8 @@ class Scouting(BaseSquad):
     Initially looks for base positions
     assign first two reapers as they are built to immediately start scouting
     """
-    def __init__(self, bot: BotAI, enemy: Enemy, color):
-        super().__init__(bot=bot, color=color, name="scouting")
+    def __init__(self, bot: BotAI, enemy: Enemy):
+        super().__init__(bot=bot, color=self.random_color(), name="scouting")
         self.bot = bot
         self.enemy = enemy
         self.scouting_locations: List[ScoutingLocation] = list()
