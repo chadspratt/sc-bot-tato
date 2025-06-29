@@ -120,7 +120,7 @@ class BuildOrder(TimerMixin):
         build_order_message += f"\nbuild_queue={'\n'.join([step.friendly_name for step in self.build_queue])}"
         self.bot.client.debug_text_screen(build_order_message, (0.01, 0.1))
 
-        await self.execute_pending_builds(needed_resources, only_build_units)
+        await self.execute_pending_builds(only_build_units)
         self.stop_timer("build_order.execute")
 
     def add_to_build_queue(self, unit_types: Union[UnitTypeId, List[UnitTypeId]], position=None, queue: List[BuildStep] = None) -> None:
@@ -427,16 +427,16 @@ class BuildOrder(TimerMixin):
             else:
                 self.static_queue.insert(0, step)
 
-    async def execute_pending_builds(self, needed_resources: Cost, only_build_units: bool) -> None:
+    async def execute_pending_builds(self, only_build_units: bool) -> None:
         self.start_timer("execute_pending_builds")
-        response = await self.build_from_queue(self.priority_queue, needed_resources, only_build_units)
+        response = await self.build_from_queue(self.priority_queue, only_build_units)
         if response != ResponseCode.NO_RESOURCES:
-            response = await self.build_from_queue(self.static_queue, needed_resources, only_build_units)
+            response = await self.build_from_queue(self.static_queue, only_build_units)
         if response != ResponseCode.NO_RESOURCES:
-            await self.build_from_queue(self.build_queue, needed_resources, only_build_units)
+            await self.build_from_queue(self.build_queue, only_build_units)
         self.stop_timer("execute_pending_builds")
 
-    async def build_from_queue(self, build_queue: List[BuildStep], needed_resources: Cost, only_build_units: bool = False) -> ResponseCode:
+    async def build_from_queue(self, build_queue: List[BuildStep], only_build_units: bool = False) -> ResponseCode:
         build_response = ResponseCode.QUEUE_EMPTY
         execution_index = -1
         failed_types: list[UnitTypeId] = []
@@ -464,7 +464,7 @@ class BuildOrder(TimerMixin):
 
             # XXX slightly slow
             self.start_timer("build_step.execute")
-            build_response = await build_step.execute(special_locations=self.special_locations, needed_resources=needed_resources)
+            build_response = await build_step.execute(special_locations=self.special_locations)
             self.stop_timer("build_step.execute")
             self.start_timer(f"handle response {build_response}")
             logger.debug(f"build_response: {build_response}")

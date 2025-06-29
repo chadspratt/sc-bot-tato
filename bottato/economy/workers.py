@@ -24,6 +24,7 @@ class JobType(enum.Enum):
     BUILD = 3
     REPAIR = 4
     ATTACK = 5
+    SCOUT = 6
 
 
 class WorkerAssignment():
@@ -56,6 +57,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             JobType.BUILD: [],
             JobType.REPAIR: [],
             JobType.ATTACK: [],
+            JobType.SCOUT: [],
         }
         self.minerals = Minerals(bot)
         self.vespene = Vespene(bot)
@@ -78,6 +80,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.assignments_by_job[JobType.BUILD].clear()
         self.assignments_by_job[JobType.REPAIR].clear()
         self.assignments_by_job[JobType.ATTACK].clear()
+        self.assignments_by_job[JobType.SCOUT].clear()
         for assignment in self.assignments_by_worker.values():
             try:
                 assignment.unit = self.get_updated_unit_reference(assignment.unit)
@@ -249,7 +252,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         else:
             self.minerals.record_non_worker_death(unit_tag)
 
-    def get_builder(self, building_position: Point2, needed_resources: Cost):
+    def get_builder(self, building_position: Point2):
         builder = None
         candidates: Units = (
             self.availiable_workers_on_job(JobType.IDLE)
@@ -266,6 +269,24 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 logger.debug(f"found builder {builder}")
 
         return builder
+
+    def get_scout(self, position: Point2) -> Union[Unit, None]:
+        scout: Unit = None
+        candidates: Units = (
+            self.availiable_workers_on_job(JobType.IDLE)
+            or self.availiable_workers_on_job(JobType.VESPENE)
+            or self.availiable_workers_on_job(JobType.MINERALS)
+            or self.availiable_workers_on_job(JobType.REPAIR)
+        )
+        if not candidates:
+            logger.debug("FAILED TO GET SCOUT")
+        else:
+            scout = candidates.closest_to(position)
+            if scout is not None:
+                self.update_assigment(scout, JobType.SCOUT, None)
+                logger.debug(f"found scout {scout}")
+
+        return scout
 
     def availiable_workers_on_job(self, job_type: JobType) -> Units:
         return Units([

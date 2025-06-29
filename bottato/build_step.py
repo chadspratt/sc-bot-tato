@@ -10,7 +10,6 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2, Point3
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
-from sc2.game_data import Cost
 from sc2.protocol import ConnectionAlreadyClosedError, ProtocolError
 
 from bottato.map.map import Map
@@ -106,7 +105,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             except self.UnitNotFound:
                 self.unit_being_built = None
 
-    async def execute(self, special_locations: SpecialLocations, needed_resources: Cost = None) -> ResponseCode:
+    async def execute(self, special_locations: SpecialLocations) -> ResponseCode:
         self.start_timer("build_step.execute inner")
         response = None
         if self.upgrade_id:
@@ -115,7 +114,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.stop_timer(f"build_step.execute_upgrade {self.upgrade_id}")
         elif UnitTypeId.SCV in self.builder_type:
             self.start_timer(f"build_step.execute_scv_build {self.unit_type_id}")
-            response = await self.execute_scv_build(special_locations, needed_resources)
+            response = await self.execute_scv_build(special_locations)
             self.stop_timer(f"build_step.execute_scv_build {self.unit_type_id}")
         else:
             self.start_timer(f"build_step.execute_facility_build {self.unit_type_id}")
@@ -159,7 +158,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
         return response
 
-    async def execute_scv_build(self, special_locations: SpecialLocations, needed_resources: Cost = None) -> ResponseCode:
+    async def execute_scv_build(self, special_locations: SpecialLocations) -> ResponseCode:
         response = None
         logger.debug(f"Trying to build {self.unit_type_id} with SCV")
 
@@ -178,7 +177,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             else:
                 self.pos = empty_gas.position
                 if self.unit_in_charge is None:
-                    self.unit_in_charge = self.workers.get_builder(self.pos, needed_resources)
+                    self.unit_in_charge = self.workers.get_builder(self.pos)
                 if self.unit_in_charge is None:
                     response = ResponseCode.NO_BUILDER
                 else:
@@ -189,7 +188,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 response = ResponseCode.NO_LOCATION
             else:
                 if self.unit_in_charge is None:
-                    self.unit_in_charge = self.workers.get_builder(self.pos, needed_resources)
+                    self.unit_in_charge = self.workers.get_builder(self.pos)
                 if self.unit_in_charge is None:
                     response = ResponseCode.NO_BUILDER
                 else:
