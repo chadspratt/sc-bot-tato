@@ -234,7 +234,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             # initialize
             self.front_center = units.closest_n_units(formation_destination, 1).first.position
         distance_remaining = (self.front_center - formation_destination).length
-        if distance_remaining < 5:
+        if distance_remaining < 10:
             self.destination = formation_destination
             logger.debug(f"distance to {self.destination} < 5")
         else:

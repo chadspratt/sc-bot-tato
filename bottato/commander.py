@@ -80,16 +80,7 @@ class Commander(TimerMixin, GeometryMixin):
 
     async def scout(self):
         self.start_timer("scout")
-        while self.scouting.scouts_needed:
-            logger.debug(f"scouts needed: {self.scouting.scouts_needed}")
-            for unit in self.military.main_army.units:
-                if self.scouting.needs(unit):
-                    logger.debug(f"adding {unit} to scouts")
-                    self.military.main_army.transfer(unit, self.scouting)
-                    del self.military.squads_by_unit_tag[unit.tag]
-                    break
-            else:
-                break
+        self.scouting.update_scouts(self.my_workers, self.military)
 
         self.scouting.update_visibility()
         await self.scouting.move_scouts(self.new_damage_taken)

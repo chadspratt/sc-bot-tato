@@ -7,11 +7,13 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.constants import UnitTypeId
 
+from bottato.military import Military
 from bottato.squad.base_squad import BaseSquad
 from bottato.enemy import Enemy
 from bottato.mixins import DebugMixin, UnitReferenceMixin
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
+from bottato.economy.workers import Workers
 
 
 class ScoutingLocation:
@@ -81,22 +83,28 @@ class Scout(UnitReferenceMixin):
 
 
 class Scouting(BaseSquad, DebugMixin):
-    """finds enemy town halls, and tracks last time it saw them.
-    Must find enemy. Includes structures and units.
-    Must cover map
-    uses single unit "squads"
-    Initially looks for base positions
-    assign first two reapers as they are built to immediately start scouting
-    """
+    worker_scout_time = 60
+    initial_scout_complete_time = 180
+
+    one_base_detected = False
+
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot=bot, color=self.random_color(), name="scouting")
         self.bot = bot
         self.enemy = enemy
         self.scouting_locations: List[ScoutingLocation] = list()
         self.units: Units = Units([], bot)
+        self.worker_scout: Unit = None
+        self.initial_scout_completed: bool = False
 
         self.friendly_territory = Scout("friendly territory", self.bot, enemy)
         self.enemy_territory = Scout("enemy territory", self.bot, enemy)
+
+        # Find the nearest expansion to the enemy start location (not the start location itself)
+        enemy_start = self.bot.enemy_start_locations[0]
+        # Exclude the enemy start location itself
+        expansions = [loc for loc in self.bot.expansion_locations_list if loc != enemy_start]
+        self.enemy_expansion_location = min(expansions, key=lambda loc: (loc - enemy_start).length)
 
         # assign all expansions locations to either friendly or enemy territory
         for expansion_location in self.bot.expansion_locations_list:
@@ -111,6 +119,25 @@ class Scouting(BaseSquad, DebugMixin):
 
         logger.debug(f"friendly_territory {self.friendly_territory}")
         logger.debug(f"enemy_territory {self.enemy_territory}")
+
+    def update_scouts(self, workers: Workers, military: Military):
+        if self.initial_scout_completed:
+            if self.worker_scout is not None:
+                workers.set_as_idle(self.worker_scout)
+                self.worker_scout = None
+        elif self.bot.time > self.worker_scout_time and self.worker_scout is None:
+            self.worker_scout = workers.get_scout(self.enemy_expansion_location)
+
+        while self.scouts_needed:
+            logger.debug(f"scouts needed: {self.scouts_needed}")
+            for unit in military.main_army.units:
+                if self.needs(unit):
+                    logger.debug(f"adding {unit} to scouts")
+                    military.main_army.transfer(unit, self)
+                    del military.squads_by_unit_tag[unit.tag]
+                    break
+            else:
+                break
 
     @property
     def scouts_needed(self):
@@ -141,5 +168,26 @@ class Scouting(BaseSquad, DebugMixin):
 
     async def move_scouts(self, new_damage_taken: dict[int, float]):
         self.units = self.get_updated_unit_references(self.units)
+        if self.worker_scout:
+            micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.worker_scout, self.bot, self.enemy)
+            await micro.scout(self.worker_scout, self.enemy_expansion_location, self.enemy)
+            if self.bot.is_visible(self.enemy_expansion_location) and self.bot.time > self.initial_scout_complete_time:
+                self.initial_scout_completed = True
+
+                # Set one_base_detected if there is an enemy town hall on or near the expansion location
+                enemy_townhalls = self.bot.enemy_structures.of_type([
+                    UnitTypeId.COMMANDCENTER,
+                    UnitTypeId.ORBITALCOMMAND,
+                    UnitTypeId.PLANETARYFORTRESS,
+                    UnitTypeId.HATCHERY,
+                    UnitTypeId.LAIR,
+                    UnitTypeId.HIVE,
+                    UnitTypeId.NEXUS
+                ])
+                for th in enemy_townhalls:
+                    if th.position.distance_to(self.enemy_expansion_location) < 5:
+                        self.one_base_detected = True
+                        break
+
         await self.friendly_territory.update_scout(new_damage_taken)
         await self.enemy_territory.update_scout(new_damage_taken)
