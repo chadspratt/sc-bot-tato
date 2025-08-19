@@ -169,7 +169,8 @@ class Scouting(BaseSquad, DebugMixin):
     async def move_scouts(self, new_damage_taken: dict[int, float]):
         self.units = self.get_updated_unit_references(self.units)
         if self.worker_scout:
-            self.worker_scout.move(self.enemy_expansion_location)
+            micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.worker_scout, self.bot, self.enemy)
+            await micro.scout(self.worker_scout, self.enemy_expansion_location, self.enemy)
             if self.bot.is_visible(self.enemy_expansion_location) and self.bot.time > self.initial_scout_complete_time:
                 self.initial_scout_completed = True
 

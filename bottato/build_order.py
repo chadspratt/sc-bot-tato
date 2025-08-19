@@ -398,7 +398,7 @@ class BuildOrder(TimerMixin):
             return
         for idx, build_step in enumerate(self.started):
             if build_step.unit_being_built is not None and build_step.unit_being_built is not True and build_step.unit_being_built.tag == unit.tag:
-                unit(AbilityId.BUILDINPROGRESSNONCANCELLABLE_CANCEL)
+                unit(AbilityId.CANCEL_BUILDINPROGRESS)
                 logger.debug(f"canceling build of {unit}")
                 build_step.unit_being_built = None
                 build_step.last_cancel = self.bot.time
