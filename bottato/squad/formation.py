@@ -324,11 +324,11 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
 
     def clamp_position_to_map_bounds(self, position: Point2) -> Point2:
         if position.x < 0:
-            position.x = 0
+            position[0] = 0
         if position.y < 0:
-            position.y = 0
+            position[1] = 0
         if position.x > self.bot.game_info.terrain_height.width:
-            position.x = self.bot.game_info.terrain_height.width
+            position[0] = self.bot.game_info.terrain_height.width
         if position.y > self.bot.game_info.terrain_height.height:
-            position.y = self.bot.game_info.terrain_height.height
+            position[1] = self.bot.game_info.terrain_height.height
         return position
