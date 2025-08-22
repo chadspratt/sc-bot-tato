@@ -1,6 +1,7 @@
 from typing import List
 
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 
 
 class BuildStarts():
@@ -20,17 +21,36 @@ class BuildStarts():
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.BARRACKS,
                 UnitTypeId.REFINERY,
-                UnitTypeId.REAPER,
-                UnitTypeId.MARINE,
-                UnitTypeId.BARRACKSREACTOR,
                 UnitTypeId.ORBITALCOMMAND,
-                UnitTypeId.MARINE,
+                UnitTypeId.BARRACKSREACTOR,
                 UnitTypeId.COMMANDCENTER,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.FACTORY,
+                UnitTypeId.FACTORYTECHLAB,
                 UnitTypeId.REFINERY,
                 UnitTypeId.BUNKER,
-                UnitTypeId.STARPORT
+                UnitTypeId.SIEGETANK,
+                UnitTypeId.STARPORT,
+                UnitTypeId.VIKINGFIGHTER,
+                UnitTypeId.STARPORTREACTOR,
+                UnitTypeId.MEDIVAC,
+                UnitTypeId.BARRACKS,
+                UnitTypeId.BARRACKS,
+                UnitTypeId.BARRACKS,
+                UnitTypeId.BARRACKS,
+                UnitTypeId.BARRACKSTECHLAB,
+                UnitTypeId.BARRACKSTECHLAB,
+                UnitTypeId.BARRACKSREACTOR,
+                UnitTypeId.BARRACKSREACTOR,
+                UnitTypeId.ENGINEERINGBAY,
+                UnitTypeId.REFINERY,
+                UnitTypeId.REFINERY,
+                UpgradeId.STIMPACK,
+                UpgradeId.SHIELDWALL,
+                UpgradeId.PUNISHERGRENADES,
+                UpgradeId.TERRANINFANTRYWEAPONSLEVEL1,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.ARMORY,
             ]
         elif build_name == "tvt1":
             # https://lotv.spawningtool.com/build/171779/

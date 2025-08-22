@@ -32,7 +32,7 @@ class Commander(TimerMixin, GeometryMixin):
         self.structure_micro: StructureMicro = StructureMicro(self.bot)
         self.production: Production = Production(self.bot)
         self.build_order: BuildOrder = BuildOrder(
-            "tvt2", bot=self.bot, workers=self.my_workers, production=self.production, map=self.map
+            "pig_b2gm", bot=self.bot, workers=self.my_workers, production=self.production, map=self.map
         )
         self.scouting = Scouting(self.bot, self.enemy)
         self.new_damage_taken: dict[int, float] = {}

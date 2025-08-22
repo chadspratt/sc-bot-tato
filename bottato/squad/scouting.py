@@ -47,12 +47,12 @@ class Scout(UnitReferenceMixin):
     def scouts_needed(self) -> int:
         return 0 if self.unit else 1
 
-    async def update_scout(self, new_damage_taken: dict[int, float]):
+    def update_scout(self):
+        """Update unit reference for this scout"""
         if self.unit:
             try:
                 self.unit = self.get_updated_unit_reference(self.unit)
                 logger.debug(f"{self.name} scout {self.unit}")
-                await self.move_scout(new_damage_taken)
             except self.UnitNotFound:
                 self.unit = None
                 pass
@@ -83,7 +83,7 @@ class Scout(UnitReferenceMixin):
 
 
 class Scouting(BaseSquad, DebugMixin):
-    worker_scout_time = 60
+    worker_scout_time = 30
     initial_scout_complete_time = 180
 
     one_base_detected = False
@@ -101,10 +101,10 @@ class Scouting(BaseSquad, DebugMixin):
         self.enemy_territory = Scout("enemy territory", self.bot, enemy)
 
         # Find the nearest expansion to the enemy start location (not the start location itself)
-        enemy_start = self.bot.enemy_start_locations[0]
+        self.enemy_start = self.bot.enemy_start_locations[0]
         # Exclude the enemy start location itself
-        expansions = [loc for loc in self.bot.expansion_locations_list if loc != enemy_start]
-        self.enemy_expansion_location = min(expansions, key=lambda loc: (loc - enemy_start).length)
+        expansions = [loc for loc in self.bot.expansion_locations_list if loc != self.enemy_start]
+        self.enemy_expansion_location = min(expansions, key=lambda loc: (loc - self.enemy_start).length)
 
         # assign all expansions locations to either friendly or enemy territory
         for expansion_location in self.bot.expansion_locations_list:
@@ -121,6 +121,13 @@ class Scouting(BaseSquad, DebugMixin):
         logger.debug(f"enemy_territory {self.enemy_territory}")
 
     def update_scouts(self, workers: Workers, military: Military):
+        # Update scout unit references
+        self.friendly_territory.update_scout()
+        self.enemy_territory.update_scout()
+        try:
+            self.worker_scout = self.get_updated_unit_reference(self.worker_scout)
+        except self.UnitNotFound:
+            self.worker_scout = None
         if self.initial_scout_completed:
             if self.worker_scout is not None:
                 workers.set_as_idle(self.worker_scout)
@@ -138,6 +145,7 @@ class Scouting(BaseSquad, DebugMixin):
                     break
             else:
                 break
+        
 
     @property
     def scouts_needed(self):
@@ -168,10 +176,12 @@ class Scouting(BaseSquad, DebugMixin):
 
     async def move_scouts(self, new_damage_taken: dict[int, float]):
         self.units = self.get_updated_unit_references(self.units)
+        
+        # Handle worker scout movement
         if self.worker_scout:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.worker_scout, self.bot, self.enemy)
-            await micro.scout(self.worker_scout, self.enemy_expansion_location, self.enemy)
-            if self.bot.is_visible(self.enemy_expansion_location) and self.bot.time > self.initial_scout_complete_time:
+            await micro.scout(self.worker_scout, self.enemy_start, self.enemy)
+            if self.bot.is_visible(self.enemy_start) and self.bot.time > self.initial_scout_complete_time:
                 self.initial_scout_completed = True
 
                 # Set one_base_detected if there is an enemy town hall on or near the expansion location
@@ -185,9 +195,12 @@ class Scouting(BaseSquad, DebugMixin):
                     UnitTypeId.NEXUS
                 ])
                 for th in enemy_townhalls:
-                    if th.position.distance_to(self.enemy_expansion_location) < 5:
+                    if th.position.distance_to(self.enemy_start) < 5:
                         self.one_base_detected = True
                         break
 
-        await self.friendly_territory.update_scout(new_damage_taken)
-        await self.enemy_territory.update_scout(new_damage_taken)
+        # Move scouts
+        if self.friendly_territory.unit:
+            await self.friendly_territory.move_scout(new_damage_taken)
+        if self.enemy_territory.unit:
+            await self.enemy_territory.move_scout(new_damage_taken)
