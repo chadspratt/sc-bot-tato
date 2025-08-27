@@ -84,7 +84,7 @@ class Scout(UnitReferenceMixin):
 
 class Scouting(BaseSquad, DebugMixin):
     worker_scout_time = 30
-    initial_scout_complete_time = 180
+    initial_scout_complete_time = 150
 
     one_base_detected = False
 
@@ -105,6 +105,8 @@ class Scouting(BaseSquad, DebugMixin):
         # Exclude the enemy start location itself
         expansions = [loc for loc in self.bot.expansion_locations_list if loc != self.enemy_start]
         self.enemy_expansion_location = min(expansions, key=lambda loc: (loc - self.enemy_start).length)
+        # XXX get pathing distances to each base and use shortest instead of direct linear distance
+        # copy from get_next_expansion
 
         # assign all expansions locations to either friendly or enemy territory
         for expansion_location in self.bot.expansion_locations_list:
