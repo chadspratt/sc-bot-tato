@@ -382,7 +382,8 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             if self.bot.gas_buildings:
                 vespene_geysirs = vespene_geysirs.filter(
                     lambda geysir: self.bot.gas_buildings.closest_distance_to(geysir) > 1)
-            return vespene_geysirs.closest_to(self.bot.start_location)
+            if vespene_geysirs:
+                return vespene_geysirs.closest_to(self.bot.start_location)
         return None
 
     def is_interrupted(self) -> bool:
