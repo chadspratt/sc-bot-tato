@@ -1,4 +1,5 @@
 from __future__ import annotations
+import math
 from typing import List, Dict, Tuple
 
 from loguru import logger
@@ -36,6 +37,12 @@ class Map(TimerMixin, GeometryMixin):
         logger.debug(f"zones {self.zones}")
         self.first_draw = True
         self.last_refresh_time = 0
+        self.natural_position: Point2 = None
+        self.enemy_natural_position: Point2 = None
+
+    async def init_natural_positions(self):
+        self.natural_position = await self.get_natural_position(self.bot.start_location)
+        self.enemy_natural_position = await self.get_natural_position(self.bot.enemy_start_locations[0])
 
     def refresh_map(self):
         if self.bot.time - self.last_refresh_time > 60:
@@ -273,6 +280,21 @@ class Map(TimerMixin, GeometryMixin):
             logger.debug(f"adding to influence maps {pending}")
             self.influence_maps.add_building_to_grid(pending["type_id"], pending["position"], self.ground_grid, np.inf)
         self.stop_timer("update_influence_maps")
+    
+    async def get_natural_position(self, start_position: Point2) -> Point2 | None:
+        """Find natural location, given friendly or enemy start position"""
+        closest = None
+        distance = math.inf
+        for el in self.bot.expansion_locations_list:
+            d = await self.bot.client.query_pathing(start_position, el)
+            if d is None:
+                continue
+
+            if d < distance:
+                distance = d
+                closest = el
+
+        return closest
 
     def draw_influence(self) -> None:
         self.influence_maps.draw_influence_in_game(self.ground_grid, 1, 2000)

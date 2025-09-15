@@ -9,6 +9,8 @@ from sc2.units import Units
 from sc2.position import Point2, Point3
 from sc2.constants import UnitTypeId
 
+from bottato.build_step import BuildStep
+
 from ..mixins import GeometryMixin
 from .formation import FormationType, ParentFormation
 from ..micro.base_unit_micro import BaseUnitMicro
@@ -148,7 +150,7 @@ class FormationSquad(BaseSquad, GeometryMixin):
         facing = self.get_facing(self.units.center, target_position)
         await self.move(target_position, facing)
 
-    async def move(self, destination: Point2, destination_facing: float, force_move: bool = False):
+    async def move(self, destination: Point2, destination_facing: float, force_move: bool = False, blueprints: List[BuildStep] = []):
         self.current_order = SquadOrderEnum.MOVE
         self._destination = destination
         self.destination_facing = destination_facing
@@ -158,13 +160,21 @@ class FormationSquad(BaseSquad, GeometryMixin):
         logger.debug(f"squad {self.name} moving from {self.position} to {self._destination} with {formation_positions.values()}")
         # traceback.print_stack(limit=5)
         for unit in self.units:
-            logger.debug(f"unit {unit} moving to {formation_positions[unit.tag]}")
-            if unit.tag in self.bot.unit_tags_received_action:
-                logger.debug(f"unit {unit} already received an order {unit.orders}")
-                continue
-            micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
-            logger.debug(f"unit {unit} using micro {micro}")
-            await micro.move(unit, formation_positions[unit.tag], self.enemy, force_move)
+            if unit.tag in formation_positions:
+                logger.debug(f"unit {unit} moving to {formation_positions[unit.tag]}")
+                if unit.tag in self.bot.unit_tags_received_action:
+                    logger.debug(f"unit {unit} already received an order {unit.orders}")
+                    continue
+                # don't block new construction
+                for blueprint in blueprints:
+                    if blueprint.pos.distance_to(formation_positions[unit.tag]) < 3:
+                        formation_positions[unit.tag] = blueprint.pos.towards(formation_positions[unit.tag], 3)
+                if formation_positions[unit.tag] is None:
+                    logger.debug(f"unit {unit} has no formation position")
+                    continue
+                micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
+                logger.debug(f"unit {unit} using micro {micro}")
+                await micro.move(unit, formation_positions[unit.tag], self.enemy, force_move)
 
     def is_grouped(self) -> bool:
         if self.parent_formation.front_center and self.units:

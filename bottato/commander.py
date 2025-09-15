@@ -34,7 +34,7 @@ class Commander(TimerMixin, GeometryMixin):
         self.build_order: BuildOrder = BuildOrder(
             "pig_b2gm", bot=self.bot, workers=self.my_workers, production=self.production, map=self.map
         )
-        self.scouting = Scouting(self.bot, self.enemy)
+        self.scouting = Scouting(self.bot, self.enemy, self.map)
         self.new_damage_taken: dict[int, float] = {}
 
     async def command(self, iteration: int):
@@ -58,7 +58,7 @@ class Commander(TimerMixin, GeometryMixin):
 
         await self.scout()
         # XXX extremely slow
-        await self.military.manage_squads(iteration)
+        await self.military.manage_squads(iteration, self.build_order.get_blueprints())
 
         remaining_cap = self.build_order.remaining_cap
         if remaining_cap > 0:
@@ -74,7 +74,7 @@ class Commander(TimerMixin, GeometryMixin):
         self.my_workers.drop_mules()
 
         # XXX slow
-        await self.build_order.execute(self.military.army_ratio)
+        await self.build_order.execute(self.military.army_ratio, self.rush_detected)
         self.new_damage_taken.clear()
         self.stop_timer("command")
 
@@ -84,6 +84,7 @@ class Commander(TimerMixin, GeometryMixin):
 
         self.scouting.update_visibility()
         await self.scouting.move_scouts(self.new_damage_taken)
+        self.rush_detected = self.scouting.rush_detected
         self.start_timer("scout")
 
     async def update_references(self):
@@ -99,6 +100,8 @@ class Commander(TimerMixin, GeometryMixin):
     def update_completed_structure(self, unit: Unit):
         self.build_order.update_completed_structure(unit)
         self.production.add_builder(unit)
+        if unit.type_id == UnitTypeId.BUNKER:
+            self.military.bunker.structure = unit
 
     def add_unit(self, unit: Unit):
         if unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE):

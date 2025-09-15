@@ -7,6 +7,7 @@ from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
+from sc2.units import Units
 from sc2.game_data import Cost
 
 from bottato.build_step import BuildStep, ResponseCode
@@ -60,6 +61,8 @@ class BuildOrder(TimerMixin):
         for build_step in self.started:
             build_step.update_references()
             logger.debug(f"started step {build_step}")
+        for build_step in self.started + self.static_queue + self.priority_queue + self.build_queue:
+            build_step.draw_debug_box()
         self.move_interupted_to_pending()
         self.stop_timer("update_references")
 
@@ -87,23 +90,28 @@ class BuildOrder(TimerMixin):
         #         remaining -= self.bot.calculate_supply_cost(step.unit_type_id)
         return remaining
 
-    async def execute(self, army_ratio: float):
+    async def execute(self, army_ratio: float, rush_detected: bool):
         self.start_timer("build_order.execute")
         self.build_queue.clear()
 
-        if self.static_queue and self.static_queue[0].unit_type_id in (UnitTypeId.ORBITALCOMMAND, UnitTypeId.SUPPLYDEPOT):
-            self.priority_queue.insert(0, self.static_queue.pop(0))
+        # if self.static_queue and self.static_queue[0].unit_type_id in (UnitTypeId.ORBITALCOMMAND, UnitTypeId.SUPPLYDEPOT):
+        #     self.priority_queue.append(self.static_queue.pop(0))
 
+        only_build_units = False
+        # XXX queue workers more aggressively
+        # switch to dynamic build later, put SCVs in static
         self.queue_worker()
         self.queue_supply()
-        self.queue_upgrade()
-        self.queue_turret()
-        self.queue_planetary()
-        self.queue_command_center()
-        self.queue_production()
-        self.build_queue.extend(self.unit_queue)
+        if len(self.static_queue) < 5:
+            self.queue_upgrade()
+            self.queue_turret()
+            self.queue_planetary()
+            self.queue_command_center()
+            self.queue_production()
 
-        only_build_units = army_ratio > 0.0 and army_ratio < 0.8
+            self.build_queue.extend(self.unit_queue)
+
+            only_build_units = army_ratio > 0.0 and army_ratio < 0.8
 
         needed_resources: Cost = self.get_first_resource_shortage(only_build_units)
 
@@ -112,8 +120,9 @@ class BuildOrder(TimerMixin):
         self.stop_timer("redistribute_workers")
         logger.debug(f"needed gas {needed_resources.vespene}, minerals {needed_resources.minerals}, moved workers {moved_workers}")
 
-        if needed_resources.vespene > 0 and moved_workers == 0:
-            self.queue_refinery()
+        if len(self.static_queue) < 5:
+            if needed_resources.vespene > 0 and moved_workers == 0:
+                self.queue_refinery()
 
         build_order_message = f"priority={'\n'.join([step.friendly_name for step in self.priority_queue])}"
         build_order_message += f"\nstatic={'\n'.join([step.friendly_name for step in self.static_queue])}"
@@ -128,15 +137,15 @@ class BuildOrder(TimerMixin):
             unit_types = [unit_types]
         if queue is None:
             queue = self.build_queue
-        in_progress = [] + self.started + queue
-        steps_to_add = []
-        for build_item in unit_types:
-            for build_step in in_progress:
-                if build_item == build_step.unit_type_id or build_item == build_step.upgrade_id:
-                    in_progress.remove(build_step)
-                    break
-            else:
-                steps_to_add.append(self.create_build_step(build_item))
+        in_progress: List[BuildStep] = [] + self.started + queue
+        for build_step in in_progress:
+            # for build_item in unit_types:
+            if build_step.unit_type_id in unit_types:
+                unit_types.remove(build_step.unit_type_id)
+            elif build_step.upgrade_id in unit_types:
+                unit_types.remove(build_step.upgrade_id)
+                # in_progress.remove(build_step)
+        steps_to_add: List[BuildStep] = [self.create_build_step(unit_type) for unit_type in unit_types]
         if steps_to_add:
             if position is not None:
                 steps_to_add = queue[:position] + steps_to_add + queue[position:]
@@ -153,33 +162,31 @@ class BuildOrder(TimerMixin):
 
     def queue_worker(self) -> None:
         self.start_timer("get_queued_worker")
-        worker_build_capacity: int = len(self.bot.townhalls.idle)
-        desired_worker_count = self.workers.max_workers
-        # desired_worker_count = max(30, self.bot.supply_cap / 3)
-        logger.debug(f"worker_build_capacity={worker_build_capacity}")
-        if (
-            worker_build_capacity > 0
-            and len(self.workers.assignments_by_worker) < desired_worker_count
-        ):
-            self.add_to_build_queue(UnitTypeId.SCV, queue=self.priority_queue)
+        in_static_queue = max([build_step.unit_type_id == UnitTypeId.SCV for build_step in self.static_queue], default=False)
+        if not in_static_queue:
+            worker_build_capacity: int = len(self.bot.townhalls.idle)
+            desired_worker_count = self.workers.max_workers
+            # desired_worker_count = max(30, self.bot.supply_cap / 3)
+            logger.debug(f"worker_build_capacity={worker_build_capacity}")
+            if (
+                worker_build_capacity > 0
+                and len(self.workers.assignments_by_worker) < desired_worker_count
+            ):
+                self.add_to_build_queue(UnitTypeId.SCV, queue=self.priority_queue)
         self.stop_timer("get_queued_worker")
 
     def queue_supply(self) -> None:
         self.start_timer("queue_supply")
-        if self.bot.supply_cap < 200 and UnitTypeId.SUPPLYDEPOT not in self.static_queue:
+        in_static_queue = max([build_step.unit_type_id == UnitTypeId.SUPPLYDEPOT for build_step in self.static_queue], default=False)
+        if self.bot.supply_cap < 200 and not in_static_queue:
             if self.bot.supply_cap == 0:
                 self.add_to_build_queue(UnitTypeId.SUPPLYDEPOT)
             else:
                 supply_percent_remaining = self.bot.supply_left / self.bot.supply_cap
-                if supply_percent_remaining <= 0.3:
-                    in_progress_supply = 0
-                    for build_step in self.started + self.static_queue:
-                        if build_step.unit_type_id == UnitTypeId.SUPPLYDEPOT:
-                            in_progress_supply += 1
-                    new_ids = []
-                    if in_progress_supply == 0:
-                        new_ids.append(UnitTypeId.SUPPLYDEPOT)
-                    if supply_percent_remaining <= 0.2 and in_progress_supply == 1:
+                if self.bot.supply_left < 10 or supply_percent_remaining <= 0.2:
+                    new_ids = [UnitTypeId.SUPPLYDEPOT]
+                    # queue another if supply is very low
+                    if (self.bot.supply_left < 2 or supply_percent_remaining <= 0.1):
                         new_ids.append(UnitTypeId.SUPPLYDEPOT)
                     self.add_to_build_queue(new_ids, queue=self.priority_queue)
         self.stop_timer("queue_supply")
@@ -225,7 +232,7 @@ class BuildOrder(TimerMixin):
         # add more barracks/factories/starports to handle backlog of pending affordable units
         self.start_timer("queue_production-get_affordable_build_list")
         affordable_units: List[UnitTypeId] = self.get_affordable_build_list()
-        if len(affordable_units) == 0 and self.unit_queue:
+        if len(affordable_units) == 0 and self.unit_queue and len(self.static_queue) < 4:
             affordable_units.append(self.unit_queue[0].unit_type_id)
         self.stop_timer("queue_production-get_affordable_build_list")
         self.start_timer("queue_production-additional_needed_production")
@@ -272,16 +279,24 @@ class BuildOrder(TimerMixin):
     def get_first_resource_shortage(self, only_build_units: bool) -> Cost:
         self.start_timer("get_first_resource_shortage")
         needed_resources: Cost = Cost(-self.bot.minerals, -self.bot.vespene)
-        if self.build_queue:
-            # find first shortage
-            for idx, build_step in enumerate(self.build_queue):
-                if only_build_units and build_step.builder_type == UnitTypeId.SCV:
-                    continue
-                if needed_resources.minerals > 0 or needed_resources.vespene > 0:
-                    break
-                needed_resources.minerals += build_step.cost.minerals
-                needed_resources.vespene += build_step.cost.vespene
+        # find first shortage
+        if self.priority_queue and needed_resources.minerals <= 0 and needed_resources.vespene <= 0:
+            needed_resources = self.count_resources_in_queue(self.priority_queue, only_build_units, needed_resources)
+        if self.static_queue and needed_resources.minerals <= 0 and needed_resources.vespene <= 0:
+            needed_resources = self.count_resources_in_queue(self.static_queue, only_build_units, needed_resources)
+        if self.build_queue and needed_resources.minerals <= 0 and needed_resources.vespene <= 0:
+            needed_resources = self.count_resources_in_queue(self.build_queue, only_build_units, needed_resources)
         self.stop_timer("get_first_resource_shortage")
+        return needed_resources
+    
+    def count_resources_in_queue(self, build_queue: List[BuildStep], only_build_units: bool, needed_resources: Cost) -> Cost:
+        for build_step in build_queue:
+            if needed_resources.minerals > 0 or needed_resources.vespene > 0:
+                break
+            if only_build_units and build_step.builder_type == UnitTypeId.SCV:
+                continue
+            needed_resources.minerals += build_step.cost.minerals
+            needed_resources.vespene += build_step.cost.vespene
         return needed_resources
 
     def get_affordable_build_list(self) -> List[UnitTypeId]:
@@ -394,7 +409,7 @@ class BuildOrder(TimerMixin):
                 break
 
     def cancel_damaged_structure(self, unit: Unit, damage_amount: float):
-        if unit.health > damage_amount * 2:
+        if unit.health_percentage < 0.05:
             return
         for idx, build_step in enumerate(self.started):
             if build_step.unit_being_built is not None and build_step.unit_being_built is not True and build_step.unit_being_built.tag == unit.tag:
@@ -414,7 +429,6 @@ class BuildOrder(TimerMixin):
                 f"In progress {build_step.unit_type_id} {build_step.upgrade_id}"
                 f"> Builder {build_step.unit_in_charge}"
             )
-            build_step.draw_debug_box()
             if build_step.is_interrupted():
                 logger.debug("! Is interrupted!")
                 # move back to pending (demote)
@@ -429,14 +443,14 @@ class BuildOrder(TimerMixin):
 
     async def execute_pending_builds(self, only_build_units: bool) -> None:
         self.start_timer("execute_pending_builds")
-        response = await self.build_from_queue(self.priority_queue, only_build_units)
+        response = await self.build_from_queue(self.priority_queue, only_build_units, allow_skip=(self.bot.time > 60))
         if response != ResponseCode.NO_RESOURCES:
-            response = await self.build_from_queue(self.static_queue, only_build_units)
+            response = await self.build_from_queue(self.static_queue, only_build_units, allow_skip=True)
         if response != ResponseCode.NO_RESOURCES:
             await self.build_from_queue(self.build_queue, only_build_units)
         self.stop_timer("execute_pending_builds")
 
-    async def build_from_queue(self, build_queue: List[BuildStep], only_build_units: bool = False) -> ResponseCode:
+    async def build_from_queue(self, build_queue: List[BuildStep], only_build_units: bool = False, allow_skip: bool = True) -> ResponseCode:
         build_response = ResponseCode.QUEUE_EMPTY
         execution_index = -1
         failed_types: list[UnitTypeId] = []
@@ -447,16 +461,22 @@ class BuildOrder(TimerMixin):
                 build_step = build_queue[execution_index]
             except IndexError:
                 break
+            percent_affordable = self.percent_affordable(remaining_resources, build_step.cost)
+            if percent_affordable <= 0:
+                break
+            remaining_resources = remaining_resources - build_step.cost
             if build_step.unit_type_id in failed_types or only_build_units and build_step.builder_type == UnitTypeId.SCV:
                 continue
             time_since_last_cancel = self.bot.time - build_step.last_cancel
             if time_since_last_cancel < 5:
                 # delay rebuilding canceled structures
                 continue
-            if not self.can_afford(remaining_resources, build_step.cost):
+            if percent_affordable < 1.0:
                 logger.debug(f"Cannot afford {build_step.friendly_name}")
                 build_response = ResponseCode.NO_RESOURCES
-                break
+                if percent_affordable >= 0.75:
+                    await build_step.position_worker(special_locations=self.special_locations)
+                continue
             if self.bot.supply_left < build_step.supply_cost:
                 logger.debug(f"Cannot afford supply for {build_step.friendly_name}")
                 build_response = ResponseCode.NO_SUPPLY
@@ -471,11 +491,14 @@ class BuildOrder(TimerMixin):
             if build_response == ResponseCode.SUCCESS:
                 self.started.append(build_queue.pop(execution_index))
                 break
-            elif build_response == ResponseCode.NO_LOCATION:
-                continue
             else:
-                failed_types.append(build_step.unit_type_id)
-                logger.debug(f"!!! {build_step.unit_type_id} failed to start building, {build_response}")
+                if not allow_skip:
+                    break
+                if build_response == ResponseCode.NO_LOCATION:
+                    continue
+                else:
+                    failed_types.append(build_step.unit_type_id)
+                    logger.debug(f"!!! {build_step.unit_type_id} failed to start building, {build_response}")
             self.stop_timer(f"handle response {build_response}")
             logger.debug(f"pending loop: {execution_index} < {len(build_queue)}")
         self.stop_timer("execute_pending_builds")
@@ -486,3 +509,15 @@ class BuildOrder(TimerMixin):
             requested_cost.minerals <= remaining_resources.minerals
             and requested_cost.vespene <= remaining_resources.vespene
         )
+    
+    def get_blueprints(self) -> List[BuildStep]:
+        return [step for step in self.started if step.pos is not None and (step.unit_being_built is True or step.unit_being_built is None)]
+    
+    def percent_affordable(self, remaining_resources: Cost, requested_cost: Cost) -> float:
+        mineral_percent = 1.0
+        vespene_percent = 1.0
+        if requested_cost.minerals > 0:
+            mineral_percent = remaining_resources.minerals / requested_cost.minerals
+        if requested_cost.vespene > 0:
+            vespene_percent = remaining_resources.vespene / requested_cost.vespene
+        return min(mineral_percent, vespene_percent)

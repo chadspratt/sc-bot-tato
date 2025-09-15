@@ -13,11 +13,10 @@ from bottato.mixins import TimerMixin
 
 class BotTato(BotAI, TimerMixin):
     async def on_start(self):
-        self.ladder_mode = True
-        if self.ladder_mode:
-            self.disable_logging()
+        self.disable_logging()
         self.last_timer_print = 0
         self.commander = Commander(self)
+        await self.commander.map.init_natural_positions()
         # await self.client.debug_fast_build()
         # await self.client.debug_minerals()
         self.last_replay_save_time = 0
@@ -27,8 +26,6 @@ class BotTato(BotAI, TimerMixin):
 
     async def on_step(self, iteration):
         logger.debug(f"======starting step {iteration} ({self.time}s)======")
-        if not self.ladder_mode:
-            await self.save_replay()
 
         self.start_timer("update_unit_references")
         # XXX very slow
@@ -44,7 +41,7 @@ class BotTato(BotAI, TimerMixin):
         print("Game ended.")
         self.print_all_timers()
         try:
-            logger.debug(self.build_order.complete)
+            logger.debug(self.commander.build_order.complete)
         except AttributeError:
             pass
 
@@ -59,15 +56,6 @@ class BotTato(BotAI, TimerMixin):
             self.print_timers("main-")
             self.commander.print_timers()
             logger.debug(f"upgrades: {self.state.upgrades}")
-
-    async def save_replay(self):
-        if self.time - self.last_replay_save_time > 30:
-            await self.client.save_replay(".\\replays\\bottato.sc2replay")
-            self.last_replay_save_time = self.time
-
-        if len(self.units) == 0 or len(self.townhalls) == 0:
-            await self.client.save_replay(".\\replays\\bottato.sc2replay")
-            await self.client.leave()
 
     def disable_logging(self):
         logger.disable("bottato")

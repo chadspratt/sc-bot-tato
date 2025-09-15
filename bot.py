@@ -5,6 +5,7 @@ from sc2 import maps
 from sc2.data import Difficulty, Race
 from sc2.main import run_game
 from sc2.player import Bot, Computer
+from sc2.data import AIBuild
 
 from bottato.bottato import BotTato
 
@@ -27,14 +28,14 @@ def main():
     bot = BotTato()
     try:
         run_game(
-            maps.get(os.environ.get("SCII_MAP", "TorchesAIE_v2")),
+            maps.get(os.environ.get("SCII_MAP", "IncorporealAIE_v4")),
             [
                 Bot(Race.Terran, bot, name="BotTato"),
                 # Computer(Race.Terran, Difficulty.VeryEasy),
-                Computer(Race.Terran, Difficulty.VeryHard),
+                # RandomBuild, Rush, Timing,Power, Macro, Air
+                Computer(Race.Protoss, Difficulty.VeryHard, ai_build=AIBuild.Rush),
             ],
             realtime=False,
-            # save_replay_as=".\\replays\\bottato.sc2replay",
         )
     except ConnectionResetError:
         bot.print_all_timers()

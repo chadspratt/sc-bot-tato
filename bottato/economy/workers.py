@@ -64,7 +64,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.max_workers = 75
         self.health_per_repairer = 50
         self.max_repairers = 10
-        self.mule_energy_threshold = 100
+        self.mule_energy_threshold = 50
         for worker in self.bot.workers:
             self.add_worker(worker)
         self.aged_mules: Units = Units([], bot)
@@ -223,7 +223,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if assignment.job_type == JobType.REPAIR:
                 if new_target.tag not in self.bot.unit_tags_received_action:
                     new_target.move(worker)
-                if not self.bot.enemy_units or self.closest_distance(new_target, self.bot.enemy_units) > 5:
+                if not self.bot.enemy_units or self.bot.time < 300 or self.closest_distance(new_target, self.bot.enemy_units) > 5:
                     worker.repair(new_target)
             elif assignment.job_type == JobType.VESPENE:
                 self.vespene.add_worker_to_node(worker, new_target)
@@ -256,9 +256,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         builder = None
         candidates: Units = (
             self.availiable_workers_on_job(JobType.IDLE)
-            or self.availiable_workers_on_job(JobType.VESPENE)
-            or self.availiable_workers_on_job(JobType.MINERALS)
-            or self.availiable_workers_on_job(JobType.REPAIR)
+            + self.availiable_workers_on_job(JobType.VESPENE)
+            + self.availiable_workers_on_job(JobType.MINERALS)
+            # + self.availiable_workers_on_job(JobType.REPAIR)
         )
         if not candidates:
             logger.debug("FAILED TO GET BUILDER")
@@ -290,7 +290,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
     def availiable_workers_on_job(self, job_type: JobType) -> Units:
         return Units([
-            assignment.unit for assignment in self.assignments_by_job[job_type] if assignment.unit_available and assignment.unit.type_id != UnitTypeId.MULE and not assignment.unit.is_carrying_resource],
+            assignment.unit for assignment in self.assignments_by_job[job_type]
+            if assignment.unit_available
+                and assignment.unit.type_id != UnitTypeId.MULE
+                and not (assignment.job_type in (JobType.MINERALS, JobType.VESPENE) and assignment.unit.is_carrying_resource)],
             bot_object=self.bot)
 
     def deliver_resources(self, worker: Unit):
@@ -351,24 +354,24 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             return -1
 
         max_workers_to_move = 10
-        if needed_resources.minerals <= 0:
+        if needed_resources.vespene > 0:
             logger.debug("saturate vespene")
             return self.move_workers_to_vespene(max_workers_to_move)
-        if needed_resources.vespene <= 0:
+        if needed_resources.minerals > 0:
             logger.debug("saturate minerals")
             return self.move_workers_to_minerals(max_workers_to_move)
 
-        # both positive
-        workers_to_move = math.floor(
-            abs(needed_resources.minerals - needed_resources.vespene) / 100.0
-        )
-        if workers_to_move > 0:
-            if needed_resources.minerals > needed_resources.vespene:
-                # move workers to minerals
-                return self.move_workers_to_minerals(workers_to_move)
+        # # both positive
+        # workers_to_move = math.floor(
+        #     abs(needed_resources.minerals - needed_resources.vespene) / 100.0
+        # )
+        # if workers_to_move > 0:
+        #     if needed_resources.minerals > needed_resources.vespene:
+        #         # move workers to minerals
+        #         return self.move_workers_to_minerals(workers_to_move)
 
-            # move workers to vespene
-            return self.move_workers_to_vespene(workers_to_move)
+        #     # move workers to vespene
+        #     return self.move_workers_to_vespene(workers_to_move)
         return 0
 
     def update_repairers(self, needed_resources: Cost) -> None:
@@ -409,10 +412,12 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         # add more repairers
         if repairer_shortage > 0:
             candidates: Units = None
-            if needed_resources.minerals <= 0 or not self.availiable_workers_on_job(JobType.VESPENE):
-                candidates = self.availiable_workers_on_job(JobType.MINERALS)
-            elif needed_resources.vespene <= 0 or not self.availiable_workers_on_job(JobType.MINERALS):
-                candidates = self.availiable_workers_on_job(JobType.VESPENE)
+            candidates = Units([worker for worker in self.bot.workers if self.assignments_by_worker[worker.tag].job_type not in (JobType.BUILD, JobType.REPAIR)], bot_object=self.bot)
+            # if worker was building something, need to remove them from that task or they will get conflicting orders?
+            # if needed_resources.minerals <= 0 or not self.availiable_workers_on_job(JobType.VESPENE):
+            #     candidates = self.availiable_workers_on_job(JobType.MINERALS)
+            # elif needed_resources.vespene <= 0 or not self.availiable_workers_on_job(JobType.MINERALS):
+            #     candidates = self.availiable_workers_on_job(JobType.VESPENE)
             for i in range(repairer_shortage):
                 if not candidates:
                     break
@@ -445,7 +450,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
                                                         and unit.build_progress == 1
                                                         and unit.health < unit.health_max
-                                                        and len(self.enemy.threats_to_repairer(unit)) == 0)
+                                                        and ((self.bot.time < 300 and unit.type_id in (UnitTypeId.BUNKER, UnitTypeId.SUPPLYDEPOT)) or len(self.enemy.threats_to_repairer(unit)) == 0))
         logger.debug(f"injured structures {injured_structures}")
         return injured_mechanical_units + injured_structures
 

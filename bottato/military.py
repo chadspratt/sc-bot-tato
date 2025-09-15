@@ -3,10 +3,12 @@ from loguru import logger
 
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
+from bottato.build_step import BuildStep
 from bottato.economy.workers import Workers
 from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
 from bottato.squad.base_squad import BaseSquad
@@ -14,6 +16,34 @@ from bottato.squad.formation_squad import FormationSquad
 from bottato.enemy import Enemy
 from bottato.map.map import Map
 from bottato.mixins import GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin
+
+class Bunker(BaseSquad):
+    def __init__(self, bot: BotAI):
+        super().__init__(bot=bot, name="bunker", color=(255, 255, 0))
+        self.structure = None
+    
+    def empty(self):
+        # command units to exit
+        self.structure(AbilityId.UNLOADALL_BUNKER)
+        self.units.clear()
+    
+    def pop(self):
+        # command one unit to exit
+        if self.units:
+            unit = self.units.pop()
+            # command unit to exit bunker
+            return unit
+        return None
+
+    def salvage(self):
+        # command to salvage the bunker
+        self.structure(AbilityId.SALVAGEBUNKER_SALVAGE)
+
+    def is_built(self):
+        return self.structure is not None
+
+    def has_space(self):
+        return self.is_built() and len(self.units) < 4
 
 
 class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
@@ -30,6 +60,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             color=self.random_color(),
             name='main'
         )
+        self.bunker = Bunker(self.bot)
         self.squads_by_unit_tag: dict[int, BaseSquad] = {}
         self.squads: List[BaseSquad] = []
         self.created_squad_type_counts: dict[int, int] = {}
@@ -64,7 +95,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
     def muster_workers(self, position: Point2, count: int = 5):
         pass
 
-    async def manage_squads(self, iteration: int):
+    async def manage_squads(self, iteration: int, blueprints: List[BuildStep]):
         self.start_timer("manage_squads")
         self.main_army.draw_debug_box()
 
@@ -145,6 +176,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         else:
             self.offense_start_supply = 200
 
+        self.manage_bunker(mount_offense)
         # squad: FormationSquad
         # for i, squad in enumerate(self.squads):
         if self.main_army.units:
@@ -165,7 +197,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 army_center = self.main_army.units.center
                 enemy_position = self.bot.enemy_start_locations[0]
                 facing = self.get_facing(army_center, enemy_position)
-                await self.main_army.move(army_center, facing, force_move=True)
+                await self.main_army.move(army_center, facing, force_move=True, blueprints=blueprints)
             else:
                 logger.debug(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = self.bot.enemy_start_locations[0]
@@ -185,10 +217,27 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 else:
                     self.main_army.staging_location = self.bot.start_location.towards(enemy_position, 5)
                 facing = self.get_facing(self.main_army.staging_location, enemy_position)
-                await self.main_army.move(self.main_army.staging_location, facing, force_move=True)
+                await self.main_army.move(self.main_army.staging_location, facing, force_move=True, blueprints=blueprints)
 
         self.report()
         self.stop_timer("manage_squads")
+
+    def manage_bunker(self, mount_offense: bool):
+        if self.bunker.is_built():
+            try:
+                self.bunker.structure = self.get_updated_unit_reference(self.bunker.structure)
+            except self.UnitNotFound:
+                self.bunker.structure = None
+            if mount_offense:
+                self.bunker.empty()
+            elif self.bot.time < 300:
+                for unit in self.main_army.units:
+                    if not self.bunker.has_space():
+                        break
+                    if unit.type_id == UnitTypeId.MARINE:
+                        self.main_army.transfer(unit, self.bunker)
+                        self.squads_by_unit_tag[unit.tag] = self.bunker
+                        unit.smart(self.bunker.structure)
 
     def get_counter_units(self, unit: Unit):
         unassigned = [UnitTypeId.STALKER, UnitTypeId.SENTRY, UnitTypeId.ADEPT, UnitTypeId.HIGHTEMPLAR, UnitTypeId.DARKTEMPLAR, UnitTypeId.ARCHON, UnitTypeId.IMMORTAL, UnitTypeId.COLOSSUS, UnitTypeId.DISRUPTOR, UnitTypeId.PHOENIX, UnitTypeId.VOIDRAY, UnitTypeId.ORACLE, UnitTypeId.TEMPEST, UnitTypeId.CARRIER, UnitTypeId.MOTHERSHIP]
@@ -228,7 +277,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     squad_type = SquadTypeDefinitions['full army']
             elif unmatched_friendlies:
                 # seem to be ahead,
-                squad_type = SquadTypeDefinitions['banshee harass']
+                squad_type = SquadTypeDefinitions['full army']
             else:
                 squad_type = SquadTypeDefinitions['full army']
 
@@ -361,6 +410,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.main_army.update_references()
         for squad in self.squads:
             squad.update_references()
+        for unit in self.bot.units:
+            if unit.tag in self.squads_by_unit_tag:
+                continue
+            if unit.tag in self.bunker.units.tags:
+                continue
+            if unit.type_id in (UnitTypeId.SCV, UnitTypeId.MULE):
+                continue
+            self.add_to_main(unit)
         self.stop_timer("update_references")
 
     def record_death(self, unit_tag):

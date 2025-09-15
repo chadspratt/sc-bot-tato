@@ -14,7 +14,7 @@ from sc2.protocol import ConnectionAlreadyClosedError, ProtocolError
 
 from bottato.map.map import Map
 from bottato.mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
-from bottato.economy.workers import Workers
+from bottato.economy.workers import JobType, Workers
 from bottato.economy.production import Production
 from bottato.special_locations import SpecialLocations
 from bottato.upgrades import RESEARCH_ABILITIES
@@ -40,8 +40,10 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     unit_in_charge: Optional[Unit] = None
     unit_being_built: Optional[Unit] = None
     pos: Union[Unit, Point2] = None
+    geysir: Unit = None
     check_idle: bool = False
     last_cancel: float = -10
+    start_time: int = None
     completed_time: int = None
 
     def __init__(self, unit_type: Union[UnitTypeId, UpgradeId], bot: BotAI, workers: Workers, production: Production, map: Map):
@@ -121,9 +123,6 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             response = self.execute_facility_build()
             self.stop_timer(f"build_step.execute_facility_build {self.unit_type_id}")
         if response == ResponseCode.SUCCESS:
-            self.start_timer("build_step.draw_debug_box")
-            self.draw_debug_box()
-            self.stop_timer("build_step.draw_debug_box")
             self.is_in_progress = True
         self.stop_timer("build_step.execute inner")
         return response
@@ -171,19 +170,20 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         build_response: bool = None
         if self.unit_type_id == UnitTypeId.REFINERY:
             # Vespene targets unit to build instead of position
-            empty_gas: Union[Unit, None] = self.get_geysir()
-            if empty_gas is None:
+            self.geysir: Union[Unit, None] = self.get_geysir()
+            if self.geysir is None:
                 response = ResponseCode.NO_FACILITY
             else:
-                self.pos = empty_gas.position
+                self.pos = self.geysir.position
                 if self.unit_in_charge is None:
                     self.unit_in_charge = self.workers.get_builder(self.pos)
                 if self.unit_in_charge is None:
                     response = ResponseCode.NO_BUILDER
                 else:
-                    build_response = self.unit_in_charge.build_gas(empty_gas)
+                    build_response = self.unit_in_charge.build_gas(self.geysir)
         else:
-            self.pos = await self.find_placement(self.unit_type_id, special_locations)
+            if self.pos is None or (self.unit_being_built is None and self.start_time is not None and self.start_time - self.bot.time > 5):
+                self.pos = await self.find_placement(self.unit_type_id, special_locations)
             if self.pos is None:
                 response = ResponseCode.NO_LOCATION
             else:
@@ -202,12 +202,23 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                             self.unit_type_id, self.pos
                         )
                     else:
+                        self.start_time = self.bot.time
                         build_response = self.unit_in_charge.smart(self.unit_being_built)
                         logger.debug(f"{self.unit_in_charge} in charge is doing {self.unit_in_charge.orders}")
         if build_response is not None:
             response = ResponseCode.SUCCESS if build_response else ResponseCode.FAILED
 
         return response
+    
+    async def position_worker(self, special_locations: SpecialLocations):
+        if UnitTypeId.SCV in self.builder_type:
+            if self.pos is None:
+                self.pos = await self.find_placement(self.unit_type_id, special_locations)
+            if self.pos is not None:
+                if self.unit_in_charge is None:
+                    self.unit_in_charge = self.workers.get_builder(self.pos)
+                if self.unit_in_charge is not None:
+                    self.unit_in_charge.move(self.pos)
 
     def execute_facility_build(self) -> ResponseCode:
         response = None
@@ -223,9 +234,12 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     return ResponseCode.NO_TECH
         if self.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
             self.unit_in_charge = self.production.get_builder(self.unit_type_id)
+            if self.unit_in_charge and self.unit_type_id in self.production.add_on_types:
+                self.pos = self.unit_in_charge.add_on_position
         elif self.unit_type_id == UnitTypeId.SCV:
             # scv
             facility_candidates = self.bot.townhalls.filter(lambda x: x.is_ready and x.is_idle)
+            facility_candidates.sort(key=lambda x: x.type_id == UnitTypeId.COMMANDCENTER)
             self.unit_in_charge = facility_candidates[0] if facility_candidates else None
         else:
             facility_candidates = self.bot.structures.filter(lambda x: x.type_id in self.builder_type and x.is_ready and x.is_idle)
@@ -264,6 +278,17 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         new_build_position = None
         if unit_type_id == UnitTypeId.COMMANDCENTER:
             new_build_position = await self.bot.get_next_expansion()
+        elif unit_type_id == UnitTypeId.BUNKER:
+            ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
+            bunker_range: float = 6  # marine 5 + 1
+            bunker_range = max(bunker_range, self.map.natural_position.distance_to(ramp_position) + 1)
+            candidate = (ramp_position + self.map.natural_position) / 2
+            # candidates = self.map.natural_position.circle_intersection(ramp_position, bunker_range)
+            enemy_start: Point2 = self.bot.enemy_start_locations[0]
+            new_build_position = await self.bot.find_placement(
+                                unit_type_id,
+                                near=candidate.towards(enemy_start, distance=2))
+                                # near=enemy_start.closest(candidates))
         elif unit_type_id == UnitTypeId.MISSILETURRET:
             bases = self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS})
             turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
@@ -285,14 +310,24 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     UnitTypeId.FACTORY,
                     UnitTypeId.STARPORT,
                 )
+                prefer_earlier_bases = unit_type_id in (
+                    UnitTypeId.SUPPLYDEPOT,
+                    UnitTypeId.BARRACKS,
+                    UnitTypeId.FACTORY,
+                    UnitTypeId.STARPORT,
+                )
                 map_center = self.bot.game_info.map_center
                 max_distance = 20
+                retry_count = 0
                 while True:
                     try:
                         if self.bot.townhalls:
+                            preferred_townhalls = self.bot.townhalls
+                            if prefer_earlier_bases and len(self.bot.townhalls.ready) > 1 and retry_count == 0:
+                                preferred_townhalls = self.bot.townhalls.ready.closest_n_units(self.bot.start_location, len(self.bot.townhalls.ready) - 1)
                             new_build_position = await self.bot.find_placement(
                                 unit_type_id,
-                                near=self.bot.townhalls.random.position.towards(map_center, distance=8),
+                                near=preferred_townhalls.random.position.towards(map_center, distance=8),
                                 placement_step=2,
                                 addon_place=addon_place,
                                 max_distance=max_distance,
@@ -308,7 +343,10 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     except (ConnectionAlreadyClosedError, ConnectionResetError, ProtocolError):
                         return None
                     if new_build_position is None:
-                        return None
+                        if retry_count > 0:
+                            return None
+                        retry_count += 1
+                        continue
                     # don't build near edge to avoid trapping units
                     if unit_type_id != UnitTypeId.SUPPLYDEPOT:
                         edge_distance = self.map.get_distance_from_edge(new_build_position.rounded)
@@ -318,6 +356,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                             # accept defeat, is ok to do it sometimes
                             if max_distance > 50:
                                 break
+                            retry_count += 1
                             continue
                     # try to not block addons
                     in_progress = [u for u in self.bot.structures
@@ -325,6 +364,9 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                                    and u.build_progress < 1]
                     for no_addon_facility in in_progress + self.production.get_no_addon_facilities():
                         if no_addon_facility.add_on_position.distance_to(new_build_position) < BUILDING_RADIUS[unit_type_id] + 1:
+                            if retry_count > 3:
+                                return None
+                            retry_count += 1
                             break
                     else:
                         break
@@ -335,17 +377,18 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         # command_centers = bot.townhalls
         if self.bot.townhalls:
             vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
-                distance=10, other_units=self.bot.townhalls
+                distance=10, other_units=self.bot.townhalls.ready
             )
-            for vespene_geysir in vespene_geysirs:
-                if self.bot.gas_buildings.filter(
-                    lambda unit: unit.distance_to(vespene_geysir) < 1
-                ):
-                    continue
-                return vespene_geysir
+            if self.bot.gas_buildings:
+                vespene_geysirs = vespene_geysirs.filter(
+                    lambda geysir: self.bot.gas_buildings.closest_distance_to(geysir) > 1)
+            return vespene_geysirs.closest_to(self.bot.start_location)
         return None
 
     def is_interrupted(self) -> bool:
+        if self.unit_being_built and self.unit_being_built is not True and self.unit_being_built.build_progress == 1:
+            return False
+        
         if self.unit_in_charge is None:
             logger.debug(f"{self} builder is missing")
             return True
@@ -360,8 +403,33 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         )
 
         if self.check_idle:
-            if self.unit_in_charge.is_idle:
+            if self.unit_in_charge.is_idle and self.unit_in_charge.type_id != UnitTypeId.SCV:
                 self.production.remove_type_from_facilty_queue(self.unit_in_charge, self.unit_type_id)
                 logger.debug(f"unit_in_charge {self.unit_in_charge}")
                 return True
+            if self.unit_in_charge.tag in self.workers.assignments_by_worker:
+                if self.workers.assignments_by_worker[self.unit_in_charge.tag].job_type != JobType.BUILD:
+                    self.workers.update_job(self.unit_in_charge, JobType.BUILD)
+                # self.unit_in_charge.move(self.pos)
+                if self.unit_being_built is not None and self.unit_being_built is not True:
+                    self.unit_in_charge.smart(self.unit_being_built)
+                elif self.unit_type_id == UnitTypeId.REFINERY:
+                    self.unit_in_charge(
+                        self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
+                        target=self.geysir,
+                        queue=False,
+                        subtract_cost=False,
+                        can_afford_check=False,
+                    )
+                    # self.unit_in_charge.build_gas(self.geysir)
+                else:
+                    # unit.build subtracts the cost from self.bot.minerals/vespene so we need to use ability directly
+                    self.unit_in_charge(
+                        self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
+                        target=self.pos,
+                        queue=False,
+                        subtract_cost=False,
+                        can_afford_check=False,
+                    )
+                    # self.unit_in_charge.build(self.unit_type_id, self.pos)
         return False
