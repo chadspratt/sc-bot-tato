@@ -45,6 +45,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     last_cancel: float = -10
     start_time: int = None
     completed_time: int = None
+    worker_in_position_time: int = None
 
     def __init__(self, unit_type: Union[UnitTypeId, UpgradeId], bot: BotAI, workers: Workers, production: Production, map: Map):
         self.bot: BotAI = bot
@@ -99,6 +100,14 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
         try:
             self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge)
+            if self.unit_in_charge.type_id == UnitTypeId.SCV:
+                for assignment in self.workers.assignments_by_worker.values():
+                    if assignment.unit.tag == self.unit_in_charge.tag:
+                        # ensure worker assignment is correct
+                        self.workers.update_assigment(self.unit_in_charge, job_type=JobType.BUILD, target=self.unit_being_built)
+                    elif assignment.target and self.unit_being_built and assignment.target.tag == self.unit_being_built.tag:
+                        # check that no other workers think they are assigned to this build
+                        self.workers.set_as_idle(assignment.unit)
         except self.UnitNotFound:
             self.unit_in_charge = None
         if isinstance(self.unit_being_built, Unit):
@@ -107,7 +116,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             except self.UnitNotFound:
                 self.unit_being_built = None
 
-    async def execute(self, special_locations: SpecialLocations) -> ResponseCode:
+    async def execute(self, special_locations: SpecialLocations, rush_defense_enacted: bool = False) -> ResponseCode:
         self.start_timer("build_step.execute inner")
         response = None
         if self.upgrade_id:
@@ -116,7 +125,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.stop_timer(f"build_step.execute_upgrade {self.upgrade_id}")
         elif UnitTypeId.SCV in self.builder_type:
             self.start_timer(f"build_step.execute_scv_build {self.unit_type_id}")
-            response = await self.execute_scv_build(special_locations)
+            response = await self.execute_scv_build(special_locations, rush_defense_enacted)
             self.stop_timer(f"build_step.execute_scv_build {self.unit_type_id}")
         else:
             self.start_timer(f"build_step.execute_facility_build {self.unit_type_id}")
@@ -157,7 +166,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
         return response
 
-    async def execute_scv_build(self, special_locations: SpecialLocations) -> ResponseCode:
+    async def execute_scv_build(self, special_locations: SpecialLocations, rush_defense_enacted: bool = False) -> ResponseCode:
         response = None
         logger.debug(f"Trying to build {self.unit_type_id} with SCV")
 
@@ -183,7 +192,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     build_response = self.unit_in_charge.build_gas(self.geysir)
         else:
             if self.pos is None or (self.unit_being_built is None and self.start_time is not None and self.start_time - self.bot.time > 5):
-                self.pos = await self.find_placement(self.unit_type_id, special_locations)
+                self.pos = await self.find_placement(self.unit_type_id, special_locations, rush_defense_enacted)
             if self.pos is None:
                 response = ResponseCode.NO_LOCATION
             else:
@@ -274,21 +283,26 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             return AbilityId.BUILD_TECHLAB
         return TRAIN_INFO[self.unit_in_charge.type_id][self.unit_type_id]["ability"]
 
-    async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations) -> Union[Point2, None]:
+    async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, rush_defense_enacted: bool = False) -> Union[Point2, None]:
         new_build_position = None
         if unit_type_id == UnitTypeId.COMMANDCENTER:
             new_build_position = await self.bot.get_next_expansion()
         elif unit_type_id == UnitTypeId.BUNKER:
-            ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
-            bunker_range: float = 6  # marine 5 + 1
-            bunker_range = max(bunker_range, self.map.natural_position.distance_to(ramp_position) + 1)
-            candidate = (ramp_position + self.map.natural_position) / 2
-            # candidates = self.map.natural_position.circle_intersection(ramp_position, bunker_range)
-            enemy_start: Point2 = self.bot.enemy_start_locations[0]
-            new_build_position = await self.bot.find_placement(
-                                unit_type_id,
-                                near=candidate.towards(enemy_start, distance=2))
-                                # near=enemy_start.closest(candidates))
+            if rush_defense_enacted:
+                new_build_position =  await self.bot.find_placement(
+                    unit_type_id,
+                    near=self.bot.main_base_ramp.top_center)
+            else:
+                ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
+                bunker_range: float = 6  # marine 5 + 1
+                bunker_range = max(bunker_range, self.map.natural_position.distance_to(ramp_position) + 1)
+                candidate = (ramp_position + self.map.natural_position) / 2
+                # candidates = self.map.natural_position.circle_intersection(ramp_position, bunker_range)
+                enemy_start: Point2 = self.bot.enemy_start_locations[0]
+                new_build_position = await self.bot.find_placement(
+                                    unit_type_id,
+                                    near=candidate.towards(enemy_start, distance=2))
+                                    # near=enemy_start.closest(candidates))
         elif unit_type_id == UnitTypeId.MISSILETURRET:
             bases = self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS})
             turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
@@ -414,23 +428,34 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 # self.unit_in_charge.move(self.pos)
                 if self.unit_being_built is not None and self.unit_being_built is not True:
                     self.unit_in_charge.smart(self.unit_being_built)
-                elif self.unit_type_id == UnitTypeId.REFINERY:
-                    self.unit_in_charge(
-                        self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
-                        target=self.geysir,
-                        queue=False,
-                        subtract_cost=False,
-                        can_afford_check=False,
-                    )
-                    # self.unit_in_charge.build_gas(self.geysir)
                 else:
-                    # unit.build subtracts the cost from self.bot.minerals/vespene so we need to use ability directly
-                    self.unit_in_charge(
-                        self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
-                        target=self.pos,
-                        queue=False,
-                        subtract_cost=False,
-                        can_afford_check=False,
-                    )
-                    # self.unit_in_charge.build(self.unit_type_id, self.pos)
+                    if self.unit_in_charge.distance_to(self.pos) < 3 and self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
+                        self.worker_in_position_time = self.bot.time
+                    elif self.worker_in_position_time is not None and self.bot.time - self.worker_in_position_time > 2:
+                        # position may be blocked
+                        self.pos = None
+                        self.geysir = None
+                        self.worker_in_position_time = None
+                        self.workers.set_as_idle(self.unit_in_charge)
+                        self.unit_in_charge = None
+                        return True
+                    if self.unit_type_id == UnitTypeId.REFINERY:
+                        self.unit_in_charge(
+                            self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
+                            target=self.geysir,
+                            queue=False,
+                            subtract_cost=False,
+                            can_afford_check=False,
+                        )
+                        # self.unit_in_charge.build_gas(self.geysir)
+                    else:
+                        # unit.build subtracts the cost from self.bot.minerals/vespene so we need to use ability directly
+                        self.unit_in_charge(
+                            self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
+                            target=self.pos,
+                            queue=False,
+                            subtract_cost=False,
+                            can_afford_check=False,
+                        )
+                        # self.unit_in_charge.build(self.unit_type_id, self.pos)
         return False

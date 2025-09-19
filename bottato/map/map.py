@@ -162,36 +162,27 @@ class Map(TimerMixin, GeometryMixin):
                     neighbors = self.neighbors8(next_point)
                     neighbor: tuple
                     # expand to any neighbors that are closer to the edge (won't push in to next zone)
-                    if next_point in [(37, 89), (38, 89), (39, 89)]:
-                        logger.debug(f"{next_point} distance {current_distance_to_edge} neighbors {neighbors}")
                     for neighbor in neighbors:
                         try:
                             point_zone = self.zone_lookup_by_coord[neighbor]
                             if point_zone.id == zone.id:
                                 pass
                                 # skip duplicates in same zone
-                                # if next_point in [(37, 89), (38, 89), (39, 89)]:
-                                #     logger.debug(f"neighbor already in zone {neighbor}")
-                            elif point_zone.radius == zone.radius and current_distance_to_edge >= zone.radius - 1:
+                            elif current_distance_to_edge == distance_from_edge[neighbor] and point_zone.radius == current_distance_to_edge:
+                            # elif point_zone.radius == zone.radius and current_distance_to_edge >= zone.radius - 1:
                                 # merge zones
-                                # if next_point in [(37, 89), (38, 89), (39, 89)]:
-                                #     logger.debug(f"merging zone {point_zone} in to {zone}")
                                 for coords in point_zone.coords:
                                     self.zone_lookup_by_coord[coords] = zone
                                 points_to_check.extend(point_zone.unchecked_points)
                                 zones_to_remove.append(point_zone)
                                 zone.merge_with(point_zone)
                             elif distance_from_edge[neighbor] > 1:
-                                # if next_point in [(37, 89), (38, 89), (39, 89)]:
-                                #     logger.debug(f"neighbor in adjacent zone {neighbor}")
                                 zone.add_adjacent_zone(point_zone)
                         except KeyError:
                             # unassigned point, check if closer to edge
                             neighbor_distance = distance_from_edge[neighbor]
                             # match lower points or equal height
                             if (neighbor_distance <= current_distance_to_edge):
-                                # if next_point in [(37, 89), (38, 89), (39, 89)]:
-                                #     logger.debug(f"{neighbor} adding to zone {zone.id}")
                                 self.zone_lookup_by_coord[neighbor] = zone
                                 zone.coords.append(neighbor)
                                 zone.unchecked_points.append(neighbor)
@@ -273,12 +264,9 @@ class Map(TimerMixin, GeometryMixin):
         self.influence_maps.add_cost(pathable_position, unit.radius, self.ground_grid, np.inf)
         return pathable_position
 
-    def update_influence_maps(self, pending_buildings) -> None:
+    def update_influence_maps(self) -> None:
         self.start_timer("update_influence_maps")
         self.ground_grid = self.influence_maps.get_pyastar_grid()
-        for pending in pending_buildings:
-            logger.debug(f"adding to influence maps {pending}")
-            self.influence_maps.add_building_to_grid(pending["type_id"], pending["position"], self.ground_grid, np.inf)
         self.stop_timer("update_influence_maps")
     
     async def get_natural_position(self, start_position: Point2) -> Point2 | None:
@@ -304,8 +292,9 @@ class Map(TimerMixin, GeometryMixin):
             self.first_draw = False
             for zone_id in self.zones:
                 zone = self.zones[zone_id]
-                for coords in zone.coords:
-                    zone.points_for_drawing[coords] = self.convert_point2_to_3(Point2(coords))
+                for coord in zone.coords:
+                    if self.distance_from_edge[coord] > 0:
+                        zone.points_for_drawing[coord] = self.convert_point2_to_3(Point2(coord))
                 zone.midpoint3 = self.convert_point2_to_3(zone.midpoint)
                 for midpoint in zone.all_midpoints:
                     zone.all_midpoints3.append(self.convert_point2_to_3(midpoint))

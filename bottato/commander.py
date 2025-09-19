@@ -12,7 +12,7 @@ from bottato.mixins import TimerMixin, GeometryMixin
 from bottato.build_order import BuildOrder
 from bottato.micro.structure_micro import StructureMicro
 from bottato.enemy import Enemy
-from bottato.economy.workers import Workers
+from bottato.economy.workers import JobType, Workers
 from bottato.economy.production import Production
 from bottato.military import Military
 from bottato.squad.scouting import Scouting
@@ -36,34 +36,30 @@ class Commander(TimerMixin, GeometryMixin):
         )
         self.scouting = Scouting(self.bot, self.enemy, self.map)
         self.new_damage_taken: dict[int, float] = {}
+        self.stuck_units: list[Unit] = []
+        # self.test_stuck = None
 
     async def command(self, iteration: int):
         self.start_timer("command")
 
         # self.map.refresh_map()
         # check for stuck units
-        # pathable_destination: Point2 = self.military.main_army.parent_formation.front_center
-        if self.bot.workers:
-            pathable_destination: Point2 = self.bot.workers.furthest_to(self.bot.start_location).position
-            if pathable_destination is not None:
-                paths_to_check = [[unit, pathable_destination] for unit in self.military.main_army.units]
-                if paths_to_check:
-                    distances = await self.bot.client.query_pathings(paths_to_check)
-                    for path, distance in zip(paths_to_check, distances):
-                        if distance == 0:
-                            logger.info(f"unit is stuck {path[0]}")
+        await self.detect_stuck_units()
+        self.military.rescue_stuck_units(self.stuck_units)
 
         # XXX very slow
-        self.map.update_influence_maps(self.build_order.get_pending_buildings())
+        self.map.update_influence_maps()
 
         await self.scout()
+        if self.rush_detected:
+            self.build_order.enact_rush_defense()
         # XXX extremely slow
         await self.military.manage_squads(iteration, self.build_order.get_blueprints())
 
         remaining_cap = self.build_order.remaining_cap
         if remaining_cap > 0:
             logger.debug(f"requesting at least {remaining_cap} supply of units for military")
-            unit_request: list[UnitTypeId] = self.military.get_squad_request(remaining_cap, self.scouting.needed_unit_types())
+            unit_request: list[UnitTypeId] = self.military.get_squad_request(remaining_cap)
             self.build_order.queue_units(unit_request)
 
         await self.structure_micro.execute()
@@ -77,6 +73,31 @@ class Commander(TimerMixin, GeometryMixin):
         await self.build_order.execute(self.military.army_ratio, self.rush_detected)
         self.new_damage_taken.clear()
         self.stop_timer("command")
+
+    async def detect_stuck_units(self):
+        if self.bot.workers:
+            self.stuck_units.clear()
+            miners = self.my_workers.availiable_workers_on_job(JobType.MINERALS)
+            if not miners:
+                return
+            pathable_destination: Point2 = miners.furthest_to(self.bot.start_location).position
+            if pathable_destination is not None:
+                paths_to_check = [[unit, pathable_destination] for unit in self.military.main_army.units if unit.type_id != UnitTypeId.SIEGETANKSIEGED]
+                if paths_to_check:
+                    distances = await self.bot.client.query_pathings(paths_to_check)
+                    for path, distance in zip(paths_to_check, distances):
+                        if distance == 0:
+                            self.bot.client.debug_text_3d("STUCK", path[0].position3d)
+                            self.stuck_units.append(path[0])
+                            logger.info(f"unit is stuck {path[0]}")
+            # XXX debug code to test stuck unit rescue
+            # if not self.stuck_units and self.test_stuck is not True:
+            #     reapers = self.bot.units(UnitTypeId.REAPER)
+            #     if reapers:
+            #         self.test_stuck = False
+            #         self.stuck_units.append(reapers[0])
+            #     elif self.test_stuck is False:
+            #         self.test_stuck = True
 
     async def scout(self):
         self.start_timer("scout")

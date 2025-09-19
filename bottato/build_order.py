@@ -31,6 +31,7 @@ class BuildOrder(TimerMixin):
     complete: List[BuildStep] = []
     # next_unfinished_step_index: int
     tech_tree: Dict[UnitTypeId, List[UnitTypeId]] = {}
+    rush_defense_enacted: bool = False
 
     def __init__(self, build_name: str, bot: BotAI, workers: Workers, production: Production, map: Map):
         self.recently_completed_units: List[Unit] = []
@@ -66,20 +67,47 @@ class BuildOrder(TimerMixin):
         self.move_interupted_to_pending()
         self.stop_timer("update_references")
 
-    def get_pending_buildings(self):
-        buildings = [
-            {
-                "type_id": p.unit_type_id,
-                "position": p.pos
-            }
-            for p in self.static_queue + self.started if p.pos is not None
-        ]
-        # if self.supply_build_step is not None and self.supply_build_step.pos is not None:
-        #     buildings.append({
-        #         "type_id": self.supply_build_step.unit_type_id,
-        #         "position": self.supply_build_step.pos
-        #     })
-        return buildings
+    def move_interupted_to_pending(self) -> None:
+        to_promote = []
+        for idx, build_step in enumerate(self.started):
+            logger.debug(
+                f"In progress {build_step.unit_type_id} {build_step.upgrade_id}"
+                f"> Builder {build_step.unit_in_charge}"
+            )
+            if build_step.is_interrupted():
+                logger.debug("! Is interrupted!")
+                # move back to pending (demote)
+                to_promote.append(idx)
+                continue
+        for idx in reversed(to_promote):
+            step: BuildStep = self.started.pop(idx)
+            if step.builder_type == UnitTypeId.SCV:
+                self.priority_queue.insert(0, step)
+            else:
+                self.static_queue.insert(0, step)
+
+    def enact_rush_defense(self) -> None:
+        if self.bot.time > 300:
+            # not a rush
+            return
+        if self.bot.structure_type_build_progress(UnitTypeId.BARRACKSREACTOR) == 1:
+            training_marine_count = len([step for step in self.started if step.unit_type_id == UnitTypeId.MARINE])
+            if training_marine_count < 2:
+                logger.debug("rush detected, queuing 2 marines immediately")
+                self.add_to_build_queue([UnitTypeId.MARINE for x in range(2 - training_marine_count)], position=0, queue=self.priority_queue)
+        if self.rush_defense_enacted:
+            return
+        self.rush_defense_enacted = True
+        for step in self.static_queue:
+            if step.unit_type_id == UnitTypeId.BARRACKSREACTOR:
+                self.static_queue.remove(step)
+                self.priority_queue.append(step)
+                break
+        for step in self.static_queue:
+            if step.unit_type_id == UnitTypeId.BUNKER:
+                self.static_queue.remove(step)
+                self.priority_queue.append(step)
+                break
 
     @property
     def remaining_cap(self) -> int:
@@ -102,7 +130,7 @@ class BuildOrder(TimerMixin):
         # switch to dynamic build later, put SCVs in static
         self.queue_worker()
         self.queue_supply()
-        if len(self.static_queue) < 5:
+        if len(self.static_queue) < 15:
             self.queue_upgrade()
             self.queue_turret()
             self.queue_planetary()
@@ -131,29 +159,6 @@ class BuildOrder(TimerMixin):
 
         await self.execute_pending_builds(only_build_units)
         self.stop_timer("build_order.execute")
-
-    def add_to_build_queue(self, unit_types: Union[UnitTypeId, List[UnitTypeId]], position=None, queue: List[BuildStep] = None) -> None:
-        if isinstance(unit_types, UnitTypeId):
-            unit_types = [unit_types]
-        if queue is None:
-            queue = self.build_queue
-        in_progress: List[BuildStep] = [] + self.started + queue
-        for build_step in in_progress:
-            # for build_item in unit_types:
-            if build_step.unit_type_id in unit_types:
-                unit_types.remove(build_step.unit_type_id)
-            elif build_step.upgrade_id in unit_types:
-                unit_types.remove(build_step.upgrade_id)
-                # in_progress.remove(build_step)
-        steps_to_add: List[BuildStep] = [self.create_build_step(unit_type) for unit_type in unit_types]
-        if steps_to_add:
-            if position is not None:
-                steps_to_add = queue[:position] + steps_to_add + queue[position:]
-                queue.clear()
-            queue.extend(steps_to_add)
-
-    def create_build_step(self, unit_type: UnitTypeId) -> BuildStep:
-        return BuildStep(unit_type, self.bot, self.workers, self.production, self.map)
 
     def queue_units(self, unit_types: List[UnitTypeId]) -> None:
         self.start_timer("build_order.queue_military")
@@ -276,6 +281,29 @@ class BuildOrder(TimerMixin):
                 self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
         self.stop_timer("queue_turret")
 
+    def add_to_build_queue(self, unit_types: Union[UnitTypeId, List[UnitTypeId]], position=None, queue: List[BuildStep] = None) -> None:
+        if isinstance(unit_types, UnitTypeId):
+            unit_types = [unit_types]
+        if queue is None:
+            queue = self.build_queue
+        in_progress: List[BuildStep] = [] + self.started + queue
+        for build_step in in_progress:
+            # for build_item in unit_types:
+            if build_step.unit_type_id in unit_types:
+                unit_types.remove(build_step.unit_type_id)
+            elif build_step.upgrade_id in unit_types:
+                unit_types.remove(build_step.upgrade_id)
+                # in_progress.remove(build_step)
+        steps_to_add: List[BuildStep] = [self.create_build_step(unit_type) for unit_type in unit_types]
+        if steps_to_add:
+            if position is not None:
+                steps_to_add = queue[:position] + steps_to_add + queue[position:]
+                queue.clear()
+            queue.extend(steps_to_add)
+
+    def create_build_step(self, unit_type: UnitTypeId) -> BuildStep:
+        return BuildStep(unit_type, self.bot, self.workers, self.production, self.map)
+
     def get_first_resource_shortage(self, only_build_units: bool) -> Cost:
         self.start_timer("get_first_resource_shortage")
         needed_resources: Cost = Cost(-self.bot.minerals, -self.bot.vespene)
@@ -358,7 +386,7 @@ class BuildOrder(TimerMixin):
                 in_progress_step.unit_being_built = started_structure
                 in_progress_step.pos = started_structure.position
                 if in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
-                    self.workers.update_target(in_progress_step.unit_in_charge, started_structure)
+                    self.workers.update_assigment(in_progress_step.unit_in_charge, JobType.BUILD, started_structure)
                 break
         # see if this is a ramp blocker
         ramp_blocker: SpecialLocation
@@ -417,29 +445,10 @@ class BuildOrder(TimerMixin):
                 logger.debug(f"canceling build of {unit}")
                 build_step.unit_being_built = None
                 build_step.last_cancel = self.bot.time
-                if build_step.unit_in_charge.type_id == UnitTypeId.SCV:
+                if build_step.unit_in_charge and build_step.unit_in_charge.type_id == UnitTypeId.SCV:
                     self.workers.update_assigment(build_step.unit_in_charge, JobType.IDLE, None)
                 # self.pending.insert(0, self.started.pop(idx))
                 break
-
-    def move_interupted_to_pending(self) -> None:
-        to_promote = []
-        for idx, build_step in enumerate(self.started):
-            logger.debug(
-                f"In progress {build_step.unit_type_id} {build_step.upgrade_id}"
-                f"> Builder {build_step.unit_in_charge}"
-            )
-            if build_step.is_interrupted():
-                logger.debug("! Is interrupted!")
-                # move back to pending (demote)
-                to_promote.append(idx)
-                continue
-        for idx in reversed(to_promote):
-            step: BuildStep = self.started.pop(idx)
-            if step.builder_type == UnitTypeId.SCV:
-                self.priority_queue.insert(0, step)
-            else:
-                self.static_queue.insert(0, step)
 
     async def execute_pending_builds(self, only_build_units: bool) -> None:
         self.start_timer("execute_pending_builds")
@@ -484,7 +493,7 @@ class BuildOrder(TimerMixin):
 
             # XXX slightly slow
             self.start_timer("build_step.execute")
-            build_response = await build_step.execute(special_locations=self.special_locations)
+            build_response = await build_step.execute(special_locations=self.special_locations, rush_defense_enacted=self.rush_defense_enacted)
             self.stop_timer("build_step.execute")
             self.start_timer(f"handle response {build_response}")
             logger.debug(f"build_response: {build_response}")

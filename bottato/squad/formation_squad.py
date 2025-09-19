@@ -122,7 +122,8 @@ class FormationSquad(BaseSquad, GeometryMixin):
     def add_unit_formation(self, unit_type: UnitTypeId, y_offset: int) -> bool:
         units: Units = self.units.of_type(unit_type)
         if units:
-            self.parent_formation.add_formation(FormationType.COLUMNS, units.tags, Point2((0, y_offset)))
+            spacing = units[0].radius * 1.3
+            self.parent_formation.add_formation(FormationType.COLUMNS, units.tags, Point2((0, y_offset)), spacing=spacing)
             return True
         return False
 

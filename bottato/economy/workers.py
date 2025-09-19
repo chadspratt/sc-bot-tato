@@ -7,7 +7,7 @@ from sc2.bot_ai import BotAI
 from sc2.units import Units
 from sc2.unit import Unit
 from sc2.constants import UnitTypeId, AbilityId
-from sc2.position import Point2
+from sc2.position import Point2, Point3
 from sc2.game_data import Cost
 
 from bottato.enemy import Enemy
@@ -85,6 +85,12 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             try:
                 assignment.unit = self.get_updated_unit_reference(assignment.unit)
                 assignment.unit_available = True
+                if assignment.target:
+                    assignment.target = self.get_updated_unit_reference(assignment.target)
+                if assignment.job_type == JobType.BUILD and assignment.target is None and assignment.unit.is_idle:
+                    assignment.job_type = JobType.IDLE
+                elif assignment.job_type in (JobType.MINERALS, JobType.VESPENE) and assignment.target.type_id not in (UnitTypeId.MINERALFIELD, UnitTypeId.MINERALFIELD450, UnitTypeId.MINERALFIELD750, UnitTypeId.REFINERY):
+                    assignment.job_type = JobType.IDLE
             except UnitReferenceMixin.UnitNotFound:
                 assignment.unit_available = False
                 logger.debug(f"{assignment.unit} unavailable, maybe already working on {assignment.target}")
@@ -92,6 +98,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 self.assignments_by_job[assignment.job_type].append(assignment)
             else:
                 self.assignments_by_job[assignment.job_type] = [assignment]
+            self.bot.client.debug_text_3d(assignment.job_type.name, assignment.unit.position3d + Point3((0, 0, 1)), size=8, color=(255, 255, 255))
         logger.debug(f"assignment summary {self.assignments_by_job}")
         self.stop_timer("update_references")
 
@@ -197,9 +204,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     if assignment.target:
                         assignment.unit.smart(assignment.target)
 
-    def update_assigment(self, worker: Unit, new_job: JobType, new_target: Union[Unit, None]):
-        self.update_job(worker, new_job)
-        self.update_target(worker, new_target)
+    def update_assigment(self, worker: Unit, job_type: JobType, target: Union[Unit, None]):
+        self.update_job(worker, job_type)
+        self.update_target(worker, target)
 
     def update_job(self, worker: Unit, new_job: JobType):
         if worker.tag not in self.assignments_by_worker:
@@ -212,6 +219,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.vespene.remove_worker(worker)
         self.assignments_by_job[assignment.job_type].remove(assignment)
         assignment.job_type = new_job
+        if assignment.job_type == JobType.IDLE:
+            assignment.unit_available = True
         self.assignments_by_job[new_job].append(assignment)
 
     def update_target(self, worker: Unit, new_target: Union[Unit, None]):

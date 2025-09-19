@@ -31,13 +31,14 @@ class UnitDemographics:
 
 class Formation:
     def __init__(
-        self, bot: BotAI, formation_type: FormationType, unit_tags: List[int], offset: Point2
+        self, bot: BotAI, formation_type: FormationType, unit_tags: List[int], offset: Point2, spacing: float = 0
     ):
         self.bot = bot
         # generate specific formation positions
         self.formation_type = formation_type
         self.unit_tags = unit_tags
         self.offset = offset
+        self.spacing = spacing
         self.positions: List[Point2] = self.get_formation_positions()
         logger.debug(f"created formation {self.positions}")
 
@@ -108,13 +109,13 @@ class Formation:
         row = column = 0
         for i in range(unit_count):
             positions.append(Point2((
-                fill_pattern[column],
+                fill_pattern[column] * (self.spacing if self.spacing > 0 else 1),
                 row - 0.5
             )))
             column += 1
             if column == width:
                 column = 0
-                row += 1
+                row += 1 * (self.spacing if self.spacing > 0 else 1)
         return positions
 
     def get_hollow_circle_positions(self) -> List[Point2]:
@@ -217,11 +218,12 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         formation_type: FormationType,
         unit_tags: List[int],
         offset: Point2 = Point2((0, 0)),
+        spacing: float = 0,
     ):
         if not unit_tags:
             return
         logger.debug(f"Adding formation {formation_type.name} with unit tags {unit_tags}")
-        self.formations.append(Formation(self.bot, formation_type, unit_tags, offset))
+        self.formations.append(Formation(self.bot, formation_type, unit_tags, offset, spacing))
 
     def get_unit_destinations(
         self, formation_destination: Point2, units: Units, destination_facing: float = None
@@ -318,7 +320,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             intersect_point = Point2((x_intersect, y_intersect))
         new_front_center = intersect_point.towards(next_waypoint, 1, limit=True)
         self.clamp_position_to_map_bounds(new_front_center)
-        while abs(self.bot.get_terrain_z_height(new_front_center) - closest_elevation) > 0.8:
+        while abs(self.bot.get_terrain_z_height(new_front_center) - closest_elevation) > 0.8 and new_front_center.distance_to(closest_position) > 1:
             new_front_center = new_front_center.towards(closest_position, 1, limit=True)
         return new_front_center
 

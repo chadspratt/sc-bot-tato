@@ -88,6 +88,8 @@ class Scouting(BaseSquad, DebugMixin):
     initial_scout_complete_time = 150
 
     rush_detected = False
+    enemy_workers_away_from_base = 0
+    pool_start_time = None
 
     def __init__(self, bot: BotAI, enemy: Enemy, map: Map):
         super().__init__(bot=bot, color=self.random_color(), name="scouting")
@@ -147,14 +149,8 @@ class Scouting(BaseSquad, DebugMixin):
     def scouts_needed(self):
         return self.friendly_territory.scouts_needed + self.enemy_territory.scouts_needed
 
-    def needed_unit_types(self) -> List[UnitTypeId]:
-        needed_types: List[UnitTypeId] = []
-        # for i in range(self.scouts_needed):
-        #     needed_types.append(UnitTypeId.REAPER)
-        return needed_types
-
     def needs(self, unit: Unit) -> bool:
-        return unit.type_id == UnitTypeId.REAPER
+        return unit.type_id == UnitTypeId.SCV
 
     def recruit(self, unit: Unit):
         self.units.append(unit)
