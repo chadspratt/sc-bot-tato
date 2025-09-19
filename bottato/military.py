@@ -223,7 +223,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     else:
                         available_units = self.main_army.units.of_type(unit_type)
                         if available_units:
-                            self.transfer(available_units.closest_to(enemy), self.main_army, defense_squad)
+                            self.transfer(self.closest_unit_to_unit(enemy, available_units), self.main_army, defense_squad)
                         else:
                             self.transfer_all(defense_squad, self.main_army)
                             del self.countered_enemies[enemy.tag]

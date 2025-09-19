@@ -110,7 +110,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if worker.type_id == UnitTypeId.MULE:
                 self.minerals.update_references()
                 self.aged_mules.append(worker)
-                closest_minerals: Unit = self.closest_unit_to_units(worker, self.minerals.nodes_with_mule_capacity())
+                closest_minerals: Unit = self.closest_unit_to_unit(worker, self.minerals.nodes_with_mule_capacity())
                 if closest_minerals is None:
                     self.update_assigment(worker, JobType.IDLE, None)
                 else:
