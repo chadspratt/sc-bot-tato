@@ -47,6 +47,9 @@ class Scout(UnitReferenceMixin):
     @property
     def scouts_needed(self) -> int:
         return 0 if self.unit else 1
+    
+    def needs(self, unit: Unit) -> bool:
+        return unit.type_id in (UnitTypeId.SCV, UnitTypeId.MARINE, UnitTypeId.REAPER)
 
     def update_scout(self):
         """Update unit reference for this scout"""
@@ -133,33 +136,23 @@ class Scouting(BaseSquad, DebugMixin):
         elif self.bot.time > self.worker_scout_time and self.worker_scout is None:
             self.worker_scout = workers.get_scout(self.map.enemy_natural_position)
 
-        # while self.scouts_needed:
-        #     logger.debug(f"scouts needed: {self.scouts_needed}")
-        #     for unit in military.main_army.units:
-        #         if self.needs(unit):
-        #             logger.debug(f"adding {unit} to scouts")
-        #             military.main_army.transfer(unit, self)
-        #             del military.squads_by_unit_tag[unit.tag]
-        #             break
-        #     else:
-        #         break
-        
+        if self.bot.time > 500:
+            if self.friendly_territory.scouts_needed:
+                for unit in military.main_army.units:
+                    if self.friendly_territory.needs(unit):
+                        military.transfer(unit, military.main_army, self)
+                        self.friendly_territory.unit = unit
+                        break
+            if self.enemy_territory.scouts_needed:
+                for unit in military.main_army.units:
+                    if self.enemy_territory.needs(unit):
+                        military.transfer(unit, military.main_army, self)
+                        self.enemy_territory.unit = unit
+                        break
 
     @property
     def scouts_needed(self):
         return self.friendly_territory.scouts_needed + self.enemy_territory.scouts_needed
-
-    def needs(self, unit: Unit) -> bool:
-        return unit.type_id == UnitTypeId.SCV
-
-    def recruit(self, unit: Unit):
-        self.units.append(unit)
-        if self.enemy_territory.scouts_needed > 0:
-            logger.debug(f"Assigning scout {unit} to enemy_territory")
-            self.enemy_territory.unit = unit
-        elif self.friendly_territory.scouts_needed > 0:
-            logger.debug(f"Assigning scout {unit} to friendly_territory")
-            self.friendly_territory.unit = unit
 
     def update_visibility(self):
         for location in self.scouting_locations:
