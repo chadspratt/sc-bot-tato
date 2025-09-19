@@ -16,7 +16,7 @@ class BotTato(BotAI, TimerMixin):
         self.disable_logging()
         self.last_timer_print = 0
         self.commander = Commander(self)
-        await self.commander.map.init_natural_positions()
+        await self.commander.map.init()
         # await self.client.debug_fast_build()
         # await self.client.debug_minerals()
         self.last_replay_save_time = 0

@@ -139,7 +139,7 @@ class Commander(TimerMixin, GeometryMixin):
         else:
             self.new_damage_taken[unit.tag] += amount_damage_taken
         if unit.is_structure:
-            self.build_order.cancel_damaged_structure(unit, amount_damage_taken)
+            self.build_order.cancel_damaged_structure(unit, self.new_damage_taken[unit.tag])
 
     def remove_destroyed_unit(self, unit_tag: int):
         self.enemy.record_death(unit_tag)

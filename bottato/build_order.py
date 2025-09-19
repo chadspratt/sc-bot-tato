@@ -436,8 +436,8 @@ class BuildOrder(TimerMixin):
                 self.move_to_complete(self.started.pop(idx))
                 break
 
-    def cancel_damaged_structure(self, unit: Unit, damage_amount: float):
-        if unit.health_percentage < 0.05:
+    def cancel_damaged_structure(self, unit: Unit, total_damage_amount: float):
+        if unit.health_percentage > 0.05:
             return
         for idx, build_step in enumerate(self.started):
             if build_step.unit_being_built is not None and build_step.unit_being_built is not True and build_step.unit_being_built.tag == unit.tag:

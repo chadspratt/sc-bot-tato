@@ -27,20 +27,17 @@ class Map(TimerMixin, GeometryMixin):
         self.start_timer("init_distance_from_edge")
         self.init_distance_from_edge(self.influence_maps.get_base_pathing_grid())
         self.stop_timer("init_distance_from_edge")
-        # self.start_timer("init_open_area_midpoints")
-        # self.open_area_midpoints: List[tuple] = self.init_open_area_midpoints(self.distance_from_edge)
-        # self.stop_timer("init_open_area_midpoints")
-        # logger.debug(f"open_area_midpoints {self.open_area_midpoints}")
-        self.start_timer("init_zones")
-        self.zones: Dict[int, Zone] = self.init_zones(self.distance_from_edge)
-        self.stop_timer("init_zones")
+        self.zones: Dict[int, Zone] = None
         logger.debug(f"zones {self.zones}")
         self.first_draw = True
         self.last_refresh_time = 0
         self.natural_position: Point2 = None
         self.enemy_natural_position: Point2 = None
 
-    async def init_natural_positions(self):
+    async def init(self):
+        self.start_timer("init_zones")
+        self.zones: Dict[int, Zone] = await self.init_zones(self.distance_from_edge)
+        self.stop_timer("init_zones")
         self.natural_position = await self.get_natural_position(self.bot.start_location)
         self.enemy_natural_position = await self.get_natural_position(self.bot.enemy_start_locations[0])
 
@@ -144,7 +141,7 @@ class Map(TimerMixin, GeometryMixin):
                 return True
         return False
 
-    def init_zones(self, distance_from_edge: Dict[tuple, int]) -> Dict[int, Zone]:
+    async def init_zones(self, distance_from_edge: Dict[tuple, int]) -> Dict[int, Zone]:
         coords: tuple
         zone_index = 0
         zones: Dict[int, Zone] = {}
@@ -176,8 +173,12 @@ class Map(TimerMixin, GeometryMixin):
                                 points_to_check.extend(point_zone.unchecked_points)
                                 zones_to_remove.append(point_zone)
                                 zone.merge_with(point_zone)
-                            elif distance_from_edge[neighbor] > 1:
-                                zone.add_adjacent_zone(point_zone)
+                            elif distance_from_edge[neighbor] > 0:
+                                # check that the zones are actually close and pathable
+                                midpoint_distance = point_zone.midpoint.distance_to(zone.midpoint)
+                                actual_distance = await self.bot.client.query_pathing(zone.midpoint, point_zone.midpoint)
+                                if actual_distance is not None and actual_distance < midpoint_distance * 1.5:
+                                    zone.add_adjacent_zone(point_zone)
                         except KeyError:
                             # unassigned point, check if closer to edge
                             neighbor_distance = distance_from_edge[neighbor]
@@ -312,8 +313,10 @@ class Map(TimerMixin, GeometryMixin):
             for a_midpoint3 in zone.all_midpoints3:
                 self.bot.client.debug_box2_out(a_midpoint3, 0.15, color)
 
-            for point3 in zone.points_for_drawing.values():
-                self.bot.client.debug_line_out(zone.midpoint3, point3, color)
+            # for point3 in zone.points_for_drawing.values():
+            #     self.bot.client.debug_line_out(zone.midpoint3, point3, color)
+            for adjacent_zone in zone.adjacent_zones:
+                self.bot.client.debug_line_out(zone.midpoint3, adjacent_zone.midpoint3, color)
 
             path: Path
             for zone_id in zone.shortest_paths:

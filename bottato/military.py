@@ -147,36 +147,25 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.squads: List[BaseSquad] = []
         self.created_squad_type_counts: dict[int, int] = {}
         self.offense_start_supply = 200
+        # one squad per enemy in base
         self.countered_enemies: dict[int, FormationSquad] = {}
         self.army_ratio: float = 1.0
         self.status_message = ""
         self.stuck_rescue = StuckRescue(self.bot, self.main_army, self.squads_by_unit_tag)
-        # self.stuck_unit_transport: Unit = None
-        # self.stuck_transport_is_loaded = False
-        # self.stuck_unit_dropoff: Point2 = None
 
     def add_to_main(self, unit: Unit) -> None:
         self.main_army.recruit(unit)
         self.squads_by_unit_tag[unit.tag] = self.main_army
 
-    def add_squad(self, squad_type: SquadType) -> FormationSquad:
-        new_squad = FormationSquad(bot=self.bot,
-                                   type=squad_type,
-                                   enemy=self.enemy,
-                                   map=self.map,
-                                   color=self.random_color(),
-                                   name=self.create_squad_name(squad_type))
-        self.squads.append(new_squad)
-        logger.debug(f"add squad {new_squad} of type {squad_type}")
-        return new_squad
+    def transfer(self, unit: Unit, from_squad: BaseSquad, to_squad: BaseSquad) -> bool:
+        if from_squad == to_squad:
+            return True
+        from_squad.transfer(unit, to_squad)
+        self.squads_by_unit_tag[unit.tag] = to_squad
 
-    def create_squad_name(self, squad_type: SquadType) -> str:
-        if squad_type.name in self.created_squad_type_counts:
-            next_value = self.created_squad_type_counts[squad_type.name] + 1
-        else:
-            next_value = 1
-        self.created_squad_type_counts[squad_type.name] = next_value
-        return f'{squad_type.name}_{next_value}'
+    def transfer_all(self, from_squad: BaseSquad, to_squad: BaseSquad) -> None:
+        for unit in [unit for unit in from_squad.units]:
+            self.transfer(unit, from_squad, to_squad)
 
     def rescue_stuck_units(self, stuck_units: List[Unit]):
         self.stuck_rescue.rescue(stuck_units)
@@ -205,15 +194,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         defend_with_main_army = False
 
         # disband squads for missing enemies
-        tags_to_remove = []
-        for enemy_tag in self.countered_enemies:
+        for enemy_tag in [tag for tag in self.countered_enemies.keys()]:
             if enemy_tag not in enemies_in_base.tags:
                 defense_squad: FormationSquad = self.countered_enemies[enemy_tag]
-                defense_squad.transfer_all(self.main_army)
-                tags_to_remove.append(enemy_tag)
+                self.transfer_all(defense_squad, self.main_army)
                 self.squads.remove(defense_squad)
-        for enemy_tag in tags_to_remove:
-            del self.countered_enemies[enemy_tag]
+                del self.countered_enemies[enemy_tag]
 
         # assign squads to enemies
         for enemy in enemies_in_base:
@@ -235,8 +221,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     if unit_type in current_counters:
                         current_counters.remove(unit_type)
                     else:
-                        if not self.main_army.transfer_by_type(unit_type, defense_squad):
-                            defense_squad.transfer_all(self.main_army)
+                        available_units = self.main_army.units.of_type(unit_type)
+                        if available_units:
+                            self.transfer(available_units.closest_to(enemy), self.main_army, defense_squad)
+                        else:
+                            self.transfer_all(defense_squad, self.main_army)
                             del self.countered_enemies[enemy.tag]
                             self.squads.remove(defense_squad)
                             defend_with_main_army = True
@@ -251,20 +240,17 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         army_is_big_enough = main_army_value > enemy_value * 1.5 or self.bot.supply_used > 160
         army_is_grouped = self.main_army.is_grouped()
         self.army_ratio = main_army_value / max(enemy_value, 1)
-        mount_offense = not defend_with_main_army and army_is_big_enough and army_is_grouped and (self.bot.supply_used >= 110 or self.bot.time > 600)
+        mount_offense = not defend_with_main_army and army_is_big_enough and (self.bot.supply_used >= 110 or self.bot.time > 600)
         self.status_message = f"main_army_value: {main_army_value}\nenemy_value: {enemy_value}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
 
         if mount_offense:
             if self.offense_start_supply == 200:
                 self.offense_start_supply = self.bot.supply_army
-                # await self.bot.chat_send("time to attack")
         else:
             self.offense_start_supply = 200
 
         self.manage_bunker(mount_offense)
-        # squad: FormationSquad
-        # for i, squad in enumerate(self.squads):
         if self.main_army.units:
             self.main_army.draw_debug_box()
             self.main_army.update_formation()
@@ -273,17 +259,25 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 await self.main_army.attack(enemies_in_base)
             elif mount_offense:
                 logger.debug(f"squad {self.main_army.name} mounting offense")
+                army_position = self.main_army.parent_formation.front_center
+                target = None
+                target_position = None
                 if self.enemy.enemies_in_view:
-                    await self.main_army.attack(self.enemy.enemies_in_view)
+                    target = self.enemy.enemies_in_view
+                    target_position = target.closest_to(army_position).position
                 elif self.bot.enemy_structures:
-                    await self.main_army.attack(self.bot.enemy_structures)
+                    target = self.bot.enemy_structures
+                    target_position = target.closest_to(army_position).position
                 else:
-                    await self.main_army.attack(self.bot.enemy_start_locations[0])
-            elif not army_is_grouped:
-                army_center = self.main_army.units.center
-                enemy_position = self.bot.enemy_start_locations[0]
-                facing = self.get_facing(army_center, enemy_position)
-                await self.main_army.move(army_center, facing, force_move=True, blueprints=blueprints)
+                    target = self.bot.enemy_start_locations[0]
+                    target_position = target
+                if not army_is_grouped:
+                    # army_center = self.main_army.units.center
+                    facing = self.get_facing(army_position, target_position)
+                    await self.main_army.move(army_position, facing, force_move=True, blueprints=blueprints)
+                else:
+                    if target:
+                        await self.main_army.attack(target)
             else:
                 logger.debug(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = self.bot.enemy_start_locations[0]
@@ -324,8 +318,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     if not self.bunker.has_space():
                         break
                     if unit.type_id == UnitTypeId.MARINE:
-                        self.main_army.transfer(unit, self.bunker)
-                        self.squads_by_unit_tag[unit.tag] = self.bunker
+                        self.transfer(unit, self.main_army, self.bunker)
                         unit.smart(self.bunker.structure)
 
     def get_counter_units(self, unit: Unit):

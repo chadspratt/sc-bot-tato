@@ -96,12 +96,12 @@ class BaseSquad(UnitReferenceMixin):
         for unit in [u for u in self.units]:
             self.transfer(unit, to_squad)
 
-    def transfer_by_type(self, unit_type: UnitTypeId, to_squad: BaseSquad) -> bool:
-        for unit in self.units:
-            if unit.type_id == unit_type:
-                self.transfer(unit, to_squad)
-                return True
-        return False
+    # def transfer_by_type(self, unit_type: UnitTypeId, to_squad: BaseSquad) -> bool:
+    #     for unit in self.units:
+    #         if unit.type_id == unit_type:
+    #             self.transfer(unit, to_squad)
+    #             return True
+    #     return False
 
     def unit_count(self, unit: Unit) -> int:
         _has = sum([1 for u in self.units if u.type_id is unit.type_id])
