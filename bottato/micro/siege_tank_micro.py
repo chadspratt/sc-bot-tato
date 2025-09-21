@@ -36,8 +36,10 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         # skip currently or recently transformed
         if unit.is_transforming:
             return False
-        if unit.tag in self.last_transform_time and ((self.bot.time - self.last_transform_time[unit.tag]) < self.min_seconds_between_transform):
-            logger.debug(f"unit last transformed {self.bot.time - self.last_transform_time[unit.tag]}s ago, need to wait {self.min_seconds_between_transform}")
+        last_transform = self.last_transform_time.get(unit.tag, -999)
+        time_since_last_transform = self.bot.time - last_transform
+        if unit.tag in self.last_transform_time and (time_since_last_transform < self.min_seconds_between_transform):
+            logger.debug(f"unit last transformed {time_since_last_transform}s ago, need to wait {self.min_seconds_between_transform}")
             return False
 
         # remove missing
@@ -84,7 +86,9 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         enemy_distance = closest_distance if most_are_seiged or has_friendly_buffer else closest_distance_after_siege
         if is_sieged:
             # all_sieged = len(self.unsieged_tags) == 0
-            if enemy_distance > self.sieged_range and closest_structure_distance > self.sight_range - 1 and not reached_destination:
+            # keep sieged if enemy might get lured closer, decrease extra buffer over time
+            extra_range = max(15 - time_since_last_transform, 0)
+            if enemy_distance > self.sieged_range + extra_range and closest_structure_distance > self.sight_range - 1 and not reached_destination:
                 self.unsiege(unit)
                 return True
         else:
@@ -101,8 +105,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
         return False
 
-    # def attack_something(self, unit: Unit, health_threshold: float) -> bool:
-    #     return super().attack_something(unit, health_threshold)
+    # def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
+    #     return super().attack_something(unit, enemy, health_threshold)
 
     def siege(self, unit: Unit):
         logger.debug(f"{unit} sieging")

@@ -183,6 +183,8 @@ class GeometryMixin:
                 return future_position
 
     def distance(self, unit1: Unit, unit2: Unit) -> float:
+        if unit1 is None or unit2 is None:
+            return 9999
         try:
             return unit1.distance_to(unit2)
         except IndexError:

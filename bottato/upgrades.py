@@ -95,8 +95,8 @@ class Upgrades:
     upgrades_by_facility: dict[UnitTypeId, list[UpgradeId]] = {
         UnitTypeId.BARRACKSTECHLAB: [
             UpgradeId.SHIELDWALL,
-            # UpgradeId.STIMPACK,
-            # UpgradeId.PUNISHERGRENADES,
+            UpgradeId.STIMPACK,
+            UpgradeId.PUNISHERGRENADES,
         ],
         UnitTypeId.FACTORYTECHLAB: [
             # UpgradeId.HURRICANETHRUSTERS,
@@ -145,6 +145,17 @@ class Upgrades:
         self.bot = bot
         self.index = 0
 
+    def get_upgrades(self) -> List[UpgradeId]:
+        return (
+            self.next_upgrades(UnitTypeId.ARMORY)
+            + self.next_upgrades(UnitTypeId.ENGINEERINGBAY)
+            + self.next_upgrades(UnitTypeId.BARRACKSTECHLAB)
+            + self.next_upgrades(UnitTypeId.FACTORYTECHLAB)
+            + self.next_upgrades(UnitTypeId.STARPORTTECHLAB)
+            # + self.next_upgrades(UnitTypeId.FUSIONCORE)
+            # + self.next_upgrades(UnitTypeId.GHOSTACADEMY)
+        )
+
     def next_upgrades(self, facility_type: UnitTypeId) -> List[UpgradeId]:
         new_upgrades = []
         number_needed: int = len(self.bot.structures(facility_type).idle)
@@ -158,22 +169,3 @@ class Upgrades:
                 if len(new_upgrades) == number_needed:
                     break
         return new_upgrades
-
-    def get_upgrades(self) -> List[UpgradeId]:
-        return (
-            self.next_upgrades(UnitTypeId.ARMORY)
-            + self.next_upgrades(UnitTypeId.ENGINEERINGBAY)
-            + self.next_upgrades(UnitTypeId.BARRACKSTECHLAB)
-            + self.next_upgrades(UnitTypeId.FACTORYTECHLAB)
-            + self.next_upgrades(UnitTypeId.STARPORTTECHLAB)
-            # + self.next_upgrades(UnitTypeId.FUSIONCORE)
-            # + self.next_upgrades(UnitTypeId.GHOSTACADEMY)
-        )
-
-    # armory_upgrades
-    # ebay_upgrades
-    # barracks_upgrades
-    # factory_upgrades
-    # starport_upgrades
-    # fusion_core_upgrades
-    # ghost_academy_upgrades

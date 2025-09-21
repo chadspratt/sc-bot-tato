@@ -60,7 +60,7 @@ class BaseUnitMicro(GeometryMixin):
 
         return do_retreat
 
-    def attack_something(self, unit: Unit, health_threshold: float, targets: Units = None) -> bool:
+    def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float, targets: Units = None) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
         if unit.health_percentage < health_threshold:
@@ -78,10 +78,24 @@ class BaseUnitMicro(GeometryMixin):
                 candidates = self.bot.enemy_structures.in_attack_range_of(unit)
 
         if candidates:
-            lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first
-            unit.attack(lowest_target)
-            logger.debug(f"unit {unit} attacking enemy {lowest_target}({lowest_target.position})")
-            return True
+            if unit.weapon_cooldown == 0:
+                lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first
+                unit.attack(lowest_target)
+                logger.debug(f"unit {unit} attacking enemy {lowest_target}({lowest_target.position})")
+                return True
+            else:
+                extra_range = -0.5
+                # move away if weapon on cooldown
+                if unit.weapon_cooldown > 1:
+                    extra_range = 3
+                nearest_target = candidates.closest_to(unit)
+                attack_range = unit.ground_range
+                if nearest_target.is_flying:
+                    attack_range = unit.air_range
+                target_position = nearest_target.position.towards(unit, attack_range + extra_range)
+                unit.move(target_position)
+                logger.info(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
+                return True
         return False
 
     async def move(self, unit: Unit, target: Point2, enemy: Enemy, force_move: bool = False) -> None:
@@ -89,7 +103,7 @@ class BaseUnitMicro(GeometryMixin):
             return
         if await self.use_ability(unit, enemy, target, health_threshold=self.ability_health, force_move=force_move):
             logger.debug(f"unit {unit} used ability")
-        elif self.attack_something(unit, health_threshold=self.attack_health):
+        elif self.attack_something(unit, enemy, health_threshold=self.attack_health):
             logger.debug(f"unit {unit} attacked something")
         elif force_move:
             unit.move(target)
@@ -107,7 +121,7 @@ class BaseUnitMicro(GeometryMixin):
             pass
         elif await self.retreat(unit, enemy, health_threshold=1.0):
             pass
-        elif self.attack_something(unit, health_threshold=0.0):
+        elif self.attack_something(unit, enemy, health_threshold=0.0):
             pass
         elif await self.retreat(unit, enemy, health_threshold=0.75):
             pass

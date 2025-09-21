@@ -129,14 +129,15 @@ class Scouting(BaseSquad, DebugMixin):
             self.worker_scout = self.get_updated_unit_reference(self.worker_scout)
         except self.UnitNotFound:
             self.worker_scout = None
-        if self.initial_scout_completed:
+        if self.initial_scout_completed or self.bot.time > self.initial_scout_complete_time + 40:
+            self.initial_scout_completed = True
             if self.worker_scout is not None:
                 workers.set_as_idle(self.worker_scout)
                 self.worker_scout = None
         elif self.bot.time > self.worker_scout_time and self.worker_scout is None:
             self.worker_scout = workers.get_scout(self.map.enemy_natural_position)
 
-        if self.bot.time > 500:
+        if self.bot.time > 1800:
             if self.friendly_territory.scouts_needed:
                 for unit in military.main_army.units:
                     if self.friendly_territory.needs(unit):

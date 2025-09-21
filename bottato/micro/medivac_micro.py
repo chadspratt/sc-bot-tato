@@ -43,7 +43,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
             self.stopped_for_healing.remove(unit.tag)
         return unit.tag in self.bot.unit_tags_received_action
 
-    def attack_something(self, unit: Unit, health_threshold: float) -> bool:
+    def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
         # doesn't have an attack
         return False
 

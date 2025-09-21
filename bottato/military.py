@@ -121,9 +121,7 @@ class StuckRescue(BaseSquad, UnitReferenceMixin):
                 self.transport(AbilityId.LOAD, unit)
                 cargo_left -= unit.cargo_size
             else:
-                # self.is_loaded = True
                 break
-        # else:
         if cargo_left == self.transport.cargo_left:
             # everything loaded (next frame)
             self.is_loaded = True
@@ -173,6 +171,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
     async def manage_squads(self, iteration: int, blueprints: List[BuildStep]):
         self.start_timer("manage_squads")
         self.main_army.draw_debug_box()
+        
+        # fill bunker before managing defense
+        self.manage_bunker(False)
 
         # only run this every three steps
         if iteration % 3:
@@ -272,8 +273,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     target = self.bot.enemy_start_locations[0]
                     target_position = target
                 if not army_is_grouped:
-                    # army_center = self.main_army.units.center
-                    facing = self.get_facing(army_position, target_position)
+                    army_center = self.main_army.units.closest_to(self.bot.enemy_start_locations[0]).position
+                    facing = self.get_facing(army_center, target_position)
                     await self.main_army.move(army_position, facing, force_move=True, blueprints=blueprints)
                 else:
                     if target:

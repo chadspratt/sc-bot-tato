@@ -29,7 +29,7 @@ class Commander(TimerMixin, GeometryMixin):
         self.enemy: Enemy = Enemy(self.bot)
         self.my_workers: Workers = Workers(self.bot, self.enemy)
         self.military: Military = Military(self.bot, self.enemy, self.map, self.my_workers)
-        self.structure_micro: StructureMicro = StructureMicro(self.bot)
+        self.structure_micro: StructureMicro = StructureMicro(self.bot, self.enemy)
         self.production: Production = Production(self.bot)
         self.build_order: BuildOrder = BuildOrder(
             "pig_b2gm", bot=self.bot, workers=self.my_workers, production=self.production, map=self.map
@@ -90,14 +90,6 @@ class Commander(TimerMixin, GeometryMixin):
                             self.bot.client.debug_text_3d("STUCK", path[0].position3d)
                             self.stuck_units.append(path[0])
                             logger.info(f"unit is stuck {path[0]}")
-            # XXX debug code to test stuck unit rescue
-            # if not self.stuck_units and self.test_stuck is not True:
-            #     reapers = self.bot.units(UnitTypeId.REAPER)
-            #     if reapers:
-            #         self.test_stuck = False
-            #         self.stuck_units.append(reapers[0])
-            #     elif self.test_stuck is False:
-            #         self.test_stuck = True
 
     async def scout(self):
         self.start_timer("scout")

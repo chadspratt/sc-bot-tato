@@ -63,11 +63,14 @@ class Facility(UnitReferenceMixin):
 
         if self.add_on_type == UnitTypeId.NOTAUNIT and not self.addon_blocked:
             closest_candidates = self.bot.structures.filter(lambda s: s.tag != updated_unit.tag)
-            closest_structure_to_addon = closest_candidates.closest_to(updated_unit.add_on_position)
-            self.addon_blocked = closest_structure_to_addon.radius > closest_structure_to_addon.distance_to(updated_unit.add_on_position)
-            # not (await self.bot.can_place_single(UnitTypeId.SUPPLYDEPOT, updated_unit.add_on_position))
-            if self.addon_blocked:
-                logger.debug(f"addon blocked for {updated_unit}")
+            if not closest_candidates:
+                self.addon_blocked = False
+            else:
+                closest_structure_to_addon = closest_candidates.closest_to(updated_unit.add_on_position)
+                self.addon_blocked = closest_structure_to_addon.radius > closest_structure_to_addon.distance_to(updated_unit.add_on_position)
+                # not (await self.bot.can_place_single(UnitTypeId.SUPPLYDEPOT, updated_unit.add_on_position))
+                if self.addon_blocked:
+                    logger.debug(f"addon blocked for {updated_unit}")
 
         self.unit = updated_unit
 

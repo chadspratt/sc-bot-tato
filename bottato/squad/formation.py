@@ -238,6 +238,8 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         distance_remaining = (self.front_center - formation_destination).length
         if distance_remaining < 10:
             self.destination = formation_destination
+            self.front_center = formation_destination
+            self.path = [formation_destination]
             logger.debug(f"distance to {self.destination} < 5")
         else:
             self.path = self.map.get_path_points(self.front_center, formation_destination)
@@ -281,11 +283,12 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         return unit_destinations
 
     def calculate_formation_front_center(self, units: Units, destination: Point2) -> Point2:
-        close_units = units.closer_than(10, self.front_center)
-        in_formation_units: Units = close_units if close_units else units
-        units_center = in_formation_units.center
+        closest_to_enemy = units.closest_to(self.bot.enemy_start_locations[0])
+        close_units = units.closer_than(15, closest_to_enemy)
+        # in_formation_units: Units = close_units if close_units else units
+        units_center = close_units.center
 
-        path_units = units.filter(lambda u: not u.is_flying)
+        path_units = close_units.filter(lambda u: not u.is_flying)
         if path_units.empty:
             path_units = units
         self.path = self.map.get_shortest_path(path_units, destination)

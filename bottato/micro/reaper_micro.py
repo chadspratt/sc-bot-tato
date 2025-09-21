@@ -25,9 +25,9 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         return await self.grenade_knock_away(unit, enemy)
 
-    def attack_something(self, unit, health_threshold, targets: Unit = None):
+    def attack_something(self, unit, enemy: Enemy, health_threshold, targets: Unit = None):
         targets = self.enemy.get_enemies_in_range(unit, include_structures=False, include_units=True, include_destructables=False)
-        return super().attack_something(unit, health_threshold, targets)
+        return super().attack_something(unit, enemy, health_threshold, targets)
 
     async def grenade_knock_away(self, unit: Unit, enemy: Enemy) -> bool:
         targets: Units = enemy.threats_to(unit)
