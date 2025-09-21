@@ -45,22 +45,30 @@ class BaseUnitMicro(GeometryMixin):
                 do_retreat = True 
         if do_retreat:
             logger.debug(f"{unit} retreating")
-            if unit.is_mechanical:
-                repairers = self.bot.workers.filter(lambda unit: unit.is_repairing) or self.bot.workers
-                if repairers:
-                    unit.move(repairers.closest_to(unit))
-                else:
-                    do_retreat = False
+            threats = enemy.threats_to(unit)
+            if threats:
+                avg_threat_position = threats.center
+                retreat_position = unit.position.towards(avg_threat_position, -5)
+                unit.move(retreat_position)
             else:
-                medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC)
-                if medivacs:
-                    unit.move(medivacs.closest_to(unit))
+                if unit.is_mechanical:
+                    repairers = self.bot.workers.filter(lambda unit: unit.is_repairing) or self.bot.workers
+                    if repairers:
+                        unit.move(repairers.closest_to(unit))
+                    else:
+                        do_retreat = False
                 else:
-                    unit.move(self.bot.game_info.player_start_location)
+                    medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC)
+                    if medivacs:
+                        unit.move(medivacs.closest_to(unit))
+                    else:
+                        unit.move(self.bot.game_info.player_start_location)
 
         return do_retreat
 
-    def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float, targets: Units = None) -> bool:
+    def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float, targets: Units = None, force_move: bool = False) -> bool:
+        if force_move:
+            return False
         if unit.tag in self.bot.unit_tags_received_action:
             return False
         if unit.health_percentage < health_threshold:
@@ -103,7 +111,7 @@ class BaseUnitMicro(GeometryMixin):
             return
         if await self.use_ability(unit, enemy, target, health_threshold=self.ability_health, force_move=force_move):
             logger.debug(f"unit {unit} used ability")
-        elif self.attack_something(unit, enemy, health_threshold=self.attack_health):
+        elif self.attack_something(unit, enemy, health_threshold=self.attack_health, force_move=force_move):
             logger.debug(f"unit {unit} attacked something")
         elif force_move:
             unit.move(target)

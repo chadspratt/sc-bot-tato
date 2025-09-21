@@ -137,7 +137,8 @@ class Scouting(BaseSquad, DebugMixin):
         elif self.bot.time > self.worker_scout_time and self.worker_scout is None:
             self.worker_scout = workers.get_scout(self.map.enemy_natural_position)
 
-        if self.bot.time > 1800:
+        # start territory scouting if enemy main is empty
+        if self.bot.is_visible(self.bot.enemy_start_locations[0]) and not self.bot.enemy_structures.closer_than(10, self.bot.enemy_start_locations[0]):
             if self.friendly_territory.scouts_needed:
                 for unit in military.main_army.units:
                     if self.friendly_territory.needs(unit):

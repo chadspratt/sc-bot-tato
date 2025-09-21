@@ -27,7 +27,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
         super().__init__(bot, enemy)
 
     async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
-        if unit.health <= 20:
+        if unit.health <= 35:
             return False
         if not self.stim_researched:
             if self.bot.already_pending_upgrade(UpgradeId.STIMPACK) == 1:
@@ -54,7 +54,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     def is_stimmed(self, unit: Unit) -> bool:
         return unit.tag in self.last_stim_time and self.bot.time - self.last_stim_time[unit.tag] < 11
     
-    def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float, targets: Units = None) -> bool:
+    def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float, targets: Units = None, force_move: bool = False) -> bool:
         if unit.health_percentage < health_threshold:
             return False
         # if unit.weapon_cooldown != 0:
@@ -111,9 +111,12 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             UnitTypeId.SCV,
             UnitTypeId.DRONE,
             UnitTypeId.DRONEBURROWED,
-            UnitTypeId.MULE
+            UnitTypeId.MULE,
+            UnitTypeId.OBSERVER
         ]
         closest_enemy, closest_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
+        if not closest_enemy or closest_enemy.is_flying:
+            return None
         tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))
         nearest_tank = tanks.closest_to(unit) if tanks else None
         tank_to_enemy_distance = self.distance(nearest_tank, closest_enemy) if nearest_tank and closest_enemy else 9999
