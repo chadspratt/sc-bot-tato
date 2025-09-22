@@ -58,9 +58,9 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         # fix miscategorizations
         if is_sieged != (unit.tag in self.sieged_tags):
             if is_sieged:
-                self.siege(unit)
+                self.siege(unit, update_last_transform_time=False)
             else:
-                self.unsiege(unit)
+                self.unsiege(unit, update_last_transform_time=False)
 
         excluded_enemy_types = [] if is_sieged else [UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.DRONEBURROWED, UnitTypeId.MULE]
         closest_enemy, closest_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
@@ -108,17 +108,17 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     # def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float, force_move: bool = False) -> bool:
     #     return super().attack_something(unit, enemy, health_threshold)
 
-    def siege(self, unit: Unit):
+    def siege(self, unit: Unit, update_last_transform_time: bool = True):
         logger.debug(f"{unit} sieging")
         unit(AbilityId.SIEGEMODE_SIEGEMODE)
-        self.update_siege_state(unit, self.unsieged_tags, self.sieged_tags)
+        self.update_siege_state(unit, self.unsieged_tags, self.sieged_tags, update_last_transform_time)
 
-    def unsiege(self, unit: Unit):
+    def unsiege(self, unit: Unit, update_last_transform_time: bool = True):
         logger.debug(f"{unit} unsieging")
         unit(AbilityId.UNSIEGE_UNSIEGE)
-        self.update_siege_state(unit, self.sieged_tags, self.unsieged_tags)
+        self.update_siege_state(unit, self.sieged_tags, self.unsieged_tags, update_last_transform_time)
 
-    def update_siege_state(self, unit: Unit, old_list: set, new_list: set):
+    def update_siege_state(self, unit: Unit, old_list: set, new_list: set, update_last_transform_time: bool = True):
         self.last_transform_time[unit.tag] = self.bot.time
         new_list = self.bot.units.tags.intersection(new_list)
         if unit.tag not in new_list:

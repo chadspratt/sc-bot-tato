@@ -45,7 +45,8 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             UnitTypeId.MULE
         ]
         closest_enemy, closest_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
-        if closest_distance <= self.attack_range:
+        tank_to_retreat_to = self.tank_to_retreat_to(unit, enemy, closest_enemy)
+        if closest_distance <= self.attack_range and tank_to_retreat_to is None:
             unit(AbilityId.EFFECT_STIM_MARINE)
             self.last_stim_time[unit.tag] = self.bot.time
             return True
@@ -105,7 +106,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
                 logger.info(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
                 return True
         
-    def tank_to_retreat_to(self, unit: Unit, enemy: Enemy) -> Unit | None:
+    def tank_to_retreat_to(self, unit: Unit, enemy: Enemy, closest_enemy: Unit = None) -> Unit | None:
         excluded_enemy_types = [
             UnitTypeId.PROBE,
             UnitTypeId.SCV,
@@ -114,7 +115,8 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             UnitTypeId.MULE,
             UnitTypeId.OBSERVER
         ]
-        closest_enemy, closest_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
+        if not closest_enemy:
+            closest_enemy, closest_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
         if not closest_enemy or closest_enemy.is_flying:
             return None
         tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))

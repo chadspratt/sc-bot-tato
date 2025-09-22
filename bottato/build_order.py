@@ -441,13 +441,7 @@ class BuildOrder(TimerMixin):
             return
         for idx, build_step in enumerate(self.started):
             if build_step.unit_being_built is not None and build_step.unit_being_built is not True and build_step.unit_being_built.tag == unit.tag:
-                unit(AbilityId.CANCEL_BUILDINPROGRESS)
-                logger.debug(f"canceling build of {unit}")
-                build_step.unit_being_built = None
-                build_step.last_cancel = self.bot.time
-                if build_step.unit_in_charge and build_step.unit_in_charge.type_id == UnitTypeId.SCV:
-                    self.workers.update_assigment(build_step.unit_in_charge, JobType.IDLE, None)
-                # self.pending.insert(0, self.started.pop(idx))
+                build_step.cancel_construction()
                 break
 
     async def execute_pending_builds(self, only_build_units: bool) -> None:
@@ -476,7 +470,7 @@ class BuildOrder(TimerMixin):
             remaining_resources = remaining_resources - build_step.cost
             if build_step.unit_type_id in failed_types or only_build_units and build_step.builder_type == UnitTypeId.SCV:
                 continue
-            time_since_last_cancel = self.bot.time - build_step.last_cancel
+            time_since_last_cancel = self.bot.time - build_step.last_cancel_time
             if time_since_last_cancel < 5:
                 # delay rebuilding canceled structures
                 continue

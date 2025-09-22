@@ -42,7 +42,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     pos: Union[Unit, Point2] = None
     geysir: Unit = None
     check_idle: bool = False
-    last_cancel: float = -10
+    last_cancel_time: float = -10
     start_time: int = None
     completed_time: int = None
     worker_in_position_time: int = None
@@ -324,6 +324,10 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     UnitTypeId.BARRACKS,
                     UnitTypeId.FACTORY,
                     UnitTypeId.STARPORT,
+                    UnitTypeId.ENGINEERINGBAY,
+                    UnitTypeId.GHOSTACADEMY,
+                    UnitTypeId.FUSIONCORE,
+                    UnitTypeId.ARMORY,
                 )
                 map_center = self.bot.game_info.map_center
                 max_distance = 20
@@ -458,3 +462,19 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                         )
                         # self.unit_in_charge.build(self.unit_type_id, self.pos)
         return False
+    
+    def cancel_construction(self):
+        logger.debug(f"canceling build of {self.unit_being_built}")
+        self.unit_being_built(AbilityId.CANCEL_BUILDINPROGRESS)
+        self.last_cancel_time = self.bot.time
+        self.unit_being_built = None
+        if self.unit_in_charge and self.unit_in_charge.type_id == UnitTypeId.SCV:
+            self.workers.update_assigment(self.unit_in_charge, JobType.IDLE, None)
+            self.unit_in_charge = None
+        self.pos = None
+        self.geysir = None
+        self.worker_in_position_time = None
+        self.is_in_progress = False
+        self.check_idle = False
+        self.start_time = None
+        self.completed_time = None
