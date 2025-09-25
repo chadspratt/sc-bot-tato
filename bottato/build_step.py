@@ -288,16 +288,21 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         if unit_type_id == UnitTypeId.COMMANDCENTER:
             new_build_position = await self.bot.get_next_expansion()
         elif unit_type_id == UnitTypeId.BUNKER:
-            ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
-            bunker_range: float = 6  # marine 5 + 1
-            bunker_range = max(bunker_range, self.map.natural_position.distance_to(ramp_position) + 1)
-            candidate = (ramp_position + self.map.natural_position) / 2
-            # candidates = self.map.natural_position.circle_intersection(ramp_position, bunker_range)
-            enemy_start: Point2 = self.bot.enemy_start_locations[0]
-            new_build_position = await self.bot.find_placement(
-                                unit_type_id,
-                                near=candidate.towards(enemy_start, distance=2))
-                                # near=enemy_start.closest(candidates))
+            candidate: Point2 = None
+            if rush_defense_enacted:
+                candidate = self.bot.main_base_ramp.top_center
+            else:
+                ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
+                enemy_start: Point2 = self.bot.enemy_start_locations[0]
+                candidate = ((ramp_position + self.map.natural_position) / 2).towards(enemy_start, distance=2)
+            retry_count = 0
+            while not new_build_position or new_build_position.distance_to(self.map.natural_position) < 4:
+                new_build_position = await self.bot.find_placement(
+                                    unit_type_id,
+                                    near=candidate)
+                retry_count += 1
+                if retry_count > 5:
+                    break
         elif unit_type_id == UnitTypeId.MISSILETURRET:
             bases = self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS})
             turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)

@@ -67,7 +67,7 @@ class BuildStarts():
                 UnitTypeId.MARINE, # supply blocked until depot finishes
                 UnitTypeId.MARINE,
                 UnitTypeId.REFINERY,
-                UnitTypeId.SUPPLYDEPOT,
+                # UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.SCV,
                 UnitTypeId.SCV,
                 UnitTypeId.MARINE,

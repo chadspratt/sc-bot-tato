@@ -34,9 +34,10 @@ class Commander(TimerMixin, GeometryMixin):
         self.build_order: BuildOrder = BuildOrder(
             "pig_b2gm", bot=self.bot, workers=self.my_workers, production=self.production, map=self.map
         )
-        self.scouting = Scouting(self.bot, self.enemy, self.map)
+        self.scouting = Scouting(self.bot, self.enemy, self.map, self.my_workers, self.military)
         self.new_damage_taken: dict[int, float] = {}
         self.stuck_units: list[Unit] = []
+        self.rush_detected: bool = False
         # self.test_stuck = None
 
     async def command(self, iteration: int):
@@ -45,7 +46,6 @@ class Commander(TimerMixin, GeometryMixin):
         # self.map.refresh_map()
         # check for stuck units
         await self.detect_stuck_units()
-        self.military.rescue_stuck_units(self.stuck_units)
 
         # XXX very slow
         self.map.update_influence_maps()
@@ -90,13 +90,12 @@ class Commander(TimerMixin, GeometryMixin):
                             self.bot.client.debug_text_3d("STUCK", path[0].position3d)
                             self.stuck_units.append(path[0])
                             logger.info(f"unit is stuck {path[0]}")
+        self.military.rescue_stuck_units(self.stuck_units)
 
     async def scout(self):
         self.start_timer("scout")
-        self.scouting.update_scouts(self.my_workers, self.military)
-
         self.scouting.update_visibility()
-        await self.scouting.move_scouts(self.new_damage_taken)
+        await self.scouting.scout(self.new_damage_taken)
         self.rush_detected = self.scouting.rush_detected
         self.start_timer("scout")
 

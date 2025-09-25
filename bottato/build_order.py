@@ -169,15 +169,16 @@ class BuildOrder(TimerMixin):
         self.start_timer("get_queued_worker")
         in_static_queue = max([build_step.unit_type_id == UnitTypeId.SCV for build_step in self.static_queue], default=False)
         if not in_static_queue:
-            worker_build_capacity: int = len(self.bot.townhalls.idle)
+            worker_build_capacity: int = len(self.bot.townhalls.ready)
             desired_worker_count = self.workers.max_workers
             # desired_worker_count = max(30, self.bot.supply_cap / 3)
             logger.debug(f"worker_build_capacity={worker_build_capacity}")
+            number_to_build = desired_worker_count - len(self.workers.assignments_by_worker)
             if (
                 worker_build_capacity > 0
-                and len(self.workers.assignments_by_worker) < desired_worker_count
+                and number_to_build > 0
             ):
-                self.add_to_build_queue(UnitTypeId.SCV, queue=self.priority_queue)
+                self.add_to_build_queue([UnitTypeId.SCV for x in range(min(number_to_build, worker_build_capacity))], queue=self.priority_queue)
         self.stop_timer("get_queued_worker")
 
     def queue_supply(self) -> None:
@@ -226,7 +227,10 @@ class BuildOrder(TimerMixin):
                 refinery_count += 1
         # build refinery if less than 2 per town hall (function is only called if gas is needed but no room to move workers)
         logger.debug(f"refineries: {refinery_count}, townhalls: {len(self.bot.townhalls)}")
-        if refinery_count < len(self.bot.townhalls) * 2:
+        geysirs = self.bot.vespene_geyser.in_distance_of_group(
+            distance=10, other_units=self.bot.townhalls.ready
+        )
+        if refinery_count < len(geysirs):
             logger.debug("adding refinery to build order")
             self.add_to_build_queue(UnitTypeId.REFINERY, queue=self.priority_queue)
         # should also build a new one if current bases run out of resources
@@ -465,7 +469,7 @@ class BuildOrder(TimerMixin):
             except IndexError:
                 break
             percent_affordable = self.percent_affordable(remaining_resources, build_step.cost)
-            if percent_affordable <= 0:
+            if remaining_resources.minerals < 0 and remaining_resources.vespene < 0:
                 break
             remaining_resources = remaining_resources - build_step.cost
             if build_step.unit_type_id in failed_types or only_build_units and build_step.builder_type == UnitTypeId.SCV:

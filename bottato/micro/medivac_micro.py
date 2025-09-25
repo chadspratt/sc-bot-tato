@@ -19,6 +19,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     heal_range = 4
     ability_health = 0.5
     pick_up_range = 2
+    health_threshold_for_healing = 0.75
 
     stopped_for_healing: set[int] = set()
     injured_bio: Units = None
@@ -28,14 +29,15 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
         super().__init__(bot, enemy)
 
     async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
-        if unit.health_percentage < health_threshold and enemy.threats_to(unit):
+        threats = enemy.threats_to(unit, 5)
+        if unit.health_percentage < self.health_threshold_for_healing and threats:
             if unit.tag not in self.last_afterburner_time or self.bot.time - self.last_afterburner_time[unit.tag] > 14.0:
                 unit(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)
                 self.last_afterburner_time[unit.tag] = self.bot.time
             return False
         if not self.heal_available(unit):
             return False
-        if force_move:
+        if force_move and threats:
             return False
         
         # refresh list of injured bio once per iteration

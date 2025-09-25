@@ -322,8 +322,13 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             logger.debug(f"idle workers {self.bot.workers.idle}")
         for worker in self.bot.workers.idle:
             assigment: WorkerAssignment = self.assignments_by_worker[worker.tag]
-            if (assigment.job_type != JobType.BUILD or (assigment.target and assigment.target.is_ready)) and assigment.unit.type_id != UnitTypeId.MULE:
-                self.update_job(worker, JobType.IDLE)
+            if assigment.unit.type_id == UnitTypeId.MULE:
+                continue
+            if assigment.job_type == JobType.BUILD and (not assigment.target or not assigment.target.is_ready):
+                continue
+            if assigment.job_type == JobType.SCOUT:
+                continue
+            self.update_job(worker, JobType.IDLE)
         for worker in self.minerals.get_workers_from_depleted():
             self.update_job(worker, JobType.IDLE)
 

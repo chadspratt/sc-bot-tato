@@ -27,7 +27,7 @@ SquadTypeDefinitions: dict[str, SquadType] = {
         UnitTypeId.RAVEN: 1,
         UnitTypeId.MEDIVAC: 2,
         UnitTypeId.BANSHEE: 2,
-        UnitTypeId.VIKINGFIGHTER: 3,
+        UnitTypeId.VIKINGFIGHTER: 2,
         # UnitTypeId.THOR: 1,
         # UnitTypeId.BATTLECRUISER: 1
     })),

@@ -275,7 +275,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 if not army_is_grouped:
                     army_center = self.main_army.units.closest_to(self.bot.enemy_start_locations[0]).position
                     facing = self.get_facing(army_center, target_position)
-                    await self.main_army.move(army_position, facing, force_move=True, blueprints=blueprints)
+                    await self.main_army.move(army_position, facing, force_move=False, blueprints=blueprints)
                 else:
                     if target:
                         await self.main_army.attack(target)

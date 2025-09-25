@@ -4,8 +4,10 @@ import os
 from sc2.bot_ai import BotAI
 from sc2.data import Result
 from sc2.ids.upgrade_id import UpgradeId
+from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.game_data import Cost
 
 from bottato.commander import Commander
 from bottato.mixins import TimerMixin
@@ -23,6 +25,7 @@ class BotTato(BotAI, TimerMixin):
         logger.debug(os.getcwd())
         logger.debug(f"vision blockers: {self.game_info.vision_blockers}")
         logger.debug(f"destructibles: {self.destructables}")
+        self.patch_game_data()
 
     async def on_step(self, iteration):
         logger.debug(f"======starting step {iteration} ({self.time}s)======")
@@ -94,3 +97,18 @@ class BotTato(BotAI, TimerMixin):
     async def on_upgrade_complete(self, upgrade: UpgradeId):
         logger.debug(f"upgrade completed {upgrade}")
         self.commander.add_upgrade(upgrade)
+
+    def patch_game_data(self):
+        # Patch game data here if needed
+        class PatchedId():
+            def __init__(self, ability_id):
+                self.exact_id = ability_id
+                self.id = ability_id
+                # self.button_name = 'Stop'
+                # self.cost = Cost(0, 0)
+                # self.friendly_name = 'Stop Vespene Gathering'
+                # self.is_free_morph = False
+                # self.link_name = 'Stop Vespene Gathering'
+                # self.description = 'SCV stops gathering vespene gas'
+        if 4132 not in self.game_data.abilities:
+            self.game_data.abilities[4132] = PatchedId(AbilityId.WORKERSTOPIDLEABILITYVESPENE_GATHER)
