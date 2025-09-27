@@ -237,10 +237,16 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     worker.repair(new_target)
             elif assignment.job_type == JobType.VESPENE:
                 self.vespene.add_worker_to_node(worker, new_target)
-                worker.smart(new_target)
+                if worker.is_carrying_resource:
+                    worker.smart(self.bot.townhalls.closest_to(worker))
+                else:
+                    worker.smart(new_target)
             elif assignment.job_type == JobType.MINERALS:
                 self.minerals.add_worker_to_node(worker, new_target)
-                worker.gather(new_target)
+                if worker.is_carrying_resource:
+                    worker.smart(self.bot.townhalls.closest_to(worker))
+                else:
+                    worker.gather(new_target)
             else:
                 worker.smart(new_target)
         else:

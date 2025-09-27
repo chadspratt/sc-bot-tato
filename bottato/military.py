@@ -184,6 +184,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         base_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET)
         enemies_in_base: Units = Units([], self.bot)
         enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: base_structures.closest_distance_to(unit) < 25))
+        if self.main_army.staging_location:
+            enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.main_army.staging_location.distance_to(unit) < 15))
         out_of_view_in_base = []
         for enemy in self.enemy.recent_out_of_view():
             if base_structures.closest_distance_to(self.enemy.predicted_position[enemy.tag]) <= 25:
@@ -263,8 +265,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 army_position = self.main_army.parent_formation.front_center
                 target = None
                 target_position = None
-                if self.enemy.enemies_in_view:
-                    target = self.enemy.enemies_in_view
+                attackable_enemies = self.enemy.enemies_in_view.filter(lambda unit: unit.can_be_attacked)
+                if attackable_enemies:
+                    target = attackable_enemies
                     target_position = target.closest_to(army_position).position
                 elif self.bot.enemy_structures:
                     target = self.bot.enemy_structures
@@ -334,8 +337,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             return [UnitTypeId.RAVEN, UnitTypeId.VIKINGFIGHTER]
         elif unit.type_id in (UnitTypeId.VOIDRAY, ):
             return [UnitTypeId.VIKINGFIGHTER, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]
+        elif unit.type_id in (UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.PROBE):
+            return [UnitTypeId.MARINE]
         else:
-            return [UnitTypeId.MARINE, UnitTypeId.MARINE]
+            return [UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]
 
     def get_squad_request(self, remaining_cap: int) -> list[UnitTypeId]:
         self.start_timer("get_squad_request")

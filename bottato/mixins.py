@@ -224,7 +224,7 @@ class TimerMixin:
     def print_timers(self, prefix: str = '') -> None:
         for timer_name in self.timers.keys():
             timer = self.timers[timer_name]
-            logger.debug(f"{prefix}{timer_name} execution time: {timer['total']}")
+            logger.info(f"{prefix}{timer_name} execution time: {timer['total']}")
 
 
 class DebugMixin:

@@ -45,7 +45,7 @@ class Commander(TimerMixin, GeometryMixin):
 
         # self.map.refresh_map()
         # check for stuck units
-        await self.detect_stuck_units()
+        await self.detect_stuck_units(iteration)
 
         # XXX very slow
         self.map.update_influence_maps()
@@ -74,8 +74,8 @@ class Commander(TimerMixin, GeometryMixin):
         self.new_damage_taken.clear()
         self.stop_timer("command")
 
-    async def detect_stuck_units(self):
-        if self.bot.workers:
+    async def detect_stuck_units(self, iteration: int):
+        if iteration % 3 == 0 and self.bot.workers:
             self.stuck_units.clear()
             miners = self.my_workers.availiable_workers_on_job(JobType.MINERALS)
             if not miners:

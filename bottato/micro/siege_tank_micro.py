@@ -119,7 +119,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         self.update_siege_state(unit, self.sieged_tags, self.unsieged_tags, update_last_transform_time)
 
     def update_siege_state(self, unit: Unit, old_list: set, new_list: set, update_last_transform_time: bool = True):
-        self.last_transform_time[unit.tag] = self.bot.time
+        if update_last_transform_time:
+            self.last_transform_time[unit.tag] = self.bot.time
         new_list = self.bot.units.tags.intersection(new_list)
         if unit.tag not in new_list:
             new_list.add(unit.tag)

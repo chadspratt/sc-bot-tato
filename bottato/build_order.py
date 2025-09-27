@@ -1,4 +1,5 @@
 import math
+import random
 from loguru import logger
 from typing import Dict, List, Union
 
@@ -152,12 +153,12 @@ class BuildOrder(TimerMixin):
             if needed_resources.vespene > 0 and moved_workers == 0:
                 self.queue_refinery()
 
+        await self.execute_pending_builds(only_build_units)
+
         build_order_message = f"priority={'\n'.join([step.friendly_name for step in self.priority_queue])}"
         build_order_message += f"\nstatic={'\n'.join([step.friendly_name for step in self.static_queue])}"
         build_order_message += f"\nbuild_queue={'\n'.join([step.friendly_name for step in self.build_queue])}"
         self.bot.client.debug_text_screen(build_order_message, (0.01, 0.1))
-
-        await self.execute_pending_builds(only_build_units)
         self.stop_timer("build_order.execute")
 
     def queue_units(self, unit_types: List[UnitTypeId]) -> None:
@@ -454,6 +455,8 @@ class BuildOrder(TimerMixin):
         if response != ResponseCode.NO_RESOURCES:
             response = await self.build_from_queue(self.static_queue, only_build_units, allow_skip=True)
         if response != ResponseCode.NO_RESOURCES:
+            # randomize unit queue so it doesn't get stuck on one unit type
+            self.build_queue.sort(key=lambda step: random.randint(0,255), reverse=True)
             await self.build_from_queue(self.build_queue, only_build_units)
         self.stop_timer("execute_pending_builds")
 

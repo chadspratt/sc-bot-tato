@@ -57,7 +57,7 @@ class BotTato(BotAI, TimerMixin):
         if self.time - self.last_timer_print > interval:
             self.last_timer_print = self.time
             self.print_timers("main-")
-            self.commander.print_timers()
+            self.commander.print_all_timers()
             logger.debug(f"upgrades: {self.state.upgrades}")
 
     def disable_logging(self):

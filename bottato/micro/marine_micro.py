@@ -67,7 +67,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             if len(candidates) == 0:
                 candidates = targets
         else:
-            candidates = self.bot.enemy_units.in_attack_range_of(unit)
+            candidates = self.bot.enemy_units.in_attack_range_of(unit).filter(lambda unit: unit.can_be_attacked)
             if len(candidates) == 0:
                 candidates = self.bot.enemy_structures.in_attack_range_of(unit)
 
