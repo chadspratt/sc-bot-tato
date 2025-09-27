@@ -260,7 +260,7 @@ class Map(TimerMixin, GeometryMixin):
             pathable_position = position
         else:
             pathable_position: Point2 = self.influence_maps.closest_towards_point(candidates, position)
-            if pathable_position.distance_to(position) < 1:
+            if pathable_position.distance_to(position) < 1.5:
                 pathable_position = position
         self.influence_maps.add_cost(pathable_position, unit.radius, self.ground_grid, np.inf)
         return pathable_position

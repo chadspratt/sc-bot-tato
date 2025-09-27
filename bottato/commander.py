@@ -8,7 +8,7 @@ from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.bot_ai import BotAI
 
-from bottato.mixins import TimerMixin, GeometryMixin
+from bottato.mixins import TimerMixin, GeometryMixin, UnitReferenceMixin
 from bottato.build_order import BuildOrder
 from bottato.micro.structure_micro import StructureMicro
 from bottato.enemy import Enemy
@@ -19,7 +19,7 @@ from bottato.squad.scouting import Scouting
 from bottato.map.map import Map
 
 
-class Commander(TimerMixin, GeometryMixin):
+class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
 
@@ -91,6 +91,8 @@ class Commander(TimerMixin, GeometryMixin):
                             self.bot.client.debug_text_3d("STUCK", path[0].position3d)
                             self.stuck_units.append(path[0])
                             logger.info(f"unit is stuck {path[0]}")
+        else:
+            self.stuck_units = self.get_updated_unit_references_by_tags([unit.tag for unit in self.stuck_units])
         self.stop_timer("detect_stuck_units")
         self.military.rescue_stuck_units(self.stuck_units)
 

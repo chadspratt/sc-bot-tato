@@ -63,6 +63,10 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
 
     def heal_available(self, unit: Unit) -> bool:
         if unit.tag in self.stopped_for_healing:
-            return unit.energy >= self.heal_cost
+            if unit.energy >= self.heal_cost:
+                return True
+            else:
+                self.stopped_for_healing.remove(unit.tag)
+                return False
         else:
             return unit.energy >= self.heal_start_cost

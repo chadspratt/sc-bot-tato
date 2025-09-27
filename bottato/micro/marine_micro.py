@@ -143,7 +143,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
         return False
 
     def retreat_to_medivac(self, unit: Unit) -> bool:
-        medivacs = self.bot.units.filter(lambda unit: unit.type_id == UnitTypeId.MEDIVAC and unit.energy > 5)
+        medivacs = self.bot.units.filter(lambda unit: unit.type_id == UnitTypeId.MEDIVAC and unit.energy > 5 and unit.cargo_used == 0)
         if medivacs:
             nearest_medivac = medivacs.closest_to(unit)
             unit.move(nearest_medivac)
