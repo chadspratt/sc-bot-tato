@@ -28,7 +28,8 @@ def main():
     bot = BotTato()
     try:
         run_game(
-            maps.get(os.environ.get("SCII_MAP", "IncorporealAIE_v4")),
+            maps.get(os.environ.get("SCII_MAP", "UltraloveAIE_v2")),
+            # IncorporealAIE_v4, PylonAIE_v4, TorchesAIE_v4, UltraloveAIE_v2
             [
                 Bot(Race.Terran, bot, name="BotTato"),
                 # Computer(Race.Terran, Difficulty.VeryEasy),

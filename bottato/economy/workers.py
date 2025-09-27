@@ -89,7 +89,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     assignment.target = self.get_updated_unit_reference(assignment.target)
                 if assignment.job_type == JobType.BUILD and assignment.target is None and assignment.unit.is_idle:
                     assignment.job_type = JobType.IDLE
-                elif assignment.job_type in (JobType.MINERALS, JobType.VESPENE) and assignment.target.type_id not in (UnitTypeId.MINERALFIELD, UnitTypeId.MINERALFIELD450, UnitTypeId.MINERALFIELD750, UnitTypeId.REFINERY):
+                elif assignment.job_type == JobType.MINERALS and assignment.target.type_id not in self.minerals.mineral_type_ids:
+                    assignment.job_type = JobType.IDLE
+                elif assignment.job_type == JobType.VESPENE and assignment.target.type_id not in (UnitTypeId.REFINERY, UnitTypeId.REFINERYRICH):
                     assignment.job_type = JobType.IDLE
             except UnitReferenceMixin.UnitNotFound:
                 assignment.unit_available = False
@@ -218,7 +220,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
     def update_assigment(self, worker: Unit, job_type: JobType, target: Union[Unit, None]):
         if job_type in (JobType.MINERALS, JobType.VESPENE):
             assignment = self.assignments_by_worker[worker.tag]
-            logger.info(f"worker {worker} changing from {assignment.target} to {target}")
+            logger.debug(f"worker {worker} changing from {assignment.target} to {target}")
         self.update_job(worker, job_type)
         self.update_target(worker, target)
 
@@ -300,8 +302,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         else:
             builder = candidates.closest_to(building_position)
             if builder is not None:
-                self.update_assigment(builder, JobType.BUILD, None)
                 logger.debug(f"found builder {builder}")
+                self.update_assigment(builder, JobType.BUILD, None)
 
         return builder
 
@@ -318,8 +320,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         else:
             scout = candidates.closest_to(position)
             if scout is not None:
-                self.update_assigment(scout, JobType.SCOUT, None)
                 logger.debug(f"found scout {scout}")
+                self.update_assigment(scout, JobType.SCOUT, None)
 
         return scout
 
@@ -353,8 +355,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 continue
             if assigment.job_type == JobType.SCOUT:
                 continue
+            if assigment.job_type == JobType.IDLE:
+                continue
             self.update_job(worker, JobType.IDLE)
         for worker in self.minerals.get_workers_from_depleted():
+            logger.debug(f"worker {worker} was mining from depleted minerals")
             self.update_job(worker, JobType.IDLE)
 
         idle_workers: Units = self.availiable_workers_on_job(JobType.IDLE)

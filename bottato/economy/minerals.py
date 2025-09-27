@@ -3,12 +3,22 @@ from loguru import logger
 from sc2.bot_ai import BotAI
 from sc2.units import Units
 from sc2.unit import Unit
+from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.mixins import TimerMixin
 from .resources import Resources
 
 
 class Minerals(Resources, TimerMixin):
+    mineral_type_ids = [
+        UnitTypeId.MINERALFIELD, UnitTypeId.MINERALFIELD450, UnitTypeId.MINERALFIELD750,
+        UnitTypeId.LABMINERALFIELD, UnitTypeId.LABMINERALFIELD750,
+        UnitTypeId.RICHMINERALFIELD, UnitTypeId.RICHMINERALFIELD750,
+        UnitTypeId.PURIFIERRICHMINERALFIELD, UnitTypeId.PURIFIERRICHMINERALFIELD750,
+        UnitTypeId.PURIFIERMINERALFIELD, UnitTypeId.PURIFIERMINERALFIELD750,
+        UnitTypeId.BATTLESTATIONMINERALFIELD, UnitTypeId.BATTLESTATIONMINERALFIELD750
+    ]
+
     def __init__(self, bot: BotAI) -> None:
         super().__init__(bot)
         self.known_townhall_tags = []
