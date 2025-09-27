@@ -75,6 +75,7 @@ class Commander(TimerMixin, GeometryMixin):
         self.stop_timer("command")
 
     async def detect_stuck_units(self, iteration: int):
+        self.start_timer("detect_stuck_units")
         if iteration % 3 == 0 and self.bot.workers:
             self.stuck_units.clear()
             miners = self.my_workers.availiable_workers_on_job(JobType.MINERALS)
@@ -90,6 +91,7 @@ class Commander(TimerMixin, GeometryMixin):
                             self.bot.client.debug_text_3d("STUCK", path[0].position3d)
                             self.stuck_units.append(path[0])
                             logger.info(f"unit is stuck {path[0]}")
+        self.stop_timer("detect_stuck_units")
         self.military.rescue_stuck_units(self.stuck_units)
 
     async def scout(self):

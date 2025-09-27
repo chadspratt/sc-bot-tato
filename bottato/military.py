@@ -166,7 +166,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             self.transfer(unit, from_squad, to_squad)
 
     def rescue_stuck_units(self, stuck_units: List[Unit]):
+        self.start_timer("rescue_stuck_units")
         self.stuck_rescue.rescue(stuck_units)
+        self.stop_timer("rescue_stuck_units")
 
     async def manage_squads(self, iteration: int, blueprints: List[BuildStep]):
         self.start_timer("manage_squads")

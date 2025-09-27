@@ -121,6 +121,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         return False
 
     def drop_mules(self):
+        self.start_timer("my_workers.drop_mules")
         # take off mules that are about to expire so they don't waste minerals
         for mule in self.aged_mules.copy():
             if mule.age > 58:
@@ -142,6 +143,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 nearest_townhall: Unit = self.bot.townhalls.closest_to(fullest_mineral_field)
                 orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE, target=fullest_mineral_field.position.towards(nearest_townhall), queue=True)
                 logger.debug(f"dropping mule on mineral field {fullest_mineral_field}({fullest_mineral_field.position} near {orbital}) {fullest_mineral_field.mineral_contents}")
+        self.stop_timer("my_workers.drop_mules")
 
     def remove_mule(self, mule):
         logger.debug(f"removing mule {mule}")
@@ -183,6 +185,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             worker(AbilityId.SMART, target, True)
 
     def attack_nearby_enemies(self) -> None:
+        self.start_timer("my_workers.attack_nearby_enemies")
         for assignment in self.assignments_by_worker.values():
             if assignment.job_type in {JobType.MINERALS, JobType.VESPENE}:
                 reference_unit: Unit = assignment.target
@@ -210,8 +213,12 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                             assignment.unit.smart(self.bot.townhalls.closest_to(assignment.unit))
                         else:
                             assignment.unit.smart(assignment.target)
+        self.stop_timer("my_workers.attack_nearby_enemies")
 
     def update_assigment(self, worker: Unit, job_type: JobType, target: Union[Unit, None]):
+        if job_type in (JobType.MINERALS, JobType.VESPENE):
+            assignment = self.assignments_by_worker[worker.tag]
+            logger.info(f"worker {worker} changing from {assignment.target} to {target}")
         self.update_job(worker, job_type)
         self.update_target(worker, target)
 
@@ -234,7 +241,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if worker.tag not in self.assignments_by_worker:
             return
         assignment = self.assignments_by_worker[worker.tag]
-        logger.info(f"worker {worker} changing from {assignment.target} to {new_target}")
+        logger.debug(f"worker {worker} changing from {assignment.target} to {new_target}")
         if new_target:
             if assignment.job_type == JobType.REPAIR:
                 if new_target.tag not in self.bot.unit_tags_received_action:

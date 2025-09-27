@@ -69,6 +69,7 @@ class BuildOrder(TimerMixin):
         self.stop_timer("update_references")
 
     def move_interupted_to_pending(self) -> None:
+        self.start_timer("move_interupted_to_pending")
         to_promote = []
         for idx, build_step in enumerate(self.started):
             logger.debug(
@@ -86,6 +87,7 @@ class BuildOrder(TimerMixin):
                 self.priority_queue.insert(0, step)
             else:
                 self.static_queue.insert(0, step)
+        self.stop_timer("move_interupted_to_pending")
 
     def enact_rush_defense(self) -> None:
         if self.bot.time > 300:
