@@ -15,7 +15,7 @@ from bottato.mixins import TimerMixin
 
 class BotTato(BotAI, TimerMixin):
     async def on_start(self):
-        self.disable_logging()
+        # self.disable_logging()
         self.last_timer_print = 0
         self.commander = Commander(self)
         await self.commander.map.init()

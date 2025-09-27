@@ -234,7 +234,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if worker.tag not in self.assignments_by_worker:
             return
         assignment = self.assignments_by_worker[worker.tag]
-        logger.debug(f"worker {worker} changing from {assignment.target} to {new_target}")
+        logger.info(f"worker {worker} changing from {assignment.target} to {new_target}")
         if new_target:
             if assignment.job_type == JobType.REPAIR:
                 if new_target.tag not in self.bot.unit_tags_received_action:
