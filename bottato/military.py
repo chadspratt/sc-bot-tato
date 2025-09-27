@@ -326,6 +326,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     if unit.type_id == UnitTypeId.MARINE:
                         self.transfer(unit, self.main_army, self.bunker)
                         unit.smart(self.bunker.structure)
+        elif self.bunker.units:
+            # bunker destroyed, transfer units to main arm
+            for unit in self.bunker.units:
+                self.squads_by_unit_tag[unit.tag] = self.main_army
+            self.bunker.transfer_all(self.main_army)
+            self.bunker.empty()
 
     def get_counter_units(self, unit: Unit):
         unassigned = [UnitTypeId.STALKER, UnitTypeId.SENTRY, UnitTypeId.ADEPT, UnitTypeId.HIGHTEMPLAR, UnitTypeId.DARKTEMPLAR, UnitTypeId.ARCHON, UnitTypeId.IMMORTAL, UnitTypeId.COLOSSUS, UnitTypeId.DISRUPTOR, UnitTypeId.PHOENIX, UnitTypeId.VOIDRAY, UnitTypeId.ORACLE, UnitTypeId.TEMPEST, UnitTypeId.CARRIER, UnitTypeId.MOTHERSHIP]
