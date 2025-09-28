@@ -58,6 +58,7 @@ class BotTato(BotAI, TimerMixin):
             self.last_timer_print = self.time
             self.print_timers("main-")
             self.commander.print_all_timers()
+            logger.info(self.commander.build_order.get_build_queue_string())
             logger.debug(f"upgrades: {self.state.upgrades}")
 
     def disable_logging(self):

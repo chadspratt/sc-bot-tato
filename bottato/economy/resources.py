@@ -41,6 +41,8 @@ class Resources(UnitReferenceMixin, GeometryMixin):
             f"{self.worker_tags_by_node_tag[node.tag]}"
             f"minerals {node.mineral_contents} gas {node.vespene_contents}"
         )
+        if node.mineral_contents == 0 and node.vespene_contents == 0:
+            return 0
         return self.max_workers_per_node - len(self.worker_tags_by_node_tag[node.tag])
 
     def nodes_with_capacity(self) -> Units:

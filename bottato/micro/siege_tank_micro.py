@@ -49,8 +49,14 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
         if force_move:
             self.last_force_move_time[unit.tag] = self.bot.time
+
+        excluded_enemy_types = [] if is_sieged else [UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.DRONEBURROWED, UnitTypeId.MULE]
+        closest_enemy, closest_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
+        closest_enemy_after_siege, closest_distance_after_siege = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time)
+        closest_structure, closest_structure_distance = enemy.get_closest_target(unit, include_units=False, include_destructables=False)
+
         if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
-            if is_sieged:
+            if is_sieged and closest_distance > self.sieged_range - 5:
                 self.unsiege(unit)
                 return True
             else:
@@ -61,12 +67,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 self.siege(unit, update_last_transform_time=False)
             else:
                 self.unsiege(unit, update_last_transform_time=False)
-
-        excluded_enemy_types = [] if is_sieged else [UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.DRONEBURROWED, UnitTypeId.MULE]
-        closest_enemy, closest_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
-        closest_enemy_after_siege, closest_distance_after_siege = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time)
-        closest_structure, closest_structure_distance = enemy.get_closest_target(unit, include_units=False, include_destructables=False)
-
         # logger.debug(f"{unit} seiged={is_sieged}, closest enemy {closest_enemy}({closest_distance}), structure {closest_structure}({closest_structure_distance})")
 
         reached_destination = unit.position.distance_to(target) < 0.5
