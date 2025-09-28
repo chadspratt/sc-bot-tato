@@ -24,7 +24,8 @@ class Bunker(BaseSquad):
     
     def empty(self):
         # command units to exit
-        self.structure(AbilityId.UNLOADALL_BUNKER)
+        if self.structure:
+            self.structure(AbilityId.UNLOADALL_BUNKER)
         self.units.clear()
     
     def pop(self):
