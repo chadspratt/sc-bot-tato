@@ -65,11 +65,14 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     def __repr__(self) -> str:
         builder = self.unit_in_charge if self.unit_in_charge else self.builder_type
         # orders = self.unit_in_charge.orders if self.unit_in_charge else '[]'
-        target = (
-            f"{self.unit_being_built} {self.unit_being_built.build_progress}"
-            if self.unit_being_built and self.unit_being_built is not True
-            else self.unit_type_id
-        )
+        target = ""
+        if self.unit_being_built and self.unit_being_built is not True:
+            target = f"{self.unit_being_built} {self.unit_being_built.build_progress}"
+        elif self.unit_type_id:
+            target = self.unit_type_id.name
+        elif self.upgrade_id:
+            target = self.upgrade_id.name
+
         return f"{target}-built by {builder}"
 
     @property

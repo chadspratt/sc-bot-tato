@@ -499,7 +499,7 @@ class BuildOrder(TimerMixin):
             build_response = await build_step.execute(special_locations=self.special_locations, rush_defense_enacted=self.rush_defense_enacted)
             self.stop_timer("build_step.execute")
             self.start_timer(f"handle response {build_response}")
-            logger.debug(f"build_response: {build_response}")
+            logger.info(f"building {build_step}, response: {build_response}")
             if build_response == ResponseCode.SUCCESS:
                 self.started.append(build_queue.pop(execution_index))
                 break
