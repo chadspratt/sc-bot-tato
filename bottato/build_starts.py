@@ -86,6 +86,7 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.STARPORTREACTOR,              # build REACTOR, then SWAP: lift FACTORY, land STARPORT on this REACTOR for MEDIVAC,
                 UnitTypeId.COMMANDCENTER,
+                UnitTypeId.STARPORT,
                 UnitTypeId.SCV,
                 UnitTypeId.SCV,
                 UnitTypeId.MARINE,
@@ -110,6 +111,7 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.SCV,
+                UnitTypeId.STARPORTTECHLAB,
                 UpgradeId.TERRANINFANTRYWEAPONSLEVEL1,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
@@ -121,6 +123,7 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.MEDIVAC, # supply blocked until depot finishes
+                UnitTypeId.RAVEN,
                 UnitTypeId.BARRACKS,
                 UnitTypeId.SCV,
                 UnitTypeId.SCV,

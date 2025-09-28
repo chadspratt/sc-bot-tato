@@ -348,6 +348,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             return [UnitTypeId.VIKINGFIGHTER, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]
         elif unit.type_id in (UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.PROBE):
             return [UnitTypeId.MARINE]
+        elif unit.type_id in (UnitTypeId.ZERGLING,):
+            return [UnitTypeId.MARINE, UnitTypeId.MARINE]
         else:
             return [UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]
 

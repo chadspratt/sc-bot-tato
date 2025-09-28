@@ -103,7 +103,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
                     attack_range = unit.air_range
                 target_position = nearest_target.position.towards(unit, attack_range + extra_range)
                 unit.move(target_position)
-                logger.info(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
+                logger.debug(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
                 return True
         
     def tank_to_retreat_to(self, unit: Unit, enemy: Enemy, closest_enemy: Unit = None) -> Unit | None:
@@ -115,8 +115,11 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             UnitTypeId.MULE,
             UnitTypeId.OBSERVER
         ]
+        close_enemies = self.bot.enemy_units.closer_than(15, unit).filter(lambda u: u.type_id not in excluded_enemy_types)
+        if len(close_enemies) < 10:
+            return None
         if not closest_enemy:
-            closest_enemy, closest_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
+            closest_enemy = close_enemies.closest_to(unit)
         if not closest_enemy or closest_enemy.is_flying:
             return None
         tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))
