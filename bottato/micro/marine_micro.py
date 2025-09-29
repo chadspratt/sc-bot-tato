@@ -74,7 +74,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
         if not candidates:
             return False
         
-        if unit.weapon_cooldown == 0:
+        if unit.weapon_cooldown < 0.25:
             if self.is_stimmed(unit):
                 # attack if stimmed
                 return self.attack_lowest_health(unit, candidates)
@@ -101,6 +101,12 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
                 attack_range = unit.ground_range
                 if nearest_target.is_flying:
                     attack_range = unit.air_range
+                elif nearest_target.type_id == UnitTypeId.SIEGETANKSIEGED:
+                    if unit.distance_to(nearest_target) < 8:
+                        # dive on sieged tanks
+                        attack_range = 0
+                    else:
+                        attack_range = 14
                 target_position = nearest_target.position.towards(unit, attack_range + extra_range)
                 unit.move(target_position)
                 logger.debug(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")

@@ -34,7 +34,7 @@ def main():
                 Bot(Race.Terran, bot, name="BotTato"),
                 # Computer(Race.Terran, Difficulty.VeryEasy),
                 # RandomBuild, Rush, Timing,Power, Macro, Air
-                Computer(Race.Protoss, Difficulty.VeryHard, ai_build=AIBuild.Rush),
+                Computer(Race.Terran, Difficulty.VeryHard, ai_build=AIBuild.Rush),
             ],
             realtime=False,
         )

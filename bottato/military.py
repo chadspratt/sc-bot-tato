@@ -188,7 +188,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         enemies_in_base: Units = Units([], self.bot)
         enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: base_structures.closest_distance_to(unit) < 25))
         if self.main_army.staging_location:
-            enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.main_army.staging_location.distance_to(unit) < 15))
+            enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.main_army.staging_location.distance_to(unit) < 25))
         out_of_view_in_base = []
         for enemy in self.enemy.recent_out_of_view():
             if base_structures.closest_distance_to(self.enemy.predicted_position[enemy.tag]) <= 25:
@@ -240,7 +240,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     await defense_squad.attack(self.enemy.predicted_position[enemy.tag])
                     logger.debug(f"defending against {enemy} with {defense_squad}")
 
-        # XXX compare army values (((minerals / 0.9) + gas) * supply) / 50
         enemy_value = self.get_army_value(self.enemy.get_army())
         main_army_value = self.get_army_value(self.main_army.units)
         army_is_big_enough = main_army_value > enemy_value * 1.5 or self.bot.supply_used > 160

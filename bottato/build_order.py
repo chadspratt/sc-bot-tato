@@ -164,7 +164,7 @@ class BuildOrder(TimerMixin):
         build_order_message = f"priority={'\n'.join([step.friendly_name for step in self.priority_queue])}"
         build_order_message += f"\nstatic={'\n'.join([step.friendly_name for step in self.static_queue])}"
         build_order_message += f"\nbuild_queue={'\n'.join([step.friendly_name for step in self.build_queue])}"
-        self.bot.client.debug_text_screen(build_order_message, (0.01, 0.1))
+        return build_order_message
 
     def queue_units(self, unit_types: List[UnitTypeId]) -> None:
         self.start_timer("build_order.queue_military")

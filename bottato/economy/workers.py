@@ -188,33 +188,55 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
     def attack_nearby_enemies(self) -> None:
         self.start_timer("my_workers.attack_nearby_enemies")
-        for assignment in self.assignments_by_worker.values():
-            if assignment.job_type in {JobType.MINERALS, JobType.VESPENE}:
-                reference_unit: Unit = assignment.target
-                if self.bot.townhalls:
-                    reference_unit = reference_unit or self.bot.townhalls.closest_to(assignment.unit.position)
-                else:
-                    reference_unit = reference_unit or assignment.unit
-                if self.bot.enemy_units and reference_unit:
-                    nearest_enemy = self.bot.enemy_units.closest_to(reference_unit.position)
-                    if nearest_enemy.distance_to(reference_unit.position) < 10:
-                        assignment.on_attack_break = True
-                        logger.debug(f"worker {assignment.unit} attacking enemy to defend {reference_unit} which is maybe {assignment.target}")
-                        assignment.unit.attack(nearest_enemy)
-                    elif assignment.on_attack_break:
+        if self.bot.townhalls:
+            for townhall in self.bot.townhalls:
+                nearby_enemies = self.bot.enemy_units.closer_than(15, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
+                workers_nearby = self.bot.workers.closer_than(15, townhall).filter(lambda u: self.assignments_by_worker[u.tag].job_type in {JobType.MINERALS, JobType.VESPENE})
+                # assign closest 3 workers to attack each enemy
+                for nearby_enemy in nearby_enemies:
+                    attackers = workers_nearby.closest_n_units(nearby_enemy, 3)
+                    for attacker in attackers:
+                        attacker.attack(nearby_enemy)
+                        self.assignments_by_worker[attacker.tag].on_attack_break = True
+                        workers_nearby.remove(attacker)
+                # put any leftover workers back to work
+                if workers_nearby:
+                    for worker in workers_nearby:
+                        assignment = self.assignments_by_worker[worker.tag]
                         assignment.on_attack_break = False
                         if assignment.target:
                             if assignment.unit.is_carrying_resource and self.bot.townhalls:
                                 assignment.unit.smart(self.bot.townhalls.closest_to(assignment.unit))
                             else:
                                 assignment.unit.smart(assignment.target)
-                elif assignment.on_attack_break:
-                    assignment.on_attack_break = False
-                    if assignment.target:
-                        if assignment.unit.is_carrying_resource and self.bot.townhalls:
-                            assignment.unit.smart(self.bot.townhalls.closest_to(assignment.unit))
-                        else:
-                            assignment.unit.smart(assignment.target)
+
+        # for assignment in self.assignments_by_worker.values():
+        #     if assignment.job_type in {JobType.MINERALS, JobType.VESPENE}:
+        #         reference_unit: Unit = assignment.target
+        #         if self.bot.townhalls:
+        #             reference_unit = reference_unit or self.bot.townhalls.closest_to(assignment.unit.position)
+        #         else:
+        #             reference_unit = reference_unit or assignment.unit
+        #         if self.bot.enemy_units and reference_unit:
+        #             nearest_enemy = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.can_be_attacked).closest_to(reference_unit.position)
+        #             if nearest_enemy.distance_to(reference_unit.position) < 10:
+        #                 assignment.on_attack_break = True
+        #                 logger.debug(f"worker {assignment.unit} attacking enemy to defend {reference_unit} which is maybe {assignment.target}")
+        #                 assignment.unit.attack(nearest_enemy)
+        #             elif assignment.on_attack_break:
+        #                 assignment.on_attack_break = False
+        #                 if assignment.target:
+        #                     if assignment.unit.is_carrying_resource and self.bot.townhalls:
+        #                         assignment.unit.smart(self.bot.townhalls.closest_to(assignment.unit))
+        #                     else:
+        #                         assignment.unit.smart(assignment.target)
+        #         elif assignment.on_attack_break:
+        #             assignment.on_attack_break = False
+        #             if assignment.target:
+        #                 if assignment.unit.is_carrying_resource and self.bot.townhalls:
+        #                     assignment.unit.smart(self.bot.townhalls.closest_to(assignment.unit))
+        #                 else:
+        #                     assignment.unit.smart(assignment.target)
         self.stop_timer("my_workers.attack_nearby_enemies")
 
     def update_assigment(self, worker: Unit, job_type: JobType, target: Union[Unit, None]):
