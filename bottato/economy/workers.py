@@ -187,6 +187,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.stop_timer("my_workers.speed_mine")
 
     def speed_smart(self, worker: Unit, target: Unit, position: Union[Point2, None] = None) -> None:
+        if position is None:
+            return
         remaining_distance = worker.distance_to(position)
         if 0.75 < remaining_distance < 1.75:
             worker.move(position)
