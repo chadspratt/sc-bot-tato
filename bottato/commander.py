@@ -66,7 +66,9 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
 
         self.my_workers.attack_nearby_enemies()
         self.my_workers.distribute_idle()
-        # self.my_workers.speed_mine()
+        self.my_workers.speed_mine()
+        # if self.bot.time > 180:
+        #     logger.debug(f"minerals gathered: {self.bot.state.score.collected_minerals}")
         self.my_workers.drop_mules()
 
         # XXX slow

@@ -4,12 +4,14 @@ from sc2.bot_ai import BotAI
 from sc2.units import Units
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.position import Point2
 
 from bottato.mixins import TimerMixin
 from .resources import Resources
 
 
 class Minerals(Resources, TimerMixin):
+    MINING_RADIUS = 1.325
     mineral_type_ids = [
         UnitTypeId.MINERALFIELD, UnitTypeId.MINERALFIELD450, UnitTypeId.MINERALFIELD750,
         UnitTypeId.LABMINERALFIELD, UnitTypeId.LABMINERALFIELD750,
@@ -25,6 +27,7 @@ class Minerals(Resources, TimerMixin):
         self.max_workers_per_node = 2
         self.max_mules_per_node = 1
         self.mule_tags_by_node_tag = {}
+        self.mining_positions: dict[int, Point2] = {}
 
     def update_references(self):
         self.start_timer("minerals.update_references")
@@ -43,7 +46,14 @@ class Minerals(Resources, TimerMixin):
                 for mineral in self.bot.mineral_field.closer_than(8, townhall):
                     logger.debug(f"adding mineral patch {mineral}")
                     self.add_node(mineral)
-
+                    target = mineral.position.towards(townhall, self.MINING_RADIUS)
+                    close_minerals = self.bot.mineral_field.closer_than(self.MINING_RADIUS + 0.5, target)
+                    for close_mineral in close_minerals:
+                        if close_mineral.tag != mineral.tag:
+                            candidates = mineral.position.circle_intersection(close_mineral.position, self.MINING_RADIUS)
+                            if len(candidates) == 2:
+                                target = townhall.position.closest(candidates)
+                    self.mining_positions[mineral.tag] = target
     def add_long_distance_minerals(self, count: int) -> int:
         added = 0
         if self.bot.townhalls:
