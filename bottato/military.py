@@ -119,7 +119,7 @@ class StuckRescue(BaseSquad, UnitReferenceMixin):
         cargo_left = self.transport.cargo_left
         for unit in stuck_units:
             if cargo_left >= unit.cargo_size:
-                self.transport(AbilityId.LOAD, unit)
+                self.transport(AbilityId.LOAD, unit, True)
                 cargo_left -= unit.cargo_size
             else:
                 break
@@ -174,9 +174,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
     async def manage_squads(self, iteration: int, blueprints: List[BuildStep]):
         self.start_timer("manage_squads")
         self.main_army.draw_debug_box()
-        
-        # fill bunker before managing defense
-        self.manage_bunker(False)
 
         # only run this every three steps
         if iteration % 3:
@@ -189,6 +186,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: base_structures.closest_distance_to(unit) < 25))
         if self.main_army.staging_location:
             enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.main_army.staging_location.distance_to(unit) < 25))
+
+        # fill bunker before managing defense. only use visible enemies to avoid crashing cached distance calculations
+        self.manage_bunker(enemies_in_base)
+
         out_of_view_in_base = []
         for enemy in self.enemy.recent_out_of_view():
             if base_structures.closest_distance_to(self.enemy.predicted_position[enemy.tag]) <= 25:
@@ -250,12 +251,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
 
         if mount_offense:
+            self.empty_bunker()
             if self.offense_start_supply == 200:
                 self.offense_start_supply = self.bot.supply_army
         else:
             self.offense_start_supply = 200
 
-        self.manage_bunker(mount_offense)
         if self.main_army.units:
             self.main_army.draw_debug_box()
             self.main_army.update_formation()
@@ -267,7 +268,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 army_position = self.main_army.parent_formation.front_center
                 target = None
                 target_position = None
-                attackable_enemies = self.enemy.enemies_in_view.filter(lambda unit: unit.can_be_attacked)
+                attackable_enemies = self.enemy.enemies_in_view.filter(lambda unit: unit.can_be_attacked and unit.armor < 10 and unit.tag not in self.countered_enemies)
                 if attackable_enemies:
                     target = attackable_enemies
                     target_position = target.closest_to(army_position).position
@@ -308,26 +309,32 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.report()
         self.stop_timer("manage_squads")
 
-    def manage_bunker(self, mount_offense: bool):
+    def manage_bunker(self, enemies_in_base: Units = None):
         if self.bunker.is_built():
             try:
                 self.bunker.structure = self.get_updated_unit_reference(self.bunker.structure)
             except self.UnitNotFound:
                 self.bunker.structure = None
-            if mount_offense:
-                for unit in self.bunker.units:
-                    self.squads_by_unit_tag[unit.tag] = self.main_army
-                self.bunker.transfer_all(self.main_army)
-                self.bunker.empty()
+            if enemies_in_base and enemies_in_base.closest_distance_to(self.bunker.structure) > 6:
+                self.empty_bunker()
             elif self.bot.time < 300:
                 for unit in self.main_army.units:
                     if not self.bunker.has_space():
                         break
+                    enemy_distance_to_bunker = enemies_in_base.closest_distance_to(unit) if enemies_in_base else 100
                     if unit.type_id == UnitTypeId.MARINE:
+                        marine_distance_to_bunker = unit.distance_to(self.bunker.structure)
+                        if enemy_distance_to_bunker < marine_distance_to_bunker - 2:
+                            # don't send unit to bunker if enemies are closer
+                            continue
                         self.transfer(unit, self.main_army, self.bunker)
                         unit.smart(self.bunker.structure)
         elif self.bunker.units:
             # bunker destroyed, transfer units to main arm
+            self.empty_bunker()
+
+    def empty_bunker(self):
+        if self.bunker.is_built():
             for unit in self.bunker.units:
                 self.squads_by_unit_tag[unit.tag] = self.main_army
             self.bunker.transfer_all(self.main_army)
@@ -349,6 +356,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             return [UnitTypeId.MARINE]
         elif unit.type_id in (UnitTypeId.ZERGLING,):
             return [UnitTypeId.MARINE, UnitTypeId.MARINE]
+        elif unit.type_id in (UnitTypeId.LURKER, UnitTypeId.LURKERMP):
+            return [UnitTypeId.RAVEN, UnitTypeId.SIEGETANK]
         else:
             return [UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]
 
@@ -403,7 +412,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
         unmatched_enemies: Units = self.enemy.get_enemies().filter(lambda unit: not unit.is_structure)
         unmatched_friendlies: Units = self.bot.units.copy()
-        unattackable_enemies: Units = Units([], bot_object=self.bot)
+        unattackable_enemies: Units = Units([], bot_object=self.bot).filter(lambda unit: not unit.armor < 10)
         unattackable_friendly_tags = unmatched_friendlies.tags
 
         # simulate all units attacking each other
@@ -513,6 +522,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             squad.update_references()
         for unit in self.bot.units:
             if unit.tag in self.squads_by_unit_tag:
+                squad = self.squads_by_unit_tag[unit.tag]
+                # keep in sync
+                if unit not in squad.units:
+                    squad.recruit(unit)
                 continue
             if unit.tag in self.bunker.units.tags:
                 continue

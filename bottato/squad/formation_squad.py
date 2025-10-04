@@ -173,14 +173,15 @@ class FormationSquad(BaseSquad, GeometryMixin):
                     continue
                 # don't block new construction
                 for blueprint in blueprints:
-                    if blueprint.pos.distance_to(formation_positions[unit.tag]) < 3:
-                        formation_positions[unit.tag] = blueprint.pos.towards(formation_positions[unit.tag], 3)
+                    if blueprint.position.distance_to(formation_positions[unit.tag]) < 3:
+                        formation_positions[unit.tag] = blueprint.position.towards(formation_positions[unit.tag], 3)
                 if formation_positions[unit.tag] is None:
                     logger.debug(f"unit {unit} has no formation position")
                     continue
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
                 logger.debug(f"unit {unit} using micro {micro}")
-                await micro.move(unit, formation_positions[unit.tag], self.enemy, force_move)
+                if unit.tag not in self.bot.unit_tags_received_action:
+                    await micro.move(unit, formation_positions[unit.tag], self.enemy, force_move)
 
     def is_grouped(self) -> bool:
         if self.parent_formation.front_center and self.units:

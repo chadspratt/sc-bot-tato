@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from loguru import logger
 
-from sc2.position import Point2
-from sc2.ids.upgrade_id import UpgradeId
-from sc2.unit import Unit
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.bot_ai import BotAI
+from sc2.position import Point2
+from sc2.unit import Unit
+from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 
 from bottato.mixins import TimerMixin, GeometryMixin, UnitReferenceMixin
 from bottato.build_order import BuildOrder
@@ -64,15 +65,16 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
 
         await self.structure_micro.execute()
 
+        # XXX slow
+        await self.build_order.execute(self.military.army_ratio, self.rush_detected)
+
         self.my_workers.attack_nearby_enemies()
         self.my_workers.distribute_idle()
         self.my_workers.speed_mine()
-        # if self.bot.time > 180:
+        # if self.bot.time > 240:
         #     logger.debug(f"minerals gathered: {self.bot.state.score.collected_minerals}")
         self.my_workers.drop_mules()
 
-        # XXX slow
-        await self.build_order.execute(self.military.army_ratio, self.rush_detected)
         self.new_damage_taken.clear()
         self.stop_timer("command")
 
@@ -106,10 +108,10 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.start_timer("scout")
 
     async def update_references(self):
-        self.my_workers.update_references()
+        self.my_workers.update_references(self.build_order.get_assigned_worker_tags())
         self.military.update_references()
         self.enemy.update_references()
-        self.build_order.update_references()
+        await self.build_order.update_references()
         await self.production.update_references()
 
     def update_started_structure(self, unit: Unit):
@@ -118,6 +120,9 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
     def update_completed_structure(self, unit: Unit):
         self.build_order.update_completed_structure(unit)
         self.production.add_builder(unit)
+        if unit.type_id == UnitTypeId.BARRACKS and len(self.bot.structures(UnitTypeId.BARRACKS)) == 1:
+            # set rally point for first barracks away from ramp
+            unit(AbilityId.RALLY_UNITS, unit.position.towards(self.bot.main_base_ramp.top_center, -2))
         if unit.type_id == UnitTypeId.BUNKER:
             self.military.bunker.structure = unit
 

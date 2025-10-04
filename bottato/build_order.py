@@ -52,7 +52,7 @@ class BuildOrder(TimerMixin):
         logger.debug(f"Starting position: {self.bot.start_location}")
         # self.queue_unit_type(UnitTypeId.BATTLECRUISER)
 
-    def update_references(self) -> None:
+    async def update_references(self) -> None:
         self.start_timer("update_references")
         logger.debug(
             f"pending={','.join([step.friendly_name for step in self.static_queue])}"
@@ -65,10 +65,10 @@ class BuildOrder(TimerMixin):
             logger.debug(f"started step {build_step}")
         for build_step in self.started + self.static_queue + self.priority_queue + self.build_queue:
             build_step.draw_debug_box()
-        self.move_interupted_to_pending()
+        await self.move_interupted_to_pending()
         self.stop_timer("update_references")
 
-    def move_interupted_to_pending(self) -> None:
+    async def move_interupted_to_pending(self) -> None:
         self.start_timer("move_interupted_to_pending")
         to_promote = []
         for idx, build_step in enumerate(self.started):
@@ -77,13 +77,30 @@ class BuildOrder(TimerMixin):
                 f"> Builder {build_step.unit_in_charge}"
             )
             if build_step.is_interrupted():
-                logger.debug("! Is interrupted!")
+                logger.debug(f"{build_step} Is interrupted!")
                 # move back to pending (demote)
                 to_promote.append(idx)
                 continue
+            elif self.bot.enemy_units and build_step.position and UnitTypeId.SCV in build_step.builder_type:
+                threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground and u.type_id not in (UnitTypeId.MULE, UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER))
+                if threats:
+                    closest_threat = threats.closest_to(build_step.position)
+                    enemy_is_close = closest_threat.distance_to(build_step.position) < 15
+                    if not enemy_is_close:
+                        continue
+                    # check that threat can path to position
+                    enemy_can_path = closest_threat.is_flying or await self.bot.client.query_pathing(build_step.position, closest_threat.position) is not None
+                    if enemy_can_path:
+                        logger.debug(f"{build_step} Too close to enemy!")
+                        if build_step.unit_in_charge:
+                            self.workers.update_job(build_step.unit_in_charge, JobType.IDLE)
+                            build_step.unit_in_charge(AbilityId.HALT)
+                            build_step.unit_in_charge = None
+                        # move back to pending (demote)
+                        to_promote.append(idx)
         for idx in reversed(to_promote):
             step: BuildStep = self.started.pop(idx)
-            if step.builder_type == UnitTypeId.SCV:
+            if UnitTypeId.SCV in step.builder_type:
                 self.priority_queue.insert(0, step)
             else:
                 self.static_queue.insert(0, step)
@@ -155,7 +172,7 @@ class BuildOrder(TimerMixin):
             if needed_resources.vespene > 0 and moved_workers == 0:
                 self.queue_refinery()
 
-        await self.execute_pending_builds(only_build_units)
+        await self.execute_pending_builds(only_build_units, rush_detected)
         
         self.bot.client.debug_text_screen(self.get_build_queue_string(), (0.01, 0.1))
         self.stop_timer("build_order.execute")
@@ -331,7 +348,7 @@ class BuildOrder(TimerMixin):
         for build_step in build_queue:
             if needed_resources.minerals > 0 or needed_resources.vespene > 0:
                 break
-            if only_build_units and build_step.builder_type == UnitTypeId.SCV:
+            if only_build_units and UnitTypeId.SCV in build_step.builder_type:
                 continue
             needed_resources.minerals += build_step.cost.minerals
             needed_resources.vespene += build_step.cost.vespene
@@ -394,7 +411,7 @@ class BuildOrder(TimerMixin):
             if in_progress_step.unit_type_id == started_structure.type_id or (in_progress_step.unit_type_id == UnitTypeId.REFINERY and started_structure.type_id == UnitTypeId.REFINERYRICH):
                 logger.debug(f"found matching step: {in_progress_step}")
                 in_progress_step.unit_being_built = started_structure
-                in_progress_step.pos = started_structure.position
+                in_progress_step.position = started_structure.position
                 if in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
                     self.workers.update_assigment(in_progress_step.unit_in_charge, JobType.BUILD, started_structure)
                 break
@@ -418,9 +435,9 @@ class BuildOrder(TimerMixin):
             )
             structure: Union[bool, Unit] = in_progress_step.unit_being_built
             builder: Unit = in_progress_step.unit_in_charge
-            logger.debug(f"type {in_progress_step.unit_type_id}, structure {structure}, upgrade {in_progress_step.upgrade_id}, builder {builder}, pos {in_progress_step.pos}")
+            logger.debug(f"type {in_progress_step.unit_type_id}, structure {structure}, upgrade {in_progress_step.upgrade_id}, builder {builder}, pos {in_progress_step.position}")
             is_same_structure = isinstance(structure, Unit) and structure.tag == completed_structure.tag
-            if is_same_structure or in_progress_step.pos and completed_structure.position.distance_to(in_progress_step.pos) < 1.5:
+            if is_same_structure or in_progress_step.position and completed_structure.position.distance_to(in_progress_step.position) < 1.5:
                 in_progress_step.completed_time = self.bot.time
                 if builder.type_id == UnitTypeId.SCV:
                     if in_progress_step.unit_type_id == UnitTypeId.REFINERY:
@@ -454,18 +471,18 @@ class BuildOrder(TimerMixin):
                 build_step.cancel_construction()
                 break
 
-    async def execute_pending_builds(self, only_build_units: bool) -> None:
+    async def execute_pending_builds(self, only_build_units: bool, rush_detected: bool) -> None:
         self.start_timer("execute_pending_builds")
-        response = await self.build_from_queue(self.priority_queue, only_build_units, allow_skip=(self.bot.time > 60))
+        response = await self.build_from_queue(self.priority_queue, only_build_units, allow_skip=(self.bot.time > 60), rush_detected=rush_detected)
         if response != ResponseCode.NO_RESOURCES:
-            response = await self.build_from_queue(self.static_queue, only_build_units, allow_skip=True)
+            response = await self.build_from_queue(self.static_queue, only_build_units, allow_skip=True, rush_detected=rush_detected)
         if response != ResponseCode.NO_RESOURCES:
             # randomize unit queue so it doesn't get stuck on one unit type
             self.build_queue.sort(key=lambda step: random.randint(0,255), reverse=True)
-            await self.build_from_queue(self.build_queue, only_build_units)
+            await self.build_from_queue(self.build_queue, only_build_units, rush_detected=rush_detected)
         self.stop_timer("execute_pending_builds")
 
-    async def build_from_queue(self, build_queue: List[BuildStep], only_build_units: bool = False, allow_skip: bool = True) -> ResponseCode:
+    async def build_from_queue(self, build_queue: List[BuildStep], only_build_units: bool = False, allow_skip: bool = True, rush_detected: bool = False) -> ResponseCode:
         build_response = ResponseCode.QUEUE_EMPTY
         execution_index = -1
         failed_types: list[UnitTypeId] = []
@@ -476,11 +493,13 @@ class BuildOrder(TimerMixin):
                 build_step = build_queue[execution_index]
             except IndexError:
                 break
-            percent_affordable = self.percent_affordable(remaining_resources, build_step.cost)
-            if remaining_resources.minerals < 0 and remaining_resources.vespene < 0:
-                break
-            remaining_resources = remaining_resources - build_step.cost
-            if build_step.unit_type_id in failed_types or only_build_units and build_step.builder_type == UnitTypeId.SCV:
+            percent_affordable = 1.0
+            if not build_step.is_in_progress:
+                percent_affordable = self.percent_affordable(remaining_resources, build_step.cost)
+                if remaining_resources.minerals < 0 and remaining_resources.vespene < 0:
+                    break
+                remaining_resources = remaining_resources - build_step.cost
+            if build_step.unit_type_id in failed_types or only_build_units and UnitTypeId.SCV in build_step.builder_type:
                 continue
             time_since_last_cancel = self.bot.time - build_step.last_cancel_time
             if time_since_last_cancel < 5:
@@ -490,7 +509,7 @@ class BuildOrder(TimerMixin):
                 logger.debug(f"Cannot afford {build_step.friendly_name}")
                 build_response = ResponseCode.NO_RESOURCES
                 if percent_affordable >= 0.75:
-                    await build_step.position_worker(special_locations=self.special_locations)
+                    await build_step.position_worker(special_locations=self.special_locations, rush_detected=rush_detected)
                 continue
             if self.bot.supply_left < build_step.supply_cost:
                 logger.debug(f"Cannot afford supply for {build_step.friendly_name}")
@@ -526,7 +545,13 @@ class BuildOrder(TimerMixin):
         )
     
     def get_blueprints(self) -> List[BuildStep]:
-        return [step for step in self.started if step.pos is not None and (step.unit_being_built is True or step.unit_being_built is None)]
+        return [step for step in self.started if step.position is not None and (step.unit_being_built is True or step.unit_being_built is None)]
+    
+    def get_assigned_worker_tags(self) -> List[int]:
+        return [
+            step.unit_in_charge.tag for step in self.started + self.static_queue + self.priority_queue + self.build_queue
+            if UnitTypeId.SCV in step.builder_type and step.unit_in_charge is not None
+        ]
     
     def percent_affordable(self, remaining_resources: Cost, requested_cost: Cost) -> float:
         mineral_percent = 1.0

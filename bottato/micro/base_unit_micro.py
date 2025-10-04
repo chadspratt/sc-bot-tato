@@ -32,7 +32,7 @@ class BaseUnitMicro(GeometryMixin):
             # already below min
             do_retreat = True
         else:
-            threats = enemy.threats_to(unit, 3)
+            threats = enemy.threats_to(unit, 2)
             if not threats:
                 return False
 
@@ -53,6 +53,8 @@ class BaseUnitMicro(GeometryMixin):
             else:
                 if unit.is_mechanical:
                     repairers = self.bot.workers.filter(lambda unit: unit.is_repairing) or self.bot.workers
+                    if repairers:
+                        repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
                     if repairers:
                         unit.move(repairers.closest_to(unit))
                     else:
@@ -77,32 +79,35 @@ class BaseUnitMicro(GeometryMixin):
             return False
         candidates = []
         if targets:
-            candidates = targets.filter(lambda unit: not unit.is_structure)
+            candidates = targets.filter(lambda unit: not unit.is_structure and unit.armor < 10)
             if len(candidates) == 0:
                 candidates = targets
         else:
-            candidates = self.bot.enemy_units.in_attack_range_of(unit).filter(lambda unit: unit.can_be_attacked)
+            candidates = self.bot.enemy_units.in_attack_range_of(unit).filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
             if len(candidates) == 0:
                 candidates = self.bot.enemy_structures.in_attack_range_of(unit)
 
         if candidates:
-            if unit.weapon_cooldown == 0:
+            if unit.weapon_cooldown <= 0.25:
                 lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first
                 unit.attack(lowest_target)
                 logger.debug(f"unit {unit} attacking enemy {lowest_target}({lowest_target.position})")
                 return True
             else:
-                extra_range = -0.5
-                if unit.weapon_cooldown > 1:
-                    extra_range = 3
-                elif unit.weapon_cooldown > 0.5:
-                    extra_range = 1
-                # move away if weapon on cooldown
                 nearest_target = candidates.closest_to(unit)
+                # extra_range = -0.5
+                # if not enemy.can_attack(nearest_target, unit):
+                #     extra_range = 0
+                # elif unit.weapon_cooldown > 1:
+                #     extra_range = 3
+                # elif unit.weapon_cooldown > 0.5:
+                #     extra_range = 1
+                # move away if weapon on cooldown
                 attack_range = unit.ground_range
                 if nearest_target.is_flying:
                     attack_range = unit.air_range
-                target_position = nearest_target.position.towards(unit, attack_range + extra_range)
+                future_enemy_position = enemy.get_predicted_position(nearest_target, unit.weapon_cooldown)
+                target_position = future_enemy_position.towards(unit, attack_range)
                 unit.move(target_position)
                 logger.info(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
                 return True

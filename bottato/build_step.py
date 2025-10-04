@@ -32,6 +32,7 @@ class ResponseCode(enum.Enum):
     NO_RESOURCES = 6
     NO_SUPPLY = 7
     QUEUE_EMPTY = 8
+    TOO_CLOSE_TO_ENEMY = 9
 
 
 class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
@@ -39,13 +40,14 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     upgrade_id: UpgradeId = None
     unit_in_charge: Optional[Unit] = None
     unit_being_built: Optional[Unit] = None
-    pos: Union[Unit, Point2] = None
+    position: Union[Unit, Point2] = None
     geysir: Unit = None
     check_idle: bool = False
     last_cancel_time: float = -10
     start_time: int = None
     completed_time: int = None
     worker_in_position_time: int = None
+    is_in_progress: bool = False
 
     def __init__(self, unit_type: Union[UnitTypeId, UpgradeId], bot: BotAI, workers: Workers, production: Production, map: Map):
         self.bot: BotAI = bot
@@ -82,18 +84,18 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     def draw_debug_box(self):
         if self.unit_in_charge is not None:
             self.bot.client.debug_sphere_out(self.unit_in_charge, 1, (255, 130, 0))
-            if self.pos:
-                self.bot.client.debug_line_out(self.unit_in_charge, self.convert_point2_to_3(self.pos), (255, 130, 0))
+            if self.position:
+                self.bot.client.debug_line_out(self.unit_in_charge, self.convert_point2_to_3(self.position), (255, 130, 0))
             if self.unit_type_id:
                 self.bot.client.debug_text_world(
                     self.unit_type_id.name, self.unit_in_charge.position3d)
             elif self.upgrade_id:
                 self.bot.client.debug_text_world(
                     self.upgrade_id.name, self.unit_in_charge.position3d)
-        if self.pos:
-            self.bot.client.debug_box2_out(self.convert_point2_to_3(self.pos), 0.5)
+        if self.position:
+            self.bot.client.debug_box2_out(self.convert_point2_to_3(self.position), 0.5)
             self.bot.client.debug_text_world(
-                self.unit_type_id.name, Point3((*self.pos, 10))
+                self.unit_type_id.name, Point3((*self.position, 10))
             )
         if self.unit_being_built is not None and self.unit_being_built is not True:
             logger.debug(f"unit being built {self.unit_being_built}")
@@ -103,14 +105,6 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
         try:
             self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge)
-            if self.unit_in_charge.type_id == UnitTypeId.SCV:
-                for assignment in self.workers.assignments_by_worker.values():
-                    if assignment.unit.tag == self.unit_in_charge.tag:
-                        # ensure worker assignment is correct
-                        self.workers.update_assigment(self.unit_in_charge, job_type=JobType.BUILD, target=self.unit_being_built)
-                    elif assignment.target and self.unit_being_built and assignment.target.tag == self.unit_being_built.tag:
-                        # check that no other workers think they are assigned to this build
-                        self.workers.set_as_idle(assignment.unit)
         except self.UnitNotFound:
             self.unit_in_charge = None
         if isinstance(self.unit_being_built, Unit):
@@ -169,7 +163,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
         return response
 
-    async def execute_scv_build(self, special_locations: SpecialLocations, rush_defense_enacted: bool = False) -> ResponseCode:
+    async def execute_scv_build(self, special_locations: SpecialLocations, rush_detected: bool = False) -> ResponseCode:
         response = None
         logger.debug(f"Trying to build {self.unit_type_id} with SCV")
 
@@ -186,51 +180,58 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             if self.geysir is None:
                 response = ResponseCode.NO_FACILITY
             else:
-                self.pos = self.geysir.position
+                self.position = self.geysir.position
                 if self.unit_in_charge is None:
-                    self.unit_in_charge = self.workers.get_builder(self.pos)
+                    self.unit_in_charge = self.workers.get_builder(self.position)
                 if self.unit_in_charge is None:
                     response = ResponseCode.NO_BUILDER
                 else:
                     build_response = self.unit_in_charge.build_gas(self.geysir)
         else:
-            if self.pos is None or (self.unit_being_built is None and self.start_time is not None and self.start_time - self.bot.time > 5):
-                self.pos = await self.find_placement(self.unit_type_id, special_locations, rush_defense_enacted)
-            if self.pos is None:
+            if self.position is None or (self.unit_being_built is None and self.start_time is not None and self.start_time - self.bot.time > 5):
+                self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected)
+            if self.position is None:
                 response = ResponseCode.NO_LOCATION
             else:
-                if self.unit_in_charge is None:
-                    self.unit_in_charge = self.workers.get_builder(self.pos)
-                if self.unit_in_charge is None:
-                    response = ResponseCode.NO_BUILDER
+                threats = None
+                if self.bot.enemy_units:
+                    threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground)
+                if threats and threats.closest_distance_to(self.position) < 15:
+                    logger.debug(f"{self} Too close to enemy!")
+                    response = ResponseCode.TOO_CLOSE_TO_ENEMY
                 else:
-                    logger.debug(
-                        f"Trying to build structure {self.unit_type_id} at {self.pos}"
-                    )
-                    self.unit_in_charge.move(self.pos)
-
-                    if self.unit_being_built is None:
-                        build_response = self.unit_in_charge.build(
-                            self.unit_type_id, self.pos
-                        )
+                    if self.unit_in_charge is None:
+                        self.unit_in_charge = self.workers.get_builder(self.position)
+                    if self.unit_in_charge is None:
+                        response = ResponseCode.NO_BUILDER
                     else:
-                        self.start_time = self.bot.time
-                        build_response = self.unit_in_charge.smart(self.unit_being_built)
-                        logger.debug(f"{self.unit_in_charge} in charge is doing {self.unit_in_charge.orders}")
+                        logger.debug(
+                            f"Trying to build structure {self.unit_type_id} at {self.position}"
+                        )
+                        self.unit_in_charge.move(self.position)
+
+                        if self.unit_being_built is None:
+                            build_response = self.unit_in_charge.build(
+                                self.unit_type_id, self.position
+                            )
+                        else:
+                            self.start_time = self.bot.time
+                            build_response = self.unit_in_charge.smart(self.unit_being_built)
+                            logger.debug(f"{self.unit_in_charge} in charge is doing {self.unit_in_charge.orders}")
         if build_response is not None:
             response = ResponseCode.SUCCESS if build_response else ResponseCode.FAILED
 
         return response
     
-    async def position_worker(self, special_locations: SpecialLocations):
+    async def position_worker(self, special_locations: SpecialLocations, rush_detected: bool = False):
         if UnitTypeId.SCV in self.builder_type:
-            if self.pos is None:
-                self.pos = await self.find_placement(self.unit_type_id, special_locations)
-            if self.pos is not None:
+            if self.position is None:
+                self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected=rush_detected)
+            if self.position is not None:
                 if self.unit_in_charge is None:
-                    self.unit_in_charge = self.workers.get_builder(self.pos)
+                    self.unit_in_charge = self.workers.get_builder(self.position)
                 if self.unit_in_charge is not None:
-                    self.unit_in_charge.move(self.pos)
+                    self.unit_in_charge.move(self.position)
 
     def execute_facility_build(self) -> ResponseCode:
         response = None
@@ -247,7 +248,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         if self.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
             self.unit_in_charge = self.production.get_builder(self.unit_type_id)
             if self.unit_in_charge and self.unit_type_id in self.production.add_on_types:
-                self.pos = self.unit_in_charge.add_on_position
+                self.position = self.unit_in_charge.add_on_position
         elif self.unit_type_id == UnitTypeId.SCV:
             # scv
             facility_candidates = self.bot.townhalls.filter(lambda x: x.is_ready and x.is_idle)
@@ -286,18 +287,28 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             return AbilityId.BUILD_TECHLAB
         return TRAIN_INFO[self.unit_in_charge.type_id][self.unit_type_id]["ability"]
 
-    async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, rush_defense_enacted: bool = False) -> Union[Point2, None]:
+    async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, rush_detected: bool = False) -> Union[Point2, None]:
         new_build_position = None
         if unit_type_id == UnitTypeId.COMMANDCENTER:
             new_build_position = await self.bot.get_next_expansion()
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2 = None
-            if rush_defense_enacted:
-                candidate = self.bot.main_base_ramp.top_center
+            if rush_detected:
+                # try to build near edge of high ground towards natural
+                candidate = self.bot.start_location
+                high_ground_height = self.bot.get_terrain_height(candidate)
+                next_position = candidate
+                while self.bot.get_terrain_height(next_position) == high_ground_height:
+                    candidate = next_position
+                    next_position = candidate.towards(self.bot.game_info.map_center, 1)
+                next_position = candidate
+                while self.bot.get_terrain_height(next_position) == high_ground_height:
+                    candidate = next_position
+                    next_position = candidate.towards(self.map.natural_position, 1)
             else:
                 ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
                 enemy_start: Point2 = self.bot.enemy_start_locations[0]
-                candidate = ((ramp_position + self.map.natural_position) / 2).towards(enemy_start, distance=2)
+                candidate = ((ramp_position + self.map.natural_position) / 2).towards(enemy_start, distance=3)
             retry_count = 0
             while not new_build_position or new_build_position.distance_to(self.map.natural_position) < 4:
                 new_build_position = await self.bot.find_placement(
@@ -436,20 +447,6 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             if self.unit_in_charge.tag in self.workers.assignments_by_worker:
                 if self.workers.assignments_by_worker[self.unit_in_charge.tag].job_type != JobType.BUILD:
                     self.workers.update_job(self.unit_in_charge, JobType.BUILD)
-                # self.unit_in_charge.move(self.pos)
-                if self.unit_being_built is not None and self.unit_being_built is not True:
-                    self.unit_in_charge.smart(self.unit_being_built)
-                else:
-                    if self.unit_in_charge.distance_to(self.pos) < 3 and self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
-                        self.worker_in_position_time = self.bot.time
-                    elif self.worker_in_position_time is not None and self.bot.time - self.worker_in_position_time > 2:
-                        # position may be blocked
-                        self.pos = None
-                        self.geysir = None
-                        self.worker_in_position_time = None
-                        self.workers.set_as_idle(self.unit_in_charge)
-                        self.unit_in_charge = None
-                        return True
                     if self.unit_type_id == UnitTypeId.REFINERY:
                         self.unit_in_charge(
                             self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
@@ -463,12 +460,29 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                         # unit.build subtracts the cost from self.bot.minerals/vespene so we need to use ability directly
                         self.unit_in_charge(
                             self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
-                            target=self.pos,
+                            target=self.position,
                             queue=False,
                             subtract_cost=False,
                             can_afford_check=False,
                         )
                         # self.unit_in_charge.build(self.unit_type_id, self.pos)
+                # self.unit_in_charge.move(self.pos)
+                # if self.unit_being_built is not None and self.unit_being_built is not True:
+                if self.unit_being_built is None or self.unit_being_built is True:
+                #     self.unit_in_charge.smart(self.unit_being_built)
+                # else:
+                    if self.unit_in_charge.distance_to(self.position) < 3 and self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
+                        self.worker_in_position_time = self.bot.time
+                    elif self.worker_in_position_time is not None and self.bot.time - self.worker_in_position_time > 2:
+                        # position may be blocked
+                        self.position = None
+                        self.geysir = None
+                        self.worker_in_position_time = None
+                        self.workers.set_as_idle(self.unit_in_charge)
+                        self.unit_in_charge = None
+                        return True
+                elif self.unit_in_charge.is_idle:
+                    self.unit_in_charge.smart(self.unit_being_built)
         return False
     
     def cancel_construction(self):
@@ -479,7 +493,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         if self.unit_in_charge and self.unit_in_charge.type_id == UnitTypeId.SCV:
             self.workers.update_assigment(self.unit_in_charge, JobType.IDLE, None)
             self.unit_in_charge = None
-        self.pos = None
+        self.position = None
         self.geysir = None
         self.worker_in_position_time = None
         self.is_in_progress = False

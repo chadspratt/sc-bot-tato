@@ -36,6 +36,7 @@ class WorkerAssignment():
         self.gather_position: Point2 = None
         self.dropoff_target: Unit = None
         self.dropoff_position: Point2 = None
+        self.initial_gather_complete: bool = False
         self.is_returning = False
         self.on_attack_break = False
 
@@ -68,7 +69,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.add_worker(worker)
         self.aged_mules: Units = Units([], bot)
 
-    def update_references(self):
+    def update_references(self, builder_tags: list[int]):
         self.start_timer("update_references")
         self.minerals.update_references()
         self.vespene.update_references()
@@ -86,12 +87,15 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 assignment.unit_available = True
                 if assignment.target:
                     assignment.target = self.get_updated_unit_reference(assignment.target)
-                if assignment.job_type == JobType.BUILD and assignment.target is None and assignment.unit.is_idle:
+                if assignment.job_type == JobType.BUILD and assignment.target is None and assignment.unit.is_idle and assignment.unit.tag not in builder_tags:
                     assignment.job_type = JobType.IDLE
+                    assignment.target = None
                 elif assignment.job_type == JobType.MINERALS and assignment.target.type_id not in self.minerals.mineral_type_ids:
                     assignment.job_type = JobType.IDLE
+                    assignment.target = None
                 elif assignment.job_type == JobType.VESPENE and assignment.target.type_id not in (UnitTypeId.REFINERY, UnitTypeId.REFINERYRICH):
                     assignment.job_type = JobType.IDLE
+                    assignment.target = None
             except UnitReferenceMixin.UnitNotFound:
                 assignment.unit_available = False
                 logger.debug(f"{assignment.unit} unavailable, maybe already working on {assignment.target}")
@@ -165,6 +169,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if assignment.unit_available and assignment.job_type in [JobType.MINERALS]:
                 worker: Unit = assignment.unit
                 if worker.is_carrying_resource:
+                    assignment.initial_gather_complete = True
                     assignment.is_returning = True
                     if len(worker.orders) == 1:
                         if assignment.dropoff_target is None:
@@ -177,13 +182,17 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                                 assignment.dropoff_position = position
                         self.speed_smart(worker, assignment.dropoff_target, assignment.dropoff_position)
                 elif assignment.target:
-                    if assignment.gather_position is None:
-                        assignment.gather_position = self.minerals.mining_positions[assignment.target.tag]
-                    if assignment.is_returning:
-                        assignment.is_returning = False
-                        worker.move(assignment.gather_position)
-                    elif len(worker.orders) == 1 and assignment.target:
-                        self.speed_smart(worker, assignment.target, assignment.gather_position)
+                    if assignment.initial_gather_complete:
+                        if assignment.gather_position is None:
+                            assignment.gather_position = self.minerals.mining_positions[assignment.target.tag]
+                        if assignment.is_returning:
+                            assignment.is_returning = False
+                            worker.move(assignment.gather_position)
+                        elif len(worker.orders) == 1 and assignment.target:
+                            self.speed_smart(worker, assignment.target, assignment.gather_position)
+                    else:
+                        # first time gathering, just gather
+                        worker.gather(assignment.target)
         self.stop_timer("my_workers.speed_mine")
 
     def speed_smart(self, worker: Unit, target: Unit, position: Union[Point2, None] = None) -> None:
@@ -196,6 +205,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
     def attack_nearby_enemies(self) -> None:
         self.start_timer("my_workers.attack_nearby_enemies")
+        attacker_tags = set()
         if self.bot.townhalls:
             for townhall in self.bot.townhalls:
                 nearby_enemies = self.bot.enemy_units.closer_than(15, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
@@ -205,18 +215,19 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     attackers = workers_nearby.closest_n_units(nearby_enemy, 3)
                     for attacker in attackers:
                         attacker.attack(nearby_enemy)
+                        attacker_tags.add(attacker.tag)
                         self.assignments_by_worker[attacker.tag].on_attack_break = True
                         workers_nearby.remove(attacker)
-                # put any leftover workers back to work
-                if workers_nearby:
-                    for worker in workers_nearby:
-                        assignment = self.assignments_by_worker[worker.tag]
-                        assignment.on_attack_break = False
-                        if assignment.target:
-                            if assignment.unit.is_carrying_resource and self.bot.townhalls:
-                                assignment.unit.smart(self.bot.townhalls.closest_to(assignment.unit))
-                            else:
-                                assignment.unit.smart(assignment.target)
+        # put any leftover workers back to work
+        for worker in self.bot.workers:
+            assignment = self.assignments_by_worker[worker.tag]
+            if assignment.on_attack_break and worker.tag not in attacker_tags:
+                assignment.on_attack_break = False
+                if assignment.target:
+                    if assignment.unit.is_carrying_resource and self.bot.townhalls:
+                        assignment.unit.smart(self.bot.townhalls.closest_to(assignment.unit))
+                    else:
+                        assignment.unit.smart(assignment.target)
 
         # for assignment in self.assignments_by_worker.values():
         #     if assignment.job_type in {JobType.MINERALS, JobType.VESPENE}:
@@ -265,6 +276,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.vespene.remove_worker(worker)
         self.assignments_by_job[assignment.job_type].remove(assignment)
         assignment.job_type = new_job
+        # assignment.on_attack_break = False
         if assignment.job_type == JobType.IDLE:
             assignment.unit_available = True
         self.assignments_by_job[new_job].append(assignment)
@@ -277,7 +289,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if new_target:
             if assignment.job_type == JobType.REPAIR:
                 if new_target.tag not in self.bot.unit_tags_received_action:
-                    new_target.move(worker)
+                    if new_target.type_id != UnitTypeId.SCV or self.assignments_by_worker[new_target.tag].job_type != JobType.REPAIR:
+                        # don't move if the scv is already repairing something else
+                        new_target.move(worker)
                 if not self.bot.enemy_units or self.bot.time < 300 or self.closest_distance(new_target, self.bot.enemy_units) > 5:
                     worker.repair(new_target)
             elif assignment.job_type == JobType.VESPENE:
@@ -294,7 +308,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 if worker.is_carrying_resource and self.bot.townhalls:
                     worker.smart(self.bot.townhalls.closest_to(worker))
                 else:
-                    worker.move(assignment.gather_position)
+                    # worker.move(assignment.gather_position)
                     worker.gather(new_target, True)
             else:
                 worker.smart(new_target)
@@ -305,9 +319,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 assignment.dropoff_target = None
                 assignment.dropoff_position = None
                 if worker.is_carrying_resource and self.bot.townhalls:
+                    # worker.move(assignment.dropoff_position)
                     worker.smart(self.bot.townhalls.closest_to(worker))
                 else:
-                    worker.move(assignment.gather_position)
+                    # worker.move(assignment.gather_position)
                     worker.smart(new_target, True)
             elif assignment.job_type == JobType.VESPENE:
                 new_target = self.vespene.add_worker(worker)
@@ -315,8 +330,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     worker.smart(self.bot.townhalls.closest_to(worker))
                 else:
                     worker.smart(new_target)
+        if assignment.target != new_target:
+            assignment.initial_gather_complete = False
         assignment.target = new_target
-        assignment.gather_position = None
+        # assignment.gather_position = None
 
     def record_death(self, unit_tag):
         if unit_tag in self.assignments_by_worker:
@@ -368,14 +385,13 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             assignment.unit for assignment in self.assignments_by_job[job_type]
             if assignment.unit_available
                 and assignment.unit.type_id != UnitTypeId.MULE
-                and not (assignment.job_type in (JobType.MINERALS, JobType.VESPENE) and assignment.unit.is_carrying_resource)],
+                and not (assignment.job_type in (JobType.MINERALS, JobType.VESPENE) and assignment.unit.is_carrying_resource)
+                and not assignment.on_attack_break
+        ],
             bot_object=self.bot)
 
     # def deliver_resources(self, worker: Unit):
     #     if worker.is_carrying_resource:
-    #         nearest_cc = self.bot.townhalls.ready.closest_to(worker)
-    #         worker.smart(nearest_cc)
-    #         logger.debug(f"{worker} delivering resources to {nearest_cc}")
 
     def set_as_idle(self, worker: Unit):
         if worker.tag in self.assignments_by_worker:
@@ -395,10 +411,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 continue
             if assigment.job_type == JobType.IDLE:
                 continue
-            self.update_job(worker, JobType.IDLE)
+            self.set_as_idle(worker)
         for worker in self.minerals.get_workers_from_depleted():
             logger.debug(f"worker {worker} was mining from depleted minerals")
-            self.update_job(worker, JobType.IDLE)
+            self.set_as_idle(worker)
 
         idle_workers: Units = self.availiable_workers_on_job(JobType.IDLE)
         if idle_workers:
@@ -413,6 +429,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     logger.debug(f"adding {worker.tag} to gas")
                     self.update_assigment(worker, JobType.VESPENE, None)
                     continue
+                # nothing to do, just send them home
+                worker.move(self.bot.start_location)
 
                 # if self.minerals.add_long_distance_minerals(1) > 0:
                 #     logger.debug(f"adding {worker.tag} to long-distance")

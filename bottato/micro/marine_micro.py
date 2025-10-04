@@ -63,18 +63,18 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
         
         candidates = []
         if targets:
-            candidates = targets.filter(lambda unit: not unit.is_structure)
+            candidates = targets.filter(lambda unit: not unit.is_structure and unit.armor < 10)
             if len(candidates) == 0:
                 candidates = targets
         else:
-            candidates = self.bot.enemy_units.in_attack_range_of(unit).filter(lambda unit: unit.can_be_attacked)
+            candidates = self.bot.enemy_units.in_attack_range_of(unit).filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
             if len(candidates) == 0:
                 candidates = self.bot.enemy_structures.in_attack_range_of(unit)
 
         if not candidates:
             return False
         
-        if unit.weapon_cooldown < 0.25:
+        if unit.weapon_cooldown < 0.31:
             if self.is_stimmed(unit):
                 # attack if stimmed
                 return self.attack_lowest_health(unit, candidates)
@@ -93,11 +93,13 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
                 unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
                 return True
             else:
-                # stay at max attack range
-                extra_range = -0.5
-                if unit.weapon_cooldown > 1:
-                    extra_range = 3
                 nearest_target = candidates.closest_to(unit)
+                # stay at max attack range
+                # extra_range = -0.5
+                # if not enemy.can_attack(nearest_target, unit):
+                #     extra_range = 0
+                # elif unit.weapon_cooldown > 1:
+                #     extra_range = 3
                 attack_range = unit.ground_range
                 if nearest_target.is_flying:
                     attack_range = unit.air_range
@@ -107,7 +109,8 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
                         attack_range = 0
                     else:
                         attack_range = 14
-                target_position = nearest_target.position.towards(unit, attack_range + extra_range)
+                future_enemy_position = enemy.get_predicted_position(nearest_target, unit.weapon_cooldown)
+                target_position = future_enemy_position.towards(unit, attack_range)
                 unit.move(target_position)
                 logger.debug(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
                 return True
@@ -121,6 +124,9 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             UnitTypeId.MULE,
             UnitTypeId.OBSERVER
         ]
+        tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))
+        if not tanks:
+            return None
         close_enemies = self.bot.enemy_units.closer_than(15, unit).filter(lambda u: u.type_id not in excluded_enemy_types)
         if len(close_enemies) < 10:
             return None
@@ -128,7 +134,6 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             closest_enemy = close_enemies.closest_to(unit)
         if not closest_enemy or closest_enemy.is_flying:
             return None
-        tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))
         nearest_tank = tanks.closest_to(unit) if tanks else None
         tank_to_enemy_distance = self.distance(nearest_tank, closest_enemy) if nearest_tank and closest_enemy else 9999
         if tank_to_enemy_distance > 13.5 and tank_to_enemy_distance < 25:

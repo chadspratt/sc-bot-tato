@@ -177,6 +177,7 @@ class Scouting(BaseSquad, DebugMixin):
         self.map = map
         self.workers = workers
         self.military = military
+        self.rush_is_detected: bool = False
 
         self.friendly_territory = Scout("friendly territory", self.bot, enemy)
         self.enemy_territory = Scout("enemy territory", self.bot, enemy)
@@ -215,4 +216,5 @@ class Scouting(BaseSquad, DebugMixin):
 
     @property
     def rush_detected(self) -> bool:
-        return self.initial_scout.rush_detected()
+        self.rush_is_detected = self.rush_is_detected or self.initial_scout.rush_detected() or self.bot.time < 180 and len(self.bot.enemy_units) > 0 and len(self.bot.enemy_units.closer_than(30, self.bot.start_location)) > 5
+        return self.rush_is_detected
