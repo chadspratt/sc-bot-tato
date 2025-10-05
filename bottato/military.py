@@ -337,7 +337,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         if self.bunker.is_built():
             for unit in self.bunker.units:
                 self.squads_by_unit_tag[unit.tag] = self.main_army
-            self.bunker.transfer_all(self.main_army)
+            # self.bunker.transfer_all(self.main_army)
             self.bunker.empty()
 
     def get_counter_units(self, unit: Unit):
@@ -516,10 +516,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
     def update_references(self):
         self.start_timer("update_references")
-        self.main_army.update_references()
-        self.stuck_rescue.update_references()
-        for squad in self.squads:
-            squad.update_references()
         for unit in self.bot.units:
             if unit.tag in self.squads_by_unit_tag:
                 squad = self.squads_by_unit_tag[unit.tag]
@@ -532,6 +528,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             if unit.type_id in (UnitTypeId.SCV, UnitTypeId.MULE):
                 continue
             self.add_to_main(unit)
+        for squad in self.squads:
+            squad.update_references()
+        self.main_army.update_references()
+        self.stuck_rescue.update_references()
         self.stop_timer("update_references")
 
     def record_death(self, unit_tag):
