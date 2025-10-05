@@ -315,6 +315,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.bunker.structure = self.get_updated_unit_reference(self.bunker.structure)
             except self.UnitNotFound:
                 self.bunker.structure = None
+                self.empty_bunker()
+                return
             if enemies_in_base and enemies_in_base.closest_distance_to(self.bunker.structure) > 6:
                 self.empty_bunker()
             elif self.bot.time < 300:
@@ -334,11 +336,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             self.empty_bunker()
 
     def empty_bunker(self):
-        if self.bunker.is_built():
-            for unit in self.bunker.units:
-                self.squads_by_unit_tag[unit.tag] = self.main_army
-            # self.bunker.transfer_all(self.main_army)
-            self.bunker.empty()
+        for unit in self.bunker.units:
+            self.squads_by_unit_tag[unit.tag] = self.main_army
+        # self.bunker.transfer_all(self.main_army)
+        self.bunker.empty()
 
     def get_counter_units(self, unit: Unit):
         unassigned = [UnitTypeId.STALKER, UnitTypeId.SENTRY, UnitTypeId.ADEPT, UnitTypeId.HIGHTEMPLAR, UnitTypeId.DARKTEMPLAR, UnitTypeId.ARCHON, UnitTypeId.IMMORTAL, UnitTypeId.COLOSSUS, UnitTypeId.DISRUPTOR, UnitTypeId.PHOENIX, UnitTypeId.VOIDRAY, UnitTypeId.ORACLE, UnitTypeId.TEMPEST, UnitTypeId.CARRIER, UnitTypeId.MOTHERSHIP]
