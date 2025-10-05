@@ -250,12 +250,13 @@ class BuildOrder(TimerMixin):
                 refinery_count += 1
         # build refinery if less than 2 per town hall (function is only called if gas is needed but no room to move workers)
         logger.debug(f"refineries: {refinery_count}, townhalls: {len(self.bot.townhalls)}")
-        geysirs = self.bot.vespene_geyser.in_distance_of_group(
-            distance=10, other_units=self.bot.townhalls.ready
-        )
-        if refinery_count < len(geysirs):
-            logger.debug("adding refinery to build order")
-            self.add_to_build_queue(UnitTypeId.REFINERY, queue=self.priority_queue)
+        if self.bot.townhalls.ready:
+            geysirs = self.bot.vespene_geyser.in_distance_of_group(
+                distance=10, other_units=self.bot.townhalls.ready
+            )
+            if refinery_count < len(geysirs):
+                logger.debug("adding refinery to build order")
+                self.add_to_build_queue(UnitTypeId.REFINERY, queue=self.priority_queue)
         # should also build a new one if current bases run out of resources
         self.stop_timer("queue_refinery")
 
