@@ -47,15 +47,20 @@ class Resources(UnitReferenceMixin, GeometryMixin):
 
     def nodes_with_capacity(self) -> Units:
         return self.nodes.filter(
-            lambda unit: self.needed_workers_for_node(unit) > 0
+            lambda node: self.needed_workers_for_node(node) > 0
         )
 
     def add_worker(self, worker: Unit) -> Unit:
         if worker is None:
             return None
         candidates = self.nodes.filter(
-            lambda unit: self.needed_workers_for_node(unit) > 0
+            lambda node: self.needed_workers_for_node(node) > 0
         )
+        candidates.sort(key=lambda node: self.needed_workers_for_node(node), reverse=True)
+        if candidates:
+            # prefer nodes that need the most workers
+            most_needed = self.needed_workers_for_node(candidates[0])
+            candidates = candidates.filter(lambda node: self.needed_workers_for_node(node) == most_needed)
         if candidates.empty or worker.type_id == UnitTypeId.MULE:
             candidates = self.nodes
         node = candidates.closest_to(worker)

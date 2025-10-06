@@ -167,32 +167,150 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if assignment.on_attack_break:
                 continue
             if assignment.unit_available and assignment.job_type in [JobType.MINERALS]:
-                worker: Unit = assignment.unit
-                if worker.is_carrying_resource:
-                    assignment.initial_gather_complete = True
-                    assignment.is_returning = True
-                    if len(worker.orders) == 1:
-                        if assignment.dropoff_target is None:
-                            # might be none ready if converting first cc to orbital
-                            dropoff_candidates: Units = self.bot.townhalls.ready or self.bot.townhalls
-                            if dropoff_candidates:
-                                assignment.dropoff_target = dropoff_candidates.closest_to(worker)
-                                min_distance = assignment.dropoff_target.radius + worker.radius
-                                position = assignment.dropoff_target.position.towards(worker, min_distance, limit=True)
-                                assignment.dropoff_position = position
-                        self.speed_smart(worker, assignment.dropoff_target, assignment.dropoff_position)
-                elif assignment.target:
-                    if assignment.initial_gather_complete:
-                        if assignment.gather_position is None:
-                            assignment.gather_position = self.minerals.mining_positions[assignment.target.tag]
-                        if assignment.is_returning:
-                            assignment.is_returning = False
-                            worker.move(assignment.gather_position)
-                        elif len(worker.orders) == 1 and assignment.target:
-                            self.speed_smart(worker, assignment.target, assignment.gather_position)
-                    else:
-                        # first time gathering, just gather
-                        worker.gather(assignment.target)
+                self.bottato_speed_mine(assignment)
+                # self.ares_speed_mine(assignment)
+                # self.sharpy_speed_mine(assignment)
+
+    def sharpy_speed_mine(self, assignment: WorkerAssignment) -> None:
+        worker = assignment.unit
+        townhall = self.bot.townhalls.closest_to(worker)
+
+        if worker.is_returning and len(worker.orders) == 1:
+            target: Point2 = townhall.position
+            target = target.towards(worker, townhall.radius + worker.radius)
+            if 0.75 < worker.distance_to(target) < 2:
+                worker.move(target)
+                worker(AbilityId.SMART, townhall, True)
+                return
+
+        if (
+            not worker.is_returning
+            and len(worker.orders) == 1
+            and isinstance(worker.order_target, int)
+        ):
+            # mf = self.cache.by_tag(worker.order_target)
+            mf = assignment.target
+            if mf is not None and mf.is_mineral_field:
+                # target = self.mineral_target_dict.get(mf.position)
+                target = assignment.gather_position
+                worker_distance = worker.distance_to(target)
+                if target and 0.75 < worker_distance < 2:
+                    worker.move(target)
+                    worker(AbilityId.SMART, mf, True)
+                elif worker_distance <= 0.75:
+                    first_order = worker.orders[0]
+                    if first_order.ability.id != AbilityId.HARVEST_GATHER or first_order.target != assignment.target.tag:
+                        worker(AbilityId.SMART, assignment.target)
+
+    TOWNHALL_RADIUS: float = 2.75
+    DISTANCE_TO_TOWNHALL_FACTOR: float = 1.08
+    def ares_speed_mine(self, assignment: WorkerAssignment) -> bool:
+        if not self.bot.townhalls:
+            logger.warning(
+                f"{self.bot.time_formatted} Attempting to speed mine with no townhalls"
+            )
+            return False
+
+        if not self.bot.mineral_field:
+            logger.warning(
+                f"{self.bot.time_formatted} Attempting to speed mine with no mineral fields"
+            )
+            return False
+
+        # worker: Unit = self.worker
+        worker = assignment.unit
+        len_orders: int = len(worker.orders)
+
+        # do some further processing here or the orders
+        # but in general if worker has 2 orders it is speedmining
+        if len_orders == 2:
+            return True
+
+        if (worker.is_returning or worker.is_carrying_resource) and len_orders < 2:
+            if not assignment.dropoff_target:
+                assignment.dropoff_target = self.closest_unit_to_unit(worker, self.bot.townhalls)
+                # assignment.dropoff_target = cy_closest_to(self.worker_position, ai.townhalls)
+
+            target_pos: Point2 = assignment.dropoff_target.position
+
+            target_pos: Point2 = Point2(
+                target_pos.towards(worker, self.TOWNHALL_RADIUS * self.DISTANCE_TO_TOWNHALL_FACTOR)
+                # cy_towards(
+                #     target_pos,
+                #     self.worker_position,
+                #     self.TOWNHALL_RADIUS * self.DISTANCE_TO_TOWNHALL_FACTOR,
+                # )
+            )
+
+            if 0.5625 < worker.distance_to(target_pos) < 4.0:
+                worker.move(target_pos)
+                worker(AbilityId.SMART, assignment.dropoff_target, True)
+                return True
+            # not at right distance to get boost command, but doesn't have return
+            # resource command for some reason
+            elif not worker.is_returning:
+                worker(AbilityId.SMART, assignment.dropoff_target)
+                return True
+
+        elif not worker.is_returning and len_orders < 2:
+            min_distance: float = 0.5625 if assignment.target.is_mineral_field else 0.01
+            max_distance: float = 4.0 if assignment.target.is_mineral_field else 0.25
+            worker_distance: float = worker.distance_to(assignment.gather_position)
+            if (
+                min_distance
+                < worker_distance
+                # < cy_distance_to_squared(self.worker_position, self.resource_target_pos)
+                < max_distance
+                or worker.is_idle
+            ):
+                worker.move(assignment.gather_position)
+                # worker.move(self.resource_target_pos)
+                worker(AbilityId.SMART, assignment.target, True)
+                return True
+            elif worker_distance <= min_distance:
+                first_order = worker.orders[0]
+                if first_order.ability.id != AbilityId.HARVEST_GATHER or first_order.target != assignment.target.tag:
+                    worker(AbilityId.SMART, assignment.target)
+                    return True
+
+        # on rare occasion above conditions don't hit and worker goes idle
+        elif worker.is_idle or not worker.is_moving:
+            if worker.is_carrying_resource:
+                # worker.return_resource(assignment.dropoff_target)
+                worker.return_resource()
+            else:
+                worker.gather(assignment.target)
+            return True
+
+        return False
+
+    def bottato_speed_mine(self, assignment: WorkerAssignment) -> None:
+        worker = assignment.unit
+        if worker.is_carrying_resource:
+            assignment.initial_gather_complete = True
+            assignment.is_returning = True
+            if len(worker.orders) == 1:
+                if assignment.dropoff_target is None:
+                    # might be none ready if converting first cc to orbital
+                    dropoff_candidates: Units = self.bot.townhalls.ready or self.bot.townhalls
+                    if dropoff_candidates:
+                        assignment.dropoff_target = dropoff_candidates.closest_to(worker)
+                        min_distance = assignment.dropoff_target.radius + worker.radius
+                        position = assignment.dropoff_target.position.towards(worker, min_distance, limit=True)
+                        assignment.dropoff_position = position
+                self.speed_smart(worker, assignment.dropoff_target, assignment.dropoff_position)
+        elif assignment.target:
+            if assignment.initial_gather_complete:
+                if assignment.gather_position is None:
+                    assignment.gather_position = self.minerals.mining_positions[assignment.target.tag]
+                if assignment.is_returning:
+                    assignment.is_returning = False
+                    worker.move(assignment.gather_position)
+                elif len(worker.orders) == 1 and assignment.target:
+                    self.speed_smart(worker, assignment.target, assignment.gather_position)
+            else:
+                # first time gathering, just gather
+                worker.gather(assignment.target)
         self.stop_timer("my_workers.speed_mine")
 
     def speed_smart(self, worker: Unit, target: Unit, position: Union[Point2, None] = None) -> None:
@@ -202,6 +320,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if 0.75 < remaining_distance < 1.75:
             worker.move(position)
             worker(AbilityId.SMART, target, True)
+        elif remaining_distance <= 0.75:
+            first_order = worker.orders[0]
+            if first_order.ability.id != AbilityId.HARVEST_GATHER or first_order.target != target.tag:
+                worker(AbilityId.SMART, target)
 
     def attack_nearby_enemies(self) -> None:
         self.start_timer("my_workers.attack_nearby_enemies")
@@ -309,7 +431,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     worker.smart(self.bot.townhalls.closest_to(worker))
                 else:
                     # worker.move(assignment.gather_position)
-                    worker.gather(new_target, True)
+                    worker.gather(new_target)
             else:
                 worker.smart(new_target)
         else:
@@ -323,7 +445,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     worker.smart(self.bot.townhalls.closest_to(worker))
                 else:
                     # worker.move(assignment.gather_position)
-                    worker.smart(new_target, True)
+                    worker.smart(new_target)
             elif assignment.job_type == JobType.VESPENE:
                 new_target = self.vespene.add_worker(worker)
                 if worker.is_carrying_resource and self.bot.townhalls:
@@ -563,8 +685,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
     def move_workers_between_resources(self, source: Resources, target: Resources, target_job: JobType, number_to_move: int) -> int:
         moved_count = 0
-        mineral_nodes = target.nodes_with_capacity()
-        if not mineral_nodes:
+        resource_nodes = target.nodes_with_capacity()
+        if not resource_nodes:
             return 0
 
         candidates: Units = None
@@ -572,19 +694,16 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             candidates = self.availiable_workers_on_job(JobType.MINERALS)
         else:
             candidates = self.availiable_workers_on_job(JobType.VESPENE)
-        # logger.debug(f"candidates to move to {target_job}: {candidates}")
 
-        next_node: Unit = mineral_nodes.pop()
-        while moved_count < number_to_move and candidates and target.has_unused_capacity:
-            if target.needed_workers_for_node(next_node) == 0:
-                if mineral_nodes:
-                    next_node = mineral_nodes.pop()
-                    continue
-                break
+        while moved_count < number_to_move and candidates and resource_nodes:
+            # prefer emptier nodes to limit congestion
+            resource_nodes.sort(key=lambda r: target.needed_workers_for_node(r), reverse=True)
+            next_node: Unit = resource_nodes[0]
             worker = candidates.closest_to(next_node)
             candidates.remove(worker)
             self.update_assigment(worker, target_job, next_node)
             moved_count += 1
+            resource_nodes = target.nodes_with_capacity()
 
         if moved_count:
             self.last_worker_stop = self.bot.time

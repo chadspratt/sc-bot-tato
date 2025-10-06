@@ -47,7 +47,7 @@ class Minerals(Resources, TimerMixin):
                     logger.debug(f"adding mineral patch {mineral}")
                     self.add_node(mineral)
                     target = mineral.position.towards(townhall, self.MINING_RADIUS)
-                    close_minerals = self.bot.mineral_field.closer_than(self.MINING_RADIUS + 0.5, target)
+                    close_minerals = self.bot.mineral_field.closer_than(self.MINING_RADIUS, target)
                     for close_mineral in close_minerals:
                         if close_mineral.tag != mineral.tag:
                             candidates = mineral.position.circle_intersection(close_mineral.position, self.MINING_RADIUS)
