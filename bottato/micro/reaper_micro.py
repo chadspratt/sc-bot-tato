@@ -15,6 +15,7 @@ from ..mixins import GeometryMixin
 class ReaperMicro(BaseUnitMicro, GeometryMixin):
     grenade_cooldown = 14.0
     grenade_timer = 1.7
+    attack_health = 0.45
 
     grenade_cooldowns: dict[int, int] = {}
     unconfirmed_grenade_throwers: list[int] = []

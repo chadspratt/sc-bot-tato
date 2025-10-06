@@ -13,6 +13,8 @@ from bottato.economy.workers import Workers
 from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
 from bottato.squad.base_squad import BaseSquad
 from bottato.squad.formation_squad import FormationSquad
+from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.micro.micro_factory import MicroFactory
 from bottato.enemy import Enemy
 from bottato.map.map import Map
 from bottato.mixins import GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin
@@ -151,6 +153,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.army_ratio: float = 1.0
         self.status_message = ""
         self.stuck_rescue = StuckRescue(self.bot, self.main_army, self.squads_by_unit_tag)
+        self.harass_squad = BaseSquad(bot=self.bot, name="harass", color=(0, 255, 255))
 
     def add_to_main(self, unit: Unit) -> None:
         self.main_army.recruit(unit)
@@ -257,6 +260,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         else:
             self.offense_start_supply = 200
 
+        await self.harass()
+
         if self.main_army.units:
             self.main_army.draw_debug_box()
             self.main_army.update_formation()
@@ -334,6 +339,16 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         elif self.bunker.units:
             # bunker destroyed, transfer units to main arm
             self.empty_bunker()
+
+    async def harass(self):
+        if not self.harass_squad.units:
+            # transfer a reaper from main army to harass squad
+            reapers = self.main_army.units(UnitTypeId.REAPER)
+            if reapers:
+                self.transfer(reapers[0], self.main_army, self.harass_squad)
+        for unit in self.harass_squad.units:
+            micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
+            await micro.move(unit, self.bot.enemy_start_locations[0], self.enemy)
 
     def empty_bunker(self):
         for unit in self.bunker.units:
@@ -533,6 +548,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             squad.update_references()
         self.main_army.update_references()
         self.stuck_rescue.update_references()
+        self.harass_squad.update_references()
         self.stop_timer("update_references")
 
     def record_death(self, unit_tag):

@@ -48,7 +48,7 @@ class BaseUnitMicro(GeometryMixin):
             threats = enemy.threats_to(unit)
             if threats:
                 avg_threat_position = threats.center
-                retreat_position = unit.position.towards(avg_threat_position, -5)
+                retreat_position = unit.position.towards(avg_threat_position, -5).towards(self.bot.start_location, 2)
                 unit.move(retreat_position)
             else:
                 if unit.is_mechanical:
@@ -75,7 +75,7 @@ class BaseUnitMicro(GeometryMixin):
             return False
         if unit.health_percentage < health_threshold:
             return False
-        if unit.weapon_cooldown != 0:
+        if unit.weapon_cooldown > 0.25:
             return False
         candidates = []
         if targets:

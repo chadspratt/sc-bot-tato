@@ -38,6 +38,18 @@ class Minerals(Resources, TimerMixin):
     def record_non_worker_death(self, unit_tag):
         if unit_tag in self.known_townhall_tags:
             self.known_townhall_tags.remove(unit_tag)
+            known_tags = self.mining_positions.keys().copy()
+            for mineral_tag in known_tags:
+                mineral_field = self.nodes.by_tag(mineral_tag)
+                if self.bot.townhalls.closest_distance_to(mineral_field) > 15:
+                    try:
+                        self.nodes.remove(mineral_field)
+                        del self.worker_tags_by_node_tag[mineral_tag]
+                        if mineral_tag in self.mule_tags_by_node_tag:
+                            del self.mule_tags_by_node_tag[mineral_tag]
+                        # del self.mining_positions[mineral_tag]
+                    except KeyError:
+                        pass
 
     def add_mineral_fields_for_townhalls(self):
         for townhall in self.bot.townhalls.ready:
@@ -54,6 +66,7 @@ class Minerals(Resources, TimerMixin):
                             if len(candidates) == 2:
                                 target = townhall.position.closest(candidates)
                     self.mining_positions[mineral.tag] = target
+
     def add_long_distance_minerals(self, count: int) -> int:
         added = 0
         if self.bot.townhalls:
