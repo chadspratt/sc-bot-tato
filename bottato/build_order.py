@@ -80,6 +80,8 @@ class BuildOrder(TimerMixin):
                 logger.debug(f"{build_step} Is interrupted!")
                 # move back to pending (demote)
                 to_promote.append(idx)
+                if build_step.unit_being_built is None:
+                    build_step.is_in_progress = False
                 continue
             elif self.bot.enemy_units and build_step.position and UnitTypeId.SCV in build_step.builder_type:
                 threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground and u.type_id not in (UnitTypeId.MULE, UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER))
@@ -512,7 +514,7 @@ class BuildOrder(TimerMixin):
                 if percent_affordable >= 0.75:
                     await build_step.position_worker(special_locations=self.special_locations, rush_detected=rush_detected)
                 continue
-            if self.bot.supply_left < build_step.supply_cost:
+            if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
                 logger.debug(f"Cannot afford supply for {build_step.friendly_name}")
                 build_response = ResponseCode.NO_SUPPLY
                 break

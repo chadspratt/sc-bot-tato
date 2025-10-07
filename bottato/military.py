@@ -184,6 +184,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             return
         # scout_types = {UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
         # scouts_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id in scout_types).in_distance_of_group(self.bot.structures, 25)
+        self.start_timer("military enemies_in_base")
         base_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET)
         enemies_in_base: Units = Units([], self.bot)
         enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: base_structures.closest_distance_to(unit) < 25))
@@ -243,7 +244,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 else:
                     await defense_squad.attack(self.enemy.predicted_position[enemy.tag])
                     logger.debug(f"defending against {enemy} with {defense_squad}")
+        self.stop_timer("military enemies_in_base")
 
+        self.start_timer("military army value")
         enemy_value = self.get_army_value(self.enemy.get_army())
         main_army_value = self.get_army_value(self.main_army.units)
         army_is_big_enough = main_army_value > enemy_value * 1.5 or self.bot.supply_used > 160
@@ -252,6 +255,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         mount_offense = not defend_with_main_army and army_is_big_enough and (self.bot.supply_used >= 110 or self.bot.time > 600)
         self.status_message = f"main_army_value: {main_army_value}\nenemy_value: {enemy_value}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
+        self.stop_timer("military army value")
 
         if mount_offense:
             self.empty_bunker()
@@ -260,6 +264,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         else:
             self.offense_start_supply = 200
 
+        self.start_timer("military move squads")
         await self.harass()
 
         if self.main_army.units:
@@ -310,6 +315,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     self.main_army.staging_location = self.bot.start_location.towards(enemy_position, 5)
                 facing = self.get_facing(self.main_army.staging_location, enemy_position)
                 await self.main_army.move(self.main_army.staging_location, facing, force_move=True, blueprints=blueprints)
+        self.stop_timer("military move squads")
 
         self.report()
         self.stop_timer("manage_squads")

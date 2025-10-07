@@ -170,6 +170,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 self.bottato_speed_mine(assignment)
                 # self.ares_speed_mine(assignment)
                 # self.sharpy_speed_mine(assignment)
+        self.stop_timer("my_workers.speed_mine")
 
     def sharpy_speed_mine(self, assignment: WorkerAssignment) -> None:
         worker = assignment.unit
@@ -287,6 +288,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
     def bottato_speed_mine(self, assignment: WorkerAssignment) -> None:
         worker = assignment.unit
         if worker.is_carrying_resource:
+            self.start_timer("my_workers.speed_mine returning")
             assignment.initial_gather_complete = True
             assignment.is_returning = True
             if len(worker.orders) == 1:
@@ -299,7 +301,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         position = assignment.dropoff_target.position.towards(worker, min_distance, limit=True)
                         assignment.dropoff_position = position
                 self.speed_smart(worker, assignment.dropoff_target, assignment.dropoff_position)
+            self.stop_timer("my_workers.speed_mine returning")
         elif assignment.target:
+            self.start_timer("my_workers.speed_mine gathering")
             if assignment.initial_gather_complete:
                 if assignment.gather_position is None:
                     assignment.gather_position = self.minerals.mining_positions[assignment.target.tag]
@@ -311,9 +315,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             else:
                 # first time gathering, just gather
                 worker.gather(assignment.target)
-        self.stop_timer("my_workers.speed_mine")
+            self.stop_timer("my_workers.speed_mine gathering")
 
     def speed_smart(self, worker: Unit, target: Unit, position: Union[Point2, None] = None) -> None:
+        self.start_timer("my_workers.speed_smart")
         if position is None:
             return
         remaining_distance = worker.distance_to(position)
@@ -324,6 +329,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             first_order = worker.orders[0]
             if first_order.ability.id != AbilityId.HARVEST_GATHER or first_order.target != target.tag:
                 worker(AbilityId.SMART, target)
+        self.stop_timer("my_workers.speed_smart")
 
     def attack_nearby_enemies(self) -> None:
         self.start_timer("my_workers.attack_nearby_enemies")
