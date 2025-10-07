@@ -40,16 +40,16 @@ class Minerals(Resources, TimerMixin):
             self.known_townhall_tags.remove(unit_tag)
             known_tags = [key for key in self.mining_positions.keys()]
             for mineral_tag in known_tags:
-                mineral_field = self.nodes.by_tag(mineral_tag)
-                if self.bot.townhalls.closest_distance_to(mineral_field) > 15:
-                    try:
+                try:
+                    mineral_field = self.nodes.by_tag(mineral_tag)
+                    if self.bot.townhalls.closest_distance_to(mineral_field) > 15:
                         self.nodes.remove(mineral_field)
                         del self.worker_tags_by_node_tag[mineral_tag]
                         if mineral_tag in self.mule_tags_by_node_tag:
                             del self.mule_tags_by_node_tag[mineral_tag]
                         # del self.mining_positions[mineral_tag]
-                    except KeyError:
-                        pass
+                except KeyError:
+                    pass
 
     def add_mineral_fields_for_townhalls(self):
         for townhall in self.bot.townhalls.ready:
