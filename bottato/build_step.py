@@ -295,16 +295,37 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             candidate: Point2 = None
             if rush_detected:
                 # try to build near edge of high ground towards natural
-                candidate = self.bot.start_location
-                high_ground_height = self.bot.get_terrain_height(candidate)
-                next_position = candidate
-                while self.bot.get_terrain_height(next_position) == high_ground_height:
-                    candidate = next_position
-                    next_position = candidate.towards(self.bot.game_info.map_center, 1)
-                next_position = candidate
-                while self.bot.get_terrain_height(next_position) == high_ground_height:
-                    candidate = next_position
-                    next_position = candidate.towards(self.map.natural_position, 1)
+                high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
+                closest_depot_distance = 1000
+                candidate: Point2 = None
+                for depot_position in self.bot.main_base_ramp.corner_depots:
+                    depot_distance = depot_position.distance_to(self.bot.game_info.map_center)
+                    if depot_distance < closest_depot_distance:
+                        closest_depot_distance = depot_distance
+                        candidate = depot_position
+                # find spot on highground that is 6 away from main ramp and closest to natural
+                # center_point = self.bot.main_base_ramp.top_center
+                # base_vector = Point2((0, 6))
+                # candidate_distance = 1000
+                # for x in range(0, 40):
+                #     rotation_percent = x / 40
+                #     rotated = self.apply_rotation(math.pi * 2 * rotation_percent, base_vector)
+                #     next_position = center_point + rotated
+                #     if self.bot.get_terrain_height(next_position) == high_ground_height:
+                #         next_position_distance = next_position.distance_to(self.map.natural_position)
+                #         if next_position_distance < candidate_distance:
+                #             candidate_distance = next_position_distance
+                #             new_build_position = next_position
+
+                # candidate = self.bot.start_location
+                # next_position = candidate
+                # while self.bot.get_terrain_height(next_position) == high_ground_height:
+                #     candidate = next_position
+                #     next_position = candidate.towards(self.bot.game_info.map_center, 1)
+                # next_position = candidate
+                # while self.bot.get_terrain_height(next_position) == high_ground_height:
+                #     candidate = next_position
+                #     next_position = candidate.towards(self.map.natural_position, 1)
             else:
                 ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
                 enemy_start: Point2 = self.bot.enemy_start_locations[0]

@@ -52,6 +52,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.map.update_influence_maps()
 
         await self.scout()
+        # self.rush_detected = self.bot.time > 70
         if self.rush_detected:
             self.build_order.enact_rush_defense()
         # XXX extremely slow

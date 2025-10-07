@@ -348,7 +348,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.transfer(reapers[0], self.main_army, self.harass_squad)
         for unit in self.harass_squad.units:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
-            await micro.move(unit, self.bot.enemy_start_locations[0], self.enemy)
+            nearby_enemies = self.enemy.enemies_in_view.closer_than(15, unit)
+            if nearby_enemies:
+                nearby_enemies.sort(key=lambda enemy: enemy.health + enemy.shield)
+                await micro.move(unit, nearby_enemies[0].position, self.enemy)
+            else:
+                await micro.move(unit, self.bot.enemy_start_locations[0], self.enemy)
 
     def empty_bunker(self):
         for unit in self.bunker.units:

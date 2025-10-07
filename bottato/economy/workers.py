@@ -671,8 +671,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         logger.debug(f"injured mechanical units {injured_mechanical_units}")
 
         injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
-                                                        and unit.build_progress == 1
-                                                        and unit.health < unit.health_max
+                                                        and unit.health < unit.health_max * unit.build_progress - 5
                                                         and ((self.bot.time < 300 and unit.type_id in (UnitTypeId.BUNKER, UnitTypeId.SUPPLYDEPOT)) or len(self.enemy.threats_to_repairer(unit)) == 0))
         logger.debug(f"injured structures {injured_structures}")
         return injured_mechanical_units + injured_structures
