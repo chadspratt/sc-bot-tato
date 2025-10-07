@@ -38,7 +38,7 @@ class Minerals(Resources, TimerMixin):
     def record_non_worker_death(self, unit_tag):
         if unit_tag in self.known_townhall_tags:
             self.known_townhall_tags.remove(unit_tag)
-            known_tags = self.mining_positions.keys().copy()
+            known_tags = [key for key in self.mining_positions.keys()]
             for mineral_tag in known_tags:
                 mineral_field = self.nodes.by_tag(mineral_tag)
                 if self.bot.townhalls.closest_distance_to(mineral_field) > 15:
