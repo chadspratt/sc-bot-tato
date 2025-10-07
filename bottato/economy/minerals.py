@@ -42,7 +42,8 @@ class Minerals(Resources, TimerMixin):
             for mineral_tag in known_tags:
                 try:
                     mineral_field = self.nodes.by_tag(mineral_tag)
-                    if self.bot.townhalls.closest_distance_to(mineral_field) > 15:
+                    updated_field = self.bot.mineral_field.by_tag(mineral_tag)
+                    if self.bot.townhalls.closest_distance_to(updated_field) > 15:
                         self.nodes.remove(mineral_field)
                         del self.worker_tags_by_node_tag[mineral_tag]
                         if mineral_tag in self.mule_tags_by_node_tag:
