@@ -108,10 +108,6 @@ class Zone:
                         last_zone.shortest_paths[adjacent_zone.id] = new_path
                         adjacent_zone.shortest_paths[last_zone.id] = new_path.get_reverse()
 
-                        if adjacent_zone.id == destination_zone.id and new_path.distance < destination_path.distance:
-                            destination_path = new_path
-                            logger.debug(f"shorter path found, adding route from {self} to {destination_zone}: {destination_path}")
-
                     adjacent_path: Path = last_zone.shortest_paths[adjacent_zone.id]
                     new_full_path: Path = current_path.copy().extend(adjacent_path)
                     new_full_path.is_shortest = False

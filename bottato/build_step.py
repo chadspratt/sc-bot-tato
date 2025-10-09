@@ -303,29 +303,6 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     if depot_distance < closest_depot_distance:
                         closest_depot_distance = depot_distance
                         candidate = depot_position.towards(self.bot.main_base_ramp.top_center, -3)
-                # find spot on highground that is 6 away from main ramp and closest to natural
-                # center_point = self.bot.main_base_ramp.top_center
-                # base_vector = Point2((0, 6))
-                # candidate_distance = 1000
-                # for x in range(0, 40):
-                #     rotation_percent = x / 40
-                #     rotated = self.apply_rotation(math.pi * 2 * rotation_percent, base_vector)
-                #     next_position = center_point + rotated
-                #     if self.bot.get_terrain_height(next_position) == high_ground_height:
-                #         next_position_distance = next_position.distance_to(self.map.natural_position)
-                #         if next_position_distance < candidate_distance:
-                #             candidate_distance = next_position_distance
-                #             new_build_position = next_position
-
-                # candidate = self.bot.start_location
-                # next_position = candidate
-                # while self.bot.get_terrain_height(next_position) == high_ground_height:
-                #     candidate = next_position
-                #     next_position = candidate.towards(self.bot.game_info.map_center, 1)
-                # next_position = candidate
-                # while self.bot.get_terrain_height(next_position) == high_ground_height:
-                #     candidate = next_position
-                #     next_position = candidate.towards(self.map.natural_position, 1)
             else:
                 ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
                 enemy_start: Point2 = self.bot.enemy_start_locations[0]
@@ -377,7 +354,9 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                         if self.bot.townhalls:
                             preferred_townhalls = self.bot.townhalls
                             if prefer_earlier_bases and len(self.bot.townhalls.ready) > 1 and retry_count == 0:
-                                preferred_townhalls = self.bot.townhalls.ready.closest_n_units(self.bot.start_location, len(self.bot.townhalls.ready) - 1)
+                                closest_townhall_to_enemy: Unit = self.map.get_closest_unit_by_path(self.bot.townhalls.ready, self.bot.enemy_start_locations[0])
+                                # preferred_townhalls = self.bot.townhalls.ready.closest_n_units(self.bot.start_location, len(self.bot.townhalls.ready) - 1)
+                                preferred_townhalls = preferred_townhalls.filter(lambda th: th.tag != closest_townhall_to_enemy.tag)
                             new_build_position = await self.bot.find_placement(
                                 unit_type_id,
                                 near=preferred_townhalls.random.position.towards(map_center, distance=8),

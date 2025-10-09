@@ -108,7 +108,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 self.assignments_by_job[assignment.job_type].append(assignment)
             else:
                 self.assignments_by_job[assignment.job_type] = [assignment]
-            self.bot.client.debug_text_3d(f"{assignment.job_type.name}\n{assignment.unit.tag}", assignment.unit.position3d + Point3((0, 0, 1)), size=8, color=(255, 255, 255))
+            self.bot.client.debug_text_3d(f"{assignment.job_type.name}\n{assignment.unit.tag}",
+                                          assignment.unit.position3d + Point3((0, 0, 1)), size=8, color=(255, 255, 255))
         logger.debug(f"assignment summary {self.assignments_by_job}")
         self.stop_timer("update_references")
 
@@ -152,7 +153,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 fullest_mineral_field: Unit = max(mineral_fields, key=lambda x: x.mineral_contents)
                 nearest_townhall: Unit = self.bot.townhalls.closest_to(fullest_mineral_field)
                 orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE, target=fullest_mineral_field.position.towards(nearest_townhall), queue=True)
-                logger.debug(f"dropping mule on mineral field {fullest_mineral_field}({fullest_mineral_field.position} near {orbital}) {fullest_mineral_field.mineral_contents}")
         self.stop_timer("my_workers.drop_mules")
 
     def remove_mule(self, mule):
@@ -646,18 +646,19 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 current_repairers.remove(retiring_repairer)
 
         # tell existing to repair closest that isn't themself
+        units_needing_repair = [unit.tag for unit in injured_units]
+        if len(units_needing_repair) > 5:
+            units_needing_repair = units_needing_repair[:5]  # spread out repairers to up to 5 units, mostly to keep initial wall repaired
         for repairer in current_repairers:
-            self.update_target(repairer, self.get_repair_target(repairer, injured_units))
+            self.update_target(repairer, self.get_repair_target(repairer, injured_units, units_needing_repair))
 
         # add more repairers
         if repairer_shortage > 0:
             candidates: Units = None
-            candidates = Units([worker for worker in self.bot.workers if self.assignments_by_worker[worker.tag].job_type not in (JobType.BUILD, JobType.REPAIR)], bot_object=self.bot)
-            # if worker was building something, need to remove them from that task or they will get conflicting orders?
-            # if needed_resources.minerals <= 0 or not self.availiable_workers_on_job(JobType.VESPENE):
-            #     candidates = self.availiable_workers_on_job(JobType.MINERALS)
-            # elif needed_resources.vespene <= 0 or not self.availiable_workers_on_job(JobType.MINERALS):
-            #     candidates = self.availiable_workers_on_job(JobType.VESPENE)
+            candidates = Units([
+                    worker for worker in self.bot.workers
+                    if self.assignments_by_worker[worker.tag].job_type not in (JobType.BUILD, JobType.REPAIR)
+                ], bot_object=self.bot)
             for i in range(repairer_shortage):
                 if not candidates:
                     break
@@ -674,11 +675,17 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 else:
                     break
 
-    def get_repair_target(self, repairer: Unit, injured_units: Units) -> Unit:
+    def get_repair_target(self, repairer: Unit, injured_units: Units, units_needing_repair: list) -> Unit:
         other_units = injured_units.filter(lambda unit: unit.tag != repairer.tag)
         new_target: Unit = None
         if other_units:
-            new_target = other_units.closest_to(repairer)
+            if units_needing_repair:
+                # spread out repairers
+                other_units = other_units.filter(lambda unit: unit.tag in units_needing_repair)
+                new_target = other_units.closest_to(repairer)
+                units_needing_repair.remove(new_target.tag)
+            else:
+                new_target = other_units.closest_to(repairer)
         return new_target
 
     def units_needing_repair(self) -> Units:
@@ -689,7 +696,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
         injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
                                                         and unit.health < unit.health_max * unit.build_progress - 5
-                                                        and ((self.bot.time < 300 and unit.type_id in (UnitTypeId.BUNKER, UnitTypeId.SUPPLYDEPOT)) or len(self.enemy.threats_to_repairer(unit)) == 0))
+                                                        and ((self.bot.time < 300 and unit.type_id in (UnitTypeId.BUNKER, UnitTypeId.SUPPLYDEPOT))
+                                                             or len(self.enemy.threats_to_repairer(unit)) == 0))
         logger.debug(f"injured structures {injured_structures}")
         return injured_mechanical_units + injured_structures
 

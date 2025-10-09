@@ -234,6 +234,24 @@ class Map(TimerMixin, GeometryMixin):
                 shortest_path = path_points
 
         return shortest_path
+    
+    def get_closest_unit_by_path(self, units: Units, end: Point2) -> Tuple[Unit, List[Point2]]:
+        shortest_distance = 9999
+        closest_unit: Unit = None
+        for unit in units:
+            path_points = self.get_path_points(unit.position, end)
+            distance = 0
+            previous_point: Point2 = None
+            for path_point in path_points:
+                if previous_point is None:
+                    previous_point = path_point
+                else:
+                    distance += previous_point.distance_to(path_point)
+                    previous_point = path_point
+            if distance < shortest_distance:
+                shortest_distance = distance
+                closest_unit = unit
+        return closest_unit
 
     def get_path_points(self, start: Point2, end: Point2) -> List[Point2]:
         point2_path: List[Point2] = [start]
