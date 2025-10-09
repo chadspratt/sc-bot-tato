@@ -677,15 +677,13 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
     def get_repair_target(self, repairer: Unit, injured_units: Units, units_needing_repair: list) -> Unit:
         other_units = injured_units.filter(lambda unit: unit.tag != repairer.tag)
+        if other_units and units_needing_repair:
+            other_units = other_units.filter(lambda unit: unit.tag in units_needing_repair)
         new_target: Unit = None
         if other_units:
-            if units_needing_repair:
-                # spread out repairers
-                other_units = other_units.filter(lambda unit: unit.tag in units_needing_repair)
-                new_target = other_units.closest_to(repairer)
+            new_target = other_units.closest_to(repairer)
+            if new_target.tag in units_needing_repair:
                 units_needing_repair.remove(new_target.tag)
-            else:
-                new_target = other_units.closest_to(repairer)
         return new_target
 
     def units_needing_repair(self) -> Units:
