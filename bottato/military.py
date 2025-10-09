@@ -375,18 +375,20 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         for unit in self.harass_squad.units:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
             nearby_enemies = self.enemy.enemies_in_view.closer_than(15, unit)
-            nearby_workers = nearby_threats = None
+            nearby_threats = None
             if nearby_enemies:
                 # nearby_enemies = nearby_enemies.filter(lambda enemy: self.can_attack(unit, enemy))
-                nearby_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
+                # nearby_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
                 nearby_threats = nearby_enemies.filter(lambda enemy: enemy.can_attack_ground and enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
-            if nearby_workers:
-                micro.attack_something(unit, self.enemy, 0.7, targets=nearby_workers)
-            elif nearby_threats:
+            # if nearby_workers:
+            #     nearby_workers.sort(key=lambda worker: worker.health + worker.shield)
+            #     await micro.move(unit, nearby_workers[0], self.enemy)
+                # micro.attack_something(unit, self.enemy, 0.7, targets=nearby_workers)
+            if nearby_threats:
                 # try to circle around threats
                 nearest_threat = nearby_threats.closest_to(unit)
                 if nearest_threat.ground_range < unit.ground_range:
-                    await micro.move(unit, nearest_threat, self.enemy)
+                    await micro.move(unit, nearest_threat.position.towards(unit, unit.ground_range - 0.5), self.enemy)
                 else:
                     threat_position = nearest_threat.position
                     unit_position = unit.position

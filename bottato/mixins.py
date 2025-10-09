@@ -237,9 +237,10 @@ class TimerMixin:
         timer['total'] += perf_counter() - timer["start"]
 
     def print_timers(self, prefix: str = '') -> None:
-        for timer_name in self.timers.keys():
-            timer = self.timers[timer_name]
-            logger.info(f"{prefix}{timer_name} execution time: {timer['total']}")
+        if hasattr(self, "timers"):
+            for timer_name in self.timers.keys():
+                timer = self.timers[timer_name]
+                logger.info(f"{prefix}{timer_name} execution time: {timer['total']}")
 
 
 class DebugMixin:
