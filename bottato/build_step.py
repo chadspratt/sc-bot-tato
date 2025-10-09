@@ -432,7 +432,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     def get_geysir(self) -> Union[Unit, None]:
         # All the vespene geysirs nearby, including ones with a refinery on top of it
         # command_centers = bot.townhalls
-        if self.bot.townhalls:
+        if self.bot.townhalls and self.bot.townhalls.ready:
             vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
                 distance=10, other_units=self.bot.townhalls.ready
             )
