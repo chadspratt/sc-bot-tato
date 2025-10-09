@@ -37,9 +37,10 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             for target in targets:
                 if target.is_flying:
                     continue
-                future_target_position = enemy.get_predicted_position(target, self.grenade_timer)
+                future_target_position = enemy.get_predicted_position(target, self.grenade_timer - 0.5)
                 future_target_position = target.position
-                grenade_target = future_target_position.towards(unit)
+                grenade_target = future_target_position
+                # grenade_target = future_target_position.towards(unit).
                 if unit.in_ability_cast_range(AbilityId.KD8CHARGE_KD8CHARGE, grenade_target):
                     logger.debug(f"{unit} grenade candidates {target}: {future_target_position} -> {grenade_target}")
                     grenade_targets.append(grenade_target)

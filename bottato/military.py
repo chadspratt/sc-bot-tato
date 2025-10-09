@@ -257,7 +257,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.start_timer("military army value")
         enemy_value = self.get_army_value(self.enemy.get_army())
         main_army_value = self.get_army_value(self.main_army.units)
-        army_is_big_enough = main_army_value > enemy_value * 1.5 or self.bot.supply_used > 160
+        army_is_big_enough = main_army_value > enemy_value * 1.3 or self.bot.supply_used > 160
         army_is_grouped = self.main_army.is_grouped()
         self.army_ratio = main_army_value / max(enemy_value, 1)
         mount_offense = not defend_with_main_army and army_is_big_enough and (self.bot.supply_used >= 110 or self.bot.time > 600)
@@ -375,11 +375,26 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         for unit in self.harass_squad.units:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
             nearby_enemies = self.enemy.enemies_in_view.closer_than(15, unit)
+            nearby_workers = nearby_threats = None
             if nearby_enemies:
-                nearby_enemies = nearby_enemies.filter(lambda enemy: self.can_attack(unit, enemy))
-            if nearby_enemies:
-                nearby_enemies.sort(key=lambda enemy: enemy.health + enemy.shield)
-                await micro.move(unit, nearby_enemies[0].position, self.enemy)
+                # nearby_enemies = nearby_enemies.filter(lambda enemy: self.can_attack(unit, enemy))
+                nearby_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
+                nearby_threats = nearby_enemies.filter(lambda enemy: enemy.can_attack_ground and enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
+            if nearby_workers:
+                await micro.attack_something(unit, self.enemy, targets=nearby_workers)
+            elif nearby_threats:
+                # try to circle around threats
+                nearest_threat = nearby_threats.closest_to(unit)
+                if nearest_threat.ground_range < unit.ground_range:
+                    await micro.move(unit, nearest_threat, self.enemy)
+                else:
+                    threat_position = nearest_threat.position
+                    unit_position = unit.position
+                    threat_to_unit_vector = (unit_position - threat_position).normalized
+                    tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
+                    circle_around_positions = [unit_position + tangent_vector, unit_position - tangent_vector]
+                    circle_around_positions.sort(key=lambda pos: pos.distance_to(self.bot.enemy_start_locations[0]))
+                    await micro.move(unit, circle_around_positions[0], self.enemy)
             else:
                 await micro.move(unit, self.bot.enemy_start_locations[0], self.enemy)
 

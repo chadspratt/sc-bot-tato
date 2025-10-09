@@ -89,7 +89,7 @@ class BaseUnitMicro(GeometryMixin):
 
         if candidates:
             if unit.weapon_cooldown <= 0.25:
-                lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first
+                lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health + enemy_unit.shield).first
                 unit.attack(lowest_target)
                 logger.debug(f"unit {unit} attacking enemy {lowest_target}({lowest_target.position})")
                 return True
