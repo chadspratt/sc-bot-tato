@@ -159,5 +159,6 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.my_workers.print_timers("my_workers-")
         self.map.print_timers("map-")
         self.military.print_timers("military-")
+        self.military.main_army.print_timers("main_army-")
         self.enemy.print_timers("enemy-")
         self.production.print_timers("production-")

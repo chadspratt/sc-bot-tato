@@ -279,10 +279,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
         if self.main_army.units:
             self.main_army.draw_debug_box()
+            self.start_timer("military move squads update formation")
             self.main_army.update_formation()
+            self.stop_timer("military move squads update formation")
             if defend_with_main_army:
                 logger.debug(f"squad {self.main_army.name} mounting defense")
+                self.start_timer("military move squads defend")
                 await self.main_army.attack(enemies_in_base)
+                self.stop_timer("military move squads defend")
             elif mount_offense:
                 logger.debug(f"squad {self.main_army.name} mounting offense")
                 army_position = self.main_army.parent_formation.front_center
@@ -299,13 +303,18 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     target = self.bot.enemy_start_locations[0]
                     target_position = target
                 if not army_is_grouped:
+                    self.start_timer("military move squads regroup")
                     army_center = self.main_army.units.closest_to(self.bot.enemy_start_locations[0]).position
                     facing = self.get_facing(army_center, target_position)
                     await self.main_army.move(army_position, facing, force_move=False, blueprints=blueprints)
+                    self.stop_timer("military move squads regroup")
                 else:
+                    self.start_timer("military move squads attack")
                     if target:
                         await self.main_army.attack(target)
+                    self.stop_timer("military move squads attack")
             else:
+                self.start_timer("military move squads stage")
                 logger.debug(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = self.bot.enemy_start_locations[0]
                 if len(self.bot.townhalls) > 1:
@@ -325,6 +334,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     self.main_army.staging_location = self.bot.start_location.towards(enemy_position, 5)
                 facing = self.get_facing(self.main_army.staging_location, enemy_position)
                 await self.main_army.move(self.main_army.staging_location, facing, force_move=True, blueprints=blueprints)
+                self.stop_timer("military move squads stage")
         self.stop_timer("military move squads")
 
         self.report()

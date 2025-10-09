@@ -302,11 +302,11 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             candidate: Point2 = None
             if rush_detected:
                 # try to build near edge of high ground towards natural
-                high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
-                closest_depot_distance = 1000
+                # high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
+                closest_depot_distance = 100000
                 candidate: Point2 = None
                 for depot_position in self.bot.main_base_ramp.corner_depots:
-                    depot_distance = depot_position.distance_to(self.bot.game_info.map_center)
+                    depot_distance = self.bot.distance_math_hypot_squared(depot_position, self.bot.game_info.map_center)
                     if depot_distance < closest_depot_distance:
                         closest_depot_distance = depot_distance
                         candidate = depot_position.towards(self.bot.main_base_ramp.top_center, -3)
@@ -315,7 +315,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 enemy_start: Point2 = self.bot.enemy_start_locations[0]
                 candidate = ((ramp_position + self.map.natural_position) / 2).towards(enemy_start, distance=3)
             retry_count = 0
-            while not new_build_position or new_build_position.distance_to(self.map.natural_position) < 4:
+            while not new_build_position or self.bot.distance_math_hypot_squared(new_build_position, self.map.natural_position) < 16:
                 new_build_position = await self.bot.find_placement(
                                     unit_type_id,
                                     near=candidate)
@@ -326,7 +326,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             bases = self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS})
             turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
             for base in bases:
-                if not turrets or self.closest_distance(base, turrets) > 10:
+                if not turrets or self.closest_distance_squared(base, turrets) > 100: # 10 squared
                     new_build_position = await self.bot.find_placement(
                         unit_type_id,
                         near=base.position.towards(self.bot.game_info.map_center, distance=4),
@@ -480,7 +480,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 if self.unit_being_built is None or self.unit_being_built is True:
                 #     self.unit_in_charge.smart(self.unit_being_built)
                 # else:
-                    if self.unit_in_charge.distance_to(self.position) < 3 and self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
+                    if self.unit_in_charge.distance_to_squared(self.position) < 9 and self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
                         self.worker_in_position_time = self.bot.time
                     elif self.worker_in_position_time is not None and self.bot.time - self.worker_in_position_time > 2:
                         # position may be blocked

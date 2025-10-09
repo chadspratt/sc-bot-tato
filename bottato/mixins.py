@@ -190,12 +190,27 @@ class GeometryMixin:
         except IndexError:
             logger.debug(f"cached distance error on {unit1} ({unit1.game_loop}), {unit2}({unit2.game_loop})")
             return unit1.distance_to(unit2.position)
+        
+    def distance_squared(self, unit1: Unit, unit2: Unit) -> float:
+        if unit1 is None or unit2 is None:
+            return 9999
+        try:
+            return unit1.distance_to_squared(unit2)
+        except IndexError:
+            logger.debug(f"cached distance error on {unit1} ({unit1.game_loop}), {unit2}({unit2.game_loop})")
+            return unit1.distance_to_squared(unit2.position)
 
     def closest_distance(self, unit1: Unit, units: Units) -> float:
         distance = 9999
         for unit in units:
             distance = min(distance, self.distance(unit1, unit))
         return distance
+    
+    def closest_distance_squared(self, unit1: Unit, units: Units) -> float:
+        closest_distance_sq = 9999
+        for unit in units:
+            closest_distance_sq = min(closest_distance_sq, self.distance_squared(unit1, unit))
+        return closest_distance_sq
 
     def closest_unit_to_unit(self, unit1: Unit, units: Units) -> float:
         closest_distance = 9999

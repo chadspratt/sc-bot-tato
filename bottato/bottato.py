@@ -37,7 +37,7 @@ class BotTato(BotAI, TimerMixin):
 
         await self.commander.command(iteration)
 
-        self.print_all_timers(30)
+        # self.print_all_timers(30)
         # self.commander.map.draw()
 
     async def on_end(self, game_result: Result):

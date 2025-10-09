@@ -87,7 +87,7 @@ class BuildOrder(TimerMixin):
                 threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground and u.type_id not in (UnitTypeId.MULE, UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER))
                 if threats:
                     closest_threat = threats.closest_to(build_step.position)
-                    enemy_is_close = closest_threat.distance_to(build_step.position) < 15
+                    enemy_is_close = closest_threat.distance_to_squared(build_step.position) < 225 # 15 squared
                     if not enemy_is_close:
                         continue
                     # check that threat can path to position
@@ -440,7 +440,7 @@ class BuildOrder(TimerMixin):
             builder: Unit = in_progress_step.unit_in_charge
             logger.debug(f"type {in_progress_step.unit_type_id}, structure {structure}, upgrade {in_progress_step.upgrade_id}, builder {builder}, pos {in_progress_step.position}")
             is_same_structure = isinstance(structure, Unit) and structure.tag == completed_structure.tag
-            if is_same_structure or in_progress_step.position and completed_structure.position.distance_to(in_progress_step.position) < 1.5:
+            if is_same_structure or in_progress_step.position and self.bot.distance_math_hypot_squared(completed_structure.position, in_progress_step.position) < 2.25: # 1.5 squared
                 in_progress_step.completed_time = self.bot.time
                 if builder.type_id == UnitTypeId.SCV:
                     if in_progress_step.unit_type_id == UnitTypeId.REFINERY:
@@ -490,12 +490,15 @@ class BuildOrder(TimerMixin):
         execution_index = -1
         failed_types: list[UnitTypeId] = []
         remaining_resources = Cost(self.bot.minerals, self.bot.vespene)
+        build_no_supply_only = False
         while execution_index < len(build_queue):
             execution_index += 1
             try:
                 build_step = build_queue[execution_index]
             except IndexError:
                 break
+            if build_step.supply_cost > 0 and build_no_supply_only:
+                continue
             percent_affordable = 1.0
             if not build_step.is_in_progress:
                 percent_affordable = self.percent_affordable(remaining_resources, build_step.cost)
@@ -505,26 +508,25 @@ class BuildOrder(TimerMixin):
             if build_step.unit_type_id in failed_types or only_build_units and UnitTypeId.SCV in build_step.builder_type:
                 continue
             time_since_last_cancel = self.bot.time - build_step.last_cancel_time
-            if time_since_last_cancel < 5:
+            if time_since_last_cancel < 10:
                 # delay rebuilding canceled structures
                 continue
             if percent_affordable < 1.0:
-                logger.debug(f"Cannot afford {build_step.friendly_name}")
                 build_response = ResponseCode.NO_RESOURCES
                 if percent_affordable >= 0.75:
                     await build_step.position_worker(special_locations=self.special_locations, rush_detected=rush_detected)
                 continue
             if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
-                logger.debug(f"Cannot afford supply for {build_step.friendly_name}")
+                build_no_supply_only = True
                 build_response = ResponseCode.NO_SUPPLY
-                break
+                continue
 
             # XXX slightly slow
             self.start_timer("build_step.execute")
             build_response = await build_step.execute(special_locations=self.special_locations, rush_defense_enacted=self.rush_defense_enacted)
             self.stop_timer("build_step.execute")
             self.start_timer(f"handle response {build_response}")
-            logger.info(f"building {build_step}, response: {build_response}")
+            logger.debug(f"building {build_step}, response: {build_response}")
             if build_response == ResponseCode.SUCCESS:
                 self.started.append(build_queue.pop(execution_index))
                 break
@@ -535,9 +537,7 @@ class BuildOrder(TimerMixin):
                     continue
                 else:
                     failed_types.append(build_step.unit_type_id)
-                    logger.debug(f"!!! {build_step.unit_type_id} failed to start building, {build_response}")
             self.stop_timer(f"handle response {build_response}")
-            logger.debug(f"pending loop: {execution_index} < {len(build_queue)}")
         self.stop_timer("execute_pending_builds")
         return build_response
 

@@ -62,7 +62,14 @@ class Facility(UnitReferenceMixin):
                     self.queued_unit_ids.clear()
 
         if self.add_on_type == UnitTypeId.NOTAUNIT and not self.addon_blocked:
-            closest_candidates = self.bot.structures.filter(lambda s: s.tag != updated_unit.tag)
+            closest_candidates = self.bot.structures.filter(lambda s: s.tag != updated_unit.tag and s.type_id not in (
+                UnitTypeId.BARRACKSTECHLAB,
+                UnitTypeId.BARRACKSREACTOR,
+                UnitTypeId.FACTORYTECHLAB,
+                UnitTypeId.FACTORYREACTOR,
+                UnitTypeId.STARPORTTECHLAB,
+                UnitTypeId.STARPORTREACTOR
+            ))
             if not closest_candidates:
                 self.addon_blocked = False
             else:
