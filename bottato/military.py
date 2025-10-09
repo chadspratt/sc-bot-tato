@@ -215,7 +215,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.squads.remove(defense_squad)
                 del self.countered_enemies[enemy_tag]
 
-        # assign squads to enemies
+        # assign squads to counter enemies that are alone or in small groups
         for enemy in enemies_in_base:
             defense_squad: FormationSquad
             if enemy.tag in self.countered_enemies:
@@ -225,6 +225,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             elif defend_with_main_army:
                 continue
             else:
+                enemy_group = [e for e in enemies_in_base if enemy.tag != e.tag and self.distance(enemy, e) < 8]
+                if len(enemy_group) > 3:
+                    defend_with_main_army = True
+                    continue
                 defense_squad = FormationSquad(self.enemy, self.map, bot=self.bot, name=f"defense{len(self.countered_enemies.keys())}")
                 self.squads.append(defense_squad)
                 self.countered_enemies[enemy.tag] = defense_squad
@@ -334,7 +338,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.bunker.structure = None
                 self.empty_bunker()
                 return
-            if enemies_in_base and enemies_in_base.closest_distance_to(self.bunker.structure) > 8:
+            if enemies_in_base and enemies_in_base.closest_distance_to(self.bunker.structure) > 9:
                 self.empty_bunker()
             elif self.bot.time < 300:
                 for unit in self.main_army.units:

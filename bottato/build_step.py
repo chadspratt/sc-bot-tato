@@ -226,7 +226,14 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     async def position_worker(self, special_locations: SpecialLocations, rush_detected: bool = False):
         if UnitTypeId.SCV in self.builder_type:
             if self.position is None:
-                self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected=rush_detected)
+                if self.unit_type_id == UnitTypeId.REFINERY:
+                    # Vespene targets unit to build instead of position
+                    self.geysir: Union[Unit, None] = self.get_geysir()
+                    if self.geysir is None:
+                        return
+                    self.position = self.geysir.position
+                else:
+                    self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected=rush_detected)
             if self.position is not None:
                 if self.unit_in_charge is None:
                     self.unit_in_charge = self.workers.get_builder(self.position)
@@ -355,15 +362,17 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                             preferred_townhalls = self.bot.townhalls
                             if prefer_earlier_bases and len(self.bot.townhalls.ready) > 1 and retry_count == 0:
                                 closest_townhall_to_enemy: Unit = self.map.get_closest_unit_by_path(self.bot.townhalls.ready, self.bot.enemy_start_locations[0])
-                                # preferred_townhalls = self.bot.townhalls.ready.closest_n_units(self.bot.start_location, len(self.bot.townhalls.ready) - 1)
-                                preferred_townhalls = preferred_townhalls.filter(lambda th: th.tag != closest_townhall_to_enemy.tag)
-                            new_build_position = await self.bot.find_placement(
-                                unit_type_id,
-                                near=preferred_townhalls.random.position.towards(map_center, distance=8),
-                                placement_step=2,
-                                addon_place=addon_place,
-                                max_distance=max_distance,
-                            )
+                                preferred_townhalls = preferred_townhalls.ready.filter(lambda th: th.tag != closest_townhall_to_enemy.tag)
+                            for townhall in preferred_townhalls:
+                                new_build_position = await self.bot.find_placement(
+                                    unit_type_id,
+                                    near=townhall.position.towards(map_center, distance=8),
+                                    placement_step=2,
+                                    addon_place=addon_place,
+                                    max_distance=max_distance,
+                                )
+                                if new_build_position is not None:
+                                    break
                         else:
                             new_build_position = await self.bot.find_placement(
                                 unit_type_id,

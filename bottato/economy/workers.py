@@ -167,8 +167,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if assignment.on_attack_break:
                 continue
             if assignment.unit_available and assignment.job_type in [JobType.MINERALS]:
-                self.bottato_speed_mine(assignment)
-                # self.ares_speed_mine(assignment)
+                # self.bottato_speed_mine(assignment)
+                self.ares_speed_mine(assignment)
                 # self.sharpy_speed_mine(assignment)
         self.stop_timer("my_workers.speed_mine")
 
@@ -338,6 +338,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             for townhall in self.bot.townhalls:
                 nearby_enemies = self.bot.enemy_units.closer_than(15, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
                 workers_nearby = self.bot.workers.closer_than(15, townhall).filter(lambda u: self.assignments_by_worker[u.tag].job_type in {JobType.MINERALS, JobType.VESPENE})
+                if len(nearby_enemies) >= len(workers_nearby):
+                    # don't suicide workers if outnumbered
+                    continue
                 # assign closest 3 workers to attack each enemy
                 for nearby_enemy in nearby_enemies:
                     attackers = workers_nearby.closest_n_units(nearby_enemy, 3)
