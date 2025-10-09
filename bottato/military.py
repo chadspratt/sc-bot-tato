@@ -381,7 +381,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 nearby_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
                 nearby_threats = nearby_enemies.filter(lambda enemy: enemy.can_attack_ground and enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
             if nearby_workers:
-                await micro.attack_something(unit, self.enemy, targets=nearby_workers)
+                await micro.attack_something(unit, self.enemy, 0.7, targets=nearby_workers)
             elif nearby_threats:
                 # try to circle around threats
                 nearest_threat = nearby_threats.closest_to(unit)
