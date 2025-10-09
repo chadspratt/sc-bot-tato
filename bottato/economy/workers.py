@@ -243,7 +243,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 # )
             )
 
-            if 0.5625 < worker.distance_to(target_pos) < 4.0:
+            if 0.5625 < worker.distance_to_squared(target_pos) < 4.0:
                 worker.move(target_pos)
                 worker(AbilityId.SMART, assignment.dropoff_target, True)
                 return True
@@ -256,7 +256,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         elif not worker.is_returning and len_orders < 2:
             min_distance: float = 0.5625 if assignment.target.is_mineral_field else 0.01
             max_distance: float = 4.0 if assignment.target.is_mineral_field else 0.25
-            worker_distance: float = worker.distance_to(assignment.gather_position)
+            worker_distance: float = worker.distance_to_squared(assignment.gather_position)
             if (
                 min_distance
                 < worker_distance
@@ -525,19 +525,30 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if worker.tag in self.assignments_by_worker:
             self.update_assigment(worker, JobType.IDLE, None)
 
+    builder_idle_time: dict[int, int] = {}
     def distribute_idle(self):
         self.start_timer("my_workers.distribute_idle")
         if self.bot.workers.idle:
             logger.debug(f"idle workers {self.bot.workers.idle}")
+        tags_to_remove = [tag for tag in self.builder_idle_time if tag not in self.bot.workers.idle.tags]
+        for tag in tags_to_remove:
+            del self.builder_idle_time[tag]
         for worker in self.bot.workers.idle:
             assigment: WorkerAssignment = self.assignments_by_worker[worker.tag]
             if assigment.unit.type_id == UnitTypeId.MULE:
                 continue
-            if assigment.job_type == JobType.BUILD and (not assigment.target or not assigment.target.is_ready):
+            elif assigment.job_type == JobType.BUILD and (not assigment.target or not assigment.target.is_ready):
+                if worker.tag not in self.builder_idle_time:
+                    self.builder_idle_time[worker.tag] = self.bot.time
+                    continue
+                elif self.bot.time - self.builder_idle_time[worker.tag] < 5:
+                    # wait up to 5 seconds before determining worker is idle
+                    continue
+                else:
+                    del self.builder_idle_time[worker.tag]
+            elif assigment.job_type == JobType.SCOUT:
                 continue
-            if assigment.job_type == JobType.SCOUT:
-                continue
-            if assigment.job_type == JobType.IDLE:
+            elif assigment.job_type == JobType.IDLE:
                 continue
             self.set_as_idle(worker)
         for worker in self.minerals.get_workers_from_depleted():

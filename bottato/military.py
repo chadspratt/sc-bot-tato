@@ -185,6 +185,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         # scout_types = {UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
         # scouts_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id in scout_types).in_distance_of_group(self.bot.structures, 25)
         self.start_timer("military enemies_in_base")
+        self.start_timer("military enemies_in_base detection")
         base_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET)
         enemies_in_base: Units = Units([], self.bot)
         enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: base_structures.closest_distance_to(unit) < 25))
@@ -203,7 +204,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         # enemy_structures_in_base = self.bot.enemy_structures.filter(lambda unit: unit.type_id not in scout_types).in_distance_of_group(self.bot.structures, 25)
         logger.debug(f"enemies in base {enemies_in_base}")
         defend_with_main_army = False
+        self.stop_timer("military enemies_in_base detection")
 
+        self.start_timer("military enemies_in_base counter")
         # disband squads for missing enemies
         for enemy_tag in [tag for tag in self.countered_enemies.keys()]:
             if enemy_tag not in enemies_in_base.tags:
@@ -244,6 +247,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 else:
                     await defense_squad.attack(self.enemy.predicted_position[enemy.tag])
                     logger.debug(f"defending against {enemy} with {defense_squad}")
+        self.stop_timer("military enemies_in_base counter")
         self.stop_timer("military enemies_in_base")
 
         self.start_timer("military army value")
@@ -253,6 +257,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         army_is_grouped = self.main_army.is_grouped()
         self.army_ratio = main_army_value / max(enemy_value, 1)
         mount_offense = not defend_with_main_army and army_is_big_enough and (self.bot.supply_used >= 110 or self.bot.time > 600)
+        if not mount_offense and enemies_in_base:
+            defend_with_main_army = True
         self.status_message = f"main_army_value: {main_army_value}\nenemy_value: {enemy_value}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
         self.stop_timer("military army value")
@@ -328,7 +334,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.bunker.structure = None
                 self.empty_bunker()
                 return
-            if enemies_in_base and enemies_in_base.closest_distance_to(self.bunker.structure) > 6:
+            if enemies_in_base and enemies_in_base.closest_distance_to(self.bunker.structure) > 8:
                 self.empty_bunker()
             elif self.bot.time < 300:
                 for unit in self.main_army.units:
@@ -355,6 +361,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         for unit in self.harass_squad.units:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
             nearby_enemies = self.enemy.enemies_in_view.closer_than(15, unit)
+            if nearby_enemies:
+                nearby_enemies = nearby_enemies.filter(lambda enemy: self.can_attack(unit, enemy))
             if nearby_enemies:
                 nearby_enemies.sort(key=lambda enemy: enemy.health + enemy.shield)
                 await micro.move(unit, nearby_enemies[0].position, self.enemy)
@@ -434,6 +442,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         return new_units
 
     def simulate_battle(self):
+        self.start_timer("simulate_battle")
         remaining_dps: dict[int, float] = {}
         remaining_health: dict[int, float] = {}
 
@@ -515,6 +524,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 logger.debug(f"unattackables: {unattackable_enemies} {unattackable_friendly_tags}")
                 # stalemate of stuff that can't attack (not considering abilities)
                 break
+        self.stop_timer("simulate_battle")
         return (unmatched_friendlies, unmatched_enemies)
 
     def can_attack(self, source: Unit, target: Unit):

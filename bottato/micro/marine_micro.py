@@ -122,13 +122,16 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             UnitTypeId.DRONE,
             UnitTypeId.DRONEBURROWED,
             UnitTypeId.MULE,
-            UnitTypeId.OBSERVER
+            UnitTypeId.OBSERVER,
+            UnitTypeId.LARVA,
+            UnitTypeId.EGG
         ]
         tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))
         if not tanks:
             return None
-        close_enemies = self.bot.enemy_units.closer_than(15, unit).filter(lambda u: u.type_id not in excluded_enemy_types)
-        if len(close_enemies) < 10:
+        close_enemies = self.bot.enemy_units.closer_than(15, unit).filter(
+            lambda u: u.type_id not in excluded_enemy_types and not u.is_flying and u.can_attack_ground and u.unit_alias != UnitTypeId.CHANGELING)
+        if len(close_enemies) < 8:
             return None
         if not closest_enemy:
             closest_enemy = close_enemies.closest_to(unit)

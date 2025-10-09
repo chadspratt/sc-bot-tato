@@ -302,7 +302,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     depot_distance = depot_position.distance_to(self.bot.game_info.map_center)
                     if depot_distance < closest_depot_distance:
                         closest_depot_distance = depot_distance
-                        candidate = depot_position
+                        candidate = depot_position.towards(self.bot.main_base_ramp.top_center, -3)
                 # find spot on highground that is 6 away from main ramp and closest to natural
                 # center_point = self.bot.main_base_ramp.top_center
                 # base_vector = Point2((0, 6))
