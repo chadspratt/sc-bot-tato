@@ -100,7 +100,7 @@ class BaseUnitMicro(GeometryMixin):
                 future_enemy_position = enemy.get_predicted_position(nearest_target, unit.weapon_cooldown)
                 target_position = future_enemy_position.towards(unit, attack_range)
                 unit.move(target_position)
-                logger.info(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
+                logger.debug(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
                 return True
         return False
 

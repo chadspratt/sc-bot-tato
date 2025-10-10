@@ -360,33 +360,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     else:
                         assignment.unit.smart(assignment.target)
 
-        # for assignment in self.assignments_by_worker.values():
-        #     if assignment.job_type in {JobType.MINERALS, JobType.VESPENE}:
-        #         reference_unit: Unit = assignment.target
-        #         if self.bot.townhalls:
-        #             reference_unit = reference_unit or self.bot.townhalls.closest_to(assignment.unit.position)
-        #         else:
-        #             reference_unit = reference_unit or assignment.unit
-        #         if self.bot.enemy_units and reference_unit:
-        #             nearest_enemy = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.can_be_attacked).closest_to(reference_unit.position)
-        #             if nearest_enemy.distance_to(reference_unit.position) < 10:
-        #                 assignment.on_attack_break = True
-        #                 logger.debug(f"worker {assignment.unit} attacking enemy to defend {reference_unit} which is maybe {assignment.target}")
-        #                 assignment.unit.attack(nearest_enemy)
-        #             elif assignment.on_attack_break:
-        #                 assignment.on_attack_break = False
-        #                 if assignment.target:
-        #                     if assignment.unit.is_carrying_resource and self.bot.townhalls:
-        #                         assignment.unit.smart(self.bot.townhalls.closest_to(assignment.unit))
-        #                     else:
-        #                         assignment.unit.smart(assignment.target)
-        #         elif assignment.on_attack_break:
-        #             assignment.on_attack_break = False
-        #             if assignment.target:
-        #                 if assignment.unit.is_carrying_resource and self.bot.townhalls:
-        #                     assignment.unit.smart(self.bot.townhalls.closest_to(assignment.unit))
-        #                 else:
-        #                     assignment.unit.smart(assignment.target)
         self.stop_timer("my_workers.attack_nearby_enemies")
 
     def update_assigment(self, worker: Unit, job_type: JobType, target: Union[Unit, None]):
@@ -604,17 +577,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             logger.debug("saturate minerals")
             return self.move_workers_to_minerals(max_workers_to_move)
 
-        # # both positive
-        # workers_to_move = math.floor(
-        #     abs(needed_resources.minerals - needed_resources.vespene) / 100.0
-        # )
-        # if workers_to_move > 0:
-        #     if needed_resources.minerals > needed_resources.vespene:
-        #         # move workers to minerals
-        #         return self.move_workers_to_minerals(workers_to_move)
-
-        #     # move workers to vespene
-        #     return self.move_workers_to_vespene(workers_to_move)
         return 0
 
     def update_repairers(self, needed_resources: Cost) -> None:
@@ -622,7 +584,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         needed_repairers: int = 0
         missing_health = 0
         # limit to percentage of total workers
-        max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 10))
+        max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 5))
         if injured_units:
             for unit in injured_units:
                 missing_health += unit.health_max - unit.health
@@ -630,6 +592,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             needed_repairers = missing_health / self.health_per_repairer
             if needed_repairers > max_repairers:
                 needed_repairers = max_repairers
+            elif needed_repairers < len(injured_units):
+                needed_repairers = min(3, len(injured_units))  # minimum of 3 repairers if there are multiple injured units
 
         current_repairers: Units = self.availiable_workers_on_job(JobType.REPAIR)
         repairer_shortage: int = round(needed_repairers) - len(current_repairers)
@@ -649,11 +613,13 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 current_repairers.remove(retiring_repairer)
 
         # tell existing to repair closest that isn't themself
-        units_needing_repair = [unit.tag for unit in injured_units]
-        if len(units_needing_repair) > 5:
-            units_needing_repair = units_needing_repair[:5]  # spread out repairers to up to 5 units, mostly to keep initial wall repaired
+        units_with_no_repairer: list[int] = []
+        if self.bot.time < 300:
+            units_with_no_repairer = [unit.tag for unit in injured_units]
+            if len(units_with_no_repairer) > 5:
+                units_with_no_repairer = units_with_no_repairer[:5]  # spread out repairers to up to 5 units, mostly to keep initial wall repaired
         for repairer in current_repairers:
-            self.update_target(repairer, self.get_repair_target(repairer, injured_units, units_needing_repair))
+            self.update_target(repairer, self.get_repair_target(repairer, injured_units, units_with_no_repairer))
 
         # add more repairers
         if repairer_shortage > 0:
@@ -695,8 +661,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                                                          and len(self.enemy.threats_to_repairer(unit)) == 0)
         logger.debug(f"injured mechanical units {injured_mechanical_units}")
 
+        # can only repair fully built structures
         injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
-                                                        and unit.health < unit.health_max * unit.build_progress - 5
+                                                        and unit.build_progress == 1
+                                                        and unit.health < unit.health_max
                                                         and ((self.bot.time < 300 and unit.type_id in (UnitTypeId.BUNKER, UnitTypeId.SUPPLYDEPOT))
                                                              or len(self.enemy.threats_to_repairer(unit)) == 0))
         logger.debug(f"injured structures {injured_structures}")

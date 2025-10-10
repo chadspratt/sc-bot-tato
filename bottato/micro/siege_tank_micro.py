@@ -62,7 +62,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         closest_enemy_after_siege, closest_distance_after_siege = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time)
         closest_structure, closest_structure_distance = enemy.get_closest_target(unit, include_units=False, include_destructables=False)
 
-        reached_destination = unit.position.distance_to(target) < 2
+        reached_destination = unit.position.distance_to(target) < 1
         if reached_destination:
             if not is_sieged:
                 self.siege(unit)
@@ -94,9 +94,14 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             # keep sieged if enemy might get lured closer, decrease extra buffer over time
             # if reached_destination:
             #     return False
+            tank_height = self.bot.get_terrain_height(unit.position)
+            enemy_height = self.bot.get_terrain_height(closest_enemy.position) if closest_enemy else tank_height
             unsiege_range = self.sieged_range
             if has_friendly_buffer:
                 unsiege_range = max(30 - min(time_since_last_transform, time_since_last_siege_attack), self.sieged_range)
+            if tank_height > enemy_height:
+                # be reluctant to leave high ground
+                unsiege_range += 5
             if closest_distance > unsiege_range and closest_structure_distance > self.sight_range - 1:
                 self.unsiege(unit)
                 return True

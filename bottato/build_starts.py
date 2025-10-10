@@ -34,10 +34,11 @@ class BuildStarts():
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
-                UnitTypeId.MARINE,
-                UnitTypeId.SCV,
-                UnitTypeId.SCV,
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
+                UnitTypeId.SCV,
+                UnitTypeId.SCV,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
                 UnitTypeId.BUNKER,                      # NATURAL choke, XXX on high ground if getting cheesed
                 UnitTypeId.SCV,
                 UnitTypeId.FACTORYTECHLAB,              # fast SIEGETANK access,

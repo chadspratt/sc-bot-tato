@@ -397,6 +397,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     circle_around_positions = [unit_position + tangent_vector, unit_position - tangent_vector]
                     circle_around_positions.sort(key=lambda pos: pos.distance_to(self.bot.enemy_start_locations[0]))
                     await micro.move(unit, circle_around_positions[0], self.enemy)
+            elif nearby_enemies:
+                nearby_enemies.sort(key=lambda enemy: enemy.health + enemy.shield)
+                await micro.move(unit, nearby_enemies[0], self.enemy)
             else:
                 await micro.move(unit, self.bot.enemy_start_locations[0], self.enemy)
 
