@@ -139,7 +139,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             return None
         nearest_tank = tanks.closest_to(unit) if tanks else None
         tank_to_enemy_distance = self.distance(nearest_tank, closest_enemy) if nearest_tank and closest_enemy else 9999
-        if tank_to_enemy_distance > 13.5 and tank_to_enemy_distance < 25:
+        if tank_to_enemy_distance > 13.5 and tank_to_enemy_distance < 30:
             return nearest_tank
         return None
     

@@ -75,8 +75,6 @@ class BaseUnitMicro(GeometryMixin):
             return False
         if unit.health_percentage < health_threshold:
             return False
-        if unit.weapon_cooldown > 0.25:
-            return False
         candidates = []
         if targets:
             candidates = targets.filter(lambda unit: not unit.is_structure and unit.armor < 10)
@@ -95,13 +93,6 @@ class BaseUnitMicro(GeometryMixin):
                 return True
             else:
                 nearest_target = candidates.closest_to(unit)
-                # extra_range = -0.5
-                # if not enemy.can_attack(nearest_target, unit):
-                #     extra_range = 0
-                # elif unit.weapon_cooldown > 1:
-                #     extra_range = 3
-                # elif unit.weapon_cooldown > 0.5:
-                #     extra_range = 1
                 # move away if weapon on cooldown
                 attack_range = unit.ground_range
                 if nearest_target.is_flying:
