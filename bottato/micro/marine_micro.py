@@ -71,15 +71,15 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             if len(candidates) == 0:
                 candidates = self.bot.enemy_structures.in_attack_range_of(unit)
 
-        if not candidates:
+        tank_to_retreat_to = self.tank_to_retreat_to(unit, enemy)
+        if not candidates and tank_to_retreat_to is None:
             return False
         
-        if unit.weapon_cooldown < 0.31:
+        if unit.weapon_cooldown < 0.31 and candidates:
             if self.is_stimmed(unit):
                 # attack if stimmed
                 return self.attack_lowest_health(unit, candidates)
             else:
-                tank_to_retreat_to = self.tank_to_retreat_to(unit, enemy)
                 if tank_to_retreat_to:
                     # retreat to nearby tank if not stimmed
                     unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
@@ -87,12 +87,11 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
                 else:
                     return self.attack_lowest_health(unit, candidates)
         else:
-            tank_to_retreat_to = self.tank_to_retreat_to(unit, enemy)
             if tank_to_retreat_to:
                 # stay in range of tank
                 unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
                 return True
-            else:
+            elif candidates:
                 nearest_target = candidates.closest_to(unit)
                 # stay at max attack range
                 # extra_range = -0.5
@@ -114,6 +113,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
                 unit.move(target_position)
                 logger.debug(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
                 return True
+        return False
         
     def tank_to_retreat_to(self, unit: Unit, enemy: Enemy, closest_enemy: Unit = None) -> Unit | None:
         excluded_enemy_types = [

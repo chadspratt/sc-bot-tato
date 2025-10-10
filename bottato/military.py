@@ -257,7 +257,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.start_timer("military army value")
         enemy_value = self.get_army_value(self.enemy.get_army())
         main_army_value = self.get_army_value(self.main_army.units)
-        army_is_big_enough = main_army_value > enemy_value * 1.3 or self.bot.supply_used > 160
+        army_is_big_enough = main_army_value > enemy_value * 1.4 or self.bot.supply_used > 160
         army_is_grouped = self.main_army.is_grouped()
         self.army_ratio = main_army_value / max(enemy_value, 1)
         mount_offense = not defend_with_main_army and army_is_big_enough and (self.bot.supply_used >= 110 or self.bot.time > 600)

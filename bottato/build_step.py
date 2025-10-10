@@ -181,12 +181,19 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 response = ResponseCode.NO_FACILITY
             else:
                 self.position = self.geysir.position
-                if self.unit_in_charge is None:
-                    self.unit_in_charge = self.workers.get_builder(self.position)
-                if self.unit_in_charge is None:
-                    response = ResponseCode.NO_BUILDER
+                threats = None
+                if self.bot.enemy_units:
+                    threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground)
+                if threats and threats.closest_distance_to(self.position) < 15:
+                    logger.debug(f"{self} Too close to enemy!")
+                    response = ResponseCode.TOO_CLOSE_TO_ENEMY
                 else:
-                    build_response = self.unit_in_charge.build_gas(self.geysir)
+                    if self.unit_in_charge is None:
+                        self.unit_in_charge = self.workers.get_builder(self.position)
+                    if self.unit_in_charge is None:
+                        response = ResponseCode.NO_BUILDER
+                    else:
+                        build_response = self.unit_in_charge.build_gas(self.geysir)
         else:
             if self.position is None or (self.unit_being_built is None and self.start_time is not None and self.start_time - self.bot.time > 5):
                 self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected)
