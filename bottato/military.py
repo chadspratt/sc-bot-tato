@@ -181,7 +181,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         # only run this every three steps
         if iteration % 3:
             self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
-            return
+            # return
         # scout_types = {UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
         # scouts_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id in scout_types).in_distance_of_group(self.bot.structures, 25)
         self.start_timer("military enemies_in_base")
@@ -372,36 +372,43 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             reapers = self.main_army.units(UnitTypeId.REAPER)
             if reapers:
                 self.transfer(reapers[0], self.main_army, self.harass_squad)
+
+        harass_location = self.bot.enemy_start_locations[0]
+        # XXX harass other bases too
+
         for unit in self.harass_squad.units:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
-            nearby_enemies = self.enemy.enemies_in_view.closer_than(15, unit)
-            nearby_threats = None
-            if nearby_enemies:
-                # nearby_enemies = nearby_enemies.filter(lambda enemy: self.can_attack(unit, enemy))
-                # nearby_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
-                nearby_threats = nearby_enemies.filter(lambda enemy: enemy.can_attack_ground and enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
-            # if nearby_workers:
-            #     nearby_workers.sort(key=lambda worker: worker.health + worker.shield)
-            #     await micro.move(unit, nearby_workers[0], self.enemy)
-                # micro.attack_something(unit, self.enemy, 0.7, targets=nearby_workers)
-            if nearby_threats:
-                # try to circle around threats
-                nearest_threat = nearby_threats.closest_to(unit)
-                if nearest_threat.ground_range < unit.ground_range:
-                    await micro.move(unit, nearest_threat.position.towards(unit, unit.ground_range - 0.5), self.enemy)
-                else:
-                    threat_position = nearest_threat.position
-                    unit_position = unit.position
-                    threat_to_unit_vector = (unit_position - threat_position).normalized
-                    tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
-                    circle_around_positions = [unit_position + tangent_vector, unit_position - tangent_vector]
-                    circle_around_positions.sort(key=lambda pos: pos.distance_to(self.bot.enemy_start_locations[0]))
-                    await micro.move(unit, circle_around_positions[0], self.enemy)
-            elif nearby_enemies:
-                nearby_enemies.sort(key=lambda enemy: enemy.health + enemy.shield)
-                await micro.move(unit, nearby_enemies[0], self.enemy)
+            nearby_enemies = self.bot.enemy_units.closer_than(15, unit)
+            if not nearby_enemies:
+                await micro.move(unit, harass_location, self.enemy)
             else:
-                await micro.move(unit, self.bot.enemy_start_locations[0], self.enemy)
+                nearby_threats = nearby_enemies.filter(lambda enemy: enemy.can_attack_ground and enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
+                if nearby_threats:
+                    nearest_threat = nearby_threats.closest_to(unit)
+                    if nearest_threat.ground_range < unit.ground_range:
+                        # kite enemies that we outrange
+                        # predicted_position = self.predict_future_unit_position(nearest_threat, 1, False)
+                        move_position = nearest_threat.position.towards(unit, unit.ground_range)
+                        self.bot.client.debug_line_out(nearest_threat, self.convert_point2_to_3(move_position), (255, 0, 0))
+                        self.bot.client.debug_sphere_out(self.convert_point2_to_3(move_position), 0.2, (255, 0, 0))
+                        await micro.move(unit, move_position, self.enemy)
+                    else:
+                        # try to circle around threats that outrange us
+                        threat_position = nearest_threat.position
+                        unit_position = unit.position
+                        threat_to_unit_vector = (unit_position - threat_position).normalized
+                        tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
+                        circle_around_positions = [unit_position + tangent_vector, unit_position - tangent_vector]
+                        circle_around_positions.sort(key=lambda pos: pos.distance_to(harass_location))
+                        await micro.move(unit, circle_around_positions[0], self.enemy)
+                else:
+                    nearby_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
+                    if nearby_workers:
+                        nearby_workers.sort(key=lambda worker: worker.shield_health_percentage)
+                        most_injured: Unit = nearby_workers[0]
+                        await micro.move(unit, most_injured.position.towards(unit, unit.ground_range - 0.25), self.enemy)
+                    else:
+                        await micro.move(unit, harass_location, self.enemy)
 
     def empty_bunker(self):
         for unit in self.bunker.units:

@@ -85,24 +85,67 @@ class BaseUnitMicro(GeometryMixin):
             if len(candidates) == 0:
                 candidates = self.bot.enemy_structures.in_attack_range_of(unit)
 
-        if candidates:
-            if unit.weapon_cooldown <= 0.25:
-                lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health + enemy_unit.shield).first
-                unit.attack(lowest_target)
-                logger.debug(f"unit {unit} attacking enemy {lowest_target}({lowest_target.position})")
-                return True
+        tank_to_retreat_to = self.tank_to_retreat_to(unit)
+        if tank_to_retreat_to:
+            unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
+            return True
+
+        if not candidates:
+            return False
+
+        if unit.weapon_cooldown <= 0.25:
+            lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health + enemy_unit.shield).first
+            unit.attack(lowest_target)
+        else:
+            self.stay_at_max_range(unit, enemy, candidates)
+        return True
+    
+    def stay_at_max_range(self, unit: Unit, enemy: Enemy, targets: Units = None):
+        nearest_target = targets.closest_to(unit)
+        # move away if weapon on cooldown
+        attack_range = unit.ground_range
+        if nearest_target.is_flying:
+            attack_range = unit.air_range
+        elif nearest_target.type_id == UnitTypeId.SIEGETANKSIEGED:
+            if unit.distance_to(nearest_target) < 8:
+                # dive on sieged tanks
+                attack_range = 0
             else:
-                nearest_target = candidates.closest_to(unit)
-                # move away if weapon on cooldown
-                attack_range = unit.ground_range
-                if nearest_target.is_flying:
-                    attack_range = unit.air_range
-                future_enemy_position = enemy.get_predicted_position(nearest_target, unit.weapon_cooldown)
-                target_position = future_enemy_position.towards(unit, attack_range)
-                unit.move(target_position)
-                logger.debug(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
-                return True
-        return False
+                attack_range = 14
+        future_enemy_position = enemy.get_predicted_position(nearest_target, unit.weapon_cooldown)
+        target_position = future_enemy_position.towards(unit, attack_range)
+        unit.move(target_position)
+        # logger.debug(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
+        
+    def tank_to_retreat_to(self, unit: Unit) -> Unit | None:
+        excluded_enemy_types = [
+            UnitTypeId.PROBE,
+            UnitTypeId.SCV,
+            UnitTypeId.DRONE,
+            UnitTypeId.DRONEBURROWED,
+            UnitTypeId.MULE,
+            UnitTypeId.OBSERVER,
+            UnitTypeId.LARVA,
+            UnitTypeId.EGG
+        ]
+        tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))
+        if not tanks:
+            return None
+
+        close_enemies = self.bot.enemy_units.closer_than(15, unit).filter(
+            lambda u: u.type_id not in excluded_enemy_types and not u.is_flying and u.can_attack_ground and u.unit_alias != UnitTypeId.CHANGELING)
+        if len(close_enemies) < 8:
+            return None
+        
+        closest_enemy = close_enemies.closest_to(unit)
+        if not closest_enemy or closest_enemy.is_flying:
+            return None
+
+        nearest_tank = tanks.closest_to(unit)
+        tank_to_enemy_distance = self.distance(nearest_tank, closest_enemy)
+        if tank_to_enemy_distance > 13.5 and tank_to_enemy_distance < 30:
+            return nearest_tank
+        return None
 
     async def move(self, unit: Unit, target: Point2, enemy: Enemy, force_move: bool = False) -> None:
         if unit.tag in self.bot.unit_tags_received_action:

@@ -30,28 +30,41 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         return await self.grenade_knock_away(unit, enemy)
 
     def attack_something(self, unit, enemy: Enemy, health_threshold, targets: Unit = None, force_move: bool = False):
-        nearby_enemies = self.enemy.enemies_in_view.closer_than(15, unit)
-        if nearby_enemies:
-            nearby_workers = nearby_enemies.filter(lambda enemy: unit.distance_to(enemy) <= unit.ground_range and enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
-            if nearby_workers:
-                return super().attack_something(unit, enemy, health_threshold, nearby_workers)
+        if unit.health_percentage < self.attack_health:
+            return False
+        if unit.weapon_cooldown > 0.25:
+            return False
+
+        nearby_enemies = self.enemy.get_enemies_in_range(unit, include_structures=False, include_destructables=False)
+        if not nearby_enemies:
+            return False
+
+        enemy_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
+        threats = nearby_enemies.filter(lambda enemy: enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
+
+        if enemy_workers:
+            lowest_target = enemy_workers.sorted(key=lambda worker:  (worker.shield_health_percentage) * 10000 + unit.distance_to(worker)).first
+            unit.attack(lowest_target)
+        elif threats:
+            nearest_threat = threats.closest_to(unit)
+            if nearest_threat.ground_range < unit.ground_range:
+                unit.attack(nearest_threat)
             else:
-                nearby_threats = nearby_enemies.filter(lambda enemy: enemy.can_attack_ground and enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
-                if nearby_threats:
-                    nearest_threat = nearby_threats.closest_to(unit)
-                    if nearest_threat.ground_range < unit.ground_range:
-                        return super().attack_something(unit, enemy, health_threshold, Units([nearest_threat], self.bot))
-        return False
+                # don't attack enemies that outrange
+                return False
+        else:
+            return False
+        return True
 
     async def grenade_knock_away(self, unit: Unit, enemy: Enemy) -> bool:
-        targets: Units = enemy.threats_to(unit)
+        targets: Units = enemy.get_enemies_in_range(unit, include_structures=False)
         grenade_targets = []
         if targets and await self.grenade_available(unit):
             for target in targets:
                 if target.is_flying:
                     continue
-                future_target_position = enemy.get_predicted_position(target, self.grenade_timer - 0.5)
-                future_target_position = target.position
+                future_target_position = enemy.get_predicted_position(target, self.grenade_timer)
+                # future_target_position = target.position
                 grenade_target = future_target_position
                 # grenade_target = future_target_position.towards(unit).
                 if unit.in_ability_cast_range(AbilityId.KD8CHARGE_KD8CHARGE, grenade_target):
@@ -70,7 +83,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     async def grenade_jump(self, unit: Unit, target: Unit) -> bool:
         if await self.grenade_available(unit):
             logger.debug(f"{unit} grenading {target}")
-            self.throw_grenade(unit, self.predict_future_unit_position(target, self.grenade_timer))
+            self.throw_grenade(unit, self.predict_future_unit_position(target, self.grenade_timer - 1))
             return True
         return False
 
@@ -85,9 +98,11 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             except ProtocolError:
                 # game ended
                 return False
+            self.unconfirmed_grenade_throwers.remove(unit.tag)
             if not available:
-                self.unconfirmed_grenade_throwers.remove(unit.tag)
                 self.grenade_cooldowns[unit.tag] = self.bot.time + self.grenade_cooldown
+            else:
+                return True
         elif unit.tag not in self.grenade_cooldowns:
             return True
         elif self.grenade_cooldowns[unit.tag] < self.bot.time:

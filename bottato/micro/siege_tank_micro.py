@@ -62,12 +62,12 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         closest_enemy_after_siege, closest_distance_after_siege = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time/2)
         closest_structure, closest_structure_distance = enemy.get_closest_target(unit, include_units=False, include_destructables=False)
 
-        reached_destination = unit.position.distance_to(target) < 2
-        if reached_destination:
-            if not is_sieged:
-                self.siege(unit)
-                return True
-            return False
+        # reached_destination = unit.position.distance_to(target) < 2
+        # if reached_destination:
+        #     if not is_sieged:
+        #         self.siege(unit)
+        #         return True
+        #     return False
 
         if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
             if is_sieged and closest_distance > self.sieged_range - 5:
