@@ -532,24 +532,29 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.set_as_idle(worker)
 
         idle_workers: Units = self.availiable_workers_on_job(JobType.IDLE)
+        idle_count = len(idle_workers)
+        reassigned_count = 0
         if idle_workers:
             logger.debug(f"idle or new workers {idle_workers}")
             for worker in idle_workers:
                 if self.minerals.has_unused_capacity:
                     logger.debug(f"adding {worker.tag} to minerals")
                     self.update_assigment(worker, JobType.MINERALS, None)
+                    reassigned_count += 1
                     continue
 
                 if self.vespene.has_unused_capacity:
                     logger.debug(f"adding {worker.tag} to gas")
                     self.update_assigment(worker, JobType.VESPENE, None)
+                    reassigned_count += 1
                     continue
-                # nothing to do, just send them home
-                worker.move(self.bot.start_location)
 
-                # if self.minerals.add_long_distance_minerals(1) > 0:
-                #     logger.debug(f"adding {worker.tag} to long-distance")
-                #     self.minerals.add_worker(worker)
+                if self.minerals.add_long_distance_minerals((idle_count - reassigned_count)) > 0:
+                    logger.info(f"adding {worker.tag} to long-distance")
+                    self.minerals.add_worker(worker)
+                else:
+                    # nothing to do, just send them home
+                    worker.move(self.bot.start_location)
 
         logger.debug(
             f"[==WORKERS==] minerals({len(self.assignments_by_job[JobType.MINERALS])}), "

@@ -82,6 +82,9 @@ class BuildOrder(TimerMixin):
                 to_promote.append(idx)
                 if build_step.unit_being_built is None:
                     build_step.is_in_progress = False
+                    if build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
+                        # if expansion was cancelled, clear position so it can be retried
+                        build_step.position = None
                 continue
             elif self.bot.enemy_units and build_step.position and UnitTypeId.SCV in build_step.builder_type:
                 threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground and u.type_id not in (UnitTypeId.MULE, UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER))

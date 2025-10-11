@@ -69,14 +69,14 @@ class Minerals(Resources, TimerMixin):
                                 target = townhall.position.closest(candidates)
                     self.mining_positions[mineral.tag] = target
 
-    def add_long_distance_minerals(self, count: int) -> int:
-        added = 0
-        if self.bot.townhalls:
+    def add_long_distance_minerals(self, idle_worker_count: int) -> bool:
+        added = False
+        if self.bot.townhalls and len(self.nodes) < idle_worker_count / 2:
             for mineral_node in self.bot.mineral_field.sorted_by_distance_to(self.bot.townhalls[0]):
                 if mineral_node.mineral_contents and self.add_node(mineral_node):
                     logger.debug(f"adding long distance mining node {mineral_node}")
-                    added += 1
-                    if added == count:
+                    added = True
+                    if len(self.nodes) >= idle_worker_count / 2:
                         break
         return added
 

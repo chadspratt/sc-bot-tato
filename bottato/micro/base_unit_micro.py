@@ -27,29 +27,11 @@ class BaseUnitMicro(GeometryMixin):
     async def retreat(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
-        do_retreat = False
-        if unit.health_percentage < health_threshold:
-            # already below min
-            do_retreat = True
-        else:
-            threats = enemy.threats_to(unit, 2)
-            if not threats:
-                return False
+        threats = enemy.threats_to(unit)
 
-            total_potential_damage = 0.0
-            for threat in threats:
-                threat_damage = threat.calculate_damage_vs_target(unit)[0]
-                total_potential_damage += threat_damage
-        # check if incoming damage will bring unit below health threshold
-            if (unit.health - total_potential_damage) / unit.health_max < health_threshold:
-                do_retreat = True 
-        if do_retreat:
-            logger.debug(f"{unit} retreating")
-            threats = enemy.threats_to(unit)
-            if threats:
-                avg_threat_position = threats.center
-                retreat_position = unit.position.towards(avg_threat_position, -5).towards(self.bot.start_location, 2)
-                unit.move(retreat_position)
+        if not threats:
+            if unit.health_percentage >= health_threshold:
+                return False
             else:
                 if unit.is_mechanical:
                     repairers = self.bot.workers.filter(lambda unit: unit.is_repairing) or self.bot.workers
@@ -58,15 +40,31 @@ class BaseUnitMicro(GeometryMixin):
                     if repairers:
                         unit.move(repairers.closest_to(unit))
                     else:
-                        do_retreat = False
+                        return False
                 else:
                     medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC)
                     if medivacs:
                         unit.move(medivacs.closest_to(unit))
                     else:
                         unit.move(self.bot.game_info.player_start_location)
+            return True
 
-        return do_retreat
+        # check if incoming damage will bring unit below health threshold
+        total_potential_damage = sum([threat.calculate_damage_vs_target(unit)[0] for threat in threats])
+        if (unit.health - total_potential_damage) / unit.health_max >= health_threshold:
+            return False
+        else:
+            avg_threat_position = threats.center
+            retreat_position = unit.position.towards(avg_threat_position, -5).towards(self.bot.start_location, 2)
+            if self.bot.in_pathing_grid(retreat_position):
+                unit.move(retreat_position)
+            else:
+                threat_to_unit_vector = (unit.position - avg_threat_position).normalized
+                tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
+                circle_around_positions = [unit.position + tangent_vector, unit.position - tangent_vector]
+                circle_around_positions.sort(key=lambda pos: pos.distance_to(self.bot.start_location))
+                unit.move(circle_around_positions[0].towards(self.bot.start_location, 2))
+        return True
 
     def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float, targets: Units = None, force_move: bool = False) -> bool:
         if force_move:

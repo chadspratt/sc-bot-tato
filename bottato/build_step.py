@@ -1,4 +1,5 @@
 import enum
+import math
 from loguru import logger
 from typing import Optional, Union
 
@@ -301,10 +302,45 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             return AbilityId.BUILD_TECHLAB
         return TRAIN_INFO[self.unit_in_charge.type_id][self.unit_type_id]["ability"]
 
+    attempted_expansion_positions = {}
     async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, rush_detected: bool = False) -> Union[Point2, None]:
         new_build_position = None
         if unit_type_id == UnitTypeId.COMMANDCENTER:
-            new_build_position = await self.bot.get_next_expansion()
+            # modified from bot_ai get_next_expansion
+            shortest_distance = math.inf
+            expansions_to_check = []
+            for el in self.bot.expansion_locations_list:
+                def is_near_to_expansion(t):
+                    return t.distance_to(el) < self.bot.EXPANSION_GAP_THRESHOLD
+
+                if any(map(is_near_to_expansion, self.bot.townhalls)):
+                    # already taken
+                    continue
+                
+                # check that position hasn't already been attempted too many times
+                if el not in self.attempted_expansion_positions:
+                    self.attempted_expansion_positions[el] = 0
+                elif self.attempted_expansion_positions[el] > 3:
+                    continue
+
+                expansions_to_check.append(el)
+
+            if not expansions_to_check:
+                return None
+
+            paths_to_check = [[self.bot.game_info.player_start_location, expansion] for expansion in expansions_to_check]
+            distances = await self.bot.client.query_pathings(paths_to_check)
+            
+            for path, distance in zip(paths_to_check, distances):
+                if distance == 0:
+                    continue
+                if distance < shortest_distance:
+                    shortest_distance = distance
+                    new_build_position = path[1]
+
+            if new_build_position is not None:
+                self.attempted_expansion_positions[new_build_position] += 1
+
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2 = None
             if rush_detected:

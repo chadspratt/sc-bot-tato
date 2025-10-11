@@ -69,6 +69,16 @@ class Scout(BaseSquad, UnitReferenceMixin):
                         military.transfer(unit, military.main_army, self)
                         self.unit = unit
                         break
+                else:
+                    # no marines or reapers, use a worker
+                    if self.bot.workers:
+                        self.unit = self.bot.workers.random
+                    else:
+                        # unlikely, but fallback to any unit
+                        for unit in military.main_army.units:
+                            military.transfer(unit, military.main_army, self)
+                            self.unit = unit
+                            break
 
     async def move_scout(self, new_damage_taken: dict[int, float]):
         if not self.unit:

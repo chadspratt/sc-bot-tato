@@ -394,11 +394,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                         await micro.move(unit, move_position, self.enemy)
                     else:
                         # try to circle around threats that outrange us
-                        threat_position = nearest_threat.position
-                        unit_position = unit.position
-                        threat_to_unit_vector = (unit_position - threat_position).normalized
+                        threat_to_unit_vector = (unit.position - nearest_threat.position).normalized
                         tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
-                        circle_around_positions = [unit_position + tangent_vector, unit_position - tangent_vector]
+                        circle_around_positions = [unit.position + tangent_vector, unit.position - tangent_vector]
                         circle_around_positions.sort(key=lambda pos: pos.distance_to(harass_location))
                         await micro.move(unit, circle_around_positions[0], self.enemy)
                 else:
