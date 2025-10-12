@@ -54,7 +54,6 @@ class Bunker(BaseSquad):
                 self.structure = self.get_updated_unit_reference(self.structure, units_by_tag)
             except self.UnitNotFound:
                 self.structure = None
-        super().update_references(units_by_tag)
 
 class StuckRescue(BaseSquad, UnitReferenceMixin):
     def __init__(self, bot: BotAI, main_army: FormationSquad, squads_by_unit_tag: dict[int, BaseSquad]):
@@ -382,7 +381,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
             nearby_enemies = self.bot.enemy_units.closer_than(15, unit)
             if not nearby_enemies:
-                await micro.move(unit, harass_location, self.enemy)
+                await micro.move(unit, harass_location)
             else:
                 nearby_threats = nearby_enemies.filter(lambda enemy: enemy.can_attack_ground and enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
                 if nearby_threats:
@@ -393,22 +392,22 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                         move_position = nearest_threat.position.towards(unit, unit.ground_range)
                         self.bot.client.debug_line_out(nearest_threat, self.convert_point2_to_3(move_position), (255, 0, 0))
                         self.bot.client.debug_sphere_out(self.convert_point2_to_3(move_position), 0.2, (255, 0, 0))
-                        await micro.move(unit, move_position, self.enemy)
+                        await micro.move(unit, move_position)
                     else:
                         # try to circle around threats that outrange us
                         threat_to_unit_vector = (unit.position - nearest_threat.position).normalized
                         tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
                         circle_around_positions = [unit.position + tangent_vector, unit.position - tangent_vector]
                         circle_around_positions.sort(key=lambda pos: pos.distance_to(harass_location))
-                        await micro.move(unit, circle_around_positions[0], self.enemy)
+                        await micro.move(unit, circle_around_positions[0])
                 else:
                     nearby_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
                     if nearby_workers:
                         nearby_workers.sort(key=lambda worker: worker.shield_health_percentage)
                         most_injured: Unit = nearby_workers[0]
-                        await micro.move(unit, most_injured.position.towards(unit, unit.ground_range - 0.25), self.enemy)
+                        await micro.move(unit, most_injured.position.towards(unit, unit.ground_range - 0.25))
                     else:
-                        await micro.move(unit, harass_location, self.enemy)
+                        await micro.move(unit, harass_location)
 
     def empty_bunker(self):
         for unit in self.bunker.units:
