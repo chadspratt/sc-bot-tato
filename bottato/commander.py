@@ -5,6 +5,7 @@ from loguru import logger
 from sc2.bot_ai import BotAI
 from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.units import Units
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -37,7 +38,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         )
         self.scouting = Scouting(self.bot, self.enemy, self.map, self.my_workers, self.military)
         self.new_damage_taken: dict[int, float] = {}
-        self.stuck_units: list[Unit] = []
+        self.stuck_units: Units = Units([], bot_object=self.bot)
         self.rush_detected: bool = False
         # self.test_stuck = None
 
@@ -95,25 +96,24 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
                         if distance == 0:
                             self.bot.client.debug_text_3d("STUCK", path[0].position3d)
                             self.stuck_units.append(path[0])
-                            logger.info(f"unit is stuck {path[0]}")
-        else:
-            self.stuck_units = self.get_updated_unit_references_by_tags([unit.tag for unit in self.stuck_units])
+                            logger.debug(f"unit is stuck {path[0]}")
         self.stop_timer("detect_stuck_units")
         self.military.rescue_stuck_units(self.stuck_units)
 
     async def scout(self):
         self.start_timer("scout")
         self.scouting.update_visibility()
-        await self.scouting.scout(self.new_damage_taken)
+        await self.scouting.scout(self.new_damage_taken, self.units_by_tag)
         self.rush_detected = self.scouting.rush_detected
         self.start_timer("scout")
 
-    async def update_references(self):
-        self.my_workers.update_references(self.build_order.get_assigned_worker_tags())
-        self.military.update_references()
-        self.enemy.update_references()
-        await self.build_order.update_references()
-        await self.production.update_references()
+    async def update_references(self, units_by_tag: dict[int, Unit]):
+        self.my_workers.update_references(units_by_tag, self.build_order.get_assigned_worker_tags())
+        self.military.update_references(units_by_tag)
+        self.enemy.update_references(units_by_tag)
+        await self.build_order.update_references(units_by_tag)
+        await self.production.update_references(units_by_tag)
+        self.stuck_units = self.get_updated_unit_references(self.stuck_units, units_by_tag)
 
     def update_started_structure(self, unit: Unit):
         self.build_order.update_started_structure(unit)

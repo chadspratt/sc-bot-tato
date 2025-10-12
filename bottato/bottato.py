@@ -50,7 +50,10 @@ class BotTato(BotAI, TimerMixin):
 
     async def update_unit_references(self):
         self.start_timer("commander.update_references")
-        await self.commander.update_references()
+        units_by_tag = {}
+        for unit in self.all_units:
+            units_by_tag[unit.tag] = unit
+        await self.commander.update_references(units_by_tag)
         self.stop_timer("commander.update_references")
 
     def print_all_timers(self, interval: int = 0):

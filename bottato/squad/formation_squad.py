@@ -107,9 +107,9 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
         has = len(self.units)
         return f"{self.name}({has})"
 
-    def update_references(self):
-        super().update_references()
-        self.targets = self.get_updated_unit_references(self.targets)
+    def update_references(self, units_by_tag: dict[int, Unit]):
+        super().update_references(units_by_tag)
+        self.targets = self.get_updated_unit_references(self.targets, units_by_tag)
 
     def update_formation(self, reset=False):
         # decide formation(s)
@@ -162,7 +162,7 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
         self.destination_facing = destination_facing
 
         self.start_timer("formation get_unit_destinations")
-        formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.units, destination_facing)
+        formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.units, destination_facing, self.units_by_tag)
         self.stop_timer("formation get_unit_destinations")
 
         logger.debug(f"squad {self.name} moving from {self.position} to {self._destination} with {formation_positions.values()}")

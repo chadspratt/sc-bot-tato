@@ -47,6 +47,14 @@ class Bunker(BaseSquad):
 
     def has_space(self):
         return self.is_built() and len(self.units) < 4
+    
+    def update_references(self, units_by_tag):
+        if self.is_built():
+            try:
+                self.structure = self.get_updated_unit_reference(self.structure, units_by_tag)
+            except self.UnitNotFound:
+                self.structure = None
+        super().update_references(units_by_tag)
 
 class StuckRescue(BaseSquad, UnitReferenceMixin):
     def __init__(self, bot: BotAI, main_army: FormationSquad, squads_by_unit_tag: dict[int, BaseSquad]):
@@ -60,10 +68,10 @@ class StuckRescue(BaseSquad, UnitReferenceMixin):
 
         self.pending_unload: set[int] = set()
 
-    def update_references(self):
+    def update_references(self, units_by_tag: dict[int, Unit]):
         if self.transport:
             try:
-                self.transport = self.get_updated_unit_reference(self.transport)
+                self.transport = self.get_updated_unit_reference(self.transport, units_by_tag)
             except self.UnitNotFound:
                 self.transport = None
                 self.is_loaded = False
@@ -74,7 +82,7 @@ class StuckRescue(BaseSquad, UnitReferenceMixin):
             tags_to_check = list(self.pending_unload)
             for tag in tags_to_check:
                 try:
-                    unit = self.get_updated_unit_reference_by_tag(tag)
+                    unit = self.get_updated_unit_reference_by_tag(tag, None)
                     self.main_army.recruit(unit)
                     self.squads_by_unit_tag[unit.tag] = self.main_army
                     self.pending_unload.remove(tag)
@@ -342,12 +350,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
     def manage_bunker(self, enemies_in_base: Units = None):
         if self.bunker.is_built():
-            try:
-                self.bunker.structure = self.get_updated_unit_reference(self.bunker.structure)
-            except self.UnitNotFound:
-                self.bunker.structure = None
-                self.empty_bunker()
-                return
             if enemies_in_base and enemies_in_base.closest_distance_to(self.bunker.structure) > 9:
                 self.empty_bunker()
             elif self.bot.time < 300:
@@ -590,7 +592,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         _report += self.main_army.get_report()
         logger.debug(_report)
 
-    def update_references(self):
+    def update_references(self, units_by_tag: dict[int, Unit]):
         self.start_timer("update_references")
         for unit in self.bot.units:
             if unit.tag in self.squads_by_unit_tag:
@@ -605,10 +607,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 continue
             self.add_to_main(unit)
         for squad in self.squads:
-            squad.update_references()
-        self.main_army.update_references()
-        self.stuck_rescue.update_references()
-        self.harass_squad.update_references()
+            squad.update_references(units_by_tag)
+        self.main_army.update_references(units_by_tag)
+        self.stuck_rescue.update_references(units_by_tag)
+        self.harass_squad.update_references(units_by_tag)
+        self.bunker.update_references(units_by_tag)
         self.stop_timer("update_references")
 
     def record_death(self, unit_tag):

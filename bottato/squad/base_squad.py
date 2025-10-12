@@ -36,6 +36,7 @@ class BaseSquad(UnitReferenceMixin):
         self.units: Units = Units([], bot_object=bot)
         self.state: SquadState = SquadState.FILLING
         self.staging_location: Point2 = None
+        self.units_by_tag: dict[int, Unit] = {}
 
     def draw_debug_box(self):
         # for unit in self.units:
@@ -51,8 +52,9 @@ class BaseSquad(UnitReferenceMixin):
     def __repr__(self) -> str:
         return f"BaseSquad({self.name},{self.state},{len(self.units)})"
 
-    def update_references(self):
-        self.units = self.get_updated_unit_references(self.units)
+    def update_references(self, units_by_tag: dict[int, Unit]):
+        self.units_by_tag = units_by_tag
+        self.units = self.get_updated_unit_references(self.units, units_by_tag)
 
     @property
     def is_empty(self) -> bool:

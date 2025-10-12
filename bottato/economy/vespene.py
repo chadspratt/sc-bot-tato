@@ -1,6 +1,7 @@
 from loguru import logger
 
 from sc2.bot_ai import BotAI
+from sc2.unit import Unit
 
 from .resources import Resources
 
@@ -12,9 +13,9 @@ class Vespene(Resources, TimerMixin):
         super().__init__(bot)
         self.max_workers_per_node = 3
 
-    def update_references(self):
+    def update_references(self, units_by_tag: dict[int, Unit]):
         self.start_timer("vespene.update_references")
-        super().update_references()
+        super().update_references(units_by_tag)
         for node in self.nodes:
             for worker_tag in self.worker_tags_by_node_tag[node.tag]:
                 try:

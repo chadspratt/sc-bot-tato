@@ -87,8 +87,8 @@ class Resources(UnitReferenceMixin, GeometryMixin):
                 return True
         return False
 
-    def update_references(self):
-        self.nodes = self.get_updated_unit_references(self.nodes)
+    def update_references(self, units_by_tag: dict[int, Unit]):
+        self.nodes = self.get_updated_unit_references(self.nodes, units_by_tag)
 
     def get_worker_capacity(self) -> int:
         if self.bot.townhalls:

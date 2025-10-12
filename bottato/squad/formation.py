@@ -226,7 +226,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         self.formations.append(Formation(self.bot, formation_type, unit_tags, offset, spacing))
 
     def get_unit_destinations(
-        self, formation_destination: Point2, units: Units, destination_facing: float = None
+        self, formation_destination: Point2, units: Units, destination_facing: float = None, units_by_tag: dict[int, Unit] = None
     ) -> dict[int, Point2]:
         unit_destinations = {}
         reference_point: Point2 = Point2((0, 0))
@@ -271,7 +271,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             positions = [self.destination + offset for offset in rotated_offsets]
 
             # match positions to closest units
-            formation_units = self.get_updated_unit_references_by_tags(formation.unit_tags)
+            formation_units = self.get_updated_unit_references_by_tags(formation.unit_tags, units_by_tag)
             for position in positions:
                 if not formation_units:
                     break

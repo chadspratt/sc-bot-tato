@@ -52,11 +52,11 @@ class Scout(BaseSquad, UnitReferenceMixin):
     def needs(self, unit: Unit) -> bool:
         return unit.type_id in (UnitTypeId.SCV, UnitTypeId.MARINE, UnitTypeId.REAPER)
 
-    def update_scout(self, military: Military):
+    def update_scout(self, military: Military, units_by_tag: dict[int, Unit]):
         """Update unit reference for this scout"""
         if self.unit:
             try:
-                self.unit = self.get_updated_unit_reference(self.unit)
+                self.unit = self.get_updated_unit_reference(self.unit, units_by_tag)
                 logger.debug(f"{self.name} scout {self.unit}")
             except self.UnitNotFound:
                 self.unit = None
@@ -131,13 +131,13 @@ class InitialScout(BaseSquad):
         self.map = map
         self.enemy = enemy
 
-    def update_scout(self, workers: Workers):
+    def update_scout(self, workers: Workers, units_by_tag: dict[int, Unit]):
         if self.bot.time < self.start_time:
             # too early to scout
             return
         if self.unit:
             try:
-                self.unit = self.get_updated_unit_reference(self.unit)
+                self.unit = self.get_updated_unit_reference(self.unit, units_by_tag)
             except self.UnitNotFound:
                 self.unit = None
                 return
@@ -210,11 +210,11 @@ class Scouting(BaseSquad, DebugMixin):
             if self.bot.is_visible(location.position):
                 location.last_seen = self.bot.time
 
-    async def scout(self, new_damage_taken: dict[int, float]):
+    async def scout(self, new_damage_taken: dict[int, float], units_by_tag: dict[int, Unit]):
         # Update scout unit references
-        self.friendly_territory.update_scout(self.military)
-        self.enemy_territory.update_scout(self.military)
-        self.initial_scout.update_scout(self.workers)
+        self.friendly_territory.update_scout(self.military, units_by_tag)
+        self.enemy_territory.update_scout(self.military, units_by_tag)
+        self.initial_scout.update_scout(self.workers, units_by_tag)
 
         self.update_visibility()
 

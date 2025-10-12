@@ -29,9 +29,9 @@ class Minerals(Resources, TimerMixin):
         self.mule_tags_by_node_tag = {}
         self.mining_positions: dict[int, Point2] = {}
 
-    def update_references(self):
+    def update_references(self, units_by_tag: dict[int, Unit]):
         self.start_timer("minerals.update_references")
-        super().update_references()
+        super().update_references(units_by_tag)
         self.add_mineral_fields_for_townhalls()
         self.stop_timer("minerals.update_references")
 

@@ -52,7 +52,7 @@ class BuildOrder(TimerMixin):
         logger.debug(f"Starting position: {self.bot.start_location}")
         # self.queue_unit_type(UnitTypeId.BATTLECRUISER)
 
-    async def update_references(self) -> None:
+    async def update_references(self, units_by_tag: dict[int, Unit]) -> None:
         self.start_timer("update_references")
         logger.debug(
             f"pending={','.join([step.friendly_name for step in self.static_queue])}"
@@ -61,7 +61,7 @@ class BuildOrder(TimerMixin):
             f"started={','.join([step.friendly_name for step in self.started])}"
         )
         for build_step in self.started:
-            build_step.update_references()
+            build_step.update_references(units_by_tag)
             logger.debug(f"started step {build_step}")
         for build_step in self.started + self.static_queue + self.priority_queue + self.build_queue:
             build_step.draw_debug_box()

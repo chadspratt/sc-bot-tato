@@ -102,15 +102,15 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             logger.debug(f"unit being built {self.unit_being_built}")
             self.bot.client.debug_box2_out(self.unit_being_built, 0.75)
 
-    def update_references(self):
+    def update_references(self, units_by_tag: dict[int, Unit]):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
         try:
-            self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge)
+            self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge, units_by_tag)
         except self.UnitNotFound:
             self.unit_in_charge = None
         if isinstance(self.unit_being_built, Unit):
             try:
-                self.unit_being_built = self.get_updated_unit_reference(self.unit_being_built)
+                self.unit_being_built = self.get_updated_unit_reference(self.unit_being_built, units_by_tag)
             except self.UnitNotFound:
                 self.unit_being_built = None
 

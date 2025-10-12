@@ -69,10 +69,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.add_worker(worker)
         self.aged_mules: Units = Units([], bot)
 
-    def update_references(self, builder_tags: list[int]):
+    def update_references(self, units_by_tag: dict[int, Unit], builder_tags: list[int]):
         self.start_timer("update_references")
-        self.minerals.update_references()
-        self.vespene.update_references()
+        self.minerals.update_references(units_by_tag)
+        self.vespene.update_references(units_by_tag)
 
         self.assignments_by_job[JobType.IDLE].clear()
         self.assignments_by_job[JobType.MINERALS].clear()
@@ -83,10 +83,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.assignments_by_job[JobType.SCOUT].clear()
         for assignment in self.assignments_by_worker.values():
             try:
-                assignment.unit = self.get_updated_unit_reference(assignment.unit)
+                assignment.unit = self.get_updated_unit_reference(assignment.unit, units_by_tag)
                 assignment.unit_available = True
                 if assignment.target:
-                    assignment.target = self.get_updated_unit_reference(assignment.target)
+                    assignment.target = self.get_updated_unit_reference(assignment.target, units_by_tag)
                 if assignment.job_type == JobType.BUILD and assignment.target is None and assignment.unit.is_idle and assignment.unit.tag not in builder_tags:
                     assignment.job_type = JobType.IDLE
                     assignment.target = None
@@ -100,7 +100,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 assignment.unit_available = False
                 logger.debug(f"{assignment.unit} unavailable, maybe already working on {assignment.target}")
             try:
-                assignment.dropoff_target = self.get_updated_unit_reference(assignment.dropoff_target)
+                assignment.dropoff_target = self.get_updated_unit_reference(assignment.dropoff_target, units_by_tag)
             except UnitReferenceMixin.UnitNotFound:
                 assignment.dropoff_target = None
                 assignment.dropoff_position = None
@@ -119,7 +119,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.assignments_by_worker[worker.tag] = new_assignment
             self.assignments_by_job[JobType.IDLE].append(new_assignment)
             if worker.type_id == UnitTypeId.MULE:
-                self.minerals.update_references()
+                self.minerals.update_references(None)
                 self.aged_mules.append(worker)
                 closest_minerals: Unit = self.closest_unit_to_unit(worker, self.minerals.nodes_with_mule_capacity())
                 if closest_minerals is None:

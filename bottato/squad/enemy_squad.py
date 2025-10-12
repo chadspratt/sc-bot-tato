@@ -22,9 +22,9 @@ class EnemySquad(BaseSquad):
         self.last_seen_time_by_unit_tag: Dict[int, int] = {}
         self.last_known_position: Point2 = None
 
-    def update_references(self):
+    def update_references(self, units_by_tag: dict[int, Unit]):
         self.units = self.get_updated_unit_references_by_tags(
-            list(self.units.tags)
+            list(self.units.tags), units_by_tag
         )
 
     def near(self, unit: Unit, predicted_position: dict[int, Point2]) -> bool:

@@ -35,10 +35,10 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         self.squads_by_unit_tag: dict[int, EnemySquad] = {}
         self.bot.state.game_loop
 
-    def update_references(self):
+    def update_references(self, units_by_tag: dict[int, Unit]):
         self.start_timer("enemy.update_references")
         for squad in self.enemy_squads:
-            squad.update_references()
+            squad.update_references(units_by_tag)
         # remove visible from out_of_view
         visible_tags = self.bot.enemy_units.tags.union(self.bot.enemy_structures.tags)
         logger.debug(f"visible tags: {visible_tags}")
