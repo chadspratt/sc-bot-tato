@@ -104,7 +104,7 @@ class Scout(BaseSquad, UnitReferenceMixin):
         self.scouting_locations_index = next_index
         logger.debug(f"scout {self.unit} new assignment: {assignment}")
 
-        await micro.scout(self.unit, assignment.position, self.enemy)
+        await micro.scout(self.unit, assignment.position)
 
 class InitialScout(BaseSquad):
     bot: BotAI = None
@@ -159,7 +159,7 @@ class InitialScout(BaseSquad):
             self.completed = True
         else:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot, self.enemy)
-            await micro.scout(self.unit, self.map.enemy_natural_position, self.enemy)
+            await micro.scout(self.unit, self.map.enemy_natural_position)
         
     def rush_detected(self) -> bool:
         return self.enemy_natural_delayed

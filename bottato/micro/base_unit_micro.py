@@ -21,13 +21,13 @@ class BaseUnitMicro(GeometryMixin):
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
 
-    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+    async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         return False
 
-    async def retreat(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
+    async def retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
-        threats = enemy.threats_to(unit)
+        threats = self.enemy.threats_to(unit)
 
         if not threats:
             if unit.health_percentage >= health_threshold:
@@ -66,7 +66,7 @@ class BaseUnitMicro(GeometryMixin):
                 unit.move(circle_around_positions[0].towards(self.bot.start_location, 2))
         return True
 
-    def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float, targets: Units = None, force_move: bool = False) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float, targets: Units = None, force_move: bool = False) -> bool:
         if force_move:
             return False
         if unit.tag in self.bot.unit_tags_received_action:
@@ -95,10 +95,10 @@ class BaseUnitMicro(GeometryMixin):
             lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health + enemy_unit.shield).first
             unit.attack(lowest_target)
         else:
-            self.stay_at_max_range(unit, enemy, candidates)
+            self.stay_at_max_range(unit, candidates)
         return True
-    
-    def stay_at_max_range(self, unit: Unit, enemy: Enemy, targets: Units = None):
+
+    def stay_at_max_range(self, unit: Unit, targets: Units = None):
         nearest_target = targets.closest_to(unit)
         # move away if weapon on cooldown
         attack_range = unit.ground_range
@@ -110,7 +110,7 @@ class BaseUnitMicro(GeometryMixin):
                 attack_range = 0
             else:
                 attack_range = 14
-        future_enemy_position = enemy.get_predicted_position(nearest_target, unit.weapon_cooldown)
+        future_enemy_position = self.enemy.get_predicted_position(nearest_target, unit.weapon_cooldown)
         target_position = future_enemy_position.towards(unit, attack_range)
         unit.move(target_position)
         # logger.debug(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
@@ -145,32 +145,32 @@ class BaseUnitMicro(GeometryMixin):
             return nearest_tank
         return None
 
-    async def move(self, unit: Unit, target: Point2, enemy: Enemy, force_move: bool = False) -> None:
+    async def move(self, unit: Unit, target: Point2, force_move: bool = False) -> None:
         if unit.tag in self.bot.unit_tags_received_action:
             return
-        if await self.use_ability(unit, enemy, target, health_threshold=self.ability_health, force_move=force_move):
+        if await self.use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
             logger.debug(f"unit {unit} used ability")
-        elif self.attack_something(unit, enemy, health_threshold=self.attack_health, force_move=force_move):
+        elif self.attack_something(unit, health_threshold=self.attack_health, force_move=force_move):
             logger.debug(f"unit {unit} attacked something")
         elif force_move:
             unit.move(target)
             logger.debug(f"unit {unit} moving to {target}")
-        elif await self.retreat(unit, enemy, health_threshold=self.retreat_health):
+        elif await self.retreat(unit, health_threshold=self.retreat_health):
             logger.debug(f"unit {unit} retreated")
         else:
             unit.move(target)
             logger.debug(f"unit {unit} moving to {target}")
 
-    async def scout(self, unit: Unit, scouting_location: Point2, enemy: Enemy):
+    async def scout(self, unit: Unit, scouting_location: Point2):
         logger.debug(f"scout {unit} health {unit.health}/{unit.health_max} ({unit.health_percentage}) health")
 
-        if await self.use_ability(unit, enemy, scouting_location, health_threshold=1.0):
+        if await self.use_ability(unit, scouting_location, health_threshold=1.0):
             pass
-        elif await self.retreat(unit, enemy, health_threshold=1.0):
+        elif await self.retreat(unit, health_threshold=1.0):
             pass
-        elif self.attack_something(unit, enemy, health_threshold=0.0):
+        elif self.attack_something(unit, health_threshold=0.0):
             pass
-        elif await self.retreat(unit, enemy, health_threshold=0.75):
+        elif await self.retreat(unit, health_threshold=0.75):
             pass
         else:
             logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")

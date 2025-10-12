@@ -10,6 +10,8 @@ from sc2.constants import UnitTypeId, AbilityId
 from sc2.position import Point2, Point3
 from sc2.game_data import Cost
 
+from bottato.micro.micro_factory import MicroFactory
+from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.enemy import Enemy
 from bottato.mixins import GeometryMixin, UnitReferenceMixin, TimerMixin
 from bottato.economy.minerals import Minerals
@@ -342,10 +344,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     # don't suicide workers if outnumbered
                     continue
                 # assign closest 3 workers to attack each enemy
+                micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first, self.bot, self.enemy)
                 for nearby_enemy in nearby_enemies:
                     attackers = workers_nearby.closest_n_units(nearby_enemy, 3)
                     for attacker in attackers:
-                        attacker.attack(nearby_enemy)
+                        micro.move(attacker, nearby_enemy.position)
                         attacker_tags.add(attacker.tag)
                         self.assignments_by_worker[attacker.tag].on_attack_break = True
                         workers_nearby.remove(attacker)

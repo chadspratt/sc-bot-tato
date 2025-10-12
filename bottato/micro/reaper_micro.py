@@ -26,10 +26,10 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot, enemy)
 
-    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
-        return await self.grenade_knock_away(unit, enemy)
+    async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+        return await self.grenade_knock_away(unit)
 
-    def attack_something(self, unit, enemy: Enemy, health_threshold, targets: Unit = None, force_move: bool = False):
+    def attack_something(self, unit, health_threshold, targets: Unit = None, force_move: bool = False):
         if unit.health_percentage < self.attack_health:
             return False
         if unit.weapon_cooldown > 0.25:
@@ -56,14 +56,14 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             return False
         return True
 
-    async def grenade_knock_away(self, unit: Unit, enemy: Enemy) -> bool:
-        targets: Units = enemy.get_enemies_in_range(unit, include_structures=False)
+    async def grenade_knock_away(self, unit: Unit) -> bool:
+        targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False)
         grenade_targets = []
         if targets and await self.grenade_available(unit):
             for target in targets:
                 if target.is_flying:
                     continue
-                future_target_position = enemy.get_predicted_position(target, self.grenade_timer)
+                future_target_position = self.enemy.get_predicted_position(target, self.grenade_timer)
                 # future_target_position = target.position
                 grenade_target = future_target_position
                 # grenade_target = future_target_position.towards(unit).

@@ -24,9 +24,9 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot, enemy)
 
-    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
-        excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED]
-        enemy_unit, enemy_distance = enemy.get_closest_target(unit, distance_limit=20, include_destructables=False, include_out_of_view=False, excluded_types=excluded_types)
+    async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+        excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.DRONE, UnitTypeId.PROBE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.EGG, UnitTypeId.LARVA]
+        enemy_unit, enemy_distance = self.enemy.get_closest_target(unit, distance_limit=20, include_structures=False, include_destructables=False, include_out_of_view=False, excluded_types=excluded_types)
         logger.debug(f"raven {unit} closest unit {enemy_unit}({enemy_distance}), energy={unit.energy}")
         if enemy_unit is None:
             return False
@@ -35,9 +35,9 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             # unit.move(enemy_unit.position.towards(unit, self.ideal_enemy_distance))
             # too close
             return False
-        return self.attack_with_turret(unit, enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
+        return self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
 
-    def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float, force_move: bool = False) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         # doesn't have an auto attack
         return False
 

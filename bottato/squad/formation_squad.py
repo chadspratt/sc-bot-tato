@@ -184,7 +184,7 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
                 if unit.tag not in self.bot.unit_tags_received_action:
                     self.start_timer("formation assign positions move")
                     self.start_timer(f"formation assign positions move {unit.type_id}")
-                    await micro.move(unit, formation_positions[unit.tag], self.enemy, force_move)
+                    await micro.move(unit, formation_positions[unit.tag], force_move)
                     self.stop_timer(f"formation assign positions move {unit.type_id}")
                     self.stop_timer("formation assign positions move")
 

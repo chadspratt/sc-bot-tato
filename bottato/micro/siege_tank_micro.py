@@ -29,7 +29,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot, enemy)
 
-    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+    async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag not in self.known_tags:
             self.known_tags.add(unit.tag)
             self.unsieged_tags.add(unit.tag)
@@ -58,9 +58,9 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         time_since_last_siege_attack = self.bot.time - last_siege_attack
 
         excluded_enemy_types = [] if is_sieged else [UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.DRONEBURROWED, UnitTypeId.MULE]
-        closest_enemy, closest_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
-        closest_enemy_after_siege, closest_distance_after_siege = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time/2)
-        closest_structure, closest_structure_distance = enemy.get_closest_target(unit, include_units=False, include_destructables=False)
+        closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
+        closest_enemy_after_siege, closest_distance_after_siege = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time/2)
+        closest_structure, closest_structure_distance = self.enemy.get_closest_target(unit, include_units=False, include_destructables=False)
 
         # reached_destination = unit.position.distance_to(target) < 2
         # if reached_destination:
@@ -119,8 +119,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
         return False
 
-    # def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float, force_move: bool = False) -> bool:
-    #     return super().attack_something(unit, enemy, health_threshold)
+    # def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+    #     return super().attack_something(unit, health_threshold)
 
     def siege(self, unit: Unit, update_last_transform_time: bool = True):
         logger.debug(f"{unit} sieging")

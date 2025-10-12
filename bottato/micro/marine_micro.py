@@ -26,7 +26,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot, enemy)
 
-    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+    async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.health <= 35:
             return False
         if not self.stim_researched:
@@ -44,7 +44,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             UnitTypeId.DRONEBURROWED,
             UnitTypeId.MULE
         ]
-        closest_enemy, closest_distance = enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
+        closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
         tank_to_retreat_to = self.tank_to_retreat_to(unit)
         if closest_distance <= self.attack_range and tank_to_retreat_to is None:
             unit(AbilityId.EFFECT_STIM_MARINE)
@@ -55,7 +55,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     def is_stimmed(self, unit: Unit) -> bool:
         return unit.tag in self.last_stim_time and self.bot.time - self.last_stim_time[unit.tag] < 11
     
-    def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float, targets: Units = None, force_move: bool = False) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float, targets: Units = None, force_move: bool = False) -> bool:
         if unit.health_percentage < health_threshold:
             return False
         
@@ -82,10 +82,10 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first
             unit.attack(lowest_target)
         else:
-            self.stay_at_max_range(unit, enemy, candidates)
+            self.stay_at_max_range(unit, candidates)
         return True
 
-    async def retreat(self, unit: Unit, enemy: Enemy, health_threshold: float) -> bool:
+    async def retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.health_percentage < 0.7:
             return self.retreat_to_medivac(unit)
         elif unit.tag in self.healing_unit_tags:

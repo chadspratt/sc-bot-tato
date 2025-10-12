@@ -28,8 +28,8 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot, enemy)
 
-    async def use_ability(self, unit: Unit, enemy: Enemy, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
-        threats = enemy.threats_to(unit, 5)
+    async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+        threats = self.enemy.threats_to(unit, 5)
         if unit.health_percentage < self.health_threshold_for_healing and threats:
             if unit.tag not in self.last_afterburner_time or self.bot.time - self.last_afterburner_time[unit.tag] > 14.0:
                 unit(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)
@@ -57,7 +57,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
 
         return unit.tag in self.bot.unit_tags_received_action
 
-    def attack_something(self, unit: Unit, enemy: Enemy, health_threshold: float, force_move: bool = False) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         # doesn't have an attack
         return False
 

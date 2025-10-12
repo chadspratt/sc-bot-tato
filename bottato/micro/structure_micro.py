@@ -20,7 +20,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
         self.start_timer("structure_micro.execute")
         # logger.debug("adjust_supply_depots_for_enemies step")
         self.adjust_supply_depots_for_enemies()
-        self.target_autoturrets(self.enemy)
+        self.target_autoturrets()
         self.stop_timer("structure_micro.execute")
 
     def adjust_supply_depots_for_enemies(self):
@@ -38,8 +38,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
             else:
                 depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)
 
-    def target_autoturrets(self, enemy: Enemy):
+    def target_autoturrets(self):
         turret: Unit
         for turret in self.bot.structures(UnitTypeId.AUTOTURRET):
             logger.debug(f"turret {turret} attacking")
-            self.attack_something(turret, enemy, 0)
+            self.attack_something(turret, 0)
