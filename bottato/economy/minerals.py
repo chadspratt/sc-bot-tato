@@ -60,14 +60,23 @@ class Minerals(Resources, TimerMixin):
                 for mineral in self.bot.mineral_field.closer_than(8, townhall):
                     logger.debug(f"adding mineral patch {mineral}")
                     self.add_node(mineral)
-                    target = mineral.position.towards(townhall, self.MINING_RADIUS)
-                    close_minerals = self.bot.mineral_field.closer_than(self.MINING_RADIUS, target)
-                    for close_mineral in close_minerals:
-                        if close_mineral.tag != mineral.tag:
-                            candidates = mineral.position.circle_intersection(close_mineral.position, self.MINING_RADIUS)
-                            if len(candidates) == 2:
-                                target = townhall.position.closest(candidates)
-                    self.mining_positions[mineral.tag] = target
+                    self.add_mining_position(mineral, townhall)
+
+    def add_mining_position(self, mineral_node: Unit, townhall: Unit = None):
+        if mineral_node.tag not in self.mining_positions:
+            townhall_pos = None
+            if townhall:
+                townhall_pos = townhall.position
+            else:
+                townhall_pos = mineral_node.position.closest(self.bot.expansion_locations_list)
+            target = mineral_node.position.towards(townhall_pos, self.MINING_RADIUS)
+            close_minerals = self.bot.mineral_field.closer_than(self.MINING_RADIUS, target)
+            for close_mineral in close_minerals:
+                if close_mineral.tag != mineral_node.tag:
+                    candidates = mineral_node.position.circle_intersection(close_mineral.position, self.MINING_RADIUS)
+                    if len(candidates) == 2:
+                        target = townhall_pos.closest(candidates)
+            self.mining_positions[mineral_node.tag] = target
 
     def add_long_distance_minerals(self, idle_worker_count: int) -> bool:
         added = False
@@ -76,6 +85,7 @@ class Minerals(Resources, TimerMixin):
                 if mineral_node.mineral_contents and self.add_node(mineral_node):
                     logger.debug(f"adding long distance mining node {mineral_node}")
                     added = True
+                    self.add_mining_position(mineral_node)
                     if len(self.nodes) >= idle_worker_count / 2:
                         break
         return added
