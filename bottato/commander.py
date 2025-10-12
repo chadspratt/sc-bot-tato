@@ -40,6 +40,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.new_damage_taken: dict[int, float] = {}
         self.stuck_units: Units = Units([], bot_object=self.bot)
         self.rush_detected: bool = False
+        self.units_by_tag: dict[int, Unit] = {}
         # self.test_stuck = None
 
     async def command(self, iteration: int):
@@ -108,6 +109,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.start_timer("scout")
 
     async def update_references(self, units_by_tag: dict[int, Unit]):
+        self.units_by_tag = units_by_tag
         self.my_workers.update_references(units_by_tag, self.build_order.get_assigned_worker_tags())
         self.military.update_references(units_by_tag)
         self.enemy.update_references(units_by_tag)
