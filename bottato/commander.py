@@ -58,7 +58,9 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         if self.rush_detected:
             self.build_order.enact_rush_defense()
         # XXX extremely slow
-        await self.military.manage_squads(iteration, self.build_order.get_blueprints())
+        await self.military.manage_squads(iteration,
+                                          self.build_order.get_blueprints(),
+                                          self.scouting.get_newest_enemy_base())
 
         remaining_cap = self.build_order.remaining_cap
         if remaining_cap > 0:
@@ -71,7 +73,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         # XXX slow
         await self.build_order.execute(self.military.army_ratio, self.rush_detected)
 
-        self.my_workers.attack_nearby_enemies()
+        await self.my_workers.attack_nearby_enemies()
         self.my_workers.distribute_idle()
         self.my_workers.speed_mine()
         # if self.bot.time > 240:

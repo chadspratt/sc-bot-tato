@@ -181,7 +181,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stuck_rescue.rescue(stuck_units)
         self.stop_timer("rescue_stuck_units")
 
-    async def manage_squads(self, iteration: int, blueprints: List[BuildStep]):
+    async def manage_squads(self, iteration: int, blueprints: List[BuildStep], newest_enemy_base: Point2 = None):
         self.start_timer("manage_squads")
         self.main_army.draw_debug_box()
 
@@ -264,7 +264,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.start_timer("military army value")
         enemy_value = self.get_army_value(self.enemy.get_army())
         main_army_value = self.get_army_value(self.main_army.units)
-        army_is_big_enough = main_army_value > enemy_value * 1.4 or self.bot.supply_used > 160
+        army_is_big_enough = main_army_value > enemy_value * 1.3 or self.bot.supply_used > 160
         army_is_grouped = self.main_army.is_grouped()
         self.army_ratio = main_army_value / max(enemy_value, 1)
         mount_offense = not defend_with_main_army and army_is_big_enough and (self.bot.supply_used >= 110 or self.bot.time > 600)
@@ -307,11 +307,28 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     target = self.bot.enemy_structures
                     target_position = target.closest_to(army_position).position
                 else:
-                    target = self.bot.enemy_start_locations[0]
-                    target_position = target
+                    if newest_enemy_base:
+                        target = newest_enemy_base
+                        target_position = target.position
+                    else:
+                        target = self.bot.enemy_start_locations[0]
+                        target_position = target
                 if not army_is_grouped:
                     self.start_timer("military move squads regroup")
                     army_center = self.main_army.units.closest_to(self.bot.enemy_start_locations[0]).position
+                    # back off if too close to enemy
+                    closest_enemy = army_center.closest(self.bot.enemy_units) if self.bot.enemy_units else None
+                    closest_distance = closest_enemy.distance_to(army_center) if closest_enemy else 100
+                    if closest_distance < 15:
+                        path = self.map.get_path_points(army_center, self.bot.start_location)
+                        i = 0
+                        while i + 1 < len(path):
+                            army_center = path[i + 1]
+                            next_node_distance = path[i].distance_to(path[i + 1])
+                            if closest_distance + next_node_distance >= 15:
+                                break
+                            closest_distance += next_node_distance
+                            i += 1
                     facing = self.get_facing(army_center, target_position)
                     await self.main_army.move(army_position, facing, force_move=False, blueprints=blueprints)
                     self.stop_timer("military move squads regroup")
@@ -323,7 +340,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             else:
                 self.start_timer("military move squads stage")
                 logger.debug(f"squad {self.main_army} staging at {self.main_army.staging_location}")
-                enemy_position = self.bot.enemy_start_locations[0]
+                enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
                 if len(self.bot.townhalls) > 1:
                     closest_base = self.bot.townhalls.closest_to(enemy_position)
                     second_closest_base = self.bot.townhalls.filter(lambda base: base.tag != closest_base.tag).closest_to(enemy_position)
@@ -405,7 +422,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     if nearby_workers:
                         nearby_workers.sort(key=lambda worker: worker.shield_health_percentage)
                         most_injured: Unit = nearby_workers[0]
-                        await micro.move(unit, most_injured.position.towards(unit, unit.ground_range - 0.25))
+                        await micro.move(unit, most_injured.position.towards(unit, unit.ground_range - 1))
                     else:
                         await micro.move(unit, harass_location)
 
@@ -438,8 +455,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
     def get_squad_request(self, remaining_cap: int) -> list[UnitTypeId]:
         self.start_timer("get_squad_request")
-        # squad_to_fill: BaseSquad = None
-        squad_type: SquadType = None
         new_supply = 0
         new_units: list[UnitTypeId] = []
         for unit_type in new_units:
@@ -447,10 +462,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
         army_summary = self.count_units_by_type(self.bot.units)
 
-        unmatched_friendlies, unmatched_enemies = self.simulate_battle()
-        logger.debug(f"simulated battle results: friendlies {self.count_units_by_type(unmatched_friendlies)}, enemies {self.count_units_by_type(unmatched_enemies)}")
+        # unmatched_friendlies, unmatched_enemies = self.simulate_battle()
+        unmatched_enemies = self.bot.enemy_units
+        # logger.debug(f"simulated battle results: friendlies {self.count_units_by_type(unmatched_friendlies)}, enemies {self.count_units_by_type(unmatched_enemies)}")
         while new_supply < remaining_cap:
-            squad_type: SquadType = None
+            squad_type: SquadType = SquadTypeDefinitions['full army']
             if unmatched_enemies:
                 # type_summary = self.count_units_by_type(unmatched_enemies)
                 property_summary = self.count_units_by_property(unmatched_enemies)
@@ -459,11 +475,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     squad_type = SquadTypeDefinitions['anti air']
                 else:
                     squad_type = SquadTypeDefinitions['full army']
-            elif unmatched_friendlies:
-                # seem to be ahead,
-                squad_type = SquadTypeDefinitions['full army']
-            else:
-                squad_type = SquadTypeDefinitions['full army']
+            # elif unmatched_friendlies:
+            #     # seem to be ahead,
+            #     squad_type = SquadTypeDefinitions['full army']
+            # else:
+            #     squad_type = SquadTypeDefinitions['full army']
 
             for unit_type in squad_type.composition.unit_ids:
                 if unit_type not in army_summary:

@@ -114,7 +114,9 @@ class GeometryMixin:
         height: float = self.bot.get_terrain_z_height(point2) + 1
         return Point3((point2.x, point2.y, height))
 
-    def get_facing(self, start_position: Point2, end_position: Point2):
+    def get_facing(self, start_position: Unit | Point2, end_position: Unit | Point2):
+        start_position = start_position.position
+        end_position = end_position.position
         angle = math.atan2(
             end_position.y - start_position.y, end_position.x - start_position.x
         )

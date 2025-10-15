@@ -32,12 +32,14 @@ def main():
             # IncorporealAIE_v4, PylonAIE_v4, TorchesAIE_v4, UltraloveAIE_v2
             [
                 Bot(Race.Terran, bot, name="BotTato"),
-                # VeryEasy, VeryHard,
-                # RandomBuild, Rush, Timing,Power, Macro, Air
-                Computer(Race.Zerg, Difficulty.VeryHard, ai_build=AIBuild.Rush),
+                # Protoss, Terran, Zerg, Random
+                # VeryEasy, Easy, Medium, MediumHard, Hard, Harder, VeryHard, CheatVision, CheatMoney, CheatInsane
+                # RandomBuild, Rush, Timing, Power, Macro, Air
+                Computer(Race.Zerg, Difficulty.VeryHard, ai_build=AIBuild.Macro),
             ],
             realtime=False,
-            # random_seed=42,
+            random_seed=35,
+            # 39 - lings arrive before reactor
         )
     except ConnectionResetError:
         bot.print_all_timers()

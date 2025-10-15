@@ -70,7 +70,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         #     return False
 
         if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
-            if is_sieged and closest_distance > self.sieged_range - 5:
+            if is_sieged and closest_distance > self.sieged_range - 2:
                 self.unsiege(unit)
                 return True
             else:

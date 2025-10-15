@@ -37,7 +37,7 @@ class BaseUnitMicro(GeometryMixin):
             EffectId.BLINDINGCLOUDCP,
             EffectId.RAVAGERCORROSIVEBILECP,
             EffectId.LURKERMP,
-            UnitTypeId.KD8CHARGE,
+            'KD8CHARGE',
         ]
         effects_to_avoid = []
         for effect in self.bot.state.effects:
@@ -99,6 +99,9 @@ class BaseUnitMicro(GeometryMixin):
             return False
         else:
             avg_threat_position = threats.center
+            if unit.distance_to(self.bot.start_location) < avg_threat_position.distance_to(self.bot.start_location):
+                unit.move(self.bot.start_location)
+                return True
             retreat_position = unit.position.towards(avg_threat_position, -5).towards(self.bot.start_location, 2)
             if self.bot.in_pathing_grid(retreat_position):
                 unit.move(retreat_position)
@@ -229,11 +232,11 @@ class BaseUnitMicro(GeometryMixin):
 
         if await self.use_ability(unit, scouting_location, health_threshold=1.0):
             pass
-        elif await self.retreat(unit, health_threshold=1.0):
-            pass
-        elif self.attack_something(unit, health_threshold=0.0):
-            pass
         elif await self.retreat(unit, health_threshold=0.75):
+            pass
+        # elif self.attack_something(unit, health_threshold=0.0):
+        #     pass
+        elif await self.retreat(unit, health_threshold=0.5):
             pass
         else:
             logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")

@@ -333,7 +333,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 worker(AbilityId.SMART, target)
         self.stop_timer("my_workers.speed_smart")
 
-    def attack_nearby_enemies(self) -> None:
+    async def attack_nearby_enemies(self) -> None:
         self.start_timer("my_workers.attack_nearby_enemies")
         attacker_tags = set()
         if self.bot.townhalls:
@@ -348,7 +348,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 for nearby_enemy in nearby_enemies:
                     attackers = workers_nearby.closest_n_units(nearby_enemy, 3)
                     for attacker in attackers:
-                        micro.move(attacker, nearby_enemy.position)
+                        await micro.move(attacker, nearby_enemy.position)
                         attacker_tags.add(attacker.tag)
                         self.assignments_by_worker[attacker.tag].on_attack_break = True
                         workers_nearby.remove(attacker)

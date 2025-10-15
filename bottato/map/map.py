@@ -279,6 +279,8 @@ class Map(TimerMixin, GeometryMixin):
         if candidates is None:
             pathable_position = position
         else:
+            # XXX maybe cache this for performance, would need to use rounded position and store a sorted list of closest positions
+            # most lookups should only have to look at first few candidates
             pathable_position: Point2 = self.influence_maps.closest_towards_point(candidates, position)
             if pathable_position.distance_to(position) < 1.5:
                 pathable_position = position

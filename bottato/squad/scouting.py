@@ -6,6 +6,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.constants import UnitTypeId
+from sc2.data import race_townhalls
 
 from bottato.map.map import Map
 from bottato.military import Military
@@ -21,6 +22,7 @@ class ScoutingLocation:
     def __init__(self, position: Point2):
         self.position: Point2 = position
         self.last_seen: int = None
+        self.is_occupied_by_enemy: bool = False
 
     def __repr__(self) -> str:
         return f"ScoutingLocation({self.position}, {self.last_seen})"
@@ -95,7 +97,7 @@ class Scout(BaseSquad, UnitReferenceMixin):
             assignment: ScoutingLocation = self.scouting_locations[next_index]
             logger.debug(f"scout {self.unit} took damage, changing assignment")
 
-        while assignment.last_seen and self.bot.time - assignment.last_seen < 10:
+        while assignment.last_seen and self.bot.time - assignment.last_seen < 10 and assignment.is_occupied_by_enemy:
             next_index = (next_index + 1) % len(self.scouting_locations)
             if next_index == self.scouting_locations_index:
                 # full cycle, none need scouting
@@ -156,7 +158,7 @@ class InitialScout(BaseSquad):
             self.completed = True
         elif self.bot.time > self.initial_scout_complete_time:
             self.enemy_natural_delayed = True
-            self.completed = True
+            # self.completed = True
         else:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot, self.enemy)
             await micro.scout(self.unit, self.map.enemy_natural_position)
@@ -192,6 +194,14 @@ class Scouting(BaseSquad, DebugMixin):
         self.friendly_territory = Scout("friendly territory", self.bot, enemy)
         self.enemy_territory = Scout("enemy territory", self.bot, enemy)
         self.initial_scout = InitialScout(self.bot, self.map, self.enemy)
+        self.newest_enemy_base = None
+
+        # positions to scout
+        self.empty_enemy_expansion_locations: list[Point2] = []
+        # track occupied expansion positions so if they are destroyed we can add them back to empty_enemy_expansion_locations
+        self.occupied_enemy_expansion_locations: dict[int, Point2] = {}
+        # used to identify newest bases to attack
+        self.enemy_base_built_times: dict[int, float] = {}
 
         # assign all expansions locations to either friendly or enemy territory
         self.scouting_locations: List[ScoutingLocation] = list()
@@ -204,11 +214,49 @@ class Scouting(BaseSquad, DebugMixin):
                 self.friendly_territory.add_location(nearest_locations_temp[i])
             if not self.friendly_territory.contains_location(enemy_nearest_locations_temp[i]):
                 self.enemy_territory.add_location(enemy_nearest_locations_temp[i])
+                self.empty_enemy_expansion_locations.append(enemy_nearest_locations_temp[i].position)
 
     def update_visibility(self):
+        enemy_townhalls = self.bot.enemy_structures.of_type(race_townhalls[self.bot.enemy_race])
+        # add new townhalls to known enemy bases
+        for townhall in enemy_townhalls:
+            if townhall.tag not in self.enemy_base_built_times:
+                self.enemy_base_built_times[townhall.tag] = self.bot.time
+                for location in self.scouting_locations:
+                    if location.position.manhattan_distance(townhall.position) < 10:
+                        location.is_occupied_by_enemy = True
+                        self.occupied_enemy_expansion_locations[townhall.tag] = location.position
+                        self.newest_enemy_base = townhall.position
+                        if location.position in self.empty_enemy_expansion_locations:
+                            self.empty_enemy_expansion_locations.remove(location.position)
+                        break
+
         for location in self.scouting_locations:
             if self.bot.is_visible(location.position):
                 location.last_seen = self.bot.time
+
+    def remove_enemy_base(self, base_tag: int):
+        del self.enemy_base_built_times[base_tag]
+        for occupied_expansion_tag, position in self.occupied_enemy_expansion_locations.items():
+            if occupied_expansion_tag == base_tag:
+                for location in self.scouting_locations:
+                    if location.position.manhattan_distance(position) < 10:
+                        location.is_occupied_by_enemy = False
+                        break
+                del self.occupied_enemy_expansion_locations[occupied_expansion_tag]
+                self.empty_enemy_expansion_locations.append(position)
+                break
+        if self.newest_enemy_base.tag == base_tag:
+            newest_base_tag: Unit = None
+            newest_time: float = 0
+            for base_tag, built_time in self.enemy_base_built_times.items():
+                if built_time > newest_time:
+                    newest_time = built_time
+                    newest_base_tag = base_tag
+            self.newest_enemy_base = self.occupied_enemy_expansion_locations[newest_base_tag] if newest_base_tag else None
+
+    def get_newest_enemy_base(self) -> Point2:
+        return self.newest_enemy_base
 
     async def scout(self, new_damage_taken: dict[int, float], units_by_tag: dict[int, Unit]):
         # Update scout unit references
