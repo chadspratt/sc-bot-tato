@@ -6,6 +6,8 @@ from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
+
 
 
 from .base_unit_micro import BaseUnitMicro
@@ -22,8 +24,13 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     health_threshold_for_healing = 0.75
 
     stopped_for_healing: set[int] = set()
-    injured_bio: Units = None
+    injured_bio: Units = []
+    injured_bio_last_update: int = -1
     last_afterburner_time: dict[int, float] = {}
+    units_to_pick_up: Units = []
+    units_to_pick_up_last_update: int = -1
+    units_to_pick_up_potential_damage: dict[int, float] = {}
+    threat_damage: dict[UnitTypeId, float] = {}
 
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot, enemy)
@@ -35,13 +42,42 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 unit(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)
                 self.last_afterburner_time[unit.tag] = self.bot.time
             return False
+        if force_move and unit.cargo_left > 0:
+            if self.units_to_pick_up_last_update != self.bot._total_steps_iterations:
+                self.units_to_pick_up_last_update = self.bot._total_steps_iterations
+                self.units_to_pick_up = self.bot.units.filter(lambda u:  u.movement_speed < unit.movement_speed and not u.is_flying and u.distance_to(target) > 15)
+                self.units_to_pick_up_potential_damage.clear()
+                # calculate potential damage to a medivac if it tried to pick up each unit
+                if self.units_to_pick_up and self.bot.enemy_units:
+                    threats = self.bot.enemy_units.filter(lambda e: e.air_range > 0)
+                    for passenger in self.units_to_pick_up:
+                        potential_damage = 0
+                        for threat in threats:
+                            if threat.type_id not in self.threat_damage:
+                                self.threat_damage[threat.type_id] = threat.calculate_damage_vs_target(unit)[0]
+                            if self.threat_damage[threat.type_id] <= 0:
+                                continue
+                            if threat.distance_to(passenger) + self.pick_up_range <= threat.air_range:
+                                potential_damage += self.threat_damage[threat.type_id]
+                        self.units_to_pick_up_potential_damage[passenger.tag] = potential_damage
+                # prioritize slower units, tiebreak with further from home
+                self.units_to_pick_up.sort(key=lambda u: u.movement_speed * 10000 - u.distance_to_squared(self.bot.start_location))
+            for passenger in self.units_to_pick_up:
+                if passenger.cargo_size <= unit.cargo_left and self.units_to_pick_up_potential_damage.get(passenger.tag, 0) < unit.health:
+                    unit(AbilityId.LOAD, passenger)
+                    self.units_to_pick_up.remove(passenger)
+                    return True
+        if unit.cargo_used > 0 and unit.distance_to(target) < 10:
+            unit(AbilityId.UNLOADALLAT, unit)
+            return True
         if not self.heal_available(unit):
             return False
         if force_move and threats:
             return False
         
         # refresh list of injured bio once per iteration
-        if self.injured_bio is None or not self.injured_bio or self.injured_bio.first.age != 0:
+        if self.injured_bio_last_update != self.bot._total_steps_iterations:
+            self.injured_bio_last_update = self.bot._total_steps_iterations
             self.injured_bio = self.bot.units.filter(lambda u: u.is_biological and u.health_percentage < 1.0)
 
         heal_candidates = self.injured_bio.closer_than(20, unit)

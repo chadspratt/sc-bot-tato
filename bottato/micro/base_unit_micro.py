@@ -7,6 +7,7 @@ from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.position import Point2
 from sc2.constants import UnitTypeId
+from sc2.ids.effect_id import EffectId
 
 from bottato.mixins import GeometryMixin
 from bottato.enemy import Enemy
@@ -20,6 +21,49 @@ class BaseUnitMicro(GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy):
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
+
+    def avoid_effects(self, unit: Unit) -> bool:
+        # avoid damaging effects
+        damaging_effects = [
+            EffectId.PSISTORMPERSISTENT,
+            # EffectId.GUARDIANSHIELDPERSISTENT,
+            # EffectId.TEMPORALFIELDGROWINGBUBBLECREATEPERSISTENT,
+            # EffectId.TEMPORALFIELDAFTERBUBBLECREATEPERSISTENT,
+            EffectId.THERMALLANCESFORWARD,
+            # EffectId.SCANNERSWEEP,
+            EffectId.NUKEPERSISTENT,
+            EffectId.LIBERATORTARGETMORPHDELAYPERSISTENT,
+            EffectId.LIBERATORTARGETMORPHPERSISTENT,
+            EffectId.BLINDINGCLOUDCP,
+            EffectId.RAVAGERCORROSIVEBILECP,
+            EffectId.LURKERMP,
+            UnitTypeId.KD8CHARGE,
+        ]
+        effects_to_avoid = []
+        for effect in self.bot.state.effects:
+            if effect.id not in damaging_effects:
+                continue
+            if effect.is_mine and effect.id in (EffectId.LIBERATORTARGETMORPHDELAYPERSISTENT, EffectId.LIBERATORTARGETMORPHPERSISTENT):
+                continue
+            safe_distance = (effect.radius + unit.radius + 1) ** 2
+            for position in effect.positions:
+                if unit.position._distance_squared(position) < safe_distance:
+                    effects_to_avoid.append(position)
+        if effects_to_avoid:
+            number_of_effects = len(effects_to_avoid)
+            if number_of_effects == 1:
+                # move directly away from effect
+                new_position = unit.position.towards(effects_to_avoid[0], -2)
+                unit.move(new_position)
+                return True
+            average_x = sum(p.x for p in effects_to_avoid) / number_of_effects
+            average_y = sum(p.y for p in effects_to_avoid) / number_of_effects
+            average_position = Point2((average_x, average_y))
+            # move out of effect radius
+            new_position = unit.position.towards(average_position, -2)
+            unit.move(new_position)
+            return True
+        return False
 
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         return False
@@ -99,21 +143,38 @@ class BaseUnitMicro(GeometryMixin):
         return True
 
     def stay_at_max_range(self, unit: Unit, targets: Units = None):
-        nearest_target = targets.closest_to(unit)
         # move away if weapon on cooldown
+        nearest_target = targets.closest_to(unit)
+        if not unit.is_flying:
+            nearest_sieged_tank = None
+            if nearest_target.type_id == UnitTypeId.SIEGETANKSIEGED:
+                nearest_sieged_tank = nearest_target
+            else:
+                enemy_tanks = targets.of_type(UnitTypeId.SIEGETANKSIEGED)
+                if enemy_tanks:
+                    nearest_sieged_tank = enemy_tanks.closest_to(unit)
+
+            if nearest_sieged_tank:
+                distance_to_tank = unit.distance_to(nearest_sieged_tank)
+                if distance_to_tank < 8:
+                    # dive on sieged tanks
+                    attack_range = 0
+                    target_position = nearest_sieged_tank.position.towards(unit, attack_range)
+                    unit.move(target_position)
+                    return
+                if distance_to_tank < 15:
+                    attack_range = 14
+                    target_position = nearest_sieged_tank.position.towards(unit, attack_range)
+                    unit.move(target_position)
+                    return
+
         attack_range = unit.ground_range
         if nearest_target.is_flying:
             attack_range = unit.air_range
-        elif nearest_target.type_id == UnitTypeId.SIEGETANKSIEGED:
-            if unit.distance_to(nearest_target) < 8:
-                # dive on sieged tanks
-                attack_range = 0
-            else:
-                attack_range = 14
+
         future_enemy_position = self.enemy.get_predicted_position(nearest_target, unit.weapon_cooldown)
         target_position = future_enemy_position.towards(unit, attack_range)
         unit.move(target_position)
-        # logger.debug(f"unit {unit}({unit.position}) staying at attack range {attack_range} to {nearest_target}({nearest_target.position}) at {target_position}")
         
     def tank_to_retreat_to(self, unit: Unit) -> Unit | None:
         excluded_enemy_types = [
@@ -148,7 +209,9 @@ class BaseUnitMicro(GeometryMixin):
     async def move(self, unit: Unit, target: Point2, force_move: bool = False) -> None:
         if unit.tag in self.bot.unit_tags_received_action:
             return
-        if await self.use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
+        if self.avoid_effects(unit):
+            logger.debug(f"unit {unit} avoiding effects")
+        elif await self.use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
             logger.debug(f"unit {unit} used ability")
         elif self.attack_something(unit, health_threshold=self.attack_health, force_move=force_move):
             logger.debug(f"unit {unit} attacked something")
