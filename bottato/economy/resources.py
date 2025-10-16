@@ -57,17 +57,24 @@ class Resources(UnitReferenceMixin, GeometryMixin):
     def add_worker(self, worker: Unit) -> Unit:
         if worker is None:
             return None
+            
+        if not self.nodes:
+            logger.warning(f"No resource nodes available for worker {worker}")
+            return None
+            
         candidates: Units = None
         if worker.type_id == UnitTypeId.MULE:
             # Mules can be assigned to any node regardless of capacity
             candidates = Units([node.node for node in self.nodes if node.mule_tag is None], bot_object=self.bot)
         else:
-            most_needed = max([node.needed_workers() for node in self.nodes if not node.is_long_distance])
-            if most_needed == 0:
-                most_needed = max([node.needed_workers() for node in self.nodes if node.is_long_distance])
-            if most_needed > 0:
-                # prefer nodes that need the most workers
-                candidates = Units([node.node for node in self.nodes if node.needed_workers() == most_needed], bot_object=self.bot)
+            # Find nodes that need workers, prioritizing non-long-distance
+            nodes_needing_workers = [node for node in self.nodes if not node.is_long_distance and node.needed_workers() > 0]
+            if not nodes_needing_workers:
+                nodes_needing_workers = [node for node in self.nodes if node.is_long_distance and node.needed_workers() > 0]
+            
+            if nodes_needing_workers:
+                most_needed = max(node.needed_workers() for node in nodes_needing_workers)
+                candidates = Units([node.node for node in nodes_needing_workers if node.needed_workers() == most_needed], bot_object=self.bot)
 
         if candidates:
             node = candidates.closest_to(worker)
@@ -76,6 +83,9 @@ class Resources(UnitReferenceMixin, GeometryMixin):
             else:
                 self.nodes_by_tag[node.tag].worker_tags.append(worker.tag)
             return node
+            
+        logger.debug(f"No capacity available for worker {worker}")
+        return None
 
     def add_worker_to_node(self, worker: Unit, node: Unit) -> bool:
         if worker is None:
@@ -111,18 +121,26 @@ class Resources(UnitReferenceMixin, GeometryMixin):
         return False
 
     def update_references(self, units_by_tag: dict[int, Unit]):
+        nodes_to_remove = []
+        
         for resource_node in self.nodes:
             try:
                 resource_node.node = self.get_updated_unit_reference(resource_node.node, units_by_tag)
             except Exception as e:
-                self.nodes.remove(resource_node)
-                del self.nodes_by_tag[resource_node.node.tag]
-                self.depleted_resource_worker_tags.extend(resource_node.worker_tags)
-                return
+                logger.debug(f"Node {resource_node.node.tag} failed to update reference: {e}")
+                nodes_to_remove.append(resource_node)
+                continue
+                
+            # Check if node is depleted
             if resource_node.node.mineral_contents == 0 and resource_node.node.vespene_contents == 0:
-                self.nodes.remove(resource_node)
-                del self.nodes_by_tag[resource_node.node.tag]
-                self.depleted_resource_worker_tags.extend(resource_node.worker_tags)
+                logger.debug(f"Node {resource_node.node.tag} is depleted")
+                nodes_to_remove.append(resource_node)
+        
+        # Remove all stale/depleted nodes after iteration
+        for resource_node in nodes_to_remove:
+            self.nodes.remove(resource_node)
+            del self.nodes_by_tag[resource_node.node.tag]
+            self.depleted_resource_worker_tags.extend(resource_node.worker_tags)
 
     def get_worker_capacity(self) -> int:
         capacity_near_base = [resource_node.max_workers for resource_node in self.nodes if not resource_node.is_long_distance]
