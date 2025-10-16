@@ -40,7 +40,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             return False
 
         enemy_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
-        threats = nearby_enemies.filter(lambda enemy: enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
+        threats = nearby_enemies.filter(lambda enemy: enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG))
 
         if enemy_workers:
             lowest_target = enemy_workers.sorted(key=lambda worker:  (worker.shield_health_percentage) * 10000 + unit.distance_to(worker)).first

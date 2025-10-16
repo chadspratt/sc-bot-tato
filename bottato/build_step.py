@@ -340,6 +340,14 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
             if new_build_position is not None:
                 self.attempted_expansion_positions[new_build_position] += 1
+            # run it through find placement in case it's blocked by some weird map feature
+            if self.bot.game_info.map_name == 'Magannatha AIE':
+                new_build_position = await self.bot.find_placement(
+                    unit_type_id,
+                    near=new_build_position,
+                    max_distance=4,
+                    placement_step=2,
+                )
 
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2 = None

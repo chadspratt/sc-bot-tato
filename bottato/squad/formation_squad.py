@@ -1,6 +1,6 @@
 from __future__ import annotations
 import enum
-from typing import Union, List
+from typing import List
 # import traceback
 
 from loguru import logger
@@ -29,18 +29,6 @@ class SquadOrderEnum(enum.Enum):
     REGROUP = 5
 
 
-class SquadOrder:
-    def __init__(
-        self,
-        order: SquadOrderEnum,
-        targets: List[Unit],
-        priority: int = 0,
-    ):
-        self.order = order
-        self.targets = targets
-        self.priority = priority
-
-
 class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
     def __init__(
         self,
@@ -55,12 +43,9 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
         self.current_order = SquadOrderEnum.IDLE
         self._destination: Point2 = None
         self.previous_position: Point2 = None
-        self.targets: Units = Units([], bot_object=self.bot)
+        # self.targets: Units = Units([], bot_object=self.bot)
         self.parent_formation: ParentFormation = ParentFormation(self.bot, self.map)
         self.destination_facing: float = None
-
-    def execute(self, squad_order: SquadOrder):
-        self.orders.append(squad_order)
 
     def __repr__(self):
         return f"FormationSquad({self.name},{self.state},{len(self.units)}, {self.parent_formation})"
@@ -89,7 +74,11 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
 
     @property
     def position(self) -> Point2:
-        return self.parent_formation.front_center
+        if self.parent_formation.front_center:
+            return self.parent_formation.front_center
+        elif self.units:
+            return self.units.center
+        return None
 
     def transfer(self, unit: Unit, to_squad: BaseSquad):
         super().transfer(unit, to_squad)
@@ -109,7 +98,7 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
 
     def update_references(self, units_by_tag: dict[int, Unit]):
         super().update_references(units_by_tag)
-        self.targets = self.get_updated_unit_references(self.targets, units_by_tag)
+        # self.targets = self.get_updated_unit_references(self.targets, units_by_tag)
 
     def update_formation(self, reset=False):
         # decide formation(s)
@@ -132,37 +121,15 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
             return True
         return False
 
-    async def attack(self, targets: Union[Point2, Units, Unit]):
-        if not targets or not self.units:
-            return
-        target_position = targets
-        self.current_order = SquadOrderEnum.ATTACK
-        if isinstance(targets, Unit):
-            self.targets = Units([targets], self.bot)
-            target_position = targets.position
-        elif isinstance(targets, Units):
-            self.targets = Units(targets, self.bot)
-            reference_point = self.parent_formation.front_center or self.units.center
-            closest_target = self.targets.closest_to(reference_point)
-            target_position = closest_target.position
-            logger.debug(
-                f"{self.name} Squad attacking {closest_target};"
-            )
-        else:
-            logger.debug(
-                f"{self.name} Squad attacking {target_position};"
-            )
-
-        facing = self.get_facing(self.units.center, target_position)
-        await self.move(target_position, facing)
-
-    async def move(self, destination: Point2, destination_facing: float, force_move: bool = False, blueprints: List[BuildStep] = []):
+    async def move(self, destination: Point2, facing_position: Point2 = None, force_move: bool = False, blueprints: List[BuildStep] = []):
         self.current_order = SquadOrderEnum.MOVE
         self._destination = destination
-        self.destination_facing = destination_facing
+        if facing_position is None:
+            facing_position = destination + (destination - self.position)
+        self.destination_facing = self.get_facing(destination, facing_position)
 
         self.start_timer("formation get_unit_destinations")
-        formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.units, destination_facing, self.units_by_tag)
+        formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.units, self.destination_facing, self.units_by_tag)
         self.stop_timer("formation get_unit_destinations")
 
         logger.debug(f"squad {self.name} moving from {self.position} to {self._destination} with {formation_positions.values()}")
@@ -189,7 +156,7 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
                     self.stop_timer("formation assign positions move")
 
     def is_grouped(self) -> bool:
-        if self.parent_formation.front_center and self.units:
-            units_out_of_formation = self.units.further_than(18, self.parent_formation.front_center)
+        if self.position and self.units:
+            units_out_of_formation = self.units.further_than(18, self.position)
             return len(units_out_of_formation) / len(self.units) < 0.35
         return False

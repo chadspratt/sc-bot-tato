@@ -7,6 +7,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
+from sc2.data import Race
 
 from bottato.build_step import BuildStep
 from bottato.economy.workers import Workers
@@ -92,7 +93,7 @@ class StuckRescue(BaseSquad, UnitReferenceMixin):
                 self.is_loaded = False
                 self.dropoff = None
             else:
-                self.dropoff = self.main_army.parent_formation.front_center.towards(self.bot.start_location, 8)
+                self.dropoff = self.main_army.position.towards(self.bot.start_location, 8)
                 self.transport.move(self.dropoff)
                 if self.transport.distance_to(self.dropoff) < 5:
                     self.transport(AbilityId.UNLOADALLAT, self.transport)
@@ -186,14 +187,20 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.main_army.draw_debug_box()
 
         # only run this every three steps
-        if iteration % 3:
-            self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
+        # if iteration % 3:
+        #     self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
             # return
         # scout_types = {UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
         # scouts_in_base = self.bot.enemy_units.filter(lambda unit: unit.type_id in scout_types).in_distance_of_group(self.bot.structures, 25)
         self.start_timer("military enemies_in_base")
         self.start_timer("military enemies_in_base detection")
         base_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET)
+        if self.bot.enemy_race in (Race.Zerg, Race.Random):
+            nydus_canals = self.bot.enemy_structures.of_type(UnitTypeId.NYDUSCANAL)
+            if nydus_canals and base_structures.closest_distance_to(nydus_canals.first) < 25 and self.main_army.units:
+                # put massive priority on killing nydus canals near base
+                self.main_army.move(nydus_canals.first.position)
+                return
         enemies_in_base: Units = Units([], self.bot)
         enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: base_structures.closest_distance_to(unit) < 25))
         if self.main_army.staging_location:
@@ -227,7 +234,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             defense_squad: FormationSquad
             if enemy.tag in self.countered_enemies:
                 defense_squad = self.countered_enemies[enemy.tag]
-                await defense_squad.attack(self.enemy.predicted_position[enemy.tag])
+                await defense_squad.move(self.enemy.predicted_position[enemy.tag])
+                # await defense_squad.attack(self.enemy.predicted_position[enemy.tag])
                 logger.debug(f"defending against {enemy} with {defense_squad}")
             elif defend_with_main_army:
                 continue
@@ -242,22 +250,28 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
                 desired_counters: List[UnitTypeId] = self.get_counter_units(enemy)
                 current_counters: List[UnitTypeId] = [unit.type_id for unit in defense_squad.units]
-                for unit_type in desired_counters:
-                    if unit_type in current_counters:
-                        current_counters.remove(unit_type)
-                    else:
-                        available_units = self.main_army.units.of_type(unit_type)
-                        if available_units:
-                            self.transfer(self.closest_unit_to_unit(enemy, available_units), self.main_army, defense_squad)
+                for composition in desired_counters:
+                    for unit_type in composition:
+                        if unit_type in current_counters:
+                            current_counters.remove(unit_type)
                         else:
-                            self.transfer_all(defense_squad, self.main_army)
-                            del self.countered_enemies[enemy.tag]
-                            self.squads.remove(defense_squad)
-                            defend_with_main_army = True
-                            break
+                            available_units = self.main_army.units.of_type(unit_type)
+                            if available_units:
+                                self.transfer(self.closest_unit_to_unit(enemy, available_units), self.main_army, defense_squad)
+                            else:
+                                break
+                    else:
+                        # a full composition was assigned
+                        await defense_squad.move(self.enemy.predicted_position[enemy.tag])
+                        logger.debug(f"defending against {enemy} with {defense_squad}")
+                        break
                 else:
-                    await defense_squad.attack(self.enemy.predicted_position[enemy.tag])
-                    logger.debug(f"defending against {enemy} with {defense_squad}")
+                    # a full composition was not assigned, disband the squad and defend with main army
+                    self.transfer_all(defense_squad, self.main_army)
+                    del self.countered_enemies[enemy.tag]
+                    self.squads.remove(defense_squad)
+                    defend_with_main_army = True
+                    break
         self.stop_timer("military enemies_in_base counter")
         self.stop_timer("military enemies_in_base")
 
@@ -292,11 +306,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             if defend_with_main_army:
                 logger.debug(f"squad {self.main_army.name} mounting defense")
                 self.start_timer("military move squads defend")
-                await self.main_army.attack(enemies_in_base)
+                await self.main_army.move(enemies_in_base.closest_to(self.main_army.position).position)
                 self.stop_timer("military move squads defend")
             elif mount_offense:
                 logger.debug(f"squad {self.main_army.name} mounting offense")
-                army_position = self.main_army.parent_formation.front_center
+                army_position = self.main_army.position
                 target = None
                 target_position = None
                 attackable_enemies = self.enemy.enemies_in_view.filter(lambda unit: unit.can_be_attacked and unit.armor < 10 and unit.tag not in self.countered_enemies)
@@ -329,16 +343,16 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                                 break
                             closest_distance += next_node_distance
                             i += 1
-                    facing = self.get_facing(army_center, target_position)
-                    await self.main_army.move(army_position, facing, force_move=False, blueprints=blueprints)
+                    await self.main_army.move(army_position, target_position, blueprints=blueprints)
                     self.stop_timer("military move squads regroup")
                 else:
                     self.start_timer("military move squads attack")
                     if target:
-                        await self.main_army.attack(target)
+                        await self.main_army.move(target_position)
                     self.stop_timer("military move squads attack")
             else:
                 self.start_timer("military move squads stage")
+                # generally a retreat due to being outnumbered
                 logger.debug(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
                 if len(self.bot.townhalls) > 1:
@@ -356,8 +370,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                         i += 1
                 else:
                     self.main_army.staging_location = self.bot.start_location.towards(enemy_position, 5)
-                facing = self.get_facing(self.main_army.staging_location, enemy_position)
-                await self.main_army.move(self.main_army.staging_location, facing, force_move=True, blueprints=blueprints)
+                await self.main_army.move(self.main_army.staging_location, enemy_position, force_move=True, blueprints=blueprints)
                 self.stop_timer("military move squads stage")
         self.stop_timer("military move squads")
 
@@ -437,21 +450,21 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         unassigned.extend([UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.GHOST, UnitTypeId.HELLION, UnitTypeId.HELLIONTANK, UnitTypeId.WIDOWMINE, UnitTypeId.CYCLONE, UnitTypeId.THOR, UnitTypeId.VIKINGFIGHTER, UnitTypeId.RAVEN, UnitTypeId.BATTLECRUISER])
         unassigned.extend([UnitTypeId.QUEEN, UnitTypeId.ZERGLING, UnitTypeId.BANELING, UnitTypeId.ROACH, UnitTypeId.RAVAGER, UnitTypeId.HYDRALISK, UnitTypeId.LURKER, UnitTypeId.MUTALISK, UnitTypeId.CORRUPTOR, UnitTypeId.SWARMHOSTMP, UnitTypeId.INFESTOR, UnitTypeId.VIPER, UnitTypeId.ULTRALISK, UnitTypeId.BROODLORD])
         if unit.type_id in (UnitTypeId.LIBERATOR, UnitTypeId.LIBERATORAG, UnitTypeId.WARPPRISM, UnitTypeId.BANSHEE, UnitTypeId.MEDIVAC):
-            return [UnitTypeId.VIKINGFIGHTER]
+            return [[UnitTypeId.VIKINGFIGHTER]]
         elif unit.type_id in (UnitTypeId.REAPER, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.ADEPT, UnitTypeId.ZEALOT, UnitTypeId.ZERGLING):
-            return [UnitTypeId.BANSHEE]
+            return [[UnitTypeId.BANSHEE], [UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]]
         elif unit.type_id in (UnitTypeId.OBSERVER, ):
-            return [UnitTypeId.RAVEN, UnitTypeId.VIKINGFIGHTER]
+            return [[UnitTypeId.RAVEN, UnitTypeId.VIKINGFIGHTER]]
         elif unit.type_id in (UnitTypeId.VOIDRAY, ):
-            return [UnitTypeId.VIKINGFIGHTER, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]
+            return [[UnitTypeId.VIKINGFIGHTER, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]]
         elif unit.type_id in (UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.PROBE):
-            return [UnitTypeId.MARINE]
+            return [[UnitTypeId.MARINE]]
         elif unit.type_id in (UnitTypeId.ZERGLING,):
-            return [UnitTypeId.MARINE, UnitTypeId.MARINE]
+            return [[UnitTypeId.MARINE, UnitTypeId.MARINE]]
         elif unit.type_id in (UnitTypeId.LURKER, UnitTypeId.LURKERMP):
-            return [UnitTypeId.RAVEN, UnitTypeId.SIEGETANK]
+            return [[UnitTypeId.RAVEN, UnitTypeId.SIEGETANK]]
         else:
-            return [UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]
+            return [[UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]]
 
     def get_squad_request(self, remaining_cap: int) -> list[UnitTypeId]:
         self.start_timer("get_squad_request")
