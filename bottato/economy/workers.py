@@ -308,7 +308,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.start_timer("my_workers.speed_mine gathering")
             if assignment.initial_gather_complete:
                 if assignment.gather_position is None:
-                    assignment.gather_position = self.minerals.mining_positions[assignment.target.tag]
+                    assignment.gather_position = self.minerals.nodes_by_tag[assignment.target.tag].mining_position
                 if assignment.is_returning:
                     assignment.is_returning = False
                     worker.move(assignment.gather_position)
@@ -370,7 +370,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             assignment = self.assignments_by_worker[worker.tag]
             logger.debug(f"worker {worker} changing from {assignment.target} to {target}")
         self.update_job(worker, job_type)
-        self.update_target(worker, target)
+        if not self.update_target(worker, target):
+            self.update_job(worker, JobType.REPAIR)
+            self.update_target(worker)
 
     def update_job(self, worker: Unit, new_job: JobType):
         if worker.tag not in self.assignments_by_worker:
@@ -388,7 +390,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             assignment.unit_available = True
         self.assignments_by_job[new_job].append(assignment)
 
-    def update_target(self, worker: Unit, new_target: Union[Unit, None]):
+    def update_target(self, worker: Unit, new_target: Union[Unit, None] = None) -> bool:
         if worker.tag not in self.assignments_by_worker:
             return
         assignment = self.assignments_by_worker[worker.tag]
@@ -402,27 +404,35 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 if not self.bot.enemy_units or self.bot.time < 300 or self.closest_distance(new_target, self.bot.enemy_units) > 5:
                     worker.repair(new_target)
             elif assignment.job_type == JobType.VESPENE:
-                self.vespene.add_worker_to_node(worker, new_target)
-                if worker.is_carrying_resource and self.bot.townhalls:
-                    worker.smart(self.bot.townhalls.closest_to(worker))
+                if self.vespene.add_worker_to_node(worker, new_target):
+                    if worker.is_carrying_resource and self.bot.townhalls:
+                        worker.smart(self.bot.townhalls.closest_to(worker))
+                    else:
+                        worker.smart(new_target)
                 else:
-                    worker.smart(new_target)
+                    return False
             elif assignment.job_type == JobType.MINERALS:
-                self.minerals.add_worker_to_node(worker, new_target)
-                assignment.gather_position = self.minerals.mining_positions[new_target.tag]
-                assignment.dropoff_target = None
-                assignment.dropoff_position = None
-                if worker.is_carrying_resource and self.bot.townhalls:
-                    worker.smart(self.bot.townhalls.closest_to(worker))
+                if self.minerals.add_worker_to_node(worker, new_target):
+                    assignment.gather_position = self.minerals.nodes_by_tag[new_target.tag].mining_position
+                    assignment.dropoff_target = None
+                    assignment.dropoff_position = None
+                    if worker.is_carrying_resource and self.bot.townhalls:
+                        worker.smart(self.bot.townhalls.closest_to(worker))
+                    else:
+                        # worker.move(assignment.gather_position)
+                        worker.gather(new_target)
                 else:
-                    # worker.move(assignment.gather_position)
-                    worker.gather(new_target)
+                    return False
             else:
                 worker.smart(new_target)
         else:
             if assignment.job_type == JobType.MINERALS:
                 new_target = self.minerals.add_worker(worker)
-                assignment.gather_position = self.minerals.mining_positions[new_target.tag]
+                if new_target is None:
+                    # No capacity available, keep worker idle
+                    logger.warning(f"No mineral capacity for worker {worker}, keeping idle")
+                    return False
+                assignment.gather_position = self.minerals.nodes_by_tag[new_target.tag].mining_position
                 assignment.dropoff_target = None
                 assignment.dropoff_position = None
                 if worker.is_carrying_resource and self.bot.townhalls:
@@ -433,6 +443,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     worker.smart(new_target)
             elif assignment.job_type == JobType.VESPENE:
                 new_target = self.vespene.add_worker(worker)
+                if new_target is None:
+                    # No capacity available, keep worker idle
+                    logger.warning(f"No vespene capacity for worker {worker}, keeping idle")
+                    return False
                 if worker.is_carrying_resource and self.bot.townhalls:
                     worker.smart(self.bot.townhalls.closest_to(worker))
                 else:
@@ -440,6 +454,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if assignment.target != new_target:
             assignment.initial_gather_complete = False
         assignment.target = new_target
+        return True
         # assignment.gather_position = None
 
     def record_death(self, unit_tag):
@@ -530,8 +545,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             elif assigment.job_type == JobType.IDLE:
                 continue
             self.set_as_idle(worker)
-        for worker in self.minerals.get_workers_from_depleted():
-            logger.debug(f"worker {worker} was mining from depleted minerals")
+        for worker in self.minerals.get_workers_from_depleted() + self.vespene.get_workers_from_depleted():
             self.set_as_idle(worker)
 
         idle_workers: Units = self.availiable_workers_on_job(JobType.IDLE)
@@ -698,11 +712,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
         while moved_count < number_to_move and candidates and resource_nodes:
             # prefer emptier nodes to limit congestion
-            resource_nodes.sort(key=lambda r: target.needed_workers_for_node(r), reverse=True)
+            resource_nodes.sort(key=lambda r: r.needed_workers(), reverse=True)
             next_node: Unit = resource_nodes[0]
-            worker = candidates.closest_to(next_node)
+            worker = candidates.closest_to(next_node.node)
             candidates.remove(worker)
-            self.update_assigment(worker, target_job, next_node)
+            self.update_assigment(worker, target_job, next_node.node)
             moved_count += 1
             resource_nodes = target.nodes_with_capacity()
 

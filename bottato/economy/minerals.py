@@ -7,7 +7,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
 from bottato.mixins import TimerMixin
-from .resources import Resources
+from .resources import ResourceNode, Resources
 
 
 class Minerals(Resources, TimerMixin):
@@ -26,8 +26,8 @@ class Minerals(Resources, TimerMixin):
         self.known_townhall_tags = []
         self.max_workers_per_node = 2
         self.max_mules_per_node = 1
-        self.mule_tags_by_node_tag = {}
-        self.mining_positions: dict[int, Point2] = {}
+        # self.mule_tags_by_node_tag = {}
+        # self.mining_positions: dict[int, Point2] = {}
 
     def update_references(self, units_by_tag: dict[int, Unit]):
         self.start_timer("minerals.update_references")
@@ -36,22 +36,15 @@ class Minerals(Resources, TimerMixin):
         self.stop_timer("minerals.update_references")
 
     def record_non_worker_death(self, unit_tag):
+        # townhall destroyed, update all nodes to long distance
         if unit_tag in self.known_townhall_tags:
             self.known_townhall_tags.remove(unit_tag)
-            known_tags = [key for key in self.mining_positions.keys()]
-            for mineral_tag in known_tags:
-                try:
-                    mineral_field = self.nodes.by_tag(mineral_tag)
-                    # need updated object because this triggers outside of on-step
-                    updated_field = self.bot.mineral_field.by_tag(mineral_tag)
-                    if not self.bot.townhalls or self.bot.townhalls.closest_distance_to(updated_field) > 15:
-                        self.nodes.remove(mineral_field)
-                        del self.worker_tags_by_node_tag[mineral_tag]
-                        if mineral_tag in self.mule_tags_by_node_tag:
-                            del self.mule_tags_by_node_tag[mineral_tag]
-                        # del self.mining_positions[mineral_tag]
-                except KeyError:
-                    pass
+            for resource_node in self.nodes:
+                if resource_node.is_long_distance:
+                    continue
+                updated_node = self.bot.mineral_field.by_tag(resource_node.node.tag)
+                if not self.bot.townhalls or self.bot.townhalls.closest_distance_to(updated_node) > 15:
+                    resource_node.is_long_distance = True
 
     def add_mineral_fields_for_townhalls(self):
         for townhall in self.bot.townhalls.ready:
@@ -59,11 +52,12 @@ class Minerals(Resources, TimerMixin):
                 self.known_townhall_tags.append(townhall.tag)
                 for mineral in self.bot.mineral_field.closer_than(8, townhall):
                     logger.debug(f"adding mineral patch {mineral}")
-                    self.add_node(mineral)
+                    self.add_node(mineral, is_long_distance=False)
                     self.add_mining_position(mineral, townhall)
 
     def add_mining_position(self, mineral_node: Unit, townhall: Unit = None):
-        if mineral_node.tag not in self.mining_positions:
+        resource_node: ResourceNode = self.nodes_by_tag.get(mineral_node.tag, None)
+        if resource_node and resource_node.mining_position is None:
             townhall_pos = None
             if townhall:
                 townhall_pos = townhall.position
@@ -76,13 +70,13 @@ class Minerals(Resources, TimerMixin):
                     candidates = mineral_node.position.circle_intersection(close_mineral.position, self.MINING_RADIUS)
                     if len(candidates) == 2:
                         target = townhall_pos.closest(candidates)
-            self.mining_positions[mineral_node.tag] = target
+            resource_node.mining_position = target
 
     def add_long_distance_minerals(self, idle_worker_count: int) -> bool:
         added = False
         if self.bot.townhalls and len(self.nodes) < idle_worker_count / 2:
             for mineral_node in self.bot.mineral_field.sorted_by_distance_to(self.bot.townhalls[0]):
-                if mineral_node.mineral_contents and self.add_node(mineral_node):
+                if mineral_node.mineral_contents and self.add_node(mineral_node, is_long_distance=True):
                     logger.debug(f"adding long distance mining node {mineral_node}")
                     added = True
                     self.add_mining_position(mineral_node)
@@ -91,39 +85,18 @@ class Minerals(Resources, TimerMixin):
         return added
 
     def add_mule(self, mule: Unit, minerals: Unit):
-        if minerals is not None:
-            self.mule_tags_by_node_tag[minerals.tag] = mule.tag
+        for resource_node in self.nodes:
+            if resource_node.node.tag == minerals.tag:
+                resource_node.mule_tag = mule.tag
+                break
 
     def remove_mule(self, mule: Unit):
-        tags_to_remove = []
-        for mineral_tag in self.mule_tags_by_node_tag.keys():
-            if self.mule_tags_by_node_tag[mineral_tag] == mule.tag:
-                tags_to_remove.append(mineral_tag)
-        for tag in tags_to_remove:
-            del self.mule_tags_by_node_tag[tag]
+        for resource_node in self.nodes:
+            if resource_node.mule_tag == mule.tag:
+                resource_node.mule_tag = None
+                break
 
     def nodes_with_mule_capacity(self) -> Units:
-        return self.nodes.filter(
-            lambda mineral_node: mineral_node.tag not in self.mule_tags_by_node_tag
-        )
-
-    def get_workers_from_depleted(self) -> Units:
-        workers = Units([], self.bot)
-        depleted_nodes = []
-        for node_tag in self.worker_tags_by_node_tag.keys():
-            try:
-                self.nodes.by_tag(node_tag)
-            except KeyError:
-                # XXX nodes have to be in vision? long distance seems to break
-                depleted_nodes.append(node_tag)
-                for worker_tag in self.worker_tags_by_node_tag[node_tag]:
-                    try:
-                        workers.append(self.bot.workers.by_tag(worker_tag))
-                    except KeyError:
-                        # destroyed
-                        pass
-        for depleted_node in depleted_nodes:
-            del self.worker_tags_by_node_tag[depleted_node]
-            if depleted_node in self.mule_tags_by_node_tag:
-                del self.mule_tags_by_node_tag[depleted_node]
-        return workers
+        return Units([mineral_node.node for mineral_node in self.nodes
+                      if mineral_node.mule_tag is None
+                     ], bot_object=self.bot)

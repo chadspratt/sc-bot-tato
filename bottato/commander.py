@@ -38,6 +38,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         )
         self.scouting = Scouting(self.bot, self.enemy, self.map, self.my_workers, self.military)
         self.new_damage_taken: dict[int, float] = {}
+        self.pathable_position: Point2 = None
         self.stuck_units: Units = Units([], bot_object=self.bot)
         self.rush_detected: bool = False
         self.units_by_tag: dict[int, Unit] = {}
@@ -85,14 +86,23 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
 
     async def detect_stuck_units(self, iteration: int):
         self.start_timer("detect_stuck_units")
-        if iteration % 3 == 0 and self.bot.workers:
+        if iteration % 3 == 0 and self.bot.workers and self.bot.units.of_type(UnitTypeId.MEDIVAC):
             self.stuck_units.clear()
-            miners = self.my_workers.availiable_workers_on_job(JobType.MINERALS)
-            if not miners:
-                return
-            pathable_destination: Point2 = miners.furthest_to(self.bot.start_location).position
-            if pathable_destination is not None:
-                paths_to_check = [[unit, pathable_destination] for unit in self.military.main_army.units if unit.type_id != UnitTypeId.SIEGETANKSIEGED]
+            if self.pathable_position is None:
+                self.pathable_position = await self.bot.find_placement(UnitTypeId.MISSILETURRET,self.bot.game_info.map_center, 25, placement_step = 5)
+            else:
+                # check that position still pathable
+                miners = self.my_workers.availiable_workers_on_job(JobType.MINERALS)
+                if not miners:
+                    return
+                furthest_miner = miners.furthest_to(self.pathable_position)
+                if await self.bot.client.query_pathing(furthest_miner, self.pathable_position) is None:
+                    self.pathable_position = await self.bot.find_placement(UnitTypeId.MISSILETURRET,self.bot.game_info.map_center, 25, placement_step = 5)
+            # pathable_destination: Point2 = miners.furthest_to(self.bot.start_location).position
+            if self.pathable_position is not None:
+                paths_to_check = [[unit, self.pathable_position] for unit in self.military.main_army.units
+                                  if unit.type_id != UnitTypeId.SIEGETANKSIEGED and not unit.is_flying
+                                  and unit.position.manhattan_distance(self.bot.start_location) < 60]
                 if paths_to_check:
                     distances = await self.bot.client.query_pathings(paths_to_check)
                     for path, distance in zip(paths_to_check, distances):

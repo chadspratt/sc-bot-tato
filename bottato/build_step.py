@@ -270,7 +270,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             facility_candidates.sort(key=lambda x: x.type_id == UnitTypeId.COMMANDCENTER)
             self.unit_in_charge = facility_candidates[0] if facility_candidates else None
         else:
-            facility_candidates = self.bot.structures.filter(lambda x: x.type_id in self.builder_type and x.is_ready and x.is_idle)
+            facility_candidates = self.bot.structures.filter(lambda x: x.type_id in self.builder_type and x.is_ready and x.is_idle and not x.is_flying)
             self.unit_in_charge = facility_candidates[0] if facility_candidates else None
 
         if self.unit_in_charge is None:
