@@ -122,6 +122,8 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
         return False
 
     async def move(self, destination: Point2, facing_position: Point2 = None, force_move: bool = False, blueprints: List[BuildStep] = []):
+        if not self.units:
+            return
         self.current_order = SquadOrderEnum.MOVE
         self._destination = destination
         if facing_position is None:
