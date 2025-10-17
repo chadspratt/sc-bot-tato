@@ -32,6 +32,13 @@ class Minerals(Resources, TimerMixin):
     def update_references(self, units_by_tag: dict[int, Unit]):
         self.start_timer("minerals.update_references")
         super().update_references(units_by_tag)
+        # remove missing tags
+        for node in self.nodes:
+            i = len(node.worker_tags) - 1
+            while i >= 0:
+                if node.worker_tags[i] not in units_by_tag:
+                    node.worker_tags.pop(i)
+                    
         self.add_mineral_fields_for_townhalls()
         self.stop_timer("minerals.update_references")
 

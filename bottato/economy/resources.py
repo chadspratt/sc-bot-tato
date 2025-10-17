@@ -89,7 +89,9 @@ class Resources(UnitReferenceMixin, GeometryMixin):
 
     def add_worker_to_node(self, worker: Unit, node: Unit) -> bool:
         if worker is None:
-            return
+            return False
+            
+        # Check if node exists in our tracking
         if node.tag not in self.nodes_by_tag:
             # should be impossible to get here, yet it does and will crash without this
             # get_workers_from_depleted deleting it?
@@ -147,6 +149,12 @@ class Resources(UnitReferenceMixin, GeometryMixin):
         return sum(capacity_near_base)
 
     def get_workers_from_depleted(self) -> Units:
-        workers = Units([self.bot.workers.by_tag(worker_tag) for worker_tag in self.depleted_resource_worker_tags], self.bot)
+        workers = Units([], self.bot)
+        for worker_tag in self.depleted_resource_worker_tags:
+            try:
+                workers.append(self.bot.workers.by_tag(worker_tag))
+            except KeyError:
+                # not sure why stale tags appear, but ignore them
+                continue
         self.depleted_resource_worker_tags.clear()
         return workers
