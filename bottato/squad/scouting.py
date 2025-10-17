@@ -7,12 +7,13 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.constants import UnitTypeId
 from sc2.data import race_townhalls
+from sc2.data import Race
 
 from bottato.map.map import Map
 from bottato.military import Military
 from bottato.squad.base_squad import BaseSquad
 from bottato.enemy import Enemy
-from bottato.mixins import DebugMixin, UnitReferenceMixin
+from bottato.mixins import DebugMixin, GeometryMixin, UnitReferenceMixin
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.economy.workers import Workers
@@ -108,35 +109,132 @@ class Scout(BaseSquad, UnitReferenceMixin):
 
         await micro.scout(self.unit, assignment.position)
 
-class InitialScout(BaseSquad):
-    bot: BotAI = None
-    map: Map = None
+class EnemyIntel:
+    def __init__(self):
+        self.buildings_seen: dict[UnitTypeId, list[int]] = {}
+        self.worker_count: int = 0
+        self.military_count: int = 0
+        self.gas_taken: int = 0
+        self.natural_expansion_time: float = None
+        self.pool_start_time: float = None  # zerg specific
+        self.first_building_time: dict[UnitTypeId, float] = {}
+        self.enemy_race_confirmed: Race = None
 
-    unit: Unit = None
-    completed: bool = False
-    rush_detected: bool = False
-    enemy_natural_delayed: bool = False
+    def add_building(self, building: Unit, time: float):
+        if building.type_id not in self.buildings_seen:
+            self.buildings_seen[building.type_id] = []
+        if building.tag not in self.buildings_seen[building.type_id]:
+            self.buildings_seen[building.type_id].append(building.tag)
+        
+        if building.type_id not in self.first_building_time:
+            start_time = time - building.build_progress * building._type_data.cost.time / 22.4
+            self.first_building_time[building.type_id] = start_time
+        
+    def get_summary(self) -> str:
+        return (f"Intel: Race={self.enemy_race_confirmed}, "
+                f"Buildings={dict(self.buildings_seen)}, "
+                f"Units={dict(self.units_seen)}, "
+                f"Workers={self.worker_count}, Military={self.military_count}, "
+                f"Gas={self.gas_taken}")
+    
+    def number_seen(self, unit_type: UnitTypeId) -> int:
+        return len(self.buildings_seen.get(unit_type, []))
 
-    main_scouted: bool = False
-    main_scoutable: bool = True
-    natural_expansion_time: float = None
-    enemy_workers_away_from_base: int = 0
-
-    start_time = 30
-    initial_scout_complete_time = 190
-
-    # zerg specific
-    pool_start_time: float = None
-
+class InitialScout(BaseSquad, GeometryMixin):
     def __init__(self, bot: BotAI, map: Map, enemy: Enemy):
+        super().__init__(bot=bot, name="initial_scout")
         self.bot = bot
         self.map = map
         self.enemy = enemy
+        
+        self.unit: Unit = None
+        self.completed: bool = False
+        self.rush_detected: bool = False
+        self.enemy_natural_delayed: bool = False
+        self.extra_production_detected: bool = False
+        self.main_scouted: bool = False
+        
+        # Timing parameters
+        self.start_time = 30
+        self.initial_scout_complete_time = 120  # Extended time for full scouting
+        
+        # Intel gathering
+        self.intel = EnemyIntel()
+        
+        # Scouting waypoints for systematic main base exploration
+        self.waypoints: List[Point2] = []
+        self.current_waypoint_index: int = 0
+        self.waypoints_completed: bool = False
+        
+        # Initialize waypoints around enemy main
+        self._generate_main_base_waypoints()
+
+    def _generate_main_base_waypoints(self):
+        """Generate systematic waypoints to explore the enemy main base"""
+        enemy_start = self.bot.enemy_start_locations[0]
+        
+        # Create a systematic grid pattern around the enemy main base
+        # Cover the main base area thoroughly
+        # base_radius = 15  # Radius around main base to scout
+        
+        # Add the main base center
+        self.waypoints.append(enemy_start)
+        
+        # Add waypoints in expanding rings around the main base
+        # for radius in [6, 10, 14]:
+        for radius in [13]:
+            for angle_degrees in range(0, 360, 45):  # 8 directions
+                import math
+                angle_radians = math.radians(angle_degrees)
+                x_offset = radius * math.cos(angle_radians)
+                y_offset = radius * math.sin(angle_radians)
+                waypoint = Point2((enemy_start.x + x_offset, enemy_start.y + y_offset))
+                if self.bot.in_pathing_grid(waypoint):
+                    self.waypoints.append(waypoint)
+
+        self.original_waypoints = list(self.waypoints)
+        
+        # Add natural expansion as final waypoint
+        # self.waypoints.append(self.map.enemy_natural_position)
+        
+        logger.debug(f"Generated {len(self.waypoints)} scouting waypoints for enemy main base")
+
+    def _catalog_visible_units(self):
+        """Catalog all visible enemy units and buildings"""
+        # Count buildings by type
+        for building in self.bot.enemy_structures:
+            self.intel.add_building(building, self.bot.time)
+        
+        # Count gas geysers being mined
+        gas_count = 0
+        for geyser in self.bot.vespene_geyser:
+            if geyser.distance_to(self.bot.enemy_start_locations[0]) < 12:
+                # Check if there's a refinery/extractor/assimilator on it
+                for building in self.bot.enemy_structures:
+                    if (building.type_id in (UnitTypeId.REFINERY, UnitTypeId.EXTRACTOR, UnitTypeId.ASSIMILATOR) 
+                        and building.distance_to(geyser) < 2):
+                        gas_count += 1
+                        break
+        self.intel.gas_taken = max(self.intel.gas_taken, gas_count)
+        
+        # Detect race if not already confirmed
+        if not self.intel.enemy_race_confirmed and self.bot.enemy_structures:
+            if self.bot.enemy_race != Race.Random:
+                self.intel.enemy_race_confirmed = self.bot.enemy_race
+            else:
+                first_building = self.bot.enemy_structures[0]
+                if first_building.type_id in (UnitTypeId.COMMANDCENTER, UnitTypeId.BARRACKS, UnitTypeId.SUPPLYDEPOT):
+                    self.intel.enemy_race_confirmed = Race.Terran
+                elif first_building.type_id in (UnitTypeId.NEXUS, UnitTypeId.PYLON, UnitTypeId.GATEWAY):
+                    self.intel.enemy_race_confirmed = Race.Protoss
+                elif first_building.type_id in (UnitTypeId.HATCHERY, UnitTypeId.SPAWNINGPOOL, UnitTypeId.OVERLORD):
+                    self.intel.enemy_race_confirmed = Race.Zerg
 
     def update_scout(self, workers: Workers, units_by_tag: dict[int, Unit]):
         if self.bot.time < self.start_time:
             # too early to scout
             return
+            
         if self.unit:
             try:
                 self.unit = self.get_updated_unit_reference(self.unit, units_by_tag)
@@ -148,23 +246,63 @@ class InitialScout(BaseSquad):
                 workers.set_as_idle(self.unit)
                 self.unit = None
                 return
+                
         if not self.unit and not self.completed:
-            self.unit = workers.get_scout(self.map.enemy_natural_position)
+            # Get the first waypoint as initial target
+            target = self.waypoints[0] if self.waypoints else self.map.enemy_natural_position
+            self.unit = workers.get_scout(target)
     
     async def move_scout(self):
         if not self.unit or self.completed:
             return
-        if self.enemy_natural_is_built():
-            self.completed = True
-        elif self.bot.time > self.initial_scout_complete_time:
-            self.enemy_natural_delayed = True
-            # self.completed = True
-        else:
-            micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot, self.enemy)
-            await micro.scout(self.unit, self.map.enemy_natural_position)
         
+        self._catalog_visible_units()
+        
+        if self.unit.health_percentage < 0.7 or self.bot.time > self.initial_scout_complete_time:
+            self.waypoints = [self.map.enemy_natural_position]  # check natural before leaving
+            if self.unit.distance_to(self.map.enemy_natural_position) < 9:
+                self.completed = True
+        else:
+            i = len(self.waypoints) - 1
+            while i >= 0:
+                # remove waypoints as they are checked
+                if self.unit.distance_to(self.waypoints[i]) <= 5:
+                    self.waypoints.pop(i)
+                i -= 1
+                
+            # Check if we've completed all waypoints
+            if len(self.waypoints) == 0:
+                self.waypoints_completed = True
+                self.main_scouted = True
+                self.waypoints = list(self.original_waypoints)  # reset to keep scouting
+            
+        # for waypoint in self.waypoints:
+        #     self.bot.client.debug_box2_out(self.convert_point2_to_3(waypoint))
+            
+        # Move to current waypoint
+        if self.waypoints:
+            micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot, self.enemy)
+            await micro.scout(self.unit, self.waypoints[0])
+
     def rush_detected(self) -> bool:
+        if self.intel.enemy_race_confirmed is None:
+            return False
+        if self.intel.enemy_race_confirmed == Race.Zerg:
+            return self.intel.first_building_time.get(UnitTypeId.SPAWNINGPOOL, float('inf')) < 60
+        if self.intel.enemy_race_confirmed == Race.Terran:
+            return self.intel.number_seen(UnitTypeId.BARRACKS) > 1 and self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1
+        return self.intel.number_seen(UnitTypeId.GATEWAY) > 1 and self.intel.number_seen(UnitTypeId.NEXUS) == 1
         return self.enemy_natural_delayed
+    
+    def proxy_detected(self) -> bool:
+        if self.intel.enemy_race_confirmed is None:
+            return False
+        if self.intel.enemy_race_confirmed == Race.Zerg:
+            # are zerg proxy a thing?
+            return False
+        if self.intel.enemy_race_confirmed == Race.Terran:
+            return self.main_scouted and self.intel.number_seen(UnitTypeId.BARRACKS) == 0
+        return self.main_scouted and self.intel.number_seen(UnitTypeId.GATEWAY) == 0
     
     def enemy_natural_is_built(self) -> bool:
         enemy_townhalls = self.bot.enemy_structures.of_type([
@@ -178,8 +316,20 @@ class InitialScout(BaseSquad):
         ])
         for th in enemy_townhalls:
             if th.position.distance_to(self.map.enemy_natural_position) < 5:
+                if not self.intel.natural_expansion_time:
+                    self.intel.natural_expansion_time = self.bot.time
                 return True
         return False
+    
+    def get_intel(self) -> EnemyIntel:
+        """Get the gathered intelligence about the enemy"""
+        return self.intel
+    
+    def get_scouting_progress(self) -> float:
+        """Get completion percentage of scouting waypoints"""
+        if not self.waypoints:
+            return 1.0
+        return min(1.0, self.current_waypoint_index / len(self.waypoints))
 
 class Scouting(BaseSquad, DebugMixin):
     def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers, military: Military):
@@ -257,6 +407,14 @@ class Scouting(BaseSquad, DebugMixin):
 
     def get_newest_enemy_base(self) -> Point2:
         return self.newest_enemy_base
+    
+    def get_enemy_intel(self) -> EnemyIntel:
+        """Get intelligence gathered by the initial scout"""
+        return self.initial_scout.get_intel()
+    
+    def get_scout_progress(self) -> float:
+        """Get the progress of initial scouting (0.0 to 1.0)"""
+        return self.initial_scout.get_scouting_progress()
 
     async def scout(self, new_damage_taken: dict[int, float], units_by_tag: dict[int, Unit]):
         # Update scout unit references
@@ -274,5 +432,5 @@ class Scouting(BaseSquad, DebugMixin):
 
     @property
     def rush_detected(self) -> bool:
-        self.rush_is_detected = self.rush_is_detected or self.initial_scout.rush_detected() or self.bot.time < 180 and len(self.bot.enemy_units) > 0 and len(self.bot.enemy_units.closer_than(30, self.bot.start_location)) > 5
+        self.rush_is_detected = self.rush_is_detected or self.initial_scout.rush_detected or self.bot.time < 180 and len(self.bot.enemy_units) > 0 and len(self.bot.enemy_units.closer_than(30, self.bot.start_location)) > 5
         return self.rush_is_detected

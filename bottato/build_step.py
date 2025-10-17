@@ -463,9 +463,11 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     else:
                         break
         if new_build_position is not None:
-            if self.bot.enemy_units.filter(lambda u: u.can_attack_ground).closer_than(10, new_build_position):
-                logger.debug(f"found enemy near proposed build position {new_build_position}, rejecting")
-                return None
+            if self.bot.enemy_units:
+                threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground and u.type_id not in (UnitTypeId.DRONE, UnitTypeId.SCV, UnitTypeId.PROBE))
+                if threats and threats.closer_than(10, new_build_position):
+                    logger.debug(f"found enemy near proposed build position {new_build_position}, rejecting")
+                    return None
         return new_build_position
 
     def get_geysir(self) -> Union[Unit, None]:
