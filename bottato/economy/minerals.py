@@ -38,6 +38,7 @@ class Minerals(Resources, TimerMixin):
             while i >= 0:
                 if node.worker_tags[i] not in units_by_tag:
                     node.worker_tags.pop(i)
+                i -= 1
                     
         self.add_mineral_fields_for_townhalls()
         self.stop_timer("minerals.update_references")
