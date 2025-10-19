@@ -275,10 +275,11 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             for position in positions:
                 if not formation_units:
                     break
-                unit = formation_units.closest_to(position)
-                valid_position = position if unit.is_flying else self.map.get_pathable_position(position, unit)
-                formation_units.remove(unit)
-                unit_destinations[unit.tag] = valid_position
+                closest_unit: Unit = min(formation_units, key=lambda u: u.position.manhattan_distance(position))
+                # unit = formation_units.closest_to(position)
+                valid_position = position if closest_unit.is_flying else self.map.get_pathable_position(position, closest_unit)
+                formation_units.remove(closest_unit)
+                unit_destinations[closest_unit.tag] = valid_position
 
         return unit_destinations
 
