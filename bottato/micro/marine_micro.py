@@ -69,12 +69,6 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             if len(candidates) == 0:
                 candidates = self.bot.enemy_structures.in_attack_range_of(unit)
 
-        tank_to_retreat_to = self.tank_to_retreat_to(unit)
-        if tank_to_retreat_to and not self.is_stimmed(unit):
-            # retreat to nearby tank if not stimmed
-            unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
-            return True
-
         if not candidates:
             return False
         
@@ -82,6 +76,12 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first
             unit.attack(lowest_target)
         else:
+            tank_to_retreat_to = self.tank_to_retreat_to(unit)
+            if tank_to_retreat_to and not self.is_stimmed(unit):
+                # retreat to nearby tank if not stimmed
+                unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
+                return True
+
             self.stay_at_max_range(unit, candidates)
         return True
 

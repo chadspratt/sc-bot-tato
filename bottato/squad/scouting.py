@@ -98,7 +98,7 @@ class Scout(BaseSquad, UnitReferenceMixin):
             assignment: ScoutingLocation = self.scouting_locations[next_index]
             logger.debug(f"scout {self.unit} took damage, changing assignment")
 
-        while assignment.last_seen and self.bot.time - assignment.last_seen < 10 and assignment.is_occupied_by_enemy:
+        while assignment.last_seen and self.bot.time - assignment.last_seen < 10 or assignment.is_occupied_by_enemy:
             next_index = (next_index + 1) % len(self.scouting_locations)
             if next_index == self.scouting_locations_index:
                 # full cycle, none need scouting

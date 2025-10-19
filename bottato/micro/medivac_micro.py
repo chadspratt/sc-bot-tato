@@ -84,7 +84,9 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
         if heal_candidates:
             nearest_injured = heal_candidates.closest_to(unit)
             if self.distance(unit, nearest_injured) <= self.heal_range:
-                unit.stop()
+                # prioritize closest otherwise it defaults to lowest which delays units rejoining battle
+                unit(AbilityId.MEDIVACHEAL_HEAL, nearest_injured)
+                # unit.stop()
                 self.stopped_for_healing.add(unit.tag)
             else:
                 unit.move(nearest_injured)

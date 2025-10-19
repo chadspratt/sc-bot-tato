@@ -87,22 +87,22 @@ class BuildOrder(TimerMixin):
                         build_step.position = None
                 continue
             elif self.bot.enemy_units and build_step.position and UnitTypeId.SCV in build_step.builder_type:
+                if build_step.position.distance_to(self.bot.start_location) < 15:
+                    # don't interrupt builds in main base
+                    continue
                 threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground and u.type_id not in (UnitTypeId.MULE, UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER))
                 if threats:
-                    closest_threat = threats.closest_to(build_step.position)
-                    enemy_is_close = closest_threat.distance_to_squared(build_step.position) < 225 # 15 squared
+                    closest_threat = threats.closest_to(build_step.unit_in_charge)
+                    enemy_is_close = closest_threat.distance_to_squared(build_step.unit_in_charge) < 225 # 15 squared
                     if not enemy_is_close:
                         continue
-                    # check that threat can path to position
-                    enemy_can_path = closest_threat.is_flying or await self.bot.client.query_pathing(build_step.position, closest_threat.position) is not None
-                    if enemy_can_path:
-                        logger.debug(f"{build_step} Too close to enemy!")
-                        if build_step.unit_in_charge:
-                            self.workers.update_job(build_step.unit_in_charge, JobType.IDLE)
-                            build_step.unit_in_charge(AbilityId.HALT)
-                            build_step.unit_in_charge = None
-                        # move back to pending (demote)
-                        to_promote.append(idx)
+                    logger.debug(f"{build_step} Too close to enemy!")
+                    if build_step.unit_in_charge:
+                        self.workers.update_job(build_step.unit_in_charge, JobType.IDLE)
+                        build_step.unit_in_charge(AbilityId.HALT)
+                        build_step.unit_in_charge = None
+                    # move back to pending (demote)
+                    to_promote.append(idx)
         for idx in reversed(to_promote):
             step: BuildStep = self.started.pop(idx)
             if UnitTypeId.SCV in step.builder_type:

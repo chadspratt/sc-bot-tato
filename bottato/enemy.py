@@ -45,7 +45,9 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         logger.debug(f"self.enemies_out_of_view: {self.enemies_out_of_view}")
         for enemy_unit in self.enemies_out_of_view:
             time_since_last_seen = self.bot.time - self.last_seen[enemy_unit.tag]
-            if enemy_unit.tag in visible_tags or time_since_last_seen > self.unit_may_not_exist_seconds:
+            if enemy_unit.is_structure and self.bot.is_visible(enemy_unit.position):
+                self.enemies_out_of_view.remove(enemy_unit)
+            elif enemy_unit.tag in visible_tags or time_since_last_seen > self.unit_may_not_exist_seconds:
                 self.enemies_out_of_view.remove(enemy_unit)
             else:
                 # assume unit continues in same direction
@@ -91,8 +93,17 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         # add not visible to out_of_view
         for enemy_unit in self.enemies_in_view:
             if enemy_unit.tag not in visible_tags:
-                self.enemies_out_of_view.append(enemy_unit)
-                self.predicted_position[enemy_unit.tag] = self.get_predicted_position(enemy_unit, 0)
+                if enemy_unit.type_id not in (UnitTypeId.LARVA, UnitTypeId.EGG):
+                    added = False
+                    if enemy_unit.is_structure:
+                        for out_of_view_unit in self.enemies_out_of_view:
+                            if out_of_view_unit.type_id == enemy_unit.type_id and out_of_view_unit.position.manhattan_distance(enemy_unit.position) == 0:
+                                added = True
+                                # tags aren't consistent so check position to avoid duplicates
+                                break
+                    if not added:
+                        self.enemies_out_of_view.append(enemy_unit)
+                        self.predicted_position[enemy_unit.tag] = self.get_predicted_position(enemy_unit, 0)
         self.enemies_in_view = new_visible_enemies
         # self.update_squads()
         self.stop_timer("enemy.update_references")
