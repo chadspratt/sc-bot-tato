@@ -86,7 +86,7 @@ class BuildOrder(TimerMixin):
                         # if expansion was cancelled, clear position so it can be retried
                         build_step.position = None
                 continue
-            elif self.bot.enemy_units and build_step.position and UnitTypeId.SCV in build_step.builder_type:
+            elif self.bot.enemy_units and build_step.position and UnitTypeId.SCV in build_step.builder_type and build_step.unit_in_charge:
                 if build_step.position.distance_to(self.bot.start_location) < 15:
                     # don't interrupt builds in main base
                     continue
