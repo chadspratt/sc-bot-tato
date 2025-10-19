@@ -354,13 +354,9 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             if rush_detected:
                 # try to build near edge of high ground towards natural
                 # high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
-                closest_depot_distance = 100000
-                candidate: Point2 = None
-                for depot_position in self.bot.main_base_ramp.corner_depots:
-                    depot_distance = self.bot.distance_math_hypot_squared(depot_position, self.bot.game_info.map_center)
-                    if depot_distance < closest_depot_distance:
-                        closest_depot_distance = depot_distance
-                        candidate = depot_position.towards(self.bot.main_base_ramp.top_center, -3)
+                ramp_barracks = self.bot.structures.of_type(UnitTypeId.BARRACKS).closest_to(self.bot.main_base_ramp.barracks_correct_placement)
+                candidates = [(depot_position + ramp_barracks.position) / 2 for depot_position in self.bot.main_base_ramp.corner_depots]
+                candidate = max(candidates, key=lambda p: ramp_barracks.add_on_position.distance_to(p))
             else:
                 ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
                 enemy_start: Point2 = self.bot.enemy_start_locations[0]
@@ -369,7 +365,8 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             while not new_build_position or self.bot.distance_math_hypot_squared(new_build_position, self.map.natural_position) < 16:
                 new_build_position = await self.bot.find_placement(
                                     unit_type_id,
-                                    near=candidate)
+                                    near=candidate,
+                                    placement_step=1)
                 retry_count += 1
                 if retry_count > 5:
                     break

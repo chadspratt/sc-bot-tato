@@ -285,10 +285,12 @@ class InitialScout(BaseSquad, GeometryMixin):
             await micro.scout(self.unit, self.waypoints[0])
 
     def rush_detected(self) -> bool:
+        if self.proxy_detected():
+            return True
         if self.intel.enemy_race_confirmed is None:
             return False
         if self.intel.enemy_race_confirmed == Race.Zerg:
-            return self.intel.first_building_time.get(UnitTypeId.SPAWNINGPOOL, float('inf')) < 60
+            return self.intel.first_building_time.get(UnitTypeId.SPAWNINGPOOL, float('inf')) < 40 or self.main_scouted and self.intel.number_seen(UnitTypeId.EXTRACTOR) == 0
         if self.intel.enemy_race_confirmed == Race.Terran:
             return self.intel.number_seen(UnitTypeId.BARRACKS) > 1 and self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1
         return self.intel.number_seen(UnitTypeId.GATEWAY) > 1 and self.intel.number_seen(UnitTypeId.NEXUS) == 1
