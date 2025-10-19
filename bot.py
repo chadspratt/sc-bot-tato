@@ -35,10 +35,10 @@ def main():
                 # Protoss, Terran, Zerg, Random
                 # VeryEasy, Easy, Medium, MediumHard, Hard, Harder, VeryHard, CheatVision, CheatMoney, CheatInsane
                 # RandomBuild, Rush, Timing, Power, Macro, Air
-                Computer(Race.Zerg, Difficulty.VeryHard, ai_build=AIBuild.Macro),
+                Computer(Race.Zerg, Difficulty.VeryHard, ai_build=AIBuild.Rush),
             ],
             realtime=False,
-            random_seed=35,
+            random_seed=30,
             # 39 - lings arrive before reactor
         )
     except ConnectionResetError:

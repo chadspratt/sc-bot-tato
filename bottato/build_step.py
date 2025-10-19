@@ -326,6 +326,8 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 expansions_to_check.append(el)
 
             if not expansions_to_check:
+                logger.info("No valid expansions found. attempted_expansion_positions: {self.attempted_expansion_positions}")
+                self.attempted_expansion_positions.clear()
                 return None
 
             paths_to_check = [[self.bot.game_info.player_start_location, expansion] for expansion in expansions_to_check]
@@ -507,32 +509,28 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 if self.workers.assignments_by_worker[self.unit_in_charge.tag].job_type != JobType.BUILD:
                     self.workers.update_job(self.unit_in_charge, JobType.BUILD)
                     if self.unit_type_id == UnitTypeId.REFINERY:
+                        target = self.unit_being_built if self.unit_being_built else self.geysir
                         self.unit_in_charge(
                             self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
-                            target=self.geysir,
+                            target=target,
                             queue=False,
                             subtract_cost=False,
                             can_afford_check=False,
                         )
-                        # self.unit_in_charge.build_gas(self.geysir)
                     else:
                         # unit.build subtracts the cost from self.bot.minerals/vespene so we need to use ability directly
+                        target = self.unit_being_built if self.unit_being_built else self.position
                         self.unit_in_charge(
                             self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
-                            target=self.position,
+                            target=target,
                             queue=False,
                             subtract_cost=False,
                             can_afford_check=False,
                         )
-                        # self.unit_in_charge.build(self.unit_type_id, self.pos)
-                # self.unit_in_charge.move(self.pos)
-                # if self.unit_being_built is not None and self.unit_being_built is not True:
-                if self.unit_being_built is None or self.unit_being_built is True:
-                #     self.unit_in_charge.smart(self.unit_being_built)
-                # else:
+                if self.unit_being_built is None:
                     if self.unit_in_charge.distance_to_squared(self.position) < 9 and self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
                         self.worker_in_position_time = self.bot.time
-                    elif self.worker_in_position_time is not None and self.bot.time - self.worker_in_position_time > 2:
+                    elif self.worker_in_position_time is not None and self.bot.time - self.worker_in_position_time > 5:
                         # position may be blocked
                         self.position = None
                         self.geysir = None
