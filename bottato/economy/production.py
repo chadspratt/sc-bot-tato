@@ -213,6 +213,8 @@ class Production(UnitReferenceMixin, TimerMixin):
             candidates: List[Facility] = self.facilities[builder_type][add_on_type]
             logger.debug(f"{add_on_type} facilities {candidates}")
             for candidate in candidates:
+                if candidate.unit.is_flying:
+                    continue
                 if unit_type in self.add_on_types and (candidate.addon_blocked or self.bot.time - candidate.addon_destroyed_time < 8):
                     logger.debug(f"can't build addon {unit_type} at {candidate}")
                     continue
