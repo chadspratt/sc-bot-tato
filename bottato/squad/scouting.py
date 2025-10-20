@@ -177,7 +177,7 @@ class InitialScout(BaseSquad, GeometryMixin):
         # base_radius = 15  # Radius around main base to scout
         
         # Add the main base center
-        self.waypoints.append(enemy_start)
+        # self.waypoints.append(enemy_start)
         
         # Add waypoints in expanding rings around the main base
         # for radius in [6, 10, 14]:

@@ -123,11 +123,18 @@ class BuildOrder(TimerMixin):
         if self.rush_defense_enacted:
             return
         self.rush_defense_enacted = True
-        for step in self.static_queue:
-            if step.unit_type_id == UnitTypeId.BARRACKSREACTOR:
-                self.static_queue.remove(step)
-                self.priority_queue.append(step)
-                break
+        # for step in self.static_queue:
+        #     if step.unit_type_id == UnitTypeId.BARRACKSREACTOR:
+        #         self.static_queue.remove(step)
+        #         self.priority_queue.append(step)
+        #         break
+        if self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount < 2:
+            # make sure to build second depot before bunker
+            for step in self.static_queue:
+                if step.unit_type_id == UnitTypeId.SUPPLYDEPOT:
+                    self.static_queue.remove(step)
+                    self.priority_queue.append(step)
+                    break
         for step in self.static_queue:
             if step.unit_type_id == UnitTypeId.BUNKER:
                 self.static_queue.remove(step)

@@ -339,7 +339,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         attacker_tags = set()
         if self.bot.townhalls:
             for townhall in self.bot.townhalls:
-                nearby_enemies = self.bot.enemy_units.closer_than(15, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
+                nearby_enemies = self.bot.enemy_units.closer_than(12, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
                 workers_nearby = self.bot.workers.closer_than(15, townhall).filter(lambda u: self.assignments_by_worker[u.tag].job_type in {JobType.MINERALS, JobType.VESPENE})
                 if len(nearby_enemies) >= len(workers_nearby):
                     # don't suicide workers if outnumbered

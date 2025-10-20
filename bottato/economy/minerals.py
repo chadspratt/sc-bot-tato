@@ -61,7 +61,9 @@ class Minerals(Resources, TimerMixin):
 
     def add_mineral_fields_for_townhalls(self):
         for townhall in self.bot.townhalls.ready:
-            if townhall.tag not in self.known_townhall_tags:
+            if townhall.is_flying:
+                self.record_non_worker_death(townhall.tag)
+            elif townhall.tag not in self.known_townhall_tags:
                 self.known_townhall_tags.append(townhall.tag)
                 for mineral in self.bot.mineral_field.closer_than(8, townhall):
                     logger.debug(f"adding mineral patch {mineral}")

@@ -61,7 +61,8 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         # XXX extremely slow
         await self.military.manage_squads(iteration,
                                           self.build_order.get_blueprints(),
-                                          self.scouting.get_newest_enemy_base())
+                                          self.scouting.get_newest_enemy_base(),
+                                          self.scouting.rush_detected)
 
         remaining_cap = self.build_order.remaining_cap
         if remaining_cap > 0:

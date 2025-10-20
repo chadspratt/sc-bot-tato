@@ -182,7 +182,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stuck_rescue.rescue(stuck_units)
         self.stop_timer("rescue_stuck_units")
 
-    async def manage_squads(self, iteration: int, blueprints: List[BuildStep], newest_enemy_base: Point2 = None):
+    async def manage_squads(self, iteration: int, blueprints: List[BuildStep], newest_enemy_base: Point2 = None, rush_detected: bool = False):
         self.start_timer("manage_squads")
         self.main_army.draw_debug_box()
 
@@ -231,6 +231,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
         # assign squads to counter enemies that are alone or in small groups
         for enemy in enemies_in_base:
+            if rush_detected and len(self.main_army.units) < 10:
+                # don't send out units if getting rushed and army is small
+                break
             defense_squad: FormationSquad
             if enemy.tag in self.countered_enemies:
                 defense_squad = self.countered_enemies[enemy.tag]
@@ -296,7 +299,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             self.offense_start_supply = 200
 
         self.start_timer("military move squads")
-        await self.harass()
+        await self.harass(newest_enemy_base)
 
         if self.main_army.units:
             self.main_army.draw_debug_box()
@@ -355,7 +358,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 # generally a retreat due to being outnumbered
                 logger.debug(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
-                if len(self.bot.townhalls) > 1:
+                if rush_detected and len(self.main_army.units) < 16:
+                    self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 10)
+                elif len(self.bot.townhalls) > 1:
                     closest_base = self.bot.townhalls.closest_to(enemy_position)
                     second_closest_base = self.bot.townhalls.filter(lambda base: base.tag != closest_base.tag).closest_to(enemy_position)
                     path = self.map.get_path_points(closest_base.position, second_closest_base.position)
@@ -379,7 +384,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
     def manage_bunker(self, enemies_in_base: Units = None):
         if self.bunker.is_built():
-            if enemies_in_base and enemies_in_base.closest_distance_to(self.bunker.structure) > 9:
+            if enemies_in_base and enemies_in_base.closest_distance_to(self.bunker.structure) > 12:
                 self.empty_bunker()
             elif self.bot.time < 300:
                 enemy_distance_to_bunker = enemies_in_base.closest_distance_to(self.bunker.structure) if enemies_in_base else 100
@@ -397,14 +402,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             # bunker destroyed, transfer units to main arm
             self.empty_bunker()
 
-    async def harass(self):
+    async def harass(self, newest_enemy_base: Point2 = None):
         if not self.harass_squad.units:
             # transfer a reaper from main army to harass squad
             reapers = self.main_army.units(UnitTypeId.REAPER)
             if reapers:
                 self.transfer(reapers[0], self.main_army, self.harass_squad)
 
-        harass_location = self.bot.enemy_start_locations[0]
+        harass_location = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
         # XXX harass other bases too
 
         for unit in self.harass_squad.units:
@@ -453,6 +458,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         unassigned.extend([UnitTypeId.QUEEN, UnitTypeId.ZERGLING, UnitTypeId.BANELING, UnitTypeId.ROACH, UnitTypeId.RAVAGER, UnitTypeId.HYDRALISK, UnitTypeId.LURKER, UnitTypeId.MUTALISK, UnitTypeId.CORRUPTOR, UnitTypeId.SWARMHOSTMP, UnitTypeId.INFESTOR, UnitTypeId.VIPER, UnitTypeId.ULTRALISK, UnitTypeId.BROODLORD])
         if unit.type_id in (UnitTypeId.LIBERATOR, UnitTypeId.LIBERATORAG, UnitTypeId.WARPPRISM, UnitTypeId.BANSHEE, UnitTypeId.MEDIVAC):
             return [[UnitTypeId.VIKINGFIGHTER]]
+        if unit.type_id in (UnitTypeId.STALKER,):
+            return [[UnitTypeId.SIEGETANK, UnitTypeId.MARINE], [UnitTypeId.MARAUDER, UnitTypeId.MARINE]]
         elif unit.type_id in (UnitTypeId.REAPER, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.ADEPT, UnitTypeId.ZEALOT, UnitTypeId.ZERGLING):
             return [[UnitTypeId.BANSHEE], [UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]]
         elif unit.type_id in (UnitTypeId.OBSERVER, ):

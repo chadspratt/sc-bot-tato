@@ -56,6 +56,16 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             return False
         return True
 
+    # async def retreat(self, unit: Unit, health_threshold: float) -> bool:
+    #     if unit.health_percentage < 0.7:
+    #         return self.retreat_to_medivac(unit)
+    #     elif unit.tag in self.healing_unit_tags:
+    #         if unit.health_percentage < 0.9:
+    #             return self.retreat_to_medivac(unit)
+    #         else:
+    #             self.healing_unit_tags.remove(unit.tag)
+    #     return False
+
     async def grenade_knock_away(self, unit: Unit) -> bool:
         targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False)
         grenade_targets = []

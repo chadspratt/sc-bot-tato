@@ -39,16 +39,16 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             return False
         last_transform = self.last_transform_time.get(unit.tag, -999)
         time_since_last_transform = self.bot.time - last_transform
+
+        is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
         
-        if unit.tag in self.last_transform_time and (time_since_last_transform < self.min_seconds_between_transform):
+        if is_sieged and unit.tag in self.last_transform_time and time_since_last_transform < self.min_seconds_between_transform:
             logger.debug(f"unit last transformed {time_since_last_transform}s ago, need to wait {self.min_seconds_between_transform}")
             return False
 
         # remove missing
         self.sieged_tags = self.bot.units.tags.intersection(self.sieged_tags)
         self.unsieged_tags = self.bot.units.tags.intersection(self.unsieged_tags)
-
-        is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
         if force_move:
             self.last_force_move_time[unit.tag] = self.bot.time
         

@@ -266,7 +266,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 self.position = self.unit_in_charge.add_on_position
         elif self.unit_type_id == UnitTypeId.SCV:
             # scv
-            facility_candidates = self.bot.townhalls.filter(lambda x: x.is_ready and x.is_idle)
+            facility_candidates = self.bot.townhalls.filter(lambda x: x.is_ready and x.is_idle and not x.is_flying)
             facility_candidates.sort(key=lambda x: x.type_id == UnitTypeId.COMMANDCENTER)
             self.unit_in_charge = facility_candidates[0] if facility_candidates else None
         else:
@@ -305,7 +305,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     attempted_expansion_positions = {}
     async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, rush_detected: bool = False) -> Union[Point2, None]:
         new_build_position = None
-        if unit_type_id == UnitTypeId.COMMANDCENTER:
+        if unit_type_id == UnitTypeId.COMMANDCENTER and (not rush_detected or self.bot.townhalls.amount >= 2):
             # modified from bot_ai get_next_expansion
             shortest_distance = math.inf
             expansions_to_check = []
@@ -409,9 +409,13 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     try:
                         if self.bot.townhalls:
                             preferred_townhalls = self.bot.townhalls
-                            if prefer_earlier_bases and len(self.bot.townhalls.ready) > 1 and retry_count == 0:
-                                closest_townhall_to_enemy: Unit = self.map.get_closest_unit_by_path(self.bot.townhalls.ready, self.bot.enemy_start_locations[0])
-                                preferred_townhalls = preferred_townhalls.ready.filter(lambda th: th.tag != closest_townhall_to_enemy.tag)
+                            if prefer_earlier_bases and retry_count == 0:
+                                ready_townhalls = self.bot.townhalls.ready
+                                if len(ready_townhalls) == 1:
+                                    preferred_townhalls = ready_townhalls
+                                elif ready_townhalls:
+                                    closest_townhall_to_enemy: Unit = self.map.get_closest_unit_by_path(ready_townhalls, self.bot.enemy_start_locations[0])
+                                    preferred_townhalls = ready_townhalls.filter(lambda th: th.tag != closest_townhall_to_enemy.tag and not th.is_flying)
                             for townhall in preferred_townhalls:
                                 new_build_position = await self.bot.find_placement(
                                     unit_type_id,
@@ -454,7 +458,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     logger.debug(f"found enemy near proposed build position {new_build_position}, rejecting")
                     return None
                 
-            if unit_type_id == UnitTypeId.COMMANDCENTER:
+            if unit_type_id == UnitTypeId.COMMANDCENTER and not rush_detected:
                 self.attempted_expansion_positions[new_build_position] += 1
         return new_build_position
 

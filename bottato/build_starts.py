@@ -29,11 +29,12 @@ class BuildStarts():
                 UnitTypeId.SCV,
                 UnitTypeId.SCV,
                 UnitTypeId.REFINERY,                    # 2ND GAS,
-                UnitTypeId.REAPER, # XXX harass
+                UnitTypeId.REAPER,
                 UnitTypeId.ORBITALCOMMAND,              # MAIN,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
+                UnitTypeId.MARINE,
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.SCV,
                 UnitTypeId.SCV,

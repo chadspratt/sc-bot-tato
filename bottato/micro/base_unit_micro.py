@@ -178,6 +178,26 @@ class BaseUnitMicro(GeometryMixin):
         future_enemy_position = self.enemy.get_predicted_position(nearest_target, unit.weapon_cooldown)
         target_position = future_enemy_position.towards(unit, attack_range)
         unit.move(target_position)
+
+    def retreat_to_medivac(self, unit: Unit) -> bool:
+        medivacs = self.bot.units.filter(lambda unit: unit.type_id == UnitTypeId.MEDIVAC and unit.energy > 5 and unit.cargo_used == 0)
+        if medivacs:
+            nearest_medivac = medivacs.closest_to(unit)
+            if unit.distance_to(nearest_medivac) > 4:
+                unit.move(nearest_medivac)
+            else:
+                self.attack_something(unit, 0.0)
+            logger.debug(f"{unit} marine retreating to heal at {nearest_medivac} hp {unit.health_percentage}")
+            self.healing_unit_tags.add(unit.tag)
+        elif self.bot.townhalls:
+            closest_townhall = self.bot.townhalls.closest_to(unit)
+            if unit.distance_to(closest_townhall) > 5:
+                unit.move(closest_townhall)
+            else:
+                self.attack_something(unit, 0.0)
+        else:
+            return False
+        return True
         
     def tank_to_retreat_to(self, unit: Unit) -> Unit | None:
         excluded_enemy_types = [
