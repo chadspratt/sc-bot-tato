@@ -340,8 +340,6 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     shortest_distance = distance
                     new_build_position = path[1]
 
-            if new_build_position is not None:
-                self.attempted_expansion_positions[new_build_position] += 1
             # run it through find placement in case it's blocked by some weird map feature
             if self.bot.game_info.map_name == 'Magannatha AIE':
                 new_build_position = await self.bot.find_placement(
@@ -359,6 +357,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 ramp_barracks = self.bot.structures.of_type(UnitTypeId.BARRACKS).closest_to(self.bot.main_base_ramp.barracks_correct_placement)
                 candidates = [(depot_position + ramp_barracks.position) / 2 for depot_position in self.bot.main_base_ramp.corner_depots]
                 candidate = max(candidates, key=lambda p: ramp_barracks.add_on_position.distance_to(p))
+                candidate = candidate.towards(self.bot.main_base_ramp.top_center.towards(ramp_barracks.position, distance=2), distance=-1)
             else:
                 ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
                 enemy_start: Point2 = self.bot.enemy_start_locations[0]
@@ -406,7 +405,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 map_center = self.bot.game_info.map_center
                 max_distance = 20
                 retry_count = 0
-                while True:
+                while new_build_position is None:
                     try:
                         if self.bot.townhalls:
                             preferred_townhalls = self.bot.townhalls
@@ -437,9 +436,8 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                         if retry_count > 0:
                             return None
                         retry_count += 1
-                        continue
                     # don't build near edge to avoid trapping units
-                    if unit_type_id != UnitTypeId.SUPPLYDEPOT:
+                    elif unit_type_id != UnitTypeId.SUPPLYDEPOT:
                         edge_distance = self.map.get_distance_from_edge(new_build_position.rounded)
                         if edge_distance <= 3:
                             max_distance += 1
@@ -448,34 +446,31 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                             if max_distance > 50:
                                 break
                             retry_count += 1
-                            continue
-                    # try to not block addons
-                    in_progress = [u for u in self.bot.structures
-                                   if u.type_id in (UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT)
-                                   and u.build_progress < 1]
-                    for no_addon_facility in in_progress + self.production.get_no_addon_facilities():
-                        if no_addon_facility.add_on_position.distance_to(new_build_position) < BUILDING_RADIUS[unit_type_id] + 1:
-                            if retry_count > 3:
-                                return None
-                            retry_count += 1
-                            break
-                    else:
-                        break
+                            new_build_position = None
         if new_build_position is not None:
             if self.bot.enemy_units:
                 threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground and u.type_id not in (UnitTypeId.DRONE, UnitTypeId.SCV, UnitTypeId.PROBE))
                 if threats and threats.closer_than(10, new_build_position):
                     logger.debug(f"found enemy near proposed build position {new_build_position}, rejecting")
                     return None
+                
+            if unit_type_id == UnitTypeId.COMMANDCENTER:
+                self.attempted_expansion_positions[new_build_position] += 1
         return new_build_position
 
     def get_geysir(self) -> Union[Unit, None]:
-        # All the vespene geysirs nearby, including ones with a refinery on top of it
-        # command_centers = bot.townhalls
-        if self.bot.townhalls and self.bot.townhalls.ready:
-            vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
-                distance=10, other_units=self.bot.townhalls.ready
-            )
+        if self.bot.townhalls:
+            if self.bot.townhalls.ready:
+                vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
+                    distance=10, other_units=self.bot.townhalls.ready
+                )
+            if len(self.bot.gas_buildings) == len(vespene_geysirs):
+                # no empty near ready townhalls, include in-progress townhalls
+                vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
+                    distance=10, other_units=self.bot.townhalls
+                )
+            if len(self.bot.gas_buildings) == len(vespene_geysirs):
+                return None
             if self.bot.gas_buildings:
                 vespene_geysirs = vespene_geysirs.filter(
                     lambda geysir: self.bot.gas_buildings.closest_distance_to(geysir) > 1)
@@ -530,7 +525,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 if self.unit_being_built is None:
                     if self.unit_in_charge.distance_to_squared(self.position) < 9 and self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
                         self.worker_in_position_time = self.bot.time
-                    elif self.worker_in_position_time is not None and self.bot.time - self.worker_in_position_time > 5:
+                    elif self.worker_in_position_time is not None and self.bot.time - self.worker_in_position_time > 5 and self.cost.minerals <= self.bot.minerals and self.cost.vespene <= self.bot.vespene:
                         # position may be blocked
                         self.position = None
                         self.geysir = None

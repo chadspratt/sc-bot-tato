@@ -149,7 +149,6 @@ class InitialScout(BaseSquad, GeometryMixin):
         
         self.unit: Unit = None
         self.completed: bool = False
-        self.rush_detected: bool = False
         self.enemy_natural_delayed: bool = False
         self.extra_production_detected: bool = False
         self.main_scouted: bool = False
@@ -284,6 +283,7 @@ class InitialScout(BaseSquad, GeometryMixin):
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot, self.enemy)
             await micro.scout(self.unit, self.waypoints[0])
 
+    @property
     def rush_detected(self) -> bool:
         if self.proxy_detected():
             return True

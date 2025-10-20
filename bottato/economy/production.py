@@ -6,6 +6,7 @@ from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from sc2.ids.ability_id import AbilityId
 from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
@@ -25,6 +26,7 @@ class Facility(UnitReferenceMixin):
         self.in_progress_unit: Unit = None
         self.capacity = 1
         self.queued_unit_ids = []
+        self.new_position: Point2 = None
 
     def __repr__(self) -> str:
         return f"facility {self.unit}-{self.add_on_type}"
@@ -76,8 +78,20 @@ class Facility(UnitReferenceMixin):
                 closest_structure_to_addon = closest_candidates.closest_to(updated_unit.add_on_position)
                 self.addon_blocked = closest_structure_to_addon.radius > closest_structure_to_addon.distance_to(updated_unit.add_on_position)
                 # not (await self.bot.can_place_single(UnitTypeId.SUPPLYDEPOT, updated_unit.add_on_position))
-                if self.addon_blocked:
-                    logger.debug(f"addon blocked for {updated_unit}")
+        if self.addon_blocked:
+            logger.debug(f"addon blocked for {updated_unit}")
+            # move facility to an unblocked position
+            if not updated_unit.is_flying:
+                updated_unit(AbilityId.LIFT)
+            else:
+                if self.new_position is None:
+                    self.new_position = await self.bot.find_placement(updated_unit.unit_alias, updated_unit.position, placement_step=1, addon_place=True)
+                if updated_unit.position != self.new_position:
+                    updated_unit.move(self.new_position)
+                else:
+                    updated_unit(AbilityId.LAND, self.new_position)
+                    self.addon_blocked = False
+                    self.new_position = None
 
         self.unit = updated_unit
 

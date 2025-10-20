@@ -65,6 +65,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
             for passenger in self.units_to_pick_up:
                 if passenger.cargo_size <= unit.cargo_left and self.units_to_pick_up_potential_damage.get(passenger.tag, 0) < unit.health:
                     unit(AbilityId.LOAD, passenger)
+                    passenger.move(unit.position) # possible passenger already received an order, but shouldn't hurt
                     self.units_to_pick_up.remove(passenger)
                     return True
         if unit.cargo_used > 0 and unit.distance_to(target) < 10:

@@ -382,17 +382,17 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             if enemies_in_base and enemies_in_base.closest_distance_to(self.bunker.structure) > 9:
                 self.empty_bunker()
             elif self.bot.time < 300:
+                enemy_distance_to_bunker = enemies_in_base.closest_distance_to(self.bunker.structure) if enemies_in_base else 100
                 for unit in self.main_army.units:
                     if not self.bunker.has_space():
                         break
-                    enemy_distance_to_bunker = enemies_in_base.closest_distance_to(unit) if enemies_in_base else 100
                     if unit.type_id == UnitTypeId.MARINE:
+                        enemy_distance_to_unit = enemies_in_base.closest_distance_to(unit) if enemies_in_base else 100
                         marine_distance_to_bunker = unit.distance_to(self.bunker.structure)
-                        if enemy_distance_to_bunker < marine_distance_to_bunker - 2:
-                            # don't send unit to bunker if enemies are closer
-                            continue
-                        self.transfer(unit, self.main_army, self.bunker)
-                        unit.smart(self.bunker.structure)
+                        if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
+                            # send unit to bunker if they won't have to move past enemies
+                            self.transfer(unit, self.main_army, self.bunker)
+                            unit.smart(self.bunker.structure)
         elif self.bunker.units:
             # bunker destroyed, transfer units to main arm
             self.empty_bunker()

@@ -92,7 +92,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 if assignment.job_type == JobType.BUILD and assignment.target is None and assignment.unit.is_idle and assignment.unit.tag not in builder_tags:
                     assignment.job_type = JobType.IDLE
                     assignment.target = None
-                elif assignment.job_type == JobType.MINERALS and assignment.target.type_id not in self.minerals.mineral_type_ids:
+                elif assignment.job_type == JobType.MINERALS and (assignment.target.type_id not in self.minerals.mineral_type_ids or assignment.unit.is_constructing_scv):
+                    assignment.unit(AbilityId.HALT)
                     assignment.job_type = JobType.IDLE
                     assignment.target = None
                 elif assignment.job_type == JobType.VESPENE and assignment.target.type_id not in (UnitTypeId.REFINERY, UnitTypeId.REFINERYRICH):

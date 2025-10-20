@@ -479,20 +479,21 @@ class BuildOrder(TimerMixin):
 
     async def execute_pending_builds(self, only_build_units: bool, rush_detected: bool) -> None:
         self.start_timer("execute_pending_builds")
-        response = await self.build_from_queue(self.priority_queue, only_build_units, allow_skip=(self.bot.time > 60), rush_detected=rush_detected)
-        if response != ResponseCode.NO_RESOURCES:
-            response = await self.build_from_queue(self.static_queue, only_build_units, allow_skip=True, rush_detected=rush_detected)
-        if response != ResponseCode.NO_RESOURCES:
+        remaining_resources: Cost = await self.build_from_queue(self.priority_queue, only_build_units, allow_skip=(self.bot.time > 60), rush_detected=rush_detected)
+        if remaining_resources.minerals > 0 or remaining_resources.vespene > 0:
+            remaining_resources = await self.build_from_queue(self.static_queue, only_build_units, allow_skip=True, rush_detected=rush_detected, remaining_resources=remaining_resources)
+        if remaining_resources.minerals > 0 or remaining_resources.vespene > 0:
             # randomize unit queue so it doesn't get stuck on one unit type
             self.build_queue.sort(key=lambda step: random.randint(0,255), reverse=True)
-            await self.build_from_queue(self.build_queue, only_build_units, rush_detected=rush_detected)
+            await self.build_from_queue(self.build_queue, only_build_units, rush_detected=rush_detected, remaining_resources=remaining_resources)
         self.stop_timer("execute_pending_builds")
 
-    async def build_from_queue(self, build_queue: List[BuildStep], only_build_units: bool = False, allow_skip: bool = True, rush_detected: bool = False) -> ResponseCode:
+    async def build_from_queue(self, build_queue: List[BuildStep], only_build_units: bool = False, allow_skip: bool = True, rush_detected: bool = False, remaining_resources: Cost = None) -> Cost:
         build_response = ResponseCode.QUEUE_EMPTY
         execution_index = -1
         failed_types: list[UnitTypeId] = []
-        remaining_resources = Cost(self.bot.minerals, self.bot.vespene)
+        if remaining_resources is None:
+            remaining_resources = Cost(self.bot.minerals, self.bot.vespene)
         build_no_supply_only = False
         while execution_index < len(build_queue):
             execution_index += 1
@@ -538,11 +539,14 @@ class BuildOrder(TimerMixin):
                     break
                 if build_response == ResponseCode.NO_LOCATION:
                     continue
+                elif build_response == ResponseCode.NO_FACILITY:
+                    # don't reserve resources for things that don't have an available facility
+                    remaining_resources = remaining_resources + build_step.cost
                 else:
                     failed_types.append(build_step.unit_type_id)
             self.stop_timer(f"handle response {build_response}")
         self.stop_timer("execute_pending_builds")
-        return build_response
+        return remaining_resources
 
     def can_afford(self, remaining_resources: Cost, requested_cost: Cost) -> bool:
         return (
