@@ -11,6 +11,7 @@ from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.constants import abilityid_to_unittypeid
+from sc2.position import Point2
 
 from ..mixins import UnitReferenceMixin, TimerMixin
 from ..tech_tree import TECH_TREE
