@@ -53,7 +53,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             self.last_force_move_time[unit.tag] = self.bot.time
         
         if is_sieged and unit.weapon_cooldown > 0:
-            self.last_siege_attack_time[unit.tag] = self.bot.time - (self.sieged_weapon_cooldown - unit.weapon_cooldown)
+            self.last_siege_attack_time[unit.tag] = self.bot.time - (self.sieged_weapon_cooldown - unit.weapon_cooldown / 22.4)
         last_siege_attack = self.last_siege_attack_time.get(unit.tag, -999)
         time_since_last_siege_attack = self.bot.time - last_siege_attack
 
@@ -98,7 +98,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             enemy_height = self.bot.get_terrain_height(closest_enemy.position) if closest_enemy else tank_height
             unsiege_range = self.sieged_range
             if has_friendly_buffer:
-                unsiege_range = max(30 - min(time_since_last_transform, time_since_last_siege_attack), self.sieged_range)
+                unsiege_range = max(25 - min(time_since_last_transform, time_since_last_siege_attack), self.sieged_range)
             if tank_height > enemy_height:
                 # be reluctant to leave high ground
                 unsiege_range += 5

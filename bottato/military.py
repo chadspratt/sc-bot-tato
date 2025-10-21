@@ -408,9 +408,24 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             reapers = self.main_army.units(UnitTypeId.REAPER)
             if reapers:
                 self.transfer(reapers[0], self.main_army, self.harass_squad)
+            else:
+                return
 
-        harass_location = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
-        # XXX harass other bases too
+        if not hasattr(self.harass_squad, 'arrived'):
+            self.harass_squad.arrived = False
+        if not hasattr(self.harass_squad, 'harass_location'):
+            self.harass_squad.harass_location = self.bot.enemy_start_locations[0]
+        distance_to_harass_location = self.harass_squad.units.closest_distance_to(self.harass_squad.harass_location)
+        if not self.harass_squad.arrived:
+            self.harass_squad.arrived = distance_to_harass_location < 15
+        elif distance_to_harass_location > 15:
+            self.harass_squad.arrived = False
+            if self.harass_squad.harass_location == self.bot.enemy_start_locations[0] and newest_enemy_base:
+                self.harass_squad.harass_location = newest_enemy_base
+            else:
+                self.harass_squad.harass_location = self.bot.enemy_start_locations[0]
+
+        harass_location = self.harass_squad.harass_location
 
         for unit in self.harass_squad.units:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
@@ -424,7 +439,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     if nearest_threat.ground_range < unit.ground_range:
                         # kite enemies that we outrange
                         # predicted_position = self.predict_future_unit_position(nearest_threat, 1, False)
-                        move_position = nearest_threat.position.towards(unit, unit.ground_range)
+                        move_position = nearest_threat.position.towards(unit, unit.ground_range - 0.5)
                         self.bot.client.debug_line_out(nearest_threat, self.convert_point2_to_3(move_position), (255, 0, 0))
                         self.bot.client.debug_sphere_out(self.convert_point2_to_3(move_position), 0.2, (255, 0, 0))
                         await micro.move(unit, move_position)

@@ -21,7 +21,8 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     healing_unit_tags = set()
     last_stim_time: dict[int, int] = {}
     stim_researched: bool = False
-    attack_range: float = 5.0 
+    attack_range: float = 5.0
+    time_in_frames_to_attack: float = 0.3 * 22.4  # 0.3 seconds
 
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot, enemy)
@@ -71,8 +72,8 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
 
         if not candidates:
             return False
-        
-        if unit.weapon_cooldown < 0.31:
+
+        if unit.weapon_cooldown < self.time_in_frames_to_attack:
             lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first
             unit.attack(lowest_target)
         else:

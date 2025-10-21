@@ -32,7 +32,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     def attack_something(self, unit, health_threshold, targets: Unit = None, force_move: bool = False):
         if unit.health_percentage < self.attack_health:
             return False
-        if unit.weapon_cooldown > 0.25:
+        if unit.weapon_cooldown > self.time_in_frames_to_attack:
             return False
 
         nearby_enemies = self.enemy.get_enemies_in_range(unit, include_structures=False, include_destructables=False)

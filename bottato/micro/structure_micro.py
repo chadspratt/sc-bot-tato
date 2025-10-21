@@ -59,7 +59,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                     cc.move(destination)
             else:
                 for expansion_location in self.bot.expansion_locations_list:
-                    if cc.position.distance_to(expansion_location) < 1:
+                    if cc.position.distance_to(expansion_location) < 5:
                         break
                 else:
                     cc(AbilityId.LIFT)

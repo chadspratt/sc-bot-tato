@@ -41,6 +41,9 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
             if unit.tag not in self.last_afterburner_time or self.bot.time - self.last_afterburner_time[unit.tag] > 14.0:
                 unit(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)
                 self.last_afterburner_time[unit.tag] = self.bot.time
+            elif unit.cargo_used > 0 and unit.health_percentage < 0.3:
+                unit(AbilityId.UNLOADALLAT, unit)
+                return True
             return False
         if force_move and unit.cargo_left > 0:
             if self.units_to_pick_up_last_update != self.bot._total_steps_iterations:

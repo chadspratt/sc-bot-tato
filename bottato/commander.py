@@ -62,7 +62,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         await self.military.manage_squads(iteration,
                                           self.build_order.get_blueprints(),
                                           self.scouting.get_newest_enemy_base(),
-                                          self.scouting.rush_detected)
+                                          self.rush_detected)
 
         remaining_cap = self.build_order.remaining_cap
         if remaining_cap > 0:
@@ -118,7 +118,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.start_timer("scout")
         self.scouting.update_visibility()
         await self.scouting.scout(self.new_damage_taken, self.units_by_tag)
-        self.rush_detected = self.scouting.rush_detected
+        self.rush_detected = await self.scouting.rush_detected
         self.start_timer("scout")
 
     async def update_references(self, units_by_tag: dict[int, Unit]):

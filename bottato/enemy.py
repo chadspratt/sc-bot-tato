@@ -97,7 +97,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     added = False
                     if enemy_unit.is_structure:
                         for out_of_view_unit in self.enemies_out_of_view:
-                            if out_of_view_unit.type_id == enemy_unit.type_id and out_of_view_unit.position.manhattan_distance(enemy_unit.position) == 0:
+                            if out_of_view_unit.type_id == enemy_unit.type_id and out_of_view_unit.position == enemy_unit.position:
                                 added = True
                                 # tags aren't consistent so check position to avoid duplicates
                                 break

@@ -17,31 +17,32 @@ class BaseUnitMicro(GeometryMixin):
     ability_health: float = 0.1
     attack_health: float = 0.1
     retreat_health: float = 0.75
-
+    time_in_frames_to_attack: float = 0.25 * 22.4  # 0.3 seconds
+    
+    damaging_effects = [
+        EffectId.PSISTORMPERSISTENT,
+        # EffectId.GUARDIANSHIELDPERSISTENT,
+        # EffectId.TEMPORALFIELDGROWINGBUBBLECREATEPERSISTENT,
+        # EffectId.TEMPORALFIELDAFTERBUBBLECREATEPERSISTENT,
+        EffectId.THERMALLANCESFORWARD,
+        # EffectId.SCANNERSWEEP,
+        EffectId.NUKEPERSISTENT,
+        EffectId.LIBERATORTARGETMORPHDELAYPERSISTENT,
+        EffectId.LIBERATORTARGETMORPHPERSISTENT,
+        EffectId.BLINDINGCLOUDCP,
+        EffectId.RAVAGERCORROSIVEBILECP,
+        EffectId.LURKERMP,
+        'KD8CHARGE',
+    ]
     def __init__(self, bot: BotAI, enemy: Enemy):
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
 
     def avoid_effects(self, unit: Unit) -> bool:
         # avoid damaging effects
-        damaging_effects = [
-            EffectId.PSISTORMPERSISTENT,
-            # EffectId.GUARDIANSHIELDPERSISTENT,
-            # EffectId.TEMPORALFIELDGROWINGBUBBLECREATEPERSISTENT,
-            # EffectId.TEMPORALFIELDAFTERBUBBLECREATEPERSISTENT,
-            EffectId.THERMALLANCESFORWARD,
-            # EffectId.SCANNERSWEEP,
-            EffectId.NUKEPERSISTENT,
-            EffectId.LIBERATORTARGETMORPHDELAYPERSISTENT,
-            EffectId.LIBERATORTARGETMORPHPERSISTENT,
-            EffectId.BLINDINGCLOUDCP,
-            EffectId.RAVAGERCORROSIVEBILECP,
-            EffectId.LURKERMP,
-            'KD8CHARGE',
-        ]
         effects_to_avoid = []
         for effect in self.bot.state.effects:
-            if effect.id not in damaging_effects:
+            if effect.id not in self.damaging_effects:
                 continue
             if effect.is_mine and effect.id in (EffectId.LIBERATORTARGETMORPHDELAYPERSISTENT, EffectId.LIBERATORTARGETMORPHPERSISTENT):
                 continue
@@ -138,7 +139,7 @@ class BaseUnitMicro(GeometryMixin):
         if not candidates:
             return False
 
-        if unit.weapon_cooldown <= 0.25:
+        if unit.weapon_cooldown <= self.time_in_frames_to_attack:
             lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health + enemy_unit.shield).first
             unit.attack(lowest_target)
         else:
@@ -174,8 +175,9 @@ class BaseUnitMicro(GeometryMixin):
         attack_range = unit.ground_range
         if nearest_target.is_flying:
             attack_range = unit.air_range
-
-        future_enemy_position = self.enemy.get_predicted_position(nearest_target, unit.weapon_cooldown)
+        future_enemy_position = nearest_target.position
+        if nearest_target.distance_to(unit) > attack_range / 2:
+            future_enemy_position = self.enemy.get_predicted_position(nearest_target, unit.weapon_cooldown / 22.4)
         target_position = future_enemy_position.towards(unit, attack_range)
         unit.move(target_position)
 
