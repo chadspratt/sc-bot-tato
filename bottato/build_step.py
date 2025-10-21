@@ -49,6 +49,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     completed_time: int = None
     worker_in_position_time: int = None
     is_in_progress: bool = False
+    interrupted_count: int = 0
 
     def __init__(self, unit_type: Union[UnitTypeId, UpgradeId], bot: BotAI, workers: Workers, production: Production, map: Map):
         self.bot: BotAI = bot
@@ -262,8 +263,12 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     return ResponseCode.NO_TECH
         if self.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
             self.unit_in_charge = self.production.get_builder(self.unit_type_id)
-            if self.unit_in_charge and self.unit_type_id in self.production.add_on_types:
-                self.position = self.unit_in_charge.add_on_position
+            if self.unit_type_id in self.production.add_on_types and self.unit_in_charge:
+                if self.interrupted_count > 5:
+                    self.production.set_addon_blocked(self.unit_in_charge)
+                    self.interrupted_count = 0
+                else:
+                    self.position = self.unit_in_charge.add_on_position
         elif self.unit_type_id == UnitTypeId.SCV:
             # scv
             facility_candidates = self.bot.townhalls.filter(lambda x: x.is_ready and x.is_idle and not x.is_flying)

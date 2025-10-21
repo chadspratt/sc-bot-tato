@@ -477,8 +477,9 @@ class Production(UnitReferenceMixin, TimerMixin):
 
         return build_order
 
-    def get_no_addon_facilities(self) -> List[Unit]:
-        return [facility.unit for facility in
-                self.facilities[UnitTypeId.BARRACKS][UnitTypeId.NOTAUNIT]
-                + self.facilities[UnitTypeId.FACTORY][UnitTypeId.NOTAUNIT]
-                + self.facilities[UnitTypeId.STARPORT][UnitTypeId.NOTAUNIT]]
+    def set_addon_blocked(self, blocked_facility: Unit) -> None:
+        facility: Facility
+        for facility in self.facilities[blocked_facility.type_id][UnitTypeId.NOTAUNIT]:
+            if facility.unit.tag == blocked_facility.tag:
+                facility.addon_blocked = True
+                break

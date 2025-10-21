@@ -105,6 +105,10 @@ class BuildOrder(TimerMixin):
                     to_promote.append(idx)
         for idx in reversed(to_promote):
             step: BuildStep = self.started.pop(idx)
+            step.interrupted_count += 1
+            if step.interrupted_count > 10:
+                logger.info(f"{step} interrupted too many times, removing from build order")
+                continue
             if UnitTypeId.SCV in step.builder_type:
                 self.priority_queue.insert(0, step)
             else:
