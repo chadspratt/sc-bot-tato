@@ -147,7 +147,7 @@ class Resources(UnitReferenceMixin, GeometryMixin):
                 resource_node.node = self.get_updated_unit_reference(resource_node.node, units_by_tag)
             except Exception as e:
                 logger.debug(f"Node {resource_node.node.tag} failed to update reference: {e}")
-                if resource_node.node.is_visible and resource_node.node.mineral_contents < 10:
+                if not resource_node.node.is_mineral_field:
                     nodes_to_remove.append(resource_node)
                 else:
                     for mf in self.bot.mineral_field:
@@ -155,9 +155,11 @@ class Resources(UnitReferenceMixin, GeometryMixin):
                             resource_node.node = mf
                             self.nodes_by_tag[mf.tag] = resource_node
                             break
+                    else:
+                        nodes_to_remove.append(resource_node)
                 continue
                 
-            # Check if node is depleted
+            # Check if gas node is depleted
             if not resource_node.node.is_mineral_field and resource_node.node.vespene_contents == 0:
                 logger.debug(f"Node {resource_node.node.tag} is depleted")
                 nodes_to_remove.append(resource_node)
