@@ -211,7 +211,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
     TOWNHALL_RADIUS: float = 2.75
     DISTANCE_TO_TOWNHALL_FACTOR: float = 1.08
     def ares_speed_mine(self, assignment: WorkerAssignment) -> bool:
-        if not self.bot.townhalls:
+        if not self.bot.townhalls.ready:
             logger.warning(
                 f"{self.bot.time_formatted} Attempting to speed mine with no townhalls"
             )

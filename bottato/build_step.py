@@ -476,6 +476,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     def get_geysir(self) -> Union[Unit, None]:
         if self.bot.townhalls:
+            vespene_geysirs = []
             if self.bot.townhalls.ready:
                 vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
                     distance=10, other_units=self.bot.townhalls.ready
