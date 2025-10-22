@@ -113,6 +113,15 @@ class BuildOrder(TimerMixin):
                 self.priority_queue.insert(0, step)
             else:
                 self.static_queue.insert(0, step)
+        for structure in self.bot.structures_without_construction_SCVs:
+            # somehow the build step got lost, re-add it
+            for step in self.started + self.static_queue + self.priority_queue + self.build_queue:
+                if step.unit_being_built and step.unit_being_built.tag == structure.tag:
+                    break
+            else:
+                build_step = self.create_build_step(structure.type_id)
+                build_step.unit_being_built = structure
+                self.priority_queue.insert(0, build_step)
         self.stop_timer("move_interupted_to_pending")
 
     def enact_rush_defense(self) -> None:
@@ -166,11 +175,11 @@ class BuildOrder(TimerMixin):
         # switch to dynamic build later, put SCVs in static
         self.queue_worker()
         self.queue_supply()
+        self.queue_command_center()
         if len(self.static_queue) < 15:
             self.queue_upgrade()
             self.queue_turret()
             self.queue_planetary()
-            self.queue_command_center()
             self.queue_production()
 
             self.build_queue.extend(self.unit_queue)
@@ -241,21 +250,17 @@ class BuildOrder(TimerMixin):
         if self.bot.time > 100:
             worker_count = len(self.bot.workers)
             cc_count = 0
-            for build_step in self.started + self.static_queue:
-                if build_step.unit_type_id == UnitTypeId.SCV:
-                    worker_count += 1
-                elif build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
+            for build_step in self.static_queue:
+                if build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
                     cc_count += 1
             # adds number of townhalls to account for near-term production
-            surplus_worker_count = worker_count - self.workers.get_mineral_capacity() + len(self.bot.townhalls)
+            surplus_worker_count = worker_count - self.workers.get_mineral_capacity() + len(self.bot.townhalls) + 5
             needed_cc_count = math.ceil(surplus_worker_count / 12)
             logger.debug(f"expansion: {surplus_worker_count} surplus workers need {needed_cc_count} cc(s)")
             # expand if running out of room for workers at current bases
-            if needed_cc_count > 0:
-                for i in range(needed_cc_count - cc_count):
-                    logger.debug("queuing command center")
-                    self.add_to_build_queue(UnitTypeId.COMMANDCENTER, queue=self.priority_queue)
-                    # self.build_queue.append(self.create_build_step(UnitTypeId.COMMANDCENTER))
+            if needed_cc_count > cc_count:
+                logger.debug("queuing command center")
+                self.add_to_build_queue([UnitTypeId.COMMANDCENTER for x in range(needed_cc_count - cc_count)], queue=self.priority_queue)
         self.stop_timer("queue_command_center")
 
     def queue_refinery(self) -> None:
@@ -429,7 +434,7 @@ class BuildOrder(TimerMixin):
                 logger.debug(f"found matching step: {in_progress_step}")
                 in_progress_step.unit_being_built = started_structure
                 in_progress_step.position = started_structure.position
-                if in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
+                if in_progress_step.unit_in_charge and in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
                     self.workers.update_assigment(in_progress_step.unit_in_charge, JobType.BUILD, started_structure)
                 break
         # see if this is a ramp blocker
@@ -491,9 +496,9 @@ class BuildOrder(TimerMixin):
     async def execute_pending_builds(self, only_build_units: bool, rush_detected: bool) -> None:
         self.start_timer("execute_pending_builds")
         remaining_resources: Cost = await self.build_from_queue(self.priority_queue, only_build_units, allow_skip=(self.bot.time > 60), rush_detected=rush_detected)
-        if remaining_resources.minerals > 0 or remaining_resources.vespene > 0:
+        if remaining_resources.minerals > 0:
             remaining_resources = await self.build_from_queue(self.static_queue, only_build_units, allow_skip=True, rush_detected=rush_detected, remaining_resources=remaining_resources)
-        if remaining_resources.minerals > 0 or remaining_resources.vespene > 0:
+        if remaining_resources.minerals > 0:
             # randomize unit queue so it doesn't get stuck on one unit type
             self.build_queue.sort(key=lambda step: random.randint(0,255), reverse=True)
             await self.build_from_queue(self.build_queue, only_build_units, rush_detected=rush_detected, remaining_resources=remaining_resources)
@@ -517,7 +522,7 @@ class BuildOrder(TimerMixin):
             percent_affordable = 1.0
             if not build_step.is_in_progress:
                 percent_affordable = self.percent_affordable(remaining_resources, build_step.cost)
-                if remaining_resources.minerals < 0 and remaining_resources.vespene < 0:
+                if remaining_resources.minerals < 0:
                     break
                 remaining_resources = remaining_resources - build_step.cost
             if build_step.unit_type_id in failed_types or only_build_units and UnitTypeId.SCV in build_step.builder_type:

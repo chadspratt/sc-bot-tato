@@ -464,7 +464,14 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     return None
                 
             if unit_type_id == UnitTypeId.COMMANDCENTER and not rush_detected:
-                self.attempted_expansion_positions[new_build_position] += 1
+                if new_build_position in self.attempted_expansion_positions:
+                    self.attempted_expansion_positions[new_build_position] += 1
+                else:
+                    # build position isn't at the exact expansion location, may have been blocked
+                    for build_pos in list(self.attempted_expansion_positions.keys()):
+                        if new_build_position.distance_to(build_pos) < 10:
+                            self.attempted_expansion_positions[build_pos] += 1
+                            break
         return new_build_position
 
     def get_geysir(self) -> Union[Unit, None]:

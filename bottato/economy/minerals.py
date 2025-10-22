@@ -1,3 +1,4 @@
+import math
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -6,6 +7,7 @@ from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
+from bottato.map.map import Map
 from bottato.mixins import TimerMixin
 from .resources import ResourceNode, Resources
 
@@ -21,8 +23,9 @@ class Minerals(Resources, TimerMixin):
         UnitTypeId.BATTLESTATIONMINERALFIELD, UnitTypeId.BATTLESTATIONMINERALFIELD750
     ]
 
-    def __init__(self, bot: BotAI) -> None:
+    def __init__(self, bot: BotAI, map: Map) -> None:
         super().__init__(bot)
+        self.map = map
         self.known_townhall_tags = []
         self.max_workers_per_node = 2
         self.max_mules_per_node = 1
@@ -42,6 +45,10 @@ class Minerals(Resources, TimerMixin):
                     i -= 1
                     
         self.add_mineral_fields_for_townhalls()
+        for node in self.nodes:
+            self.bot.client.debug_text_3d(
+                f"{len(node.worker_tags)}/{node.max_workers if not node.is_long_distance else 6}\n{node.node.tag}",
+                node.node.position3d, size=8, color=(255, 255, 255))
         self.stop_timer("minerals.update_references")
 
     def record_non_worker_death(self, unit_tag):
@@ -67,7 +74,7 @@ class Minerals(Resources, TimerMixin):
                 self.known_townhall_tags.append(townhall.tag)
                 for mineral in self.bot.mineral_field.closer_than(8, townhall):
                     logger.debug(f"adding mineral patch {mineral}")
-                    self.add_node(mineral, is_long_distance=False)
+                    self.add_node(mineral)
                     self.add_mining_position(mineral, townhall)
 
     def add_mining_position(self, mineral_node: Unit, townhall: Unit = None):
@@ -87,16 +94,17 @@ class Minerals(Resources, TimerMixin):
                         target = townhall_pos.closest(candidates)
             resource_node.mining_position = target
 
-    def add_long_distance_minerals(self, idle_worker_count: int) -> bool:
-        added = False
-        if self.bot.townhalls and len(self.nodes) < idle_worker_count / 2:
-            for mineral_node in self.bot.mineral_field.sorted_by_distance_to(self.bot.townhalls[0]):
-                if mineral_node.mineral_contents and self.add_node(mineral_node, is_long_distance=True):
-                    logger.debug(f"adding long distance mining node {mineral_node}")
-                    added = True
-                    self.add_mining_position(mineral_node)
-                    if len(self.nodes) >= idle_worker_count / 2:
-                        break
+    def add_long_distance_minerals(self, idle_worker_count: int) -> int:
+        added = 0
+        nodes_to_add = math.ceil(idle_worker_count / 6)
+        if self.bot.townhalls:
+            candidates = [mf for mf in self.bot.mineral_field if mf.tag not in self.nodes_by_tag]
+            while added < nodes_to_add and candidates:
+                closest_node = self.map.get_closest_unit_by_path(candidates, self.bot.start_location)
+                self.add_node(closest_node)
+                self.add_mining_position(closest_node)
+                added += 1
+                candidates = [mf for mf in self.bot.mineral_field if mf.tag not in self.nodes_by_tag]
         return added
 
     def add_mule(self, mule: Unit, minerals: Unit):
@@ -113,5 +121,5 @@ class Minerals(Resources, TimerMixin):
 
     def nodes_with_mule_capacity(self) -> Units:
         return Units([mineral_node.node for mineral_node in self.nodes
-                      if mineral_node.mule_tag is None
+                      if mineral_node.mule_tag is None and not mineral_node.is_long_distance
                      ], bot_object=self.bot)

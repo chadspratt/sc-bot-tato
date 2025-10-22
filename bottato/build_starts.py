@@ -87,7 +87,7 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.STARPORTREACTOR,              # build REACTOR, then SWAP: lift FACTORY, land STARPORT on this REACTOR for MEDIVAC,
-                UnitTypeId.COMMANDCENTER,
+                # UnitTypeId.COMMANDCENTER,
                 UnitTypeId.STARPORT,
                 UnitTypeId.SCV,
                 UnitTypeId.SCV,

@@ -25,7 +25,7 @@ class Map(TimerMixin, GeometryMixin):
         self.cached_neighbors4: Dict[tuple, set[tuple]] = {}
         self.coords_by_distance: Dict[int, List[tuple]] = {}
         self.start_timer("init_distance_from_edge")
-        self.init_distance_from_edge(self.influence_maps.get_base_pathing_grid())
+        self.init_distance_from_edge(self.influence_maps.get_long_range_grid())
         self.stop_timer("init_distance_from_edge")
         self.zones: Dict[int, Zone] = None
         logger.debug(f"zones {self.zones}")
@@ -43,7 +43,7 @@ class Map(TimerMixin, GeometryMixin):
 
     def refresh_map(self):
         if self.bot.time - self.last_refresh_time > 60:
-            self.init_distance_from_edge(self.influence_maps.get_base_pathing_grid())
+            self.init_distance_from_edge(self.influence_maps.get_long_range_grid())
             self.zones: Dict[int, Zone] = self.init_zones(self.distance_from_edge)
             self.last_refresh_time = self.bot.time
 
@@ -162,12 +162,14 @@ class Map(TimerMixin, GeometryMixin):
                     for neighbor in neighbors:
                         try:
                             point_zone = self.zone_lookup_by_coord[neighbor]
-                            if point_zone.id == zone.id:
-                                pass
-                                # skip duplicates in same zone
-                            elif current_distance_to_edge == distance_from_edge[neighbor] and point_zone.radius == current_distance_to_edge:
-                            # elif point_zone.radius == zone.radius and current_distance_to_edge >= zone.radius - 1:
-                                # merge zones
+                            if point_zone.id == zone.id or point_zone in zone.adjacent_zones:
+                                # skip duplicates in same zone or already adjacent zones
+                                continue
+                            average_midpoint1 = Point2.center([Point2(c) for c in zone.coords])
+                            average_midpoint2 = Point2.center([Point2(c) for c in point_zone.coords])
+                            midpoint_distance = average_midpoint1.distance_to(average_midpoint2)
+                            if midpoint_distance < 3 or current_distance_to_edge == distance_from_edge[neighbor] and midpoint_distance < 6:
+                                # merge zones if the result won't be too large
                                 for coords in point_zone.coords:
                                     self.zone_lookup_by_coord[coords] = zone
                                 points_to_check.extend(point_zone.unchecked_points)
@@ -175,9 +177,8 @@ class Map(TimerMixin, GeometryMixin):
                                 zone.merge_with(point_zone)
                             elif distance_from_edge[neighbor] > 0:
                                 # check that the zones are actually close and pathable
-                                midpoint_distance = point_zone.midpoint.distance_to(zone.midpoint)
-                                actual_distance = await self.bot.client.query_pathing(zone.midpoint, point_zone.midpoint)
-                                if actual_distance is not None and actual_distance < midpoint_distance * 1.5:
+                                actual_distance = await self.bot.client.query_pathing(average_midpoint1, average_midpoint2)
+                                if actual_distance is not None and actual_distance < midpoint_distance * 1.1:
                                     zone.add_adjacent_zone(point_zone)
                         except KeyError:
                             # unassigned point, check if closer to edge
@@ -239,42 +240,36 @@ class Map(TimerMixin, GeometryMixin):
         shortest_distance = 9999
         closest_unit: Unit = None
         for unit in units:
-            path_points = self.get_path_points(unit.position, end)
-            distance = 0
-            previous_point: Point2 = None
-            for path_point in path_points:
-                if previous_point is None:
-                    previous_point = path_point
-                else:
-                    distance += previous_point.distance_to(path_point)
-                    previous_point = path_point
-            if distance < shortest_distance:
-                shortest_distance = distance
+            path = self.get_path(unit.position, end)
+            if path.distance < shortest_distance:
+                shortest_distance = path.distance
                 closest_unit = unit
         return closest_unit
-
-    def get_path_points(self, start: Point2, end: Point2) -> List[Point2]:
-        point2_path: List[Point2] = [start]
+    
+    def get_path(self, start: Point2, end: Point2) -> Path:
         start_rounded: Point2 = start.rounded
         end_rounded: Point2 = end.rounded
         try:
             start_zone = self.zone_lookup_by_coord[(start_rounded.x, start_rounded.y)]
             end_zone = self.zone_lookup_by_coord[(end_rounded.x, end_rounded.y)]
         except KeyError:
-            return point2_path
-        logger.debug(f"start_zone {start_zone}")
-        logger.debug(f"end_zone {end_zone}")
+            return Path([], math.inf)
+        return start_zone.path_to(end_zone)
+
+    def get_path_points(self, start: Point2, end: Point2) -> List[Point2]:
+        point2_path: List[Point2] = [start]
         zone: Zone
-        path: Path = start_zone.path_to(end_zone)
-        logger.debug(f"found path {path}")
-        for zone in path.zones[1:-1]:
-            if zone.midpoint != point2_path[-1]:
-                point2_path.append(zone.midpoint)
-        if end != point2_path[-1]:
-            point2_path.append(end)
+        path: Path = self.get_path(start, end)
+        if path.distance < 9999:
+            logger.debug(f"found path {path}")
+            for zone in path.zones[1:-1]:
+                if zone.midpoint != point2_path[-1]:
+                    point2_path.append(zone.midpoint)
+            if end != point2_path[-1]:
+                point2_path.append(end)
         return point2_path
 
-    def get_pathable_position(self, position: Point2, unit: Unit) -> Point2:
+    def get_pathable_position(self, position: Point2, unit: Unit = None) -> Point2:
         candidates = self.influence_maps.find_lowest_cost_points(position, 3, self.ground_grid)
         if candidates is None:
             pathable_position = position
@@ -284,7 +279,8 @@ class Map(TimerMixin, GeometryMixin):
             pathable_position: Point2 = self.influence_maps.closest_towards_point(candidates, position)
             if pathable_position.distance_to(position) < 1.5:
                 pathable_position = position
-        self.influence_maps.add_cost(pathable_position, unit.radius, self.ground_grid, np.inf)
+        if unit:
+            self.influence_maps.add_cost(pathable_position, unit.radius, self.ground_grid, np.inf)
         return pathable_position
 
     def update_influence_maps(self) -> None:
@@ -322,15 +318,15 @@ class Map(TimerMixin, GeometryMixin):
                 for midpoint in zone.all_midpoints:
                     zone.all_midpoints3.append(self.convert_point2_to_3(midpoint))
 
-        for coord in self.distance_from_edge:
-            if self.distance_from_edge[coord] > 0:
-                self.bot.client.debug_text_3d(f"{self.distance_from_edge[coord]}\n{coord}", self.convert_point2_to_3(Point2(coord)))
 
         for zone_id in self.zones:
             zone = self.zones[zone_id]
             color = (zone.id % 255, (128 + zone.id) % 255, abs(255 - zone.id) % 255)
+            for coord in zone.coords:
+                if self.distance_from_edge[coord] > 0:
+                    self.bot.client.debug_text_3d(f"{self.distance_from_edge[coord]}\n{coord}", self.convert_point2_to_3(Point2(coord)), color)
             self.bot.client.debug_box2_out(zone.midpoint3, 0.25, color)
-            self.bot.client.debug_text_3d(f"{zone.midpoint}:{zone.radius}", zone.midpoint3)
+            self.bot.client.debug_text_3d(f"{zone.midpoint}:{zone_id}", zone.midpoint3)
 
             for a_midpoint3 in zone.all_midpoints3:
                 self.bot.client.debug_box2_out(a_midpoint3, 0.15, color)

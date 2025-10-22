@@ -430,10 +430,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         for unit in self.harass_squad.units:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
             nearby_enemies = self.bot.enemy_units.closer_than(15, unit)
-            if not nearby_enemies:
+            threatening_structures = self.bot.enemy_structures.filter(lambda structure: structure.can_attack_ground and structure.distance_to(unit) < 15)
+            if not nearby_enemies and not threatening_structures:
                 await micro.move(unit, harass_location)
             else:
-                nearby_threats = nearby_enemies.filter(lambda enemy: enemy.can_attack_ground and enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
+                nearby_threats = (nearby_enemies + threatening_structures).filter(lambda enemy: enemy.can_attack_ground and enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
                 if nearby_threats:
                     nearest_threat = nearby_threats.closest_to(unit)
                     if nearest_threat.ground_range < unit.ground_range:

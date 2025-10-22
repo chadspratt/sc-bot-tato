@@ -35,6 +35,7 @@ class InfluenceMaps():
             self.default_grid[51, 120] = 1
 
         self.default_grid_nodestr = self.default_grid.copy()
+        self.long_range_grid = self.default_grid.copy()
 
         self.destructables_included = {}
         self.minerals_included = {}
@@ -47,6 +48,7 @@ class InfluenceMaps():
             if "unbuildable" not in dest.name.lower() and "acceleration" not in dest.name.lower():
                 change_destructible_status_in_grid(self.default_grid, dest, 0)
                 change_destructible_status_in_grid(self.default_grid_nodestr, dest, 1)
+                change_destructible_status_in_grid(self.long_range_grid, dest, 0)
 
         # set each geyser as non pathable, these don't update during the game
         for geyser in self.bot.vespene_geyser:
@@ -80,6 +82,11 @@ class InfluenceMaps():
         grid = self._add_non_pathables_ground(grid=grid, include_destructables=include_destructables)
 
         grid = np.where(grid != 0, default_weight, np.inf).astype(np.float32)
+        return grid
+    
+    def get_long_range_grid(self) -> np.ndarray:
+        grid = self.long_range_grid.copy()
+        grid = self._add_non_pathables_ground(grid=grid, include_destructables=True)
         return grid
 
     def add_building_to_grid(self, type_id: UnitTypeId, position: Point2, grid: np.ndarray, weight=0):
@@ -150,6 +157,7 @@ class InfluenceMaps():
                 dest = self.destructables_included[dest_position]
                 change_destructible_status_in_grid(ret_grid, dest, 1)
                 change_destructible_status_in_grid(self.default_grid, dest, 1)
+                change_destructible_status_in_grid(self.long_range_grid, dest, 1)
 
                 del self.destructables_included[dest_position]
 

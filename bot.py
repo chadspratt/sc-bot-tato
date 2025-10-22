@@ -35,7 +35,7 @@ def main():
                 # Protoss, Terran, Zerg, Random
                 # VeryEasy, Easy, Medium, MediumHard, Hard, Harder, VeryHard, CheatVision, CheatMoney, CheatInsane
                 # RandomBuild, Rush, Timing, Power, Macro, Air
-                Computer(Race.Zerg, Difficulty.VeryHard, ai_build=AIBuild.Rush),
+                Computer(Race.Protoss, Difficulty.CheatMoney, ai_build=AIBuild.Macro),
             ],
             realtime=False,
             random_seed=30,

@@ -27,7 +27,28 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         super().__init__(bot, enemy)
 
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
-        return await self.grenade_knock_away(unit)
+        targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False)
+        grenade_targets = []
+        if targets and await self.grenade_available(unit):
+            for target_unit in targets:
+                if target_unit.is_flying:
+                    continue
+                future_target_position = self.enemy.get_predicted_position(target_unit, self.grenade_timer)
+                # future_target_position = target_unit.position
+                grenade_target = future_target_position
+                # grenade_target = future_target_position.towards(unit).
+                if unit.in_ability_cast_range(AbilityId.KD8CHARGE_KD8CHARGE, grenade_target):
+                    logger.debug(f"{unit} grenade candidates {target_unit}: {future_target_position} -> {grenade_target}")
+                    grenade_targets.append(grenade_target)
+
+        if grenade_targets:
+            # choose furthest to reduce chance of grenading self
+            grenade_target = unit.position.furthest(grenade_targets)
+            logger.debug(f"{unit} grenading {grenade_target}")
+            self.throw_grenade(unit, grenade_target)
+            return True
+
+        return False
 
     def attack_something(self, unit, health_threshold, targets: Unit = None, force_move: bool = False):
         if unit.health_percentage < self.attack_health:
@@ -65,30 +86,6 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     #         else:
     #             self.healing_unit_tags.remove(unit.tag)
     #     return False
-
-    async def grenade_knock_away(self, unit: Unit) -> bool:
-        targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False)
-        grenade_targets = []
-        if targets and await self.grenade_available(unit):
-            for target in targets:
-                if target.is_flying:
-                    continue
-                future_target_position = self.enemy.get_predicted_position(target, self.grenade_timer)
-                # future_target_position = target.position
-                grenade_target = future_target_position
-                # grenade_target = future_target_position.towards(unit).
-                if unit.in_ability_cast_range(AbilityId.KD8CHARGE_KD8CHARGE, grenade_target):
-                    logger.debug(f"{unit} grenade candidates {target}: {future_target_position} -> {grenade_target}")
-                    grenade_targets.append(grenade_target)
-
-        if grenade_targets:
-            # choose furthest to reduce chance of grenading self
-            grenade_target = unit.position.furthest(grenade_targets)
-            logger.debug(f"{unit} grenading {grenade_target}")
-            self.throw_grenade(unit, grenade_target)
-            return True
-
-        return False
 
     async def grenade_jump(self, unit: Unit, target: Unit) -> bool:
         if await self.grenade_available(unit):

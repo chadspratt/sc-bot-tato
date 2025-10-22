@@ -29,7 +29,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         # for loc in self.expansion_locations_list:
         #     self.map.get_path(self.game_info.player_start_location, loc)
         self.enemy: Enemy = Enemy(self.bot)
-        self.my_workers: Workers = Workers(self.bot, self.enemy)
+        self.my_workers: Workers = Workers(self.bot, self.enemy, self.map)
         self.military: Military = Military(self.bot, self.enemy, self.map, self.my_workers)
         self.structure_micro: StructureMicro = StructureMicro(self.bot, self.enemy)
         self.production: Production = Production(self.bot)

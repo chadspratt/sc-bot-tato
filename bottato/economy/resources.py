@@ -21,7 +21,10 @@ class ResourceNode(UnitReferenceMixin):
         self.mining_position: Point2 = None
 
     def needed_workers(self):
-        if self.node.mineral_contents == 0 and self.node.vespene_contents == 0:
+        if self.is_long_distance:
+            # put more workers on long distance nodes to compensate for travel time
+            return 6 - len(self.worker_tags)
+        if not self.node.is_mineral_field and self.node.vespene_contents == 0:
             return 0
         return self.max_workers - len(self.worker_tags)
 
@@ -41,10 +44,21 @@ class Resources(UnitReferenceMixin, GeometryMixin):
                 return True
         return False
 
-    def add_node(self, node: Unit, is_long_distance: bool = False) -> bool:
+    def add_node(self, node: Unit) -> bool:
+        is_long_distance = True
+        for townhall in self.bot.townhalls.ready:
+            if townhall.is_flying:
+                continue
+            if self.bot.get_terrain_height(townhall) == self.bot.get_terrain_height(node):
+                if townhall.position.distance_to(node.position) <= 15:
+                    is_long_distance = False
+                    break
         for resource_node in self.nodes:
             if resource_node.node.tag == node.tag:
-                resource_node.is_long_distance = is_long_distance
+                if resource_node.is_long_distance != is_long_distance:
+                    resource_node.is_long_distance = is_long_distance
+                    for worker_tag in resource_node.worker_tags:
+                        worker = self.bot.workers.by_tag(worker_tag)
                 return False
         new_node = ResourceNode(node, self.max_workers_per_node, self.max_mules_per_node, is_long_distance)
         self.nodes.append(new_node)
@@ -52,7 +66,10 @@ class Resources(UnitReferenceMixin, GeometryMixin):
         return True
 
     def nodes_with_capacity(self) -> Units:
-        return Units([node for node in self.nodes if node.needed_workers() > 0], bot_object=self.bot)
+        candidates = [node for node in self.nodes if not node.is_long_distance and node.needed_workers() > 0]
+        if not candidates:
+            candidates = [node for node in self.nodes if node.needed_workers() > 0]
+        return Units(candidates, bot_object=self.bot)
 
     def add_worker(self, worker: Unit) -> Unit:
         if worker is None:
@@ -130,11 +147,18 @@ class Resources(UnitReferenceMixin, GeometryMixin):
                 resource_node.node = self.get_updated_unit_reference(resource_node.node, units_by_tag)
             except Exception as e:
                 logger.debug(f"Node {resource_node.node.tag} failed to update reference: {e}")
-                nodes_to_remove.append(resource_node)
+                if resource_node.node.is_visible and resource_node.node.mineral_contents < 10:
+                    nodes_to_remove.append(resource_node)
+                else:
+                    for mf in self.bot.mineral_field:
+                        if mf.position == resource_node.node.position:
+                            resource_node.node = mf
+                            self.nodes_by_tag[mf.tag] = resource_node
+                            break
                 continue
                 
             # Check if node is depleted
-            if resource_node.node.mineral_contents == 0 and resource_node.node.vespene_contents == 0:
+            if not resource_node.node.is_mineral_field and resource_node.node.vespene_contents == 0:
                 logger.debug(f"Node {resource_node.node.tag} is depleted")
                 nodes_to_remove.append(resource_node)
         
@@ -157,4 +181,18 @@ class Resources(UnitReferenceMixin, GeometryMixin):
                 # not sure why stale tags appear, but ignore them
                 continue
         self.depleted_resource_worker_tags.clear()
+        return workers
+    
+    def get_workers_from_overcapacity(self) -> Units:
+        workers = Units([], self.bot)
+        for resource_node in self.nodes:
+            while resource_node.needed_workers() < 0:
+                if not resource_node.worker_tags:
+                    break
+                worker_tag = resource_node.worker_tags.pop()
+                try:
+                    workers.append(self.bot.workers.by_tag(worker_tag))
+                except KeyError:
+                    # not sure why stale tags appear, but ignore them
+                    continue
         return workers

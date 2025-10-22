@@ -10,6 +10,7 @@ from sc2.constants import UnitTypeId, AbilityId
 from sc2.position import Point2, Point3
 from sc2.game_data import Cost
 
+from bottato.map.map import Map
 from bottato.micro.micro_factory import MicroFactory
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.enemy import Enemy
@@ -47,9 +48,10 @@ class WorkerAssignment():
 
 
 class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
-    def __init__(self, bot: BotAI, enemy: Enemy) -> None:
+    def __init__(self, bot: BotAI, enemy: Enemy, map: Map) -> None:
         self.bot: BotAI = bot
         self.enemy = enemy
+        self.map = map
         self.last_worker_stop = -1000
         self.assignments_by_worker: dict[int, WorkerAssignment] = {}
         self.assignments_by_job: dict[JobType, list[WorkerAssignment]] = {
@@ -61,7 +63,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             JobType.ATTACK: [],
             JobType.SCOUT: [],
         }
-        self.minerals = Minerals(bot)
+        self.minerals = Minerals(bot, self.map)
         self.vespene = Vespene(bot)
         self.max_workers = 75
         self.health_per_repairer = 50
@@ -221,7 +223,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             )
             return False
 
-        # worker: Unit = self.worker
         worker = assignment.unit
         len_orders: int = len(worker.orders)
 
@@ -232,18 +233,16 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
         if (worker.is_returning or worker.is_carrying_resource) and len_orders < 2:
             if not assignment.dropoff_target:
-                assignment.dropoff_target = self.closest_unit_to_unit(worker, self.bot.townhalls)
-                # assignment.dropoff_target = cy_closest_to(self.worker_position, ai.townhalls)
+                closest_townhall: Unit = self.closest_unit_to_unit(worker, self.bot.townhalls.ready)
+                if closest_townhall.distance_to(worker) < 15:
+                    assignment.dropoff_target = closest_townhall
 
+            if assignment.dropoff_target is None:
+                return False
             target_pos: Point2 = assignment.dropoff_target.position
 
             target_pos: Point2 = Point2(
                 target_pos.towards(worker, self.TOWNHALL_RADIUS * self.DISTANCE_TO_TOWNHALL_FACTOR)
-                # cy_towards(
-                #     target_pos,
-                #     self.worker_position,
-                #     self.TOWNHALL_RADIUS * self.DISTANCE_TO_TOWNHALL_FACTOR,
-                # )
             )
 
             if 0.5625 < worker.distance_to_squared(target_pos) < 4.0:
@@ -263,12 +262,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if (
                 min_distance
                 < worker_distance
-                # < cy_distance_to_squared(self.worker_position, self.resource_target_pos)
                 < max_distance
                 or worker.is_idle
             ):
                 worker.move(assignment.gather_position)
-                # worker.move(self.resource_target_pos)
                 worker(AbilityId.SMART, assignment.target, True)
                 return True
             elif worker_distance <= min_distance:
@@ -280,7 +277,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         # on rare occasion above conditions don't hit and worker goes idle
         elif worker.is_idle or not worker.is_moving:
             if worker.is_carrying_resource:
-                # worker.return_resource(assignment.dropoff_target)
                 worker.return_resource()
             else:
                 worker.gather(assignment.target)
@@ -548,6 +544,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.set_as_idle(worker)
         for worker in self.minerals.get_workers_from_depleted() + self.vespene.get_workers_from_depleted():
             self.set_as_idle(worker)
+        for worker in self.minerals.get_workers_from_overcapacity():
+            self.set_as_idle(worker)
 
         idle_workers: Units = self.availiable_workers_on_job(JobType.IDLE)
         idle_count = len(idle_workers)
@@ -569,7 +567,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
                 if self.minerals.add_long_distance_minerals((idle_count - reassigned_count)) > 0:
                     logger.info(f"adding {worker.tag} to long-distance")
-                    self.minerals.add_worker(worker)
+                    self.update_assigment(worker, JobType.MINERALS, None)
                 else:
                     # nothing to do, just send them home
                     worker.move(self.bot.start_location)
