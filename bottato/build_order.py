@@ -116,7 +116,7 @@ class BuildOrder(TimerMixin):
         for structure in self.bot.structures_without_construction_SCVs:
             # somehow the build step got lost, re-add it
             for step in self.started + self.static_queue + self.priority_queue + self.build_queue:
-                if step.unit_being_built and step.unit_being_built.tag == structure.tag:
+                if step.unit_being_built and step.unit_being_built != True and step.unit_being_built.tag == structure.tag:
                     break
             else:
                 build_step = self.create_build_step(structure.type_id)
