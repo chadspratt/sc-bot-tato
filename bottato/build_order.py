@@ -248,14 +248,18 @@ class BuildOrder(TimerMixin):
     def queue_command_center(self) -> None:
         self.start_timer("queue_command_center")
         if self.bot.time > 100:
-            worker_count = len(self.bot.workers)
-            cc_count = 0
-            for build_step in self.static_queue:
+            projected_worker_capacity = self.workers.get_mineral_capacity()
+            for build_step in self.started + self.static_queue + self.priority_queue:
                 if build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
-                    cc_count += 1
+                    projected_worker_capacity += 16
+
             # adds number of townhalls to account for near-term production
-            surplus_worker_count = worker_count - self.workers.get_mineral_capacity() + len(self.bot.townhalls) + 5
-            needed_cc_count = math.ceil(surplus_worker_count / 12)
+            projected_worker_count = min(self.workers.max_workers, len(self.bot.workers) + len(self.bot.townhalls.ready) * 3)
+            surplus_worker_count = projected_worker_count - projected_worker_capacity
+            
+            cc_count = sum([build_step.unit_type_id == UnitTypeId.COMMANDCENTER for build_step in self.static_queue])
+            needed_cc_count = math.ceil(surplus_worker_count / 16)
+
             logger.debug(f"expansion: {surplus_worker_count} surplus workers need {needed_cc_count} cc(s)")
             # expand if running out of room for workers at current bases
             if needed_cc_count > cc_count:

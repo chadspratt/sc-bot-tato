@@ -181,8 +181,9 @@ class Production(UnitReferenceMixin, TimerMixin):
                     # check if add-on was destroyed
                     if not facility.unit.has_add_on and facility.add_on_type != UnitTypeId.NOTAUNIT:
                         facility.addon_destroyed_time = self.bot.time
-                        self.facilities[facility.unit.type_id][facility.add_on_type].remove(facility)
-                        self.facilities[facility.unit.type_id][UnitTypeId.NOTAUNIT].append(facility)
+                        type_id = facility.unit.type_id if not facility.unit.is_flying else facility.unit.unit_alias
+                        self.facilities[type_id][facility.add_on_type].remove(facility)
+                        self.facilities[type_id][UnitTypeId.NOTAUNIT].append(facility)
                         logger.debug(f"add-on {facility.add_on_type} destroyed for {facility.unit}")
                         facility.add_on_type = UnitTypeId.NOTAUNIT
                     if self.bot.supply_left == 0:
