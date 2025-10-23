@@ -57,8 +57,6 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
         return unit.tag in self.last_stim_time and self.bot.time - self.last_stim_time[unit.tag] < 11
     
     def attack_something(self, unit: Unit, health_threshold: float, targets: Units = None, force_move: bool = False) -> bool:
-        if unit.health_percentage < health_threshold:
-            return False
         
         candidates = []
         if targets:
@@ -77,6 +75,8 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first
             unit.attack(lowest_target)
         else:
+            if unit.health_percentage < health_threshold:
+                return False
             tank_to_retreat_to = self.tank_to_retreat_to(unit)
             if tank_to_retreat_to and not self.is_stimmed(unit):
                 # retreat to nearby tank if not stimmed

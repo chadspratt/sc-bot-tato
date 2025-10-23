@@ -115,13 +115,14 @@ class BuildOrder(TimerMixin):
                 self.static_queue.insert(0, step)
         for structure in self.bot.structures_without_construction_SCVs:
             # somehow the build step got lost, re-add it
-            for step in self.started + self.static_queue + self.priority_queue + self.build_queue:
-                if step.unit_being_built and step.unit_being_built != True and step.unit_being_built.tag == structure.tag:
-                    break
-            else:
-                build_step = self.create_build_step(structure.type_id)
-                build_step.unit_being_built = structure
-                self.priority_queue.insert(0, build_step)
+            if structure.health_percentage > 0.05:
+                for step in self.started + self.static_queue + self.priority_queue + self.build_queue:
+                    if step.unit_being_built and step.unit_being_built != True and step.unit_being_built.tag == structure.tag:
+                        break
+                else:
+                    build_step = self.create_build_step(structure.type_id)
+                    build_step.unit_being_built = structure
+                    self.priority_queue.insert(0, build_step)
         self.stop_timer("move_interupted_to_pending")
 
     def enact_rush_defense(self) -> None:
@@ -175,7 +176,7 @@ class BuildOrder(TimerMixin):
         # switch to dynamic build later, put SCVs in static
         self.queue_worker()
         self.queue_supply()
-        self.queue_command_center()
+        self.queue_command_center(rush_detected)
         if len(self.static_queue) < 15:
             self.queue_upgrade()
             self.queue_turret()
@@ -203,7 +204,8 @@ class BuildOrder(TimerMixin):
         self.stop_timer("build_order.execute")
     
     def get_build_queue_string(self):
-        build_order_message = f"priority={'\n'.join([step.friendly_name for step in self.priority_queue])}"
+        build_order_message = f"started={'\n'.join([step.friendly_name for step in self.started])}"
+        build_order_message += f"\npriority={'\n'.join([step.friendly_name for step in self.priority_queue])}"
         build_order_message += f"\nstatic={'\n'.join([step.friendly_name for step in self.static_queue])}"
         build_order_message += f"\nbuild_queue={'\n'.join([step.friendly_name for step in self.build_queue])}"
         return build_order_message
@@ -245,9 +247,9 @@ class BuildOrder(TimerMixin):
                     self.add_to_build_queue(new_ids, queue=self.priority_queue)
         self.stop_timer("queue_supply")
 
-    def queue_command_center(self) -> None:
+    def queue_command_center(self, rush_detected: bool) -> None:
         self.start_timer("queue_command_center")
-        if self.bot.time > 100:
+        if not rush_detected and self.bot.time > 100 or self.bot.time > 300:
             projected_worker_capacity = self.workers.get_mineral_capacity()
             for build_step in self.started + self.static_queue + self.priority_queue:
                 if build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
@@ -409,9 +411,14 @@ class BuildOrder(TimerMixin):
                 f"{in_progress_step.unit_type_id}, {completed_unit.type_id}"
             )
             if in_progress_step.unit_type_id == completed_unit.type_id:
-                in_progress_step.completed_time = self.bot.time
-                if in_progress_step.unit_in_charge is None:
+                if completed_unit.is_structure:
+                    if in_progress_step.position.manhattan_distance(completed_unit.position) > 2:
+                        # not the same building
+                        continue
+                elif in_progress_step.unit_in_charge is None:
+                    # not sure if/how we get here
                     continue
+                in_progress_step.completed_time = self.bot.time
                 if in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
                     self.workers.set_as_idle(in_progress_step.unit_in_charge)
                 self.move_to_complete(self.started.pop(idx))
@@ -537,7 +544,7 @@ class BuildOrder(TimerMixin):
                 continue
             if percent_affordable < 1.0:
                 build_response = ResponseCode.NO_RESOURCES
-                if percent_affordable >= 0.75:
+                if percent_affordable >= 0.75 and self.bot.tech_requirement_progress(build_step.unit_type_id) == 1.0:
                     await build_step.position_worker(special_locations=self.special_locations, rush_detected=rush_detected)
                 continue
             if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:

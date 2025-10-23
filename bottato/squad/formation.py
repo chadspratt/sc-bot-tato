@@ -292,8 +292,8 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         path_units = close_units.filter(lambda u: not u.is_flying)
         if path_units.empty:
             path_units = units
-        self.path = self.map.get_shortest_path(path_units, destination)
-        closest_position = self.path[0]
+        next_waypoint_path = self.map.get_shortest_path(path_units, destination)
+        closest_position = next_waypoint_path[0]
         self.closest_unit = units.closest_to(closest_position)
 
         # # find waypoint beyond the units

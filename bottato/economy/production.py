@@ -79,7 +79,7 @@ class Facility(UnitReferenceMixin):
                 closest_structure_to_addon = closest_candidates.closest_to(updated_unit.add_on_position)
                 self.addon_blocked = closest_structure_to_addon.radius > closest_structure_to_addon.distance_to(updated_unit.add_on_position)
                 # not (await self.bot.can_place_single(UnitTypeId.SUPPLYDEPOT, updated_unit.add_on_position))
-        if self.addon_blocked:
+        if self.addon_blocked or updated_unit.is_flying:
             logger.debug(f"addon blocked for {updated_unit}")
             # move facility to an unblocked position
             if not updated_unit.is_flying:

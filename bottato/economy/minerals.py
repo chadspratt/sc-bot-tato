@@ -61,6 +61,7 @@ class Minerals(Resources, TimerMixin):
                 try:
                     updated_node = self.bot.mineral_field.by_tag(resource_node.node.tag)
                 except KeyError:
+                    resource_node.is_long_distance = True
                     # node no longer exists? maybe tag changed
                     continue
                 if not self.bot.townhalls or self.bot.townhalls.closest_distance_to(updated_node) > 15:

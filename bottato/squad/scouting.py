@@ -235,6 +235,8 @@ class InitialScout(BaseSquad, GeometryMixin):
             self.unit = workers.get_scout(target)
     
     async def move_scout(self):
+        if self.bot.time > self.initial_scout_complete_time + 20:
+            self.completed = True
         if not self.unit or self.completed:
             return
         

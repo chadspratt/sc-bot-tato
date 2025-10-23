@@ -70,6 +70,9 @@ class InfluenceMaps():
             self.default_grid[x2, y] = 0
             self.default_grid_nodestr[x1, y] = 0
             self.default_grid_nodestr[x2, y] = 0
+            if mineral.type_id == UnitTypeId.RICHMINERALFIELD:
+                self.long_range_grid[x1, y] = 0
+                self.long_range_grid[x2, y] = 0
 
     def get_base_pathing_grid(self, include_destructibles: bool = True):
         if include_destructibles:
@@ -145,6 +148,9 @@ class InfluenceMaps():
 
                 self.default_grid_nodestr[x1, y] = 1
                 self.default_grid_nodestr[x2, y] = 1
+
+                self.long_range_grid[x1, y] = 1
+                self.long_range_grid[x2, y] = 1
 
                 del self.minerals_included[mf_position]
 

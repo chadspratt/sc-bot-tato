@@ -25,6 +25,7 @@ class BotTato(BotAI, TimerMixin):
         logger.debug(os.getcwd())
         logger.debug(f"vision blockers: {self.game_info.vision_blockers}")
         logger.debug(f"destructibles: {self.destructables}")
+        self.draw_map = False
         self.patch_game_data()
 
     async def on_step(self, iteration):
@@ -38,7 +39,11 @@ class BotTato(BotAI, TimerMixin):
         await self.commander.command(iteration)
 
         # self.print_all_timers(30)
-        # self.commander.map.draw()
+        if self.draw_map:
+            self.commander.map.draw()
+
+    def toggle_map_drawing(self):
+        self.draw_map = not self.draw_map
 
     async def on_end(self, game_result: Result):
         print("Game ended.")

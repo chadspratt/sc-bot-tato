@@ -28,14 +28,14 @@ def main():
     bot = BotTato()
     try:
         run_game(
-            maps.get(os.environ.get("SCII_MAP", "MagannathaAIE_v2")),
+            maps.get(os.environ.get("SCII_MAP", "TorchesAIE_v4")),
             # IncorporealAIE_v4, PylonAIE_v4, TorchesAIE_v4, UltraloveAIE_v2, MagannathaAIE_v2, PersephoneAIE_v4
             [
                 Bot(Race.Terran, bot, name="BotTato"),
                 # Protoss, Terran, Zerg, Random
                 # VeryEasy, Easy, Medium, MediumHard, Hard, Harder, VeryHard, CheatVision, CheatMoney, CheatInsane
                 # RandomBuild, Rush, Timing, Power, Macro, Air
-                Computer(Race.Protoss, Difficulty.CheatMoney, ai_build=AIBuild.Macro),
+                Computer(Race.Zerg, Difficulty.CheatMoney, ai_build=AIBuild.Rush),
             ],
             realtime=False,
             random_seed=30,

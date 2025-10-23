@@ -181,11 +181,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.minerals.remove_mule(mule)
         self.aged_mules.remove(mule)
 
-    def speed_mine(self):
+    async def speed_mine(self):
         self.start_timer("my_workers.speed_mine")
         assignment: WorkerAssignment
         for assignment in self.assignments_by_worker.values():
-            if assignment.on_attack_break or not assignment.unit_available or self.worker_micro.retreat(assignment.unit, 1.0):
+            if assignment.on_attack_break or not assignment.unit_available or await self.worker_micro.retreat(assignment.unit, 1.0):
                 continue
             if assignment.unit_available and assignment.job_type in [JobType.MINERALS, JobType.VESPENE]:
                 # self.bottato_speed_mine(assignment)
@@ -274,7 +274,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         elif not worker.is_returning and len_orders < 2:
             min_distance: float = 0.5625 if assignment.target.is_mineral_field else 0.01
             max_distance: float = 4.0 if assignment.target.is_mineral_field else 0.25
-            worker_distance: float = worker.distance_to_squared(assignment.gather_position)
+            worker_distance: float = worker.distance_to_squared(assignment.gather_position) if assignment.gather_position else math.inf
             if (
                 min_distance
                 < worker_distance
@@ -415,6 +415,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     worker.repair(new_target)
             elif assignment.job_type == JobType.VESPENE:
                 if self.vespene.add_worker_to_node(worker, new_target):
+                    assignment.gather_position = new_target.position
                     if worker.is_carrying_resource and self.bot.townhalls:
                         worker.smart(self.bot.townhalls.closest_to(worker))
                     else:
@@ -662,6 +663,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     worker for worker in self.bot.workers
                     if self.assignments_by_worker[worker.tag].job_type not in (JobType.BUILD, JobType.REPAIR)
                 ], bot_object=self.bot)
+            if len(injured_units) == 1:
+                candidates = candidates.filter(lambda unit: unit.tag not in injured_units.tags)
             for i in range(repairer_shortage):
                 if not candidates:
                     break

@@ -41,20 +41,24 @@ class Map(TimerMixin, GeometryMixin):
         self.natural_position = await self.get_natural_position(self.bot.start_location)
         self.enemy_natural_position = await self.get_natural_position(self.bot.enemy_start_locations[0])
 
-    def refresh_map(self):
+    async def refresh_map(self):
+        self.start_timer("refresh_map")
         if self.bot.time - self.last_refresh_time > 60:
             self.init_distance_from_edge(self.influence_maps.get_long_range_grid())
-            self.zones: Dict[int, Zone] = self.init_zones(self.distance_from_edge)
+            self.zones: Dict[int, Zone] = await self.init_zones(self.distance_from_edge)
             self.last_refresh_time = self.bot.time
+        self.stop_timer("refresh_map")
 
     def init_distance_from_edge(self, pathing_grid: np.ndarray):
         self.distance_from_edge: Dict[tuple, int] = {}
+        self.coords_by_distance.clear()
         # init array with unpathable and put 9999 placeholder for other spots
         previous_layer = []
         next_layer = []
         unpathable = []
 
         self.start_timer("init distance 0")
+        self.coords_by_distance[0] = []
         for x in range(pathing_grid.shape[0]):
             for y in range(pathing_grid.shape[1]):
                 coords = (x, y)
@@ -62,6 +66,7 @@ class Map(TimerMixin, GeometryMixin):
                     next_layer.append(coords)
                     unpathable.append(coords)
                     self.distance_from_edge[coords] = 0
+                    self.coords_by_distance[0].append(coords)
         self.stop_timer("init distance 0")
 
         current_distance = 0
@@ -71,16 +76,19 @@ class Map(TimerMixin, GeometryMixin):
             self.coords_by_distance[current_distance] = []
             next_layer = []
             # logger.debug(f"current layer {previous_layer}")
-            for previous_coord in previous_layer:
-                neighbors = self.neighbors4(previous_coord)
-                for neighbor in neighbors:
-                    # logger.debug(f"neighbor of {previous_coord}: {neighbor}")
-                    if neighbor not in self.distance_from_edge:
-                        self.distance_from_edge[neighbor] = current_distance
-                        if not self.has_higher_neighbor(neighbor, self.distance_from_edge):
+            try:
+                for previous_coord in previous_layer:
+                    neighbors = self.neighbors4(previous_coord)
+                    for neighbor in neighbors:
+                        # logger.debug(f"neighbor of {previous_coord}: {neighbor}")
+                        if neighbor not in self.distance_from_edge:
+                            self.distance_from_edge[neighbor] = current_distance
+                            # if not self.has_higher_neighbor(neighbor, self.distance_from_edge):
                             self.coords_by_distance[current_distance].append(neighbor)
-                        # logger.debug(f"self.distance_from_edge {neighbor} is {self.distance_from_edge[neighbor]}")
-                        next_layer.append(neighbor)
+                            # logger.debug(f"self.distance_from_edge {neighbor} is {self.distance_from_edge[neighbor]}")
+                            next_layer.append(neighbor)
+            except Exception as e:
+                logger.debug(f"error calculating distance from edge at distance {current_distance}: {e}")
 
     def get_distance_from_edge(self, point: Point2) -> int:
         coords = (point.x, point.y)
@@ -88,58 +96,83 @@ class Map(TimerMixin, GeometryMixin):
             return self.distance_from_edge[coords]
         return 0
 
-    def neighbors8(self, coords: tuple) -> list:
-        if coords not in self.cached_neighbors8:
-            coord_height = self.bot.get_terrain_z_height(Point2(coords))
-            max_x = self.bot.game_info.pathing_grid.width - 1
-            max_y = self.bot.game_info.pathing_grid.height - 1
-            neighbors: list[tuple] = []
-            self.cached_neighbors8[coords] = neighbors
-            if coords[0] > 0:
-                if coords[1] > 0:
-                    self.add_if_similar_height((coords[0] - 1, coords[1] - 1), coord_height, neighbors)
-                self.add_if_similar_height((coords[0] - 1, coords[1]), coord_height, neighbors)
-                if coords[1] < max_y:
-                    self.add_if_similar_height((coords[0] - 1, coords[1] + 1), coord_height, neighbors)
-            if coords[1] > 0:
-                self.add_if_similar_height((coords[0], coords[1] - 1), coord_height, neighbors)
-            if coords[1] < max_y:
-                self.add_if_similar_height((coords[0], coords[1] + 1), coord_height, neighbors)
-            if coords[0] < max_x:
-                if coords[1] > 0:
-                    self.add_if_similar_height((coords[0] + 1, coords[1] - 1), coord_height, neighbors)
-                self.add_if_similar_height((coords[0] + 1, coords[1]), coord_height, neighbors)
-                if coords[1] < max_y:
-                    self.add_if_similar_height((coords[0] + 1, coords[1] + 1), coord_height, neighbors)
-        return self.cached_neighbors8[coords]
-
+    # used for expanding inward from edge. if starting coords are unpathable, all neighbors are included
+    # otherwise only neighbors of similar height are included
     def neighbors4(self, coords) -> list:
         if coords not in self.cached_neighbors4:
             max_x = self.bot.game_info.pathing_grid.width - 1
             max_y = self.bot.game_info.pathing_grid.height - 1
             neighbors: list[tuple] = []
             self.cached_neighbors4[coords] = neighbors
+
+            candidates = []
             if coords[0] > 0:
-                neighbors.append((coords[0] - 1, coords[1]))
+                candidates.append((coords[0] - 1, coords[1]))
             if coords[1] > 0:
-                neighbors.append((coords[0], coords[1] - 1))
+                candidates.append((coords[0], coords[1] - 1))
             if coords[1] < max_y:
-                neighbors.append((coords[0], coords[1] + 1))
+                candidates.append((coords[0], coords[1] + 1))
             if coords[0] < max_x:
-                neighbors.append((coords[0] + 1, coords[1]))
+                candidates.append((coords[0] + 1, coords[1]))
+
+            if coords in self.distance_from_edge and self.distance_from_edge[coords] == 0:
+                neighbors.extend(candidates)
+            else:
+                coord_height = self.bot.get_terrain_z_height(Point2(coords))
+                for candidate in candidates:
+                    self.add_if_similar_height(candidate, coord_height, neighbors)
         return self.cached_neighbors4[coords]
+
+    # used for expanding outward from furthest points from edge
+    # if starting coords are unpathable, only unpathable neighbors are included
+    # otherwise only neighbors of similar height are included
+    def neighbors8(self, coords: tuple) -> list:
+        if coords not in self.cached_neighbors8:
+            max_x = self.bot.game_info.pathing_grid.width - 1
+            max_y = self.bot.game_info.pathing_grid.height - 1
+            neighbors: list[tuple] = []
+            self.cached_neighbors8[coords] = neighbors
+
+            candidates = []
+            if coords[0] > 0:
+                if coords[1] > 0:
+                    candidates.append((coords[0] - 1, coords[1] - 1))
+                candidates.append((coords[0] - 1, coords[1]))
+                if coords[1] < max_y:
+                    candidates.append((coords[0] - 1, coords[1] + 1))
+            if coords[1] > 0:
+                candidates.append((coords[0], coords[1] - 1))
+            if coords[1] < max_y:
+                candidates.append((coords[0], coords[1] + 1))
+            if coords[0] < max_x:
+                if coords[1] > 0:
+                    candidates.append((coords[0] + 1, coords[1] - 1))
+                candidates.append((coords[0] + 1, coords[1]))
+                if coords[1] < max_y:
+                    candidates.append((coords[0] + 1, coords[1] + 1))
+
+            if coords in self.distance_from_edge and self.distance_from_edge[coords] == 0:
+                # only add neighbors that are also unpathable
+                for candidate in candidates:
+                    if candidate in self.distance_from_edge and self.distance_from_edge[candidate] == 0:
+                        neighbors.append(candidate)
+            else:
+                coord_height = self.bot.get_terrain_z_height(Point2(coords))
+                for candidate in candidates:
+                    self.add_if_similar_height(candidate, coord_height, neighbors)
+        return self.cached_neighbors8[coords]
 
     def add_if_similar_height(self, coords, height, neighbors: list[tuple]):
         neighbor_height = self.bot.get_terrain_z_height(Point2(coords))
         if abs(height - neighbor_height) < 0.5:
             neighbors.append(coords)
 
-    def has_higher_neighbor(self, coords: tuple, distance_from_edge) -> bool:
-        distance = distance_from_edge[coords]
-        for neighbor in self.neighbors8(coords):
-            if neighbor in distance_from_edge and distance_from_edge[neighbor] > distance:
-                return True
-        return False
+    # def has_higher_neighbor(self, coords: tuple, distance_from_edge) -> bool:
+    #     distance = distance_from_edge[coords]
+    #     for neighbor in self.neighbors8(coords):
+    #         if neighbor in distance_from_edge and distance_from_edge[neighbor] > distance:
+    #             return True
+    #     return False
 
     async def init_zones(self, distance_from_edge: Dict[tuple, int]) -> Dict[int, Zone]:
         coords: tuple
@@ -147,6 +180,7 @@ class Map(TimerMixin, GeometryMixin):
         zones: Dict[int, Zone] = {}
         distances: List[int] = sorted(self.coords_by_distance, reverse=True)
         zones_to_remove = []
+        self.zone_lookup_by_coord.clear()
         logger.debug(f"distances {distances}")
         for distance in distances:
             zone: Zone
@@ -176,10 +210,12 @@ class Map(TimerMixin, GeometryMixin):
                                 zones_to_remove.append(point_zone)
                                 zone.merge_with(point_zone)
                             elif distance_from_edge[neighbor] > 0:
-                                # check that the zones are actually close and pathable
-                                actual_distance = await self.bot.client.query_pathing(average_midpoint1, average_midpoint2)
-                                if actual_distance is not None and actual_distance < midpoint_distance * 1.1:
-                                    zone.add_adjacent_zone(point_zone)
+                                # check that elevation is similar
+                                if abs(self.bot.get_terrain_z_height(Point2(next_point)) - self.bot.get_terrain_z_height(Point2(neighbor))) < 1:
+                                    # check that the zones are actually close and pathable
+                                    actual_distance = await self.bot.client.query_pathing(average_midpoint1, average_midpoint2)
+                                    if actual_distance is not None and actual_distance < midpoint_distance * 1.2:
+                                        zone.add_adjacent_zone(point_zone)
                         except KeyError:
                             # unassigned point, check if closer to edge
                             neighbor_distance = distance_from_edge[neighbor]
@@ -190,6 +226,7 @@ class Map(TimerMixin, GeometryMixin):
                                 zone.unchecked_points.append(neighbor)
 
             if distance > 1:
+                # create new zones from this layer's coords
                 distance_coords = self.coords_by_distance[distance]
                 logger.debug(f"creating zones from distance {distance} points {distance_coords}")
                 for coords in distance_coords:
@@ -202,6 +239,26 @@ class Map(TimerMixin, GeometryMixin):
                     zone_index += 1
                     self.zone_lookup_by_coord[coords] = new_zone
 
+        # add unpathable points to nearest zone
+        remaining_unchecked = True
+        while remaining_unchecked:
+            remaining_unchecked = False
+            for zone in zones.values():
+                points_to_check: List[tuple] = zone.unchecked_points
+                zone.unchecked_points = []
+                if points_to_check:
+                    remaining_unchecked = True
+                    while points_to_check:
+                        next_point = points_to_check.pop()
+                        # current_distance_to_edge = distance_from_edge[next_point]
+                        neighbors = self.neighbors8(next_point)
+                        neighbor: tuple
+                        for neighbor in neighbors:
+                            if neighbor not in self.zone_lookup_by_coord:
+                                self.zone_lookup_by_coord[neighbor] = zone
+                                zone.coords.append(neighbor)
+                                zone.unchecked_points.append(neighbor)
+
         for removed_zone in zones_to_remove:
             # zone = zones[removed_zone_id]
             del zones[removed_zone.id]
@@ -211,7 +268,7 @@ class Map(TimerMixin, GeometryMixin):
                     zone.adjacent_zones.remove(removed_zone)
 
         for zone in zones.values():
-            all_point2s = [Point2(coord) for coord in zone.coords]
+            all_point2s = [Point2(coord) for coord in zone.coords if self.distance_from_edge[coord] > 0]
             zone.midpoint = Point2.center(all_point2s)
 
         logger.debug(f"all zones ({len(zones)}){zones}")
@@ -307,16 +364,16 @@ class Map(TimerMixin, GeometryMixin):
         self.influence_maps.draw_influence_in_game(self.ground_grid, 1, 2000)
 
     def draw(self) -> None:
-        if self.first_draw:
-            self.first_draw = False
-            for zone_id in self.zones:
-                zone = self.zones[zone_id]
-                for coord in zone.coords:
-                    if self.distance_from_edge[coord] > 0:
-                        zone.points_for_drawing[coord] = self.convert_point2_to_3(Point2(coord))
-                zone.midpoint3 = self.convert_point2_to_3(zone.midpoint)
-                for midpoint in zone.all_midpoints:
-                    zone.all_midpoints3.append(self.convert_point2_to_3(midpoint))
+        for zone_id in self.zones:
+            zone = self.zones[zone_id]
+            if zone.midpoint3 is not None:
+                continue
+            for coord in zone.coords:
+                if self.distance_from_edge[coord] > 0:
+                    zone.points_for_drawing[coord] = self.convert_point2_to_3(Point2(coord))
+            zone.midpoint3 = self.convert_point2_to_3(zone.midpoint)
+            for midpoint in zone.all_midpoints:
+                zone.all_midpoints3.append(self.convert_point2_to_3(midpoint))
 
 
         for zone_id in self.zones:
@@ -325,6 +382,8 @@ class Map(TimerMixin, GeometryMixin):
             for coord in zone.coords:
                 if self.distance_from_edge[coord] > 0:
                     self.bot.client.debug_text_3d(f"{self.distance_from_edge[coord]}\n{coord}", self.convert_point2_to_3(Point2(coord)), color)
+                else:
+                    self.bot.client.debug_text_3d(f"{self.distance_from_edge[coord]}\n{coord}", self.convert_point2_to_3(Point2(coord)), color, size=6)
             self.bot.client.debug_box2_out(zone.midpoint3, 0.25, color)
             self.bot.client.debug_text_3d(f"{zone.midpoint}:{zone_id}", zone.midpoint3)
 

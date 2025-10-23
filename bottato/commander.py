@@ -47,7 +47,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
     async def command(self, iteration: int):
         self.start_timer("command")
 
-        # self.map.refresh_map()
+        await self.map.refresh_map()
         # check for stuck units
         await self.detect_stuck_units(iteration)
 
@@ -70,14 +70,14 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
             unit_request: list[UnitTypeId] = self.military.get_squad_request(remaining_cap)
             self.build_order.queue_units(unit_request)
 
-        await self.structure_micro.execute()
+        await self.structure_micro.execute(self.rush_detected)
 
         # XXX slow
         await self.build_order.execute(self.military.army_ratio, self.rush_detected)
 
         await self.my_workers.attack_nearby_enemies()
         self.my_workers.distribute_idle()
-        self.my_workers.speed_mine()
+        await self.my_workers.speed_mine()
         # if self.bot.time > 240:
         #     logger.debug(f"minerals gathered: {self.bot.state.score.collected_minerals}")
         self.my_workers.drop_mules()

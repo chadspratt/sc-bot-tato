@@ -171,71 +171,53 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         return response
 
     async def execute_scv_build(self, special_locations: SpecialLocations, rush_detected: bool = False) -> ResponseCode:
-        response = None
-        logger.debug(f"Trying to build {self.unit_type_id} with SCV")
-
         if self.unit_type_id in TECH_TREE:
             # check that all tech requirements are met
             for requirement in TECH_TREE[self.unit_type_id]:
                 if self.bot.structure_type_build_progress(requirement) != 1:
                     return ResponseCode.NO_TECH
 
-        build_response: bool = None
-        if self.unit_type_id == UnitTypeId.REFINERY:
-            # Vespene targets unit to build instead of position
-            self.geysir: Union[Unit, None] = self.get_geysir()
-            if self.geysir is None:
-                response = ResponseCode.NO_FACILITY
-            else:
-                self.position = self.geysir.position
-                threats = None
-                if self.bot.enemy_units:
-                    threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground)
-                if threats and threats.closest_distance_to(self.position) < 15:
-                    logger.debug(f"{self} Too close to enemy!")
-                    response = ResponseCode.TOO_CLOSE_TO_ENEMY
-                else:
-                    if self.unit_in_charge is None:
-                        self.unit_in_charge = self.workers.get_builder(self.position)
-                    if self.unit_in_charge is None:
-                        response = ResponseCode.NO_BUILDER
-                    else:
-                        build_response = self.unit_in_charge.build_gas(self.geysir)
+        if self.unit_being_built:
+            self.position = self.unit_being_built.position
+            if self.start_time is None:
+                self.start_time = self.bot.time
         else:
-            if self.position is None or (self.unit_being_built is None and self.start_time is not None and self.start_time - self.bot.time > 5):
-                self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected)
-            if self.position is None:
-                response = ResponseCode.NO_LOCATION
+            if self.unit_type_id == UnitTypeId.REFINERY:
+                # Vespene targets unit to build instead of position
+                self.geysir: Union[Unit, None] = self.get_geysir()
+                if self.geysir is None:
+                    return ResponseCode.NO_FACILITY
+                self.position = self.geysir.position
             else:
-                threats = None
-                if self.bot.enemy_units:
-                    threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground)
-                if threats and threats.closest_distance_to(self.position) < 15:
-                    logger.debug(f"{self} Too close to enemy!")
-                    response = ResponseCode.TOO_CLOSE_TO_ENEMY
-                else:
-                    if self.unit_in_charge is None:
-                        self.unit_in_charge = self.workers.get_builder(self.position)
-                    if self.unit_in_charge is None:
-                        response = ResponseCode.NO_BUILDER
-                    else:
-                        logger.debug(
-                            f"Trying to build structure {self.unit_type_id} at {self.position}"
-                        )
-                        self.unit_in_charge.move(self.position)
+                if self.position is None or (self.start_time is not None and self.start_time - self.bot.time > 5):
+                    self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected)
+                if self.position is None:
+                    return ResponseCode.NO_LOCATION
 
-                        if self.unit_being_built is None:
-                            build_response = self.unit_in_charge.build(
-                                self.unit_type_id, self.position
-                            )
-                        else:
-                            self.start_time = self.bot.time
-                            build_response = self.unit_in_charge.smart(self.unit_being_built)
-                            logger.debug(f"{self.unit_in_charge} in charge is doing {self.unit_in_charge.orders}")
-        if build_response is not None:
-            response = ResponseCode.SUCCESS if build_response else ResponseCode.FAILED
+        threats = None
+        if self.bot.enemy_units:
+            threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground)
+        if threats and threats.closest_distance_to(self.position) < 15:
+            return ResponseCode.TOO_CLOSE_TO_ENEMY
 
-        return response
+        if self.unit_in_charge is None:
+            self.unit_in_charge = self.workers.get_builder(self.position)
+        if self.unit_in_charge is None:
+            return ResponseCode.NO_BUILDER
+
+        build_response: bool = None
+        if self.unit_being_built:
+            build_response = self.unit_in_charge.smart(self.unit_being_built)
+        else:
+            if self.unit_type_id == UnitTypeId.REFINERY:
+                build_response = self.unit_in_charge.build_gas(self.geysir)
+            else:
+                # self.unit_in_charge.move(self.position)
+                build_response = self.unit_in_charge.build(
+                    self.unit_type_id, self.position
+                )
+
+        return ResponseCode.SUCCESS if build_response else ResponseCode.FAILED
     
     async def position_worker(self, special_locations: SpecialLocations, rush_detected: bool = False):
         if UnitTypeId.SCV in self.builder_type:
@@ -424,8 +406,14 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                                 if len(ready_townhalls) == 1:
                                     preferred_townhalls = ready_townhalls
                                 elif ready_townhalls:
-                                    closest_townhall_to_enemy: Unit = self.map.get_closest_unit_by_path(ready_townhalls, self.bot.enemy_start_locations[0])
-                                    preferred_townhalls = ready_townhalls.filter(lambda th: th.tag != closest_townhall_to_enemy.tag and not th.is_flying)
+                                    non_flying_townhalls = ready_townhalls.filter(lambda th: not th.is_flying)
+                                    if len(non_flying_townhalls) == 1:
+                                        preferred_townhalls = non_flying_townhalls
+                                    elif non_flying_townhalls:
+                                        closest_townhall_to_enemy: Unit = self.map.get_closest_unit_by_path(non_flying_townhalls, self.bot.enemy_start_locations[0])
+                                        preferred_townhalls = non_flying_townhalls.filter(lambda th: th.tag != closest_townhall_to_enemy.tag)
+                                    else:
+                                        preferred_townhalls = ready_townhalls
                             for townhall in preferred_townhalls:
                                 new_build_position = await self.bot.find_placement(
                                     unit_type_id,
@@ -521,9 +509,8 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 self.production.remove_type_from_facilty_queue(self.unit_in_charge, self.unit_type_id)
                 logger.debug(f"unit_in_charge {self.unit_in_charge}")
                 return True
-            if self.unit_in_charge.tag in self.workers.assignments_by_worker:
-                if self.workers.assignments_by_worker[self.unit_in_charge.tag].job_type != JobType.BUILD:
-                    self.workers.update_job(self.unit_in_charge, JobType.BUILD)
+            if self.unit_in_charge.type_id == UnitTypeId.SCV:
+                if not self.unit_in_charge.is_constructing_scv:
                     if self.unit_type_id == UnitTypeId.REFINERY:
                         target = self.unit_being_built if self.unit_being_built else self.geysir
                         self.unit_in_charge(
