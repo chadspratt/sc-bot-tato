@@ -128,6 +128,12 @@ class Resources(UnitReferenceMixin, GeometryMixin):
                 return False
 
         return True
+    
+    def get_node_by_worker_tag(self, worker_tag: int) -> ResourceNode | None:
+        for resource_node in self.nodes:
+            if worker_tag in resource_node.worker_tags:
+                return resource_node
+        return None
 
     def remove_worker(self, exiting_worker: Unit) -> bool:
         return self.remove_worker_by_tag(exiting_worker.tag)

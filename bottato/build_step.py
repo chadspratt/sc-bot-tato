@@ -49,6 +49,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     completed_time: int = None
     worker_in_position_time: int = None
     is_in_progress: bool = False
+    unit_disappeared: bool = False
     interrupted_count: int = 0
 
     def __init__(self, unit_type: Union[UnitTypeId, UpgradeId], bot: BotAI, workers: Workers, production: Production, map: Map):
@@ -83,6 +84,21 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     def is_unit(self) -> bool:
         return self.builder_type in {UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}
 
+    def update_references(self, units_by_tag: dict[int, Unit]):
+        logger.debug(f"unit in charge: {self.unit_in_charge}")
+        try:
+            self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge, units_by_tag)
+        except self.UnitNotFound:
+            self.unit_in_charge = None
+            self.unit_disappeared = True
+
+        if isinstance(self.unit_being_built, Unit):
+            try:
+                self.unit_being_built = self.get_updated_unit_reference(self.unit_being_built, units_by_tag)
+            except self.UnitNotFound:
+                self.unit_being_built = None
+                self.unit_disappeared = True
+
     def draw_debug_box(self):
         if self.unit_in_charge is not None:
             self.bot.client.debug_sphere_out(self.unit_in_charge, 1, (255, 130, 0))
@@ -103,18 +119,6 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             logger.debug(f"unit being built {self.unit_being_built}")
             self.bot.client.debug_box2_out(self.unit_being_built, 0.75)
 
-    def update_references(self, units_by_tag: dict[int, Unit]):
-        logger.debug(f"unit in charge: {self.unit_in_charge}")
-        try:
-            self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge, units_by_tag)
-        except self.UnitNotFound:
-            self.unit_in_charge = None
-        if isinstance(self.unit_being_built, Unit):
-            try:
-                self.unit_being_built = self.get_updated_unit_reference(self.unit_being_built, units_by_tag)
-            except self.UnitNotFound:
-                self.unit_being_built = None
-
     async def execute(self, special_locations: SpecialLocations, rush_defense_enacted: bool = False) -> ResponseCode:
         self.start_timer("build_step.execute inner")
         response = None
@@ -132,6 +136,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.stop_timer(f"build_step.execute_facility_build {self.unit_type_id}")
         if response == ResponseCode.SUCCESS:
             self.is_in_progress = True
+            self.unit_disappeared = False
         self.stop_timer("build_step.execute inner")
         return response
 
@@ -496,12 +501,11 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         return None
 
     def is_interrupted(self) -> bool:
-        if self.unit_being_built and self.unit_being_built is not True and self.unit_being_built.build_progress == 1:
-            return False
-        
-        if self.unit_in_charge is None:
-            logger.debug(f"{self} builder is missing")
+        if self.unit_disappeared:
             return True
+
+        if self.unit_being_built == self.unit_in_charge:
+            return False
 
         self.check_idle: bool = (
             self.check_idle
@@ -553,7 +557,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 elif self.unit_in_charge.is_idle:
                     self.unit_in_charge.smart(self.unit_being_built)
         return False
-    
+
     def cancel_construction(self):
         logger.debug(f"canceling build of {self.unit_being_built}")
         self.unit_being_built(AbilityId.CANCEL_BUILDINPROGRESS)

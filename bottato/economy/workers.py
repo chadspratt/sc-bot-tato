@@ -72,6 +72,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         for worker in self.bot.workers:
             self.add_worker(worker)
         self.aged_mules: Units = Units([], bot)
+        self.worker_micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first, self.bot, self.enemy)
 
     def update_references(self, units_by_tag: dict[int, Unit], builder_tags: list[int]):
         self.start_timer("update_references")
@@ -89,30 +90,45 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             try:
                 assignment.unit = self.get_updated_unit_reference(assignment.unit, units_by_tag)
                 assignment.unit_available = True
-                if assignment.target:
-                    assignment.target = self.get_updated_unit_reference(assignment.target, units_by_tag)
-                if assignment.job_type == JobType.BUILD and assignment.target is None and assignment.unit.is_idle and assignment.unit.tag not in builder_tags:
-                    assignment.job_type = JobType.IDLE
-                    assignment.target = None
-                elif assignment.job_type == JobType.MINERALS and (assignment.target.type_id not in self.minerals.mineral_type_ids or assignment.unit.is_constructing_scv):
-                    assignment.unit(AbilityId.HALT)
-                    assignment.job_type = JobType.IDLE
-                    assignment.target = None
-                elif assignment.job_type == JobType.VESPENE and assignment.target.type_id not in (UnitTypeId.REFINERY, UnitTypeId.REFINERYRICH):
-                    assignment.job_type = JobType.IDLE
-                    assignment.target = None
             except UnitReferenceMixin.UnitNotFound:
+                # unit is inside a structure
                 assignment.unit_available = False
-                logger.debug(f"{assignment.unit} unavailable, maybe already working on {assignment.target}")
+
+            try:
+                assignment.target = self.get_updated_unit_reference(assignment.target, units_by_tag)
+            except UnitReferenceMixin.UnitNotFound:
+                assignment.target = None
+
             try:
                 assignment.dropoff_target = self.get_updated_unit_reference(assignment.dropoff_target, units_by_tag)
             except UnitReferenceMixin.UnitNotFound:
                 assignment.dropoff_target = None
                 assignment.dropoff_position = None
-            if assignment.job_type in self.assignments_by_job:
-                self.assignments_by_job[assignment.job_type].append(assignment)
-            else:
-                self.assignments_by_job[assignment.job_type] = [assignment]
+
+            if assignment.unit_available:
+                # keep workers in sync with build steps, minerals, and vespene
+                if assignment.unit.tag in builder_tags:
+                    assignment.job_type = JobType.BUILD
+                elif assignment.job_type == JobType.BUILD:
+                    assignment.job_type = JobType.IDLE
+                elif assignment.job_type == JobType.MINERALS:
+                    resource_node = self.minerals.get_node_by_worker_tag(assignment.unit.tag)
+                    if resource_node:
+                        assignment.target = resource_node.node
+                    else:
+                        assignment.target = None
+                        assignment.unit(AbilityId.HALT)
+                        assignment.job_type = JobType.IDLE
+                elif assignment.job_type == JobType.VESPENE:
+                    resource_node = self.vespene.get_node_by_worker_tag(assignment.unit.tag)
+                    if resource_node:
+                        assignment.target = resource_node.node
+                    else:
+                        assignment.target = None
+                        assignment.unit(AbilityId.HALT)
+                        assignment.job_type = JobType.IDLE
+
+            self.assignments_by_job[assignment.job_type].append(assignment)
             self.bot.client.debug_text_3d(f"{assignment.job_type.name}\n{assignment.unit.tag}",
                                           assignment.unit.position3d + Point3((0, 0, 1)), size=8, color=(255, 255, 255))
         logger.debug(f"assignment summary {self.assignments_by_job}")
@@ -169,9 +185,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.start_timer("my_workers.speed_mine")
         assignment: WorkerAssignment
         for assignment in self.assignments_by_worker.values():
-            if assignment.on_attack_break:
+            if assignment.on_attack_break or not assignment.unit_available or self.worker_micro.retreat(assignment.unit, 1.0):
                 continue
-            if assignment.unit_available and assignment.job_type in [JobType.MINERALS]:
+            if assignment.unit_available and assignment.job_type in [JobType.MINERALS, JobType.VESPENE]:
                 # self.bottato_speed_mine(assignment)
                 self.ares_speed_mine(assignment)
                 # self.sharpy_speed_mine(assignment)
@@ -268,7 +284,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 worker.move(assignment.gather_position)
                 worker(AbilityId.SMART, assignment.target, True)
                 return True
-            elif worker_distance <= min_distance:
+            else:
                 first_order = worker.orders[0]
                 if first_order.ability.id != AbilityId.HARVEST_GATHER or first_order.target != assignment.target.tag:
                     worker(AbilityId.SMART, assignment.target)
@@ -363,9 +379,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.stop_timer("my_workers.attack_nearby_enemies")
 
     def update_assigment(self, worker: Unit, job_type: JobType, target: Union[Unit, None]):
-        if job_type in (JobType.MINERALS, JobType.VESPENE):
-            assignment = self.assignments_by_worker[worker.tag]
-            logger.debug(f"worker {worker} changing from {assignment.target} to {target}")
         self.update_job(worker, job_type)
         if not self.update_target(worker, target):
             self.update_job(worker, JobType.REPAIR)
@@ -375,16 +388,16 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if worker.tag not in self.assignments_by_worker:
             return
         assignment = self.assignments_by_worker[worker.tag]
-        logger.debug(f"worker {worker} changing from {assignment.job_type} to {new_job}")
+        if assignment.job_type == new_job:
+            return
+
         if assignment.job_type == JobType.MINERALS:
             self.minerals.remove_worker(worker)
         elif assignment.job_type == JobType.VESPENE:
             self.vespene.remove_worker(worker)
+
         self.assignments_by_job[assignment.job_type].remove(assignment)
         assignment.job_type = new_job
-        # assignment.on_attack_break = False
-        if assignment.job_type == JobType.IDLE:
-            assignment.unit_available = True
         self.assignments_by_job[new_job].append(assignment)
 
     def update_target(self, worker: Unit, new_target: Union[Unit, None] = None) -> bool:
@@ -640,7 +653,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if len(units_with_no_repairer) > 5:
                 units_with_no_repairer = units_with_no_repairer[:5]  # spread out repairers to up to 5 units, mostly to keep initial wall repaired
         for repairer in current_repairers:
-            self.update_target(repairer, self.get_repair_target(repairer, injured_units, units_with_no_repairer))
+            self.update_assigment(repairer, JobType.REPAIR, self.get_repair_target(repairer, injured_units, units_with_no_repairer))
 
         # add more repairers
         if repairer_shortage > 0:

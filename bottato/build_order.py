@@ -254,7 +254,7 @@ class BuildOrder(TimerMixin):
                     projected_worker_capacity += 16
 
             # adds number of townhalls to account for near-term production
-            projected_worker_count = min(self.workers.max_workers, len(self.bot.workers) + len(self.bot.townhalls.ready) * 3)
+            projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[JobType.MINERALS]) + len(self.bot.townhalls.ready) * 3)
             surplus_worker_count = projected_worker_count - projected_worker_capacity
             
             cc_count = sum([build_step.unit_type_id == UnitTypeId.COMMANDCENTER for build_step in self.static_queue])
