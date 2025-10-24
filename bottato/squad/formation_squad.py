@@ -131,6 +131,7 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
         self.destination_facing = self.get_facing(destination, facing_position)
 
         self.start_timer("formation get_unit_destinations")
+        # 1/3 of total command execution time
         formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.units, self.destination_facing, self.units_by_tag)
         self.stop_timer("formation get_unit_destinations")
 
@@ -153,6 +154,7 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
                 if unit.tag not in self.bot.unit_tags_received_action:
                     self.start_timer("formation assign positions move")
                     self.start_timer(f"formation assign positions move {unit.type_id}")
+                    # 1/3 of total command execution time
                     await micro.move(unit, formation_positions[unit.tag], force_move)
                     self.stop_timer(f"formation assign positions move {unit.type_id}")
                     self.stop_timer("formation assign positions move")

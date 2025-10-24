@@ -60,13 +60,16 @@ class BuildOrder(TimerMixin):
         logger.debug(
             f"started={','.join([step.friendly_name for step in self.started])}"
         )
-        for build_step in self.started:
+        for build_step in self.all_steps:
             build_step.update_references(units_by_tag)
             logger.debug(f"started step {build_step}")
-        for build_step in self.started + self.static_queue + self.priority_queue + self.build_queue:
             build_step.draw_debug_box()
         await self.move_interupted_to_pending()
         self.stop_timer("update_references")
+
+    @property
+    def all_steps(self) -> List[BuildStep]:
+        return self.started + self.priority_queue + self.static_queue + self.build_queue
 
     async def move_interupted_to_pending(self) -> None:
         self.start_timer("move_interupted_to_pending")
@@ -116,7 +119,7 @@ class BuildOrder(TimerMixin):
         for structure in self.bot.structures_without_construction_SCVs:
             # somehow the build step got lost, re-add it
             if structure.health_percentage > 0.05:
-                for step in self.started + self.static_queue + self.priority_queue + self.build_queue:
+                for step in self.all_steps:
                     if step.unit_being_built and step.unit_being_built != True and step.unit_being_built.tag == structure.tag:
                         break
                 else:
@@ -499,7 +502,7 @@ class BuildOrder(TimerMixin):
     def cancel_damaged_structure(self, unit: Unit, total_damage_amount: float):
         if unit.health_percentage > 0.05:
             return
-        for idx, build_step in enumerate(self.started + self.priority_queue + self.static_queue + self.build_queue):
+        for idx, build_step in enumerate(self.all_steps):
             if build_step.unit_being_built is not None and build_step.unit_being_built is not True and build_step.unit_being_built.tag == unit.tag:
                 build_step.cancel_construction()
                 break
@@ -586,7 +589,7 @@ class BuildOrder(TimerMixin):
     
     def get_assigned_worker_tags(self) -> List[int]:
         return [
-            step.unit_in_charge.tag for step in self.started + self.static_queue + self.priority_queue + self.build_queue
+            step.unit_in_charge.tag for step in self.all_steps
             if UnitTypeId.SCV in step.builder_type and step.unit_in_charge is not None
         ]
     

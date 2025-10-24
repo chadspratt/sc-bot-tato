@@ -262,6 +262,8 @@ class Production(UnitReferenceMixin, TimerMixin):
             return {UnitTypeId.STARPORT}
         if unit_type_id == UnitTypeId.SCV:
             return {UnitTypeId.COMMANDCENTER}
+        if unit_type_id == UnitTypeId.REFINERYRICH:
+            return {UnitTypeId.SCV}
         return UNIT_TRAINED_FROM[unit_type_id]
 
     def get_cheapest_builder_type(self, unit_type_id: Union[UnitTypeId, UpgradeId]) -> UnitTypeId:

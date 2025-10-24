@@ -99,7 +99,7 @@ class Minerals(Resources, TimerMixin):
         added = 0
         nodes_to_add = math.ceil(idle_worker_count / 6)
         if self.bot.townhalls:
-            candidates = [mf for mf in self.bot.mineral_field if mf.tag not in self.nodes_by_tag]
+            candidates = Units([mf for mf in self.bot.mineral_field if mf.tag not in self.nodes_by_tag], self.bot)
             while added < nodes_to_add and candidates:
                 closest_node = self.map.get_closest_unit_by_path(candidates, self.bot.start_location)
                 self.add_node(closest_node)

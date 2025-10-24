@@ -302,9 +302,26 @@ class Map(TimerMixin, GeometryMixin):
                 shortest_distance = path.distance
                 closest_unit = unit
         if closest_unit is None:
-            closest_unit = units.first
+            # fallback to direct distance
+            closest_unit = units.closest_to(end)
         return closest_unit
-    
+
+    def get_closest_position_by_path(self, positions: List[Point2], end: Point2) -> Tuple[Point2, List[Point2]]:
+        shortest_distance = 9999
+        closest_position: Point2 = None
+        for position in positions:
+            path = self.get_path(position, end)
+            if path.distance < shortest_distance:
+                shortest_distance = path.distance
+                closest_position = position
+        if closest_position is None:
+            for position in positions:
+                distance = position.distance_to(end)
+                if distance < shortest_distance:
+                    shortest_distance = distance
+                    closest_position = position
+        return closest_position
+
     def get_path(self, start: Point2, end: Point2) -> Path:
         start_rounded: Point2 = start.rounded
         end_rounded: Point2 = end.rounded

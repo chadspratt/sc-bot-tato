@@ -233,6 +233,17 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     nearest_distance = enemy_distance
 
         return (nearest_enemy, nearest_distance)
+    
+    def get_target_closer_than(self, friendly_unit: Unit, max_distance: float, include_structures=True, include_units=True, include_destructables=False, excluded_types=[], seconds_ahead=0) -> tuple[Unit, float]:
+        candidates: Units = self.get_candidates(include_structures, include_units, include_destructables, True, excluded_types)
+        for enemy in candidates:
+            if seconds_ahead > 0:
+                enemy_distance = friendly_unit.distance_to(self.get_predicted_position(enemy, seconds_ahead)) - enemy.radius - friendly_unit.radius
+            else:
+                enemy_distance = friendly_unit.distance_to(enemy) - enemy.radius - friendly_unit.radius
+            if enemy_distance < max_distance:
+                return (enemy, enemy_distance)
+        return (None, 9999)
 
     def get_enemies_in_range(self, friendly_unit: Unit, include_structures=True, include_units=True, include_destructables=False, excluded_types=[]) -> Units:
         enemies_in_range: Units = Units([], self.bot)

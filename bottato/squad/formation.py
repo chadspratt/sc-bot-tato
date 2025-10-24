@@ -10,7 +10,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 # from sc2.units import Units
 
-from ..mixins import GeometryMixin, UnitReferenceMixin
+from ..mixins import GeometryMixin, TimerMixin, UnitReferenceMixin
 from ..map.map import Map
 
 
@@ -196,7 +196,7 @@ class Formation:
         return unit_positions
 
 
-class ParentFormation(GeometryMixin, UnitReferenceMixin):
+class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
     """Collection of formations which are offset from each other. Translates between formation coords and game coords"""
 
     def __init__(self, bot: BotAI, map: Map):
@@ -242,10 +242,14 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             self.path = [formation_destination]
             logger.debug(f"distance to {self.destination} < 5")
         else:
+            self.start_timer("formation get path points")
             self.path = self.map.get_path_points(self.front_center, formation_destination)
+            self.stop_timer("formation get path points")
             # destination should be next waypoint, but need to
             next_waypoint = self.path[1] if len(self.path) > 1 else formation_destination
+            self.start_timer("formation calculate front center")
             self.front_center = self.calculate_formation_front_center(units, next_waypoint)
+            self.stop_timer("formation calculate front center")
             # limit front_center jumping around
             # self.front_center = self.front_center.towards(new_front_center, 2, limit=True)
 
@@ -266,12 +270,15 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
 
         for formation in self.formations:
             # create list of positions to fill
+            self.start_timer("formation get offsets from reference point")
             formation_offsets = formation.get_unit_offsets_from_reference_point(reference_point)
+            self.stop_timer("formation get offsets from reference point")
             rotated_offsets = self.apply_rotations(facing, formation_offsets)
             positions = [self.destination + offset for offset in rotated_offsets]
 
             # match positions to closest units
             formation_units = self.get_updated_unit_references_by_tags(formation.unit_tags, units_by_tag)
+            self.start_timer("formation assign positions")
             for position in positions:
                 if not formation_units:
                     break
@@ -280,6 +287,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
                 valid_position = position if closest_unit.is_flying else self.map.get_pathable_position(position, closest_unit)
                 formation_units.remove(closest_unit)
                 unit_destinations[closest_unit.tag] = valid_position
+            self.stop_timer("formation assign positions")
 
         return unit_destinations
 

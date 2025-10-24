@@ -175,5 +175,6 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.map.print_timers("map-")
         self.military.print_timers("military-")
         self.military.main_army.print_timers("main_army-")
+        self.military.main_army.parent_formation.print_timers("main_formation-")
         self.enemy.print_timers("enemy-")
         self.production.print_timers("production-")

@@ -60,7 +60,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         excluded_enemy_types = [] if is_sieged else [UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.DRONEBURROWED, UnitTypeId.MULE]
         closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
         closest_enemy_after_siege, closest_distance_after_siege = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time/2)
-        closest_structure, closest_structure_distance = self.enemy.get_closest_target(unit, include_units=False, include_destructables=False)
+        closest_structure, closest_structure_distance = self.enemy.get_target_closer_than(unit, max_distance=self.sight_range - 1,include_units=False)
 
         # reached_destination = unit.position.distance_to(target) < 2
         # if reached_destination:

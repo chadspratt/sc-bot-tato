@@ -86,11 +86,12 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     def update_references(self, units_by_tag: dict[int, Unit]):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
-        try:
-            self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge, units_by_tag)
-        except self.UnitNotFound:
-            self.unit_in_charge = None
-            self.unit_disappeared = True
+        if self.unit_in_charge:
+            try:
+                self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge, units_by_tag)
+            except self.UnitNotFound:
+                self.unit_in_charge = None
+                self.unit_disappeared = True
 
         if isinstance(self.unit_being_built, Unit):
             try:
@@ -322,15 +323,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 self.attempted_expansion_positions.clear()
                 return None
 
-            paths_to_check = [[self.bot.game_info.player_start_location, expansion] for expansion in expansions_to_check]
-            distances = await self.bot.client.query_pathings(paths_to_check)
-            
-            for path, distance in zip(paths_to_check, distances):
-                if distance == 0:
-                    continue
-                if distance < shortest_distance:
-                    shortest_distance = distance
-                    new_build_position = path[1]
+            new_build_position = self.map.get_closest_position_by_path(expansions_to_check, self.bot.game_info.player_start_location)
 
             # run it through find placement in case it's blocked by some weird map feature
             if self.bot.game_info.map_name == 'Magannatha AIE':
@@ -511,25 +504,26 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 return True
             if self.unit_in_charge.type_id == UnitTypeId.SCV:
                 if not self.unit_in_charge.is_constructing_scv:
-                    if self.unit_type_id == UnitTypeId.REFINERY:
-                        target = self.unit_being_built if self.unit_being_built else self.geysir
-                        self.unit_in_charge(
-                            self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
-                            target=target,
-                            queue=False,
-                            subtract_cost=False,
-                            can_afford_check=False,
-                        )
+                    if self.unit_being_built:
+                        self.unit_in_charge.smart(self.unit_being_built)
                     else:
-                        # unit.build subtracts the cost from self.bot.minerals/vespene so we need to use ability directly
-                        target = self.unit_being_built if self.unit_being_built else self.position
-                        self.unit_in_charge(
-                            self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
-                            target=target,
-                            queue=False,
-                            subtract_cost=False,
-                            can_afford_check=False,
-                        )
+                        if self.unit_type_id == UnitTypeId.REFINERY:
+                            self.unit_in_charge(
+                                self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
+                                target=self.geysir,
+                                queue=False,
+                                subtract_cost=False,
+                                can_afford_check=False,
+                            )
+                        else:
+                            # unit.build subtracts the cost from self.bot.minerals/vespene so we need to use ability directly
+                            self.unit_in_charge(
+                                self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
+                                target=self.position,
+                                queue=False,
+                                subtract_cost=False,
+                                can_afford_check=False,
+                            )
                 if self.unit_being_built is None:
                     if self.unit_in_charge.distance_to_squared(self.position) < 9 and self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
                         self.worker_in_position_time = self.bot.time

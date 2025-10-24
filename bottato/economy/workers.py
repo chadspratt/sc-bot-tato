@@ -187,6 +187,19 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         for assignment in self.assignments_by_worker.values():
             if assignment.on_attack_break or not assignment.unit_available or await self.worker_micro.retreat(assignment.unit, 1.0):
                 continue
+            
+            if not self.bot.townhalls.ready:
+                logger.warning(
+                    f"{self.bot.time_formatted} Attempting to speed mine with no townhalls"
+                )
+                break
+
+            if not self.bot.mineral_field:
+                logger.warning(
+                    f"{self.bot.time_formatted} Attempting to speed mine with no mineral fields"
+                )
+                break
+
             if assignment.unit_available and assignment.job_type in [JobType.MINERALS, JobType.VESPENE]:
                 # self.bottato_speed_mine(assignment)
                 self.ares_speed_mine(assignment)
@@ -227,18 +240,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
     TOWNHALL_RADIUS: float = 2.75
     DISTANCE_TO_TOWNHALL_FACTOR: float = 1.08
     def ares_speed_mine(self, assignment: WorkerAssignment) -> bool:
-        if not self.bot.townhalls.ready:
-            logger.warning(
-                f"{self.bot.time_formatted} Attempting to speed mine with no townhalls"
-            )
-            return False
-
-        if not self.bot.mineral_field:
-            logger.warning(
-                f"{self.bot.time_formatted} Attempting to speed mine with no mineral fields"
-            )
-            return False
-
         worker = assignment.unit
         len_orders: int = len(worker.orders)
 
