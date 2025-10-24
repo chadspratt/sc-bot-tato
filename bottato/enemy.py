@@ -240,7 +240,10 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             if seconds_ahead > 0:
                 enemy_distance = friendly_unit.distance_to(self.get_predicted_position(enemy, seconds_ahead)) - enemy.radius - friendly_unit.radius
             else:
-                enemy_distance = friendly_unit.distance_to(enemy) - enemy.radius - friendly_unit.radius
+                if enemy.age == 0:
+                    enemy_distance = friendly_unit.distance_to(enemy) - enemy.radius - friendly_unit.radius
+                else:
+                    enemy_distance = friendly_unit.distance_to(enemy.position) - enemy.radius - friendly_unit.radius
             if enemy_distance < max_distance:
                 return (enemy, enemy_distance)
         return (None, 9999)
