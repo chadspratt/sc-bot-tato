@@ -301,6 +301,8 @@ class Map(TimerMixin, GeometryMixin):
             if path.distance < shortest_distance:
                 shortest_distance = path.distance
                 closest_unit = unit
+        if closest_unit is None:
+            closest_unit = units.first
         return closest_unit
     
     def get_path(self, start: Point2, end: Point2) -> Path:
