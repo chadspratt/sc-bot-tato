@@ -49,7 +49,6 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     completed_time: int = None
     worker_in_position_time: int = None
     is_in_progress: bool = False
-    unit_disappeared: bool = False
     interrupted_count: int = 0
 
     def __init__(self, unit_type: Union[UnitTypeId, UpgradeId], bot: BotAI, workers: Workers, production: Production, map: Map):
@@ -91,14 +90,12 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge, units_by_tag)
             except self.UnitNotFound:
                 self.unit_in_charge = None
-                self.unit_disappeared = True
 
         if isinstance(self.unit_being_built, Unit):
             try:
                 self.unit_being_built = self.get_updated_unit_reference(self.unit_being_built, units_by_tag)
             except self.UnitNotFound:
                 self.unit_being_built = None
-                self.unit_disappeared = True
 
     def draw_debug_box(self):
         if self.unit_in_charge is not None:
@@ -137,7 +134,6 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.stop_timer(f"build_step.execute_facility_build {self.unit_type_id}")
         if response == ResponseCode.SUCCESS:
             self.is_in_progress = True
-            self.unit_disappeared = False
         self.stop_timer("build_step.execute inner")
         return response
 
@@ -482,7 +478,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         return None
 
     def is_interrupted(self) -> bool:
-        if self.unit_disappeared:
+        if self.unit_in_charge is None:
             return True
 
         if self.unit_being_built == self.unit_in_charge:
