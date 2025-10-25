@@ -359,7 +359,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if self.bot.townhalls:
             for townhall in self.bot.townhalls:
                 nearby_enemies = self.bot.enemy_units.closer_than(12, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
-                nearby_enemy_structures = self.bot.enemy_structures.closer_than(15, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
+                nearby_enemy_structures = self.bot.enemy_structures.closer_than(18, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
                 if nearby_enemy_structures:
                     nearby_enemy_structures.sort(key=lambda a: a.type_id == UnitTypeId.PHOTONCANNON, reverse=True)
 
@@ -397,7 +397,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     if not attackers:
                         break
                     for attacker in attackers:
-                        await micro.move(attacker, nearby_enemy.position)
+                        if nearby_enemy.is_structure:
+                            attacker.attack(nearby_enemy)
+                        else:
+                            await micro.move(attacker, nearby_enemy.position)
                         attacker_tags.add(attacker.tag)
                         self.assignments_by_worker[attacker.tag].on_attack_break = True
         # put any leftover workers back to work
