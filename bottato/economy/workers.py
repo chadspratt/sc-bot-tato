@@ -42,6 +42,7 @@ class WorkerAssignment():
         self.initial_gather_complete: bool = False
         self.is_returning = False
         self.on_attack_break = False
+        self.attack_target_tag: int = None
 
     def __repr__(self) -> str:
         return f"WorkerAssignment({self.unit}({self.unit_available}), {self.job_type.name}, {self.target})"
@@ -357,18 +358,18 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.start_timer("my_workers.attack_nearby_enemies")
         attacker_tags = set()
         if self.bot.townhalls:
+            available_workers = self.bot.workers.filter(lambda u: self.assignments_by_worker[u.tag].job_type in {JobType.MINERALS, JobType.VESPENE})
+            healthy_workers = available_workers.filter(lambda u: u.health_percentage > 0.5)
+            unhealthy_workers = available_workers.filter(lambda u: u.health_percentage <= 0.5)
+
             for townhall in self.bot.townhalls:
-                nearby_enemy_structures = self.bot.enemy_structures.closer_than(25, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
+                nearby_enemy_structures = self.bot.enemy_structures.closer_than(20, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
                 if nearby_enemy_structures:
                     nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 10000 + a.distance_to(townhall))
                 nearby_enemy_range = 25 if nearby_enemy_structures else 12
                 nearby_enemies = self.bot.enemy_units.closer_than(nearby_enemy_range, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
 
-                workers_nearby = self.bot.workers.closer_than(15, townhall).filter(lambda u: self.assignments_by_worker[u.tag].job_type in {JobType.MINERALS, JobType.VESPENE})
-                healthy_workers = workers_nearby.filter(lambda u: u.health_percentage > 0.5)
-                unhealthy_workers = workers_nearby.filter(lambda u: u.health_percentage <= 0.5)
-
-                if len(nearby_enemies) >= len(workers_nearby):
+                if len(nearby_enemies) >= len(available_workers):
                     # don't suicide workers if outnumbered
                     continue
                 # assign closest 3 workers to attack each enemy
