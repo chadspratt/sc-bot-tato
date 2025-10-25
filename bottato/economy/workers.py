@@ -359,19 +359,47 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if self.bot.townhalls:
             for townhall in self.bot.townhalls:
                 nearby_enemies = self.bot.enemy_units.closer_than(12, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
+                nearby_enemy_structures = self.bot.enemy_structures.closer_than(15, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
+                if nearby_enemy_structures:
+                    nearby_enemy_structures.sort(lambda a, b: a.type_id == UnitTypeId.PHOTONCANNON, reverse=True)
+
                 workers_nearby = self.bot.workers.closer_than(15, townhall).filter(lambda u: self.assignments_by_worker[u.tag].job_type in {JobType.MINERALS, JobType.VESPENE})
+                healthy_workers = workers_nearby.filter(lambda u: u.health_percentage > 0.5)
+                unhealthy_workers = workers_nearby.filter(lambda u: u.health_percentage <= 0.5)
+
                 if len(nearby_enemies) >= len(workers_nearby):
                     # don't suicide workers if outnumbered
                     continue
                 # assign closest 3 workers to attack each enemy
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first, self.bot, self.enemy)
-                for nearby_enemy in nearby_enemies:
-                    attackers = workers_nearby.closest_n_units(nearby_enemy, 3)
+                workers_per_enemy_unit = 2 if nearby_enemy_structures else 3
+                for nearby_enemy in nearby_enemies + nearby_enemy_structures:
+                    attackers = []
+                    number_of_attackers = 4 if nearby_enemy.is_structure else workers_per_enemy_unit
+                    if len(healthy_workers) > number_of_attackers:
+                        attackers = healthy_workers.closest_n_units(nearby_enemy, number_of_attackers)
+                        for attacker in attackers:
+                            healthy_workers.remove(attacker)
+                    else:
+                        attackers = [worker for worker in healthy_workers]
+                        healthy_workers.clear()
+                        if unhealthy_workers:
+                            remainder = number_of_attackers - len(healthy_workers)
+
+                            if len(unhealthy_workers) > remainder:
+                                unhealthy_attackers = unhealthy_workers.closest_n_units(nearby_enemy, remainder)
+                                for attacker in unhealthy_attackers:
+                                    unhealthy_workers.remove(attacker)
+                                attackers.extend(unhealthy_attackers)
+                            else:
+                                attackers.extend([worker for worker in unhealthy_workers])
+                                unhealthy_workers.clear()
+                    if not attackers:
+                        break
                     for attacker in attackers:
                         await micro.move(attacker, nearby_enemy.position)
                         attacker_tags.add(attacker.tag)
                         self.assignments_by_worker[attacker.tag].on_attack_break = True
-                        workers_nearby.remove(attacker)
         # put any leftover workers back to work
         for worker in self.bot.workers:
             assignment = self.assignments_by_worker[worker.tag]
