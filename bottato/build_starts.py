@@ -34,8 +34,8 @@ class BuildStarts():
                 UnitTypeId.ORBITALCOMMAND,              # MAIN,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
-                UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
+                UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
                 UnitTypeId.SCV,
                 UnitTypeId.SCV,
                 UnitTypeId.MARINE,

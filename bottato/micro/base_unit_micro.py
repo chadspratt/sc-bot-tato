@@ -191,14 +191,14 @@ class BaseUnitMicro(GeometryMixin):
                 self.attack_something(unit, 0.0)
             logger.debug(f"{unit} marine retreating to heal at {nearest_medivac} hp {unit.health_percentage}")
             self.healing_unit_tags.add(unit.tag)
-        elif self.bot.townhalls:
-            landed_townhalls = self.bot.townhalls.filter(lambda th: not th.is_flying)
-            if landed_townhalls:
-                closest_townhall = landed_townhalls.closest_to(unit)
-            if closest_townhall and unit.distance_to(closest_townhall) > 5:
-                unit.move(closest_townhall)
-            else:
-                self.attack_something(unit, 0.0)
+        # elif self.bot.townhalls:
+        #     landed_townhalls = self.bot.townhalls.filter(lambda th: not th.is_flying)
+        #     if landed_townhalls:
+        #         closest_townhall = landed_townhalls.closest_to(unit)
+        #     if closest_townhall and unit.distance_to(closest_townhall) > 5:
+        #         unit.move(closest_townhall)
+        #     else:
+        #         self.attack_something(unit, 0.0)
         else:
             return False
         return True

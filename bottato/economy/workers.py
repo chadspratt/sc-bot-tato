@@ -249,13 +249,19 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             return True
 
         if (worker.is_returning or worker.is_carrying_resource) and len_orders < 2:
-            if not assignment.dropoff_target:
-                closest_townhall: Unit = self.closest_unit_to_unit(worker, self.bot.townhalls.ready)
-                if closest_townhall.distance_to(worker) < 15:
-                    assignment.dropoff_target = closest_townhall
-
+            if assignment.dropoff_target and assignment.dropoff_target.is_flying:
+                # can't dropoff to a flying cc
+                assignment.dropoff_target = None
+                assignment.dropoff_position = None
             if assignment.dropoff_target is None:
-                return False
+                non_flying = self.bot.townhalls.ready.filter(lambda th: not th.is_flying)
+                if non_flying:
+                    closest_townhall: Unit = self.closest_unit_to_unit(worker, non_flying)
+                    if closest_townhall.distance_to(worker) < 15:
+                        assignment.dropoff_target = closest_townhall
+                if assignment.dropoff_target is None:
+                    return False
+
             target_pos: Point2 = assignment.dropoff_target.position
 
             target_pos: Point2 = Point2(

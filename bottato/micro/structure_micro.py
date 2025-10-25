@@ -62,7 +62,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                             cc.move(self.bot.main_base_ramp.top_center)
                         else:
                             cc.move(destination)
-                elif cc.position == destination:
+                        continue
+                if cc.position == destination:
                     cc(AbilityId.LAND, destination)
                 else:
                     cc.move(destination)
