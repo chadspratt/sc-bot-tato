@@ -360,7 +360,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             for townhall in self.bot.townhalls:
                 nearby_enemy_structures = self.bot.enemy_structures.closer_than(25, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
                 if nearby_enemy_structures:
-                    nearby_enemy_structures.sort(key=lambda a: a.type_id != UnitTypeId.PHOTONCANNON * 10000 + a.distance_to(townhall))
+                    nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 10000 + a.distance_to(townhall))
                 nearby_enemy_range = 25 if nearby_enemy_structures else 12
                 nearby_enemies = self.bot.enemy_units.closer_than(nearby_enemy_range, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
 
