@@ -482,7 +482,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             return True
 
         if self.unit_being_built == self.unit_in_charge:
-            return False
+            return self.unit_in_charge.is_idle
 
         self.check_idle: bool = (
             self.check_idle

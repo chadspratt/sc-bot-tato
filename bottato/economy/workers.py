@@ -399,6 +399,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     if not attackers:
                         break
                     for attacker in attackers:
+                        max_attack_distance = 20 if nearby_enemy.is_structure else 15
+                        if attacker.distance_to(nearby_enemy) > max_attack_distance:
+                            # don't pull workers from far away
+                            continue
                         if nearby_enemy.is_structure:
                             attacker.attack(nearby_enemy)
                         else:

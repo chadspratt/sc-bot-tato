@@ -83,7 +83,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 logger.debug(f"{build_step} Is interrupted!")
                 # move back to pending (demote)
                 to_promote.append(idx)
-                if build_step.unit_being_built is None:
+                if build_step.unit_being_built is None or build_step.unit_being_built == build_step.unit_in_charge:
                     build_step.is_in_progress = False
                     if build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
                         # if expansion was cancelled, clear position so it can be retried
@@ -222,7 +222,22 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.start_timer("get_queued_worker")
         in_static_queue = max([build_step.unit_type_id == UnitTypeId.SCV for build_step in self.static_queue], default=False)
         if not in_static_queue:
-            worker_build_capacity: int = len(self.bot.townhalls.ready)
+            command_center_upgrade_pending = False
+            if self.static_queue and self.static_queue[0].unit_type_id in (UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS):
+                command_center_upgrade_pending = True
+            elif self.build_queue and self.build_queue[0].unit_type_id in (UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS):
+                command_center_upgrade_pending = True
+            elif self.started:
+                for build_step in self.started:
+                    if build_step.unit_type_id in (UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS):
+                        if build_step.unit_in_charge.is_idle:
+                            # make sure the upgrade actually starts
+                            command_center_upgrade_pending = True
+                            break
+            available_townhalls = self.bot.townhalls.filter(lambda cc: cc.is_ready and cc.is_idle and not cc.is_flying)
+            worker_build_capacity: int = len(available_townhalls)
+            if command_center_upgrade_pending:
+                worker_build_capacity = len(available_townhalls.filter(lambda cc: cc.type_id != UnitTypeId.COMMANDCENTER))
             desired_worker_count = self.workers.max_workers
             # desired_worker_count = max(30, self.bot.supply_cap / 3)
             logger.debug(f"worker_build_capacity={worker_build_capacity}")
@@ -237,18 +252,29 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
     def queue_supply(self) -> None:
         self.start_timer("queue_supply")
         in_static_queue = max([build_step.unit_type_id == UnitTypeId.SUPPLYDEPOT for build_step in self.static_queue], default=False)
-        if self.bot.supply_cap < 200 and not in_static_queue:
-            if self.bot.supply_cap == 0:
-                self.add_to_build_queue(UnitTypeId.SUPPLYDEPOT)
-            else:
-                supply_percent_remaining = self.bot.supply_left / self.bot.supply_cap
-                if self.bot.supply_left < 10 or supply_percent_remaining <= 0.2:
-                    new_ids = [UnitTypeId.SUPPLYDEPOT]
-                    # queue another if supply is very low
-                    if (self.bot.supply_left < 2 or supply_percent_remaining <= 0.1):
-                        new_ids.append(UnitTypeId.SUPPLYDEPOT)
-                    self.add_to_build_queue(new_ids, queue=self.priority_queue)
+        if 0 < self.bot.supply_cap < 200 and not in_static_queue:
+            in_progress_count = self.get_in_progress_count(UnitTypeId.SUPPLYDEPOT)
+            supply_percent_remaining = self.bot.supply_left / self.bot.supply_cap
+            if self.bot.supply_left < 10 or supply_percent_remaining <= 0.2:
+                needed_count = 1
+                # queue another if supply is very low
+                if (self.bot.supply_left < 2 or supply_percent_remaining <= 0.1):
+                    needed_count += 1
+                if in_progress_count < needed_count:
+                    self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT for x in range(needed_count - in_progress_count)], queue=self.priority_queue)
         self.stop_timer("queue_supply")
+
+    def get_in_progress_count(self, unit_type: UnitTypeId) -> int:
+        return sum([build_step.unit_type_id == unit_type for build_step in self.started])
+
+    def upgrade_is_in_progress(self, upgrade_type: UpgradeId) -> bool:
+        for build_step in self.started:
+            if build_step.upgrade_id == upgrade_type:
+                return True
+        return False
+
+    def get_queued_count(self, unit_type: UnitTypeId, queue: List[BuildStep]) -> int:
+        return sum([build_step.unit_type_id == unit_type for build_step in queue])
 
     def queue_command_center(self, rush_detected: bool) -> None:
         self.start_timer("queue_command_center")
@@ -259,10 +285,10 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                     projected_worker_capacity += 16
 
             # adds number of townhalls to account for near-term production
-            projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[JobType.MINERALS]) + len(self.bot.townhalls.ready) * 3)
+            projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[JobType.MINERALS]) + len(self.bot.townhalls.ready) * 4)
             surplus_worker_count = projected_worker_count - projected_worker_capacity
             
-            cc_count = sum([build_step.unit_type_id == UnitTypeId.COMMANDCENTER for build_step in self.static_queue])
+            cc_count = self.get_in_progress_count(UnitTypeId.COMMANDCENTER) + self.get_queued_count(UnitTypeId.COMMANDCENTER, self.static_queue)
             needed_cc_count = math.ceil(surplus_worker_count / 16)
 
             logger.debug(f"expansion: {surplus_worker_count} surplus workers need {needed_cc_count} cc(s)")
@@ -274,10 +300,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
 
     def queue_refinery(self) -> None:
         self.start_timer("queue_refinery")
-        refinery_count = len(self.bot.gas_buildings)
-        for build_step in self.started + self.static_queue:
-            if build_step.unit_type_id == UnitTypeId.REFINERY:
-                refinery_count += 1
+        refinery_count = len(self.bot.gas_buildings.ready) + self.get_in_progress_count(UnitTypeId.REFINERY) + self.get_queued_count(UnitTypeId.REFINERY, self.static_queue)
         # build refinery if less than 2 per town hall (function is only called if gas is needed but no room to move workers)
         logger.debug(f"refineries: {refinery_count}, townhalls: {len(self.bot.townhalls)}")
         if self.bot.townhalls.ready:
@@ -300,31 +323,63 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.stop_timer("queue_production-get_affordable_build_list")
         self.start_timer("queue_production-additional_needed_production")
         extra_production: List[UnitTypeId] = self.production.additional_needed_production(affordable_units)
+        # only add if not already in progress
+        extra_production = self.remove_in_progress_from_list(extra_production)
         self.stop_timer("queue_production-additional_needed_production")
         self.start_timer("queue_production-add_to_build_order")
         self.add_to_build_queue(extra_production, position=0, queue=self.static_queue)
         self.stop_timer("queue_production-add_to_build_order")
         self.stop_timer("queue_production")
 
+    def remove_in_progress_from_list(self, build_list: List[UnitTypeId]) -> List[UnitTypeId]:
+        in_progress_counts: Dict[UnitTypeId, int] = {}
+        result: List[UnitTypeId] = []
+        for unit_type in build_list:
+            if unit_type not in in_progress_counts:
+                in_progress_counts[unit_type] = self.get_in_progress_count(unit_type)
+            if in_progress_counts[unit_type] > 0:
+                in_progress_counts[unit_type] -= 1
+            else:
+                result.append(unit_type)
+        return result
+
+    upgrade_building_types = {
+        UnitTypeId.ARMORY,
+        # UnitTypeId.FUSIONCORE,
+        UnitTypeId.ENGINEERINGBAY,
+        UnitTypeId.BARRACKSTECHLAB,
+        UnitTypeId.FACTORYTECHLAB,
+        UnitTypeId.STARPORTTECHLAB,
+        # UnitTypeId.GHOSTACADEMY,
+    }
     def queue_upgrade(self) -> None:
         self.start_timer("queue_upgrade")
         if self.bot.time > 360:
-            next_upgrades: List[UpgradeId] = self.upgrades.get_upgrades()
-            for next_upgrade in next_upgrades:
-                for build_step in self.started:
-                    if next_upgrade == build_step.upgrade_id:
-                        logger.debug(f"upgrade {next_upgrade} already in build order, progress: {self.bot.already_pending_upgrade(build_step.upgrade_id)}")
-                        break
-                else:
-                    # not already started or pending
-                    logger.debug(f"adding upgrade {next_upgrade} to build order")
-                    self.add_to_build_queue(self.production.build_order_with_prereqs(next_upgrade))
-                    # self.add_to_build_order(self.production.build_order_with_prereqs(next_upgrade), 1)
+            for facility_type in self.upgrade_building_types:
+                if self.bot.structures(facility_type).ready.idle:
+                    next_upgrade = self.upgrades.next_upgrades(facility_type)
+                    if not self.upgrade_is_in_progress(next_upgrade):
+                        self.add_to_build_queue(self.upgrades.next_upgrades(facility_type), queue=self.priority_queue)
+                elif not self.bot.structures(facility_type) and self.get_in_progress_count(facility_type) == 0:
+                    new_build_steps = self.production.build_order_with_prereqs(facility_type)
+                    new_build_steps = self.remove_in_progress_from_list(new_build_steps)
+                    self.add_to_build_queue(new_build_steps, queue=self.static_queue)
+            # next_upgrades: List[UpgradeId] = self.upgrades.get_upgrades()
+            # for next_upgrade in next_upgrades:
+            #     for build_step in self.started:
+            #         if next_upgrade == build_step.upgrade_id:
+            #             logger.debug(f"upgrade {next_upgrade} already in build order, progress: {self.bot.already_pending_upgrade(build_step.upgrade_id)}")
+            #             break
+            #     else:
+            #         # not already started or pending
+            #         logger.debug(f"adding upgrade {next_upgrade} to build order")
+            #         self.add_to_build_queue(self.production.build_order_with_prereqs(next_upgrade))
+            #         # self.add_to_build_order(self.production.build_order_with_prereqs(next_upgrade), 1)
         self.stop_timer("queue_upgrade")
 
     def queue_planetary(self) -> None:
         self.start_timer("queue_planetary")
-        planetary_count = len(self.bot.structures.of_type(UnitTypeId.PLANETARYFORTRESS))
+        planetary_count = len(self.bot.structures.of_type(UnitTypeId.PLANETARYFORTRESS)) + self.get_in_progress_count(UnitTypeId.PLANETARYFORTRESS)
         cc_count = len(self.bot.structures.of_type(UnitTypeId.COMMANDCENTER))
         if self.bot.time > 500 and planetary_count < cc_count:
             self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.PLANETARYFORTRESS))
@@ -333,7 +388,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
     def queue_turret(self) -> None:
         self.start_timer("queue_turret")
         if self.bot.time > 300:
-            turret_count = len(self.bot.structures.of_type(UnitTypeId.MISSILETURRET))
+            turret_count = len(self.bot.structures.of_type(UnitTypeId.MISSILETURRET).ready) + self.get_in_progress_count(UnitTypeId.MISSILETURRET)
             base_count = len(self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}))
             if turret_count < base_count:
                 self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
@@ -344,8 +399,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             unit_types = [unit_types]
         if queue is None:
             queue = self.build_queue
-        in_progress: List[BuildStep] = [] + self.started + queue
-        for build_step in in_progress:
+        for build_step in queue:
             # for build_item in unit_types:
             if build_step.unit_type_id in unit_types:
                 unit_types.remove(build_step.unit_type_id)
@@ -567,6 +621,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             logger.debug(f"building {build_step}, response: {build_response}")
             if build_response == ResponseCode.SUCCESS:
                 self.started.append(build_queue.pop(execution_index))
+                remaining_resources.minerals = 0
                 break
             else:
                 if not allow_skip:

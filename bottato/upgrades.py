@@ -111,14 +111,14 @@ class Upgrades:
         ],
         UnitTypeId.ARMORY: [
             UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1,
-            UpgradeId.TERRANSHIPWEAPONSLEVEL1,
             UpgradeId.TERRANVEHICLEWEAPONSLEVEL1,
+            UpgradeId.TERRANSHIPWEAPONSLEVEL1,
             UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL2,
-            UpgradeId.TERRANSHIPWEAPONSLEVEL2,
             UpgradeId.TERRANVEHICLEWEAPONSLEVEL2,
+            UpgradeId.TERRANSHIPWEAPONSLEVEL2,
             UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL3,
-            UpgradeId.TERRANSHIPWEAPONSLEVEL3,
             UpgradeId.TERRANVEHICLEWEAPONSLEVEL3,
+            UpgradeId.TERRANSHIPWEAPONSLEVEL3,
         ],
         UnitTypeId.ENGINEERINGBAY: [
             UpgradeId.HISECAUTOTRACKING,
