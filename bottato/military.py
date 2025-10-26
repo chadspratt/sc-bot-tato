@@ -279,15 +279,17 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stop_timer("military enemies_in_base")
 
         self.start_timer("military army value")
-        enemy_value = self.get_army_value(self.enemy.get_army())
-        main_army_value = self.get_army_value(self.main_army.units)
-        army_is_big_enough = main_army_value > enemy_value * 1.1 or self.bot.supply_used > 160
+        # enemy_value = self.get_army_value(self.enemy.get_army())
+        # main_army_value = self.get_army_value(self.main_army.units)
+        # army_is_big_enough = main_army_value > enemy_value * 1.1 or self.bot.supply_used > 160
+        # self.army_ratio = main_army_value / max(enemy_value, 1)
+        self.army_ratio = self.calculate_army_ratio()
+        army_is_big_enough = self.army_ratio > 1.1 or self.bot.supply_used > 160
         army_is_grouped = self.main_army.is_grouped()
-        self.army_ratio = main_army_value / max(enemy_value, 1)
         mount_offense = not defend_with_main_army and army_is_big_enough and (self.bot.supply_used >= 110 or self.bot.time > 600)
         if not mount_offense and enemies_in_base:
             defend_with_main_army = True
-        self.status_message = f"main_army_value: {main_army_value}\nenemy_value: {enemy_value}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
+        self.status_message = f"army ratio {self.army_ratio:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
         self.stop_timer("military army value")
 
@@ -534,6 +536,60 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         logger.debug(f"military requesting {new_units}")
         self.stop_timer("get_squad_request")
         return new_units
+    
+    def calculate_army_ratio(self) -> float:
+        enemies = self.enemy.get_army()
+        friendlies = self.main_army.units
+        if not enemies:
+            return 10.0
+        if not friendlies:
+            return 0.1
+
+        enemy_damage: float = self.calculate_total_damage(enemies, friendlies)
+        friendly_damage: float = self.calculate_total_damage(friendlies, enemies)
+        
+        enemy_health: float = sum([unit.health for unit in enemies])
+        medivacs = enemies.of_type(UnitTypeId.MEDIVAC)
+        for medivac in medivacs:
+            enemy_health += medivac.energy * 2
+        friendly_health: float = sum([unit.health for unit in friendlies])
+        medivacs = friendlies.of_type(UnitTypeId.MEDIVAC)
+        for medivac in medivacs:
+            friendly_health += medivac.energy * 2
+
+        enemy_strength: float = enemy_damage / max(friendly_health, 1)
+        friendly_strength: float = friendly_damage / max(enemy_health, 1)
+
+        return friendly_strength / max(enemy_strength, 0.0001)
+
+    damage_by_type: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
+    def calculate_total_damage(self, attackers: Units, targets: Units) -> float:
+        total_damage: float = 0.0
+        attacker_type_counts = self.count_units_by_type(attackers)
+        target_type_counts = self.count_units_by_type(targets)
+        # calculate dps vs each target type if not already cached
+        for attacker in attackers:
+            for target in targets:
+                if attacker.type_id not in self.damage_by_type:
+                    self.damage_by_type[attacker.type_id] = {}
+                if target.type_id not in self.damage_by_type[attacker.type_id]:
+                    if self.can_attack(attacker, target):
+                        dps = attacker.calculate_dps_vs_target(target)
+                    else:
+                        dps = 0.0
+                    self.damage_by_type[attacker.type_id][target.type_id] = dps
+
+        # calculate average damage vs all target types
+        total_damage = 0.0
+        for attacker_type, attacker_count in attacker_type_counts.items():
+            total_damage_for_type = 0.0
+            for target_type, target_count in target_type_counts.items():
+                dps = self.damage_by_type[attacker_type][target_type]
+                total_damage_for_type += dps * target_count
+            average_damage = total_damage_for_type / len(targets)
+            # add total average damage for all attackers of this type
+            total_damage += average_damage * attacker_count
+        return total_damage
 
     def simulate_battle(self):
         self.start_timer("simulate_battle")

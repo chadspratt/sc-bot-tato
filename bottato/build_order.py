@@ -14,14 +14,14 @@ from sc2.game_data import Cost
 from bottato.build_step import BuildStep, ResponseCode
 from bottato.economy.workers import Workers, JobType
 from bottato.economy.production import Production
-from bottato.mixins import TimerMixin
+from bottato.mixins import TimerMixin, UnitReferenceMixin
 from bottato.upgrades import Upgrades
 from bottato.special_locations import SpecialLocations, SpecialLocation
 from bottato.map.map import Map
 from bottato.build_starts import BuildStarts
 
 
-class BuildOrder(TimerMixin):
+class BuildOrder(TimerMixin, UnitReferenceMixin):
     # gets processed first, for supply depots and workers
     priority_queue: List[BuildStep] = []
     # initial build order and interrupted builds
@@ -445,11 +445,15 @@ class BuildOrder(TimerMixin):
                 continue
             logger.debug(f"{in_progress_step.unit_type_id} {started_structure.type_id}")
             if in_progress_step.unit_type_id == started_structure.type_id or (in_progress_step.unit_type_id == UnitTypeId.REFINERY and started_structure.type_id == UnitTypeId.REFINERYRICH):
+                if in_progress_step.unit_in_charge and in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
+                    in_progress_step.unit_in_charge = self.get_updated_unit_reference(in_progress_step.unit_in_charge)
+                    if not in_progress_step.unit_in_charge.is_constructing_scv:
+                        # wrong worker
+                        continue
+                    self.workers.update_assigment(in_progress_step.unit_in_charge, JobType.BUILD, started_structure)
                 logger.debug(f"found matching step: {in_progress_step}")
                 in_progress_step.unit_being_built = started_structure
                 in_progress_step.position = started_structure.position
-                if in_progress_step.unit_in_charge and in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
-                    self.workers.update_assigment(in_progress_step.unit_in_charge, JobType.BUILD, started_structure)
                 break
         # see if this is a ramp blocker
         ramp_blocker: SpecialLocation

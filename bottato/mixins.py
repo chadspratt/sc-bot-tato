@@ -15,7 +15,7 @@ class UnitReferenceMixin:
     class UnitNotFound(Exception):
         pass
 
-    def get_updated_unit_reference(self, unit: Unit, units_by_tag: dict[int, Unit]) -> Unit:
+    def get_updated_unit_reference(self, unit: Unit, units_by_tag: dict[int, Unit] = None) -> Unit:
         if unit is None:
             raise self.UnitNotFound(
                 "unit is None"
@@ -33,7 +33,7 @@ class UnitReferenceMixin:
                 f"Cannot find unit with tag {tag}; maybe they died"
             )
 
-    def get_updated_unit_references(self, units: Units, units_by_tag: dict[int, Unit]) -> Units:
+    def get_updated_unit_references(self, units: Units, units_by_tag: dict[int, Unit] = None) -> Units:
         _units = Units([], bot_object=self.bot)
         for unit in units:
             try:
@@ -42,7 +42,7 @@ class UnitReferenceMixin:
                 logger.debug(f"Couldn't find unit {unit}!")
         return _units
 
-    def get_updated_unit_references_by_tags(self, tags: List[int], units_by_tag: dict[int, Unit]) -> Units:
+    def get_updated_unit_references_by_tags(self, tags: List[int], units_by_tag: dict[int, Unit] = None) -> Units:
         _units = Units([], bot_object=self.bot)
         for tag in tags:
             try:

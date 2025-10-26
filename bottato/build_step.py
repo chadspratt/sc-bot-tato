@@ -406,7 +406,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                             for townhall in preferred_townhalls:
                                 new_build_position = await self.bot.find_placement(
                                     unit_type_id,
-                                    near=townhall.position.towards(map_center, distance=8),
+                                    near=townhall.position.towards_with_random_angle(map_center, distance=8, max_difference=1.6),
                                     placement_step=2,
                                     addon_place=addon_place,
                                     max_distance=max_distance,
