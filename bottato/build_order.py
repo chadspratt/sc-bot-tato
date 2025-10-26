@@ -220,8 +220,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
 
     def queue_worker(self) -> None:
         self.start_timer("get_queued_worker")
-        in_static_queue = max([build_step.unit_type_id == UnitTypeId.SCV for build_step in self.static_queue], default=False)
-        if not in_static_queue:
+        if len(self.bot.townhalls) > 1 or self.bot.time > 300:
             command_center_upgrade_pending = False
             if self.static_queue and self.static_queue[0].unit_type_id in (UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS):
                 command_center_upgrade_pending = True

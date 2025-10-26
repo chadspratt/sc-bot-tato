@@ -388,8 +388,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         if self.bunker.is_built():
             if enemies_in_base and enemies_in_base.closest_distance_to(self.bunker.structure) > 12:
                 self.empty_bunker()
-            elif self.bot.time < 300:
+            else:
                 enemy_distance_to_bunker = enemies_in_base.closest_distance_to(self.bunker.structure) if enemies_in_base else 100
+                for unit in self.bunker.units:
+                    if unit.tag in self.bot.units.tags:
+                        # unit didn't enter bunker, maybe got stuck behind wall
+                        unit.smart(self.bunker.structure)
                 for unit in self.main_army.units:
                     if not self.bunker.has_space():
                         break
