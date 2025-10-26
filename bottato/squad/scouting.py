@@ -222,6 +222,8 @@ class InitialScout(BaseSquad, GeometryMixin):
                 self.unit = self.get_updated_unit_reference(self.unit, units_by_tag)
             except self.UnitNotFound:
                 self.unit = None
+                # scout lost, don't send another
+                self.completed = True
                 return
 
             if self.completed:
@@ -358,7 +360,11 @@ class Scouting(BaseSquad, DebugMixin):
                 await self.bot.client.chat_send("no expansion detected", False)
             return early_pool or no_gas or no_expansion
         if self.intel.enemy_race_confirmed == Race.Terran:
-            multiple_barracks = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.BARRACKS) > 1
+            number_of_barracks = self.intel.number_seen(UnitTypeId.BARRACKS)
+            if not self.initial_scout.completed and number_of_barracks > 2:
+                await self.bot.client.chat_send("multiple early barracks detected", False)
+                return True
+            multiple_barracks = not self.initial_scout.completed and number_of_barracks > 1
             no_expansion = self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
             if multiple_barracks and no_expansion:
                 await self.bot.client.chat_send("multiple barracks and no expansion detected", False)
