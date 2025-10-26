@@ -129,6 +129,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         assignment.unit(AbilityId.HALT)
                         assignment.job_type = JobType.IDLE
 
+                if assignment.job_type != JobType.VESPENE:
+                    self.vespene.remove_worker_by_tag(assignment.unit.tag)
+                if assignment.job_type != JobType.MINERALS:
+                    self.minerals.remove_worker_by_tag(assignment.unit.tag)
+
             self.assignments_by_job[assignment.job_type].append(assignment)
             self.bot.client.debug_text_3d(f"{assignment.job_type.name}\n{assignment.unit.tag}",
                                           assignment.unit.position3d + Point3((0, 0, 1)), size=8, color=(255, 255, 255))
