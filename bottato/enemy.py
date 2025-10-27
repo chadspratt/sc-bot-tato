@@ -111,6 +111,8 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
     def get_predicted_position(self, unit: Unit, seconds_ahead: float) -> Point2:
         if unit.type_id in (UnitTypeId.COLLAPSIBLEROCKTOWERDEBRIS,):
             return unit.position
+        if unit.age > 0 and unit not in self.enemies_out_of_view:
+            return None
         time_since_last_seen = self.bot.time - self.last_seen[unit.tag]
         frame_vector = self.predicted_frame_vector[unit.tag]
         return self.predict_future_unit_position(unit, time_since_last_seen + seconds_ahead, frame_vector=frame_vector)

@@ -274,6 +274,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     del self.countered_enemies[enemy.tag]
                     self.squads.remove(defense_squad)
                     defend_with_main_army = True
+                    if not self.main_army.units and enemy.type_id == UnitTypeId.PROBE:
+                        self.workers.attack_enemy(enemy)
                     break
         self.stop_timer("military enemies_in_base counter")
         self.stop_timer("military enemies_in_base")
@@ -557,14 +559,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         enemy_damage: float = self.calculate_total_damage(enemies, friendlies)
         friendly_damage: float = self.calculate_total_damage(friendlies, enemies)
         
-        enemy_health: float = sum([unit.health for unit in enemies])
-        # medivacs = enemies.of_type(UnitTypeId.MEDIVAC)
-        # for medivac in medivacs:
-        #     enemy_health += medivac.energy
+        enemy_health: float = sum([unit.health + unit.shield for unit in enemies])
         friendly_health: float = sum([unit.health for unit in friendlies])
-        # medivacs = friendlies.of_type(UnitTypeId.MEDIVAC)
-        # for medivac in medivacs:
-        #     friendly_health += medivac.energy
 
         enemy_strength: float = enemy_damage / max(friendly_health, 1)
         friendly_strength: float = friendly_damage / max(enemy_health, 1)

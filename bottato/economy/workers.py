@@ -74,6 +74,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.add_worker(worker)
         self.aged_mules: Units = Units([], bot)
         self.worker_micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first, self.bot, self.enemy)
+        self.units_to_attack = set()
 
     def update_references(self, units_by_tag: dict[int, Unit], builder_tags: list[int]):
         self.start_timer("update_references")
@@ -373,6 +374,15 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 10000 + a.distance_to(townhall))
                 nearby_enemy_range = 25 if nearby_enemy_structures else 12
                 nearby_enemies = self.bot.enemy_units.closer_than(nearby_enemy_range, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
+                enemies_to_remove = []
+                for enemy in self.units_to_attack:
+                    predicted_position = self.enemy.get_predicted_position(enemy, 0.0)
+                    if predicted_position is None:
+                        enemies_to_remove.append(enemy)
+                    elif predicted_position.distance_to(townhall.position) < 25:
+                        nearby_enemies.append(enemy)
+                for enemy in enemies_to_remove:
+                    self.units_to_attack.remove(enemy)
 
                 if len(nearby_enemies) >= len(available_workers):
                     # don't suicide workers if outnumbered
@@ -381,10 +391,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first, self.bot, self.enemy)
                 workers_per_enemy_unit = 2 if nearby_enemy_structures else 3
                 for nearby_enemy in nearby_enemies + nearby_enemy_structures:
+                    enemy_position = nearby_enemy if nearby_enemy.age == 0 else self.enemy.get_predicted_position(nearby_enemy, 0.0)
                     attackers = []
                     number_of_attackers = 4 if nearby_enemy.is_structure else workers_per_enemy_unit
                     if len(healthy_workers) > number_of_attackers:
-                        attackers = healthy_workers.closest_n_units(nearby_enemy, number_of_attackers)
+                        attackers = healthy_workers.closest_n_units(enemy_position, number_of_attackers)
                         for attacker in attackers:
                             healthy_workers.remove(attacker)
                     else:
@@ -394,7 +405,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                             remainder = number_of_attackers - len(healthy_workers)
 
                             if len(unhealthy_workers) > remainder:
-                                unhealthy_attackers = unhealthy_workers.closest_n_units(nearby_enemy, remainder)
+                                unhealthy_attackers = unhealthy_workers.closest_n_units(enemy_position, remainder)
                                 for attacker in unhealthy_attackers:
                                     unhealthy_workers.remove(attacker)
                                 attackers.extend(unhealthy_attackers)
@@ -405,13 +416,15 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         break
                     for attacker in attackers:
                         max_attack_distance = 20 if nearby_enemy.is_structure else 15
-                        if attacker.distance_to(nearby_enemy) > max_attack_distance:
+                        if attacker.distance_to(enemy_position) > max_attack_distance:
                             # don't pull workers from far away
                             continue
                         if nearby_enemy.is_structure:
                             attacker.attack(nearby_enemy)
-                        else:
+                        elif nearby_enemy.age == 0:
                             await micro.move(attacker, nearby_enemy.position)
+                        else:
+                            await micro.move(attacker, enemy_position)
                         attacker_tags.add(attacker.tag)
                         self.assignments_by_worker[attacker.tag].on_attack_break = True
         # put any leftover workers back to work
@@ -426,6 +439,15 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         assignment.unit.smart(assignment.target)
 
         self.stop_timer("my_workers.attack_nearby_enemies")
+
+    def attack_enemy(self, enemy: Unit):
+        for existing_enemy in self.units_to_attack:
+            if existing_enemy.tag == enemy.tag:
+                self.units_to_attack.remove(existing_enemy)
+                logger.info(f"updated enemy to attack {enemy}")
+                break
+        logger.info(f"added enemy to attack {enemy}")
+        self.units_to_attack.add(enemy)
 
     def update_assigment(self, worker: Unit, job_type: JobType, target: Union[Unit, None]):
         self.update_job(worker, job_type)
