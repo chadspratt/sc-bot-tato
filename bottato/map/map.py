@@ -211,10 +211,14 @@ class Map(TimerMixin, GeometryMixin):
                                 zone.merge_with(point_zone)
                             elif distance_from_edge[neighbor] > 0:
                                 # check that elevation is similar
-                                if abs(self.bot.get_terrain_z_height(Point2(next_point)) - self.bot.get_terrain_z_height(Point2(neighbor))) < 1:
+                                next_point_point: Point2 = Point2(next_point)
+                                neighbor_point: Point2 = Point2(neighbor)
+                                if abs(self.bot.get_terrain_z_height(next_point_point) - self.bot.get_terrain_z_height(neighbor_point)) < 1:
                                     # check that the zones are actually close and pathable
-                                    actual_distance = await self.bot.client.query_pathing(average_midpoint1, average_midpoint2)
-                                    if actual_distance is not None and actual_distance < midpoint_distance * 1.2:
+                                    # actual_distance = await self.bot.client.query_pathing(average_midpoint1, average_midpoint2)
+                                    actual_distance = await self.bot.client.query_pathing(next_point_point, neighbor_point)
+                                    # if actual_distance is not None and actual_distance < midpoint_distance * 1.2:
+                                    if actual_distance is not None and actual_distance < 2:
                                         zone.add_adjacent_zone(point_zone)
                         except KeyError:
                             # unassigned point, check if closer to edge
@@ -304,6 +308,7 @@ class Map(TimerMixin, GeometryMixin):
         if closest_unit is None:
             # fallback to direct distance
             closest_unit = units.closest_to(end)
+            self.get_path(units[0].position, end)
         return closest_unit
 
     def get_closest_position_by_path(self, positions: List[Point2], end: Point2) -> Tuple[Point2, List[Point2]]:
@@ -398,11 +403,11 @@ class Map(TimerMixin, GeometryMixin):
         for zone_id in self.zones:
             zone = self.zones[zone_id]
             color = (zone.id % 255, (128 + zone.id) % 255, abs(255 - zone.id) % 255)
-            for coord in zone.coords:
-                if self.distance_from_edge[coord] > 0:
-                    self.bot.client.debug_text_3d(f"{self.distance_from_edge[coord]}\n{coord}", self.convert_point2_to_3(Point2(coord)), color)
-                else:
-                    self.bot.client.debug_text_3d(f"{self.distance_from_edge[coord]}\n{coord}", self.convert_point2_to_3(Point2(coord)), color, size=6)
+            # for coord in zone.coords:
+            #     if self.distance_from_edge[coord] > 0:
+            #         self.bot.client.debug_text_3d(f"{self.distance_from_edge[coord]}\n{coord}", self.convert_point2_to_3(Point2(coord)), color)
+            #     else:
+            #         self.bot.client.debug_text_3d(f"{self.distance_from_edge[coord]}\n{coord}", self.convert_point2_to_3(Point2(coord)), color, size=6)
             self.bot.client.debug_box2_out(zone.midpoint3, 0.25, color)
             self.bot.client.debug_text_3d(f"{zone.midpoint}:{zone_id}", zone.midpoint3)
 
@@ -414,11 +419,11 @@ class Map(TimerMixin, GeometryMixin):
             for adjacent_zone in zone.adjacent_zones:
                 self.bot.client.debug_line_out(zone.midpoint3, adjacent_zone.midpoint3, color)
 
-            path: Path
-            for zone_id in zone.shortest_paths:
-                path = zone.shortest_paths[zone_id]
-                if len(path.zones) == 2:
-                    path_point3: Point3 = self.convert_point2_to_3(path.zones[1].midpoint)
-                    color = (255, 255, 0) if path.is_shortest else (255, 255, 255)
-                    self.bot.client.debug_line_out(zone.midpoint3, path_point3, color)
-                    self.bot.client.debug_text_3d(f"{zone_id}", path_point3)
+            # path: Path
+            # for zone_id in zone.shortest_paths:
+            #     path = zone.shortest_paths[zone_id]
+            #     if len(path.zones) == 2:
+            #         path_point3: Point3 = self.convert_point2_to_3(path.zones[1].midpoint)
+            #         color = (255, 255, 0) if path.is_shortest else (255, 255, 255)
+            #         self.bot.client.debug_line_out(zone.midpoint3, path_point3, color)
+            #         self.bot.client.debug_text_3d(f"{zone_id}", path_point3)

@@ -79,4 +79,5 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                         threats = nearby_enemies.filter(lambda enemy: enemy.can_attack_ground)
                         if threats:
                             self.command_center_destinations[cc.tag] = cc.position
+                            # XXX need to cancel whatever it's doing to be able to lift
                             cc(AbilityId.LIFT)

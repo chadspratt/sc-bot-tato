@@ -72,15 +72,17 @@ class Minerals(Resources, TimerMixin):
             if townhall.is_flying:
                 self.record_non_worker_death(townhall.tag)
             elif townhall.tag not in self.known_townhall_tags:
+                townhall_in_position = townhall.position.distance_to_closest(self.bot.expansion_locations_list) < 1
+                mineral_distance = 8 if townhall_in_position else 15
                 self.known_townhall_tags.append(townhall.tag)
-                for mineral in self.bot.mineral_field.closer_than(8, townhall):
+                for mineral in self.bot.mineral_field.closer_than(mineral_distance, townhall):
                     logger.debug(f"adding mineral patch {mineral}")
                     self.add_node(mineral)
                     self.add_mining_position(mineral, townhall)
 
     def add_mining_position(self, mineral_node: Unit, townhall: Unit = None):
         resource_node: ResourceNode = self.nodes_by_tag.get(mineral_node.tag, None)
-        if resource_node and resource_node.mining_position is None:
+        if resource_node:
             townhall_pos = None
             if townhall:
                 townhall_pos = townhall.position

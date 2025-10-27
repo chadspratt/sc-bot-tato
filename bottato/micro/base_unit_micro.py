@@ -44,8 +44,9 @@ class BaseUnitMicro(GeometryMixin):
         for effect in self.bot.state.effects:
             if effect.id not in self.damaging_effects:
                 continue
-            if effect.is_mine and effect.id in (EffectId.LIBERATORTARGETMORPHDELAYPERSISTENT, EffectId.LIBERATORTARGETMORPHPERSISTENT):
-                continue
+            if effect.id in (EffectId.LIBERATORTARGETMORPHDELAYPERSISTENT, EffectId.LIBERATORTARGETMORPHPERSISTENT):
+                if effect.is_mine or unit.is_flying:
+                    continue
             safe_distance = (effect.radius + unit.radius + 1) ** 2
             for position in effect.positions:
                 if unit.position._distance_squared(position) < safe_distance:
@@ -107,11 +108,15 @@ class BaseUnitMicro(GeometryMixin):
             if self.bot.in_pathing_grid(retreat_position):
                 unit.move(retreat_position)
             else:
-                threat_to_unit_vector = (unit.position - avg_threat_position).normalized
-                tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
-                circle_around_positions = [unit.position + tangent_vector, unit.position - tangent_vector]
-                circle_around_positions.sort(key=lambda pos: pos.distance_to(self.bot.start_location))
-                unit.move(circle_around_positions[0].towards(self.bot.start_location, 2))
+                if unit.position == avg_threat_position:
+                    # avoid divide by zero
+                    unit.move(self.bot.start_location)
+                else:
+                    threat_to_unit_vector = (unit.position - avg_threat_position).normalized
+                    tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
+                    circle_around_positions = [unit.position + tangent_vector, unit.position - tangent_vector]
+                    circle_around_positions.sort(key=lambda pos: pos.distance_to(self.bot.start_location))
+                    unit.move(circle_around_positions[0].towards(self.bot.start_location, 2))
         return True
 
     def attack_something(self, unit: Unit, health_threshold: float, targets: Units = None, force_move: bool = False) -> bool:
@@ -160,7 +165,7 @@ class BaseUnitMicro(GeometryMixin):
 
             if nearest_sieged_tank:
                 distance_to_tank = unit.distance_to(nearest_sieged_tank)
-                if distance_to_tank < 8:
+                if distance_to_tank < 6:
                     # dive on sieged tanks
                     attack_range = 0
                     target_position = nearest_sieged_tank.position.towards(unit, attack_range)

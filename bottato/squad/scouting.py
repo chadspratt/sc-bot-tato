@@ -154,12 +154,12 @@ class EnemyIntel:
                 self.enemy_race_confirmed = first_building.race
 
 class InitialScout(BaseSquad, GeometryMixin):
-    def __init__(self, bot: BotAI, map: Map, enemy: Enemy):
+    def __init__(self, bot: BotAI, map: Map, enemy: Enemy, intel: EnemyIntel):
         super().__init__(bot=bot, name="initial_scout")
         self.bot = bot
         self.map = map
         self.enemy = enemy
-        
+        self.intel = intel
         self.unit: Unit = None
         self.completed: bool = False
         self.enemy_natural_delayed: bool = False
@@ -245,7 +245,11 @@ class InitialScout(BaseSquad, GeometryMixin):
         if self.unit.health_percentage < 0.7 or self.bot.time > self.initial_scout_complete_time:
             self.waypoints = [self.map.enemy_natural_position]  # check natural before leaving
             if self.unit.distance_to(self.map.enemy_natural_position) < 9:
-                self.completed = True
+                if self.intel.enemy_race_confirmed == "Terran":
+                    # terran takes longer to start natural?
+                    self.completed = self.bot.time > 150
+                else:
+                    self.completed = True
         else:
             i = len(self.waypoints) - 1
             while i >= 0:
@@ -287,7 +291,7 @@ class Scouting(BaseSquad, DebugMixin):
         self.intel = EnemyIntel(self.bot)
         self.friendly_territory = Scout("friendly territory", self.bot, enemy)
         self.enemy_territory = Scout("enemy territory", self.bot, enemy)
-        self.initial_scout = InitialScout(self.bot, self.map, self.enemy)
+        self.initial_scout = InitialScout(self.bot, self.map, self.enemy, self.intel)
         self.newest_enemy_base = self.bot.enemy_start_locations[0]
 
         # positions to scout
@@ -360,15 +364,13 @@ class Scouting(BaseSquad, DebugMixin):
                 await self.bot.client.chat_send("no expansion detected", False)
             return early_pool or no_gas or no_expansion
         if self.intel.enemy_race_confirmed == Race.Terran:
-            number_of_barracks = self.intel.number_seen(UnitTypeId.BARRACKS)
-            if not self.initial_scout.completed and number_of_barracks > 2:
-                await self.bot.client.chat_send("multiple early barracks detected", False)
-                return True
-            multiple_barracks = not self.initial_scout.completed and number_of_barracks > 1
+            multiple_barracks = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.BARRACKS) > 1
             no_expansion = self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
-            if multiple_barracks and no_expansion:
-                await self.bot.client.chat_send("multiple barracks and no expansion detected", False)
-            return multiple_barracks and no_expansion
+            if not self.initial_scout.completed and multiple_barracks > 2:
+                await self.bot.client.chat_send("multiple early barracks detected", False)
+            if no_expansion:
+                await self.bot.client.chat_send("no expansion detected", False)
+            return multiple_barracks or no_expansion
         # Protoss
         lots_of_gateways = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.GATEWAY) > 2
         no_expansion = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.NEXUS) == 1

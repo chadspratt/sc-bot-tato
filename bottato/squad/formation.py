@@ -243,7 +243,14 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
             logger.debug(f"distance to {self.destination} < 5")
         else:
             self.start_timer("formation get path points")
-            self.path = self.map.get_path_points(self.front_center, formation_destination)
+            # Get the raw path and immediately convert to a completely new list
+            new_path = self.map.get_path_points(self.front_center, formation_destination)
+            
+            if len(new_path) > 1 or len(self.path) <= 2:
+                # keep old path if new path not found
+                self.path = new_path
+            else:
+                self.path = new_path + self.path[1:]
             self.stop_timer("formation get path points")
             # destination should be next waypoint, but need to
             next_waypoint = self.path[1] if len(self.path) > 1 else formation_destination
@@ -292,17 +299,21 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
         return unit_destinations
 
     def calculate_formation_front_center(self, units: Units, destination: Point2) -> Point2:
-        closest_to_enemy = units.closest_to(self.bot.enemy_start_locations[0])
-        close_units = units.closer_than(15, closest_to_enemy)
+        # closest_to_enemy = units.closest_to(self.bot.enemy_start_locations[0])
+        # close_units = units.closer_than(15, closest_to_enemy)
+        self.closest_unit = units.closest_to(destination)
+        closest_position = self.closest_unit.position
+        
+        close_units = units.closer_than(15, self.closest_unit)
         # in_formation_units: Units = close_units if close_units else units
         units_center = close_units.center
 
         path_units = close_units.filter(lambda u: not u.is_flying)
         if path_units.empty:
             path_units = units
-        next_waypoint_path = self.map.get_shortest_path(path_units, destination)
-        closest_position = next_waypoint_path[0]
-        self.closest_unit = units.closest_to(closest_position)
+        # next_waypoint_path = self.map.get_shortest_path(path_units, destination)
+        # closest_position = next_waypoint_path[0]
+        # self.closest_unit = units.closest_to(destination)
 
         # # find waypoint beyond the units
         next_waypoint = destination

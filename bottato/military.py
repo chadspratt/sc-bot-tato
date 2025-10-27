@@ -284,7 +284,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         # army_is_big_enough = main_army_value > enemy_value * 1.1 or self.bot.supply_used > 160
         # self.army_ratio = main_army_value / max(enemy_value, 1)
         self.army_ratio = self.calculate_army_ratio()
-        army_is_big_enough = self.army_ratio > 1.1 or self.bot.supply_used > 160
+        army_is_big_enough = self.army_ratio > 1.3 or self.bot.supply_used > 160
         army_is_grouped = self.main_army.is_grouped()
         mount_offense = not defend_with_main_army and army_is_big_enough and (self.bot.supply_used >= 110 or self.bot.time > 600)
         if not mount_offense and enemies_in_base:
@@ -348,7 +348,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                                 break
                             closest_distance += next_node_distance
                             i += 1
-                    await self.main_army.move(army_position, target_position, blueprints=blueprints)
+                    await self.main_army.move(army_center, target_position, blueprints=blueprints)
                     self.stop_timer("military move squads regroup")
                 else:
                     self.start_timer("military move squads attack")
@@ -385,31 +385,39 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stop_timer("manage_squads")
 
     def manage_bunker(self, enemies_in_base: Units = None):
-        if self.bunker.is_built():
-            if enemies_in_base and enemies_in_base.closest_distance_to(self.bunker.structure) > 12:
-                self.empty_bunker()
-            else:
-                enemy_distance_to_bunker = enemies_in_base.closest_distance_to(self.bunker.structure) if enemies_in_base else 100
-                for unit in self.bunker.units:
-                    try:
-                        unit = self.get_updated_unit_reference(unit, self.bot.units.by_tag)
-                        # unit didn't enter bunker, maybe got stuck behind wall
-                        unit.smart(self.bunker.structure)
-                    except Exception:
-                        pass
-                for unit in self.main_army.units:
-                    if not self.bunker.has_space():
-                        break
-                    if unit.type_id == UnitTypeId.MARINE:
-                        enemy_distance_to_unit = enemies_in_base.closest_distance_to(unit) if enemies_in_base else 100
-                        marine_distance_to_bunker = unit.distance_to(self.bunker.structure)
-                        if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
-                            # send unit to bunker if they won't have to move past enemies
-                            self.transfer(unit, self.main_army, self.bunker)
-                            unit.smart(self.bunker.structure)
-        elif self.bunker.units:
-            # bunker destroyed, transfer units to main arm
+        if not self.bunker.is_built() or not enemies_in_base:
             self.empty_bunker()
+            return
+
+        enemy_distance_to_bunker = enemies_in_base.closest_distance_to(self.bunker.structure)
+        if enemy_distance_to_bunker > 12:
+            self.empty_bunker()
+            return
+
+        for unit in self.bunker.units:
+            try:
+                unit = self.get_updated_unit_reference(unit, self.bot.units.by_tag)
+                # unit didn't enter bunker, maybe got stuck behind wall
+                unit.smart(self.bunker.structure)
+            except Exception:
+                pass
+
+        for unit in self.main_army.units:
+            if len(self.bunker.units) >= 4:
+                break
+            if unit.type_id == UnitTypeId.MARINE:
+                enemy_distance_to_unit = enemies_in_base.closest_distance_to(unit)
+                marine_distance_to_bunker = unit.distance_to(self.bunker.structure)
+                if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
+                    # send unit to bunker if they won't have to move past enemies
+                    self.transfer(unit, self.main_army, self.bunker)
+                    unit.smart(self.bunker.structure)
+
+    def empty_bunker(self):
+        for unit in self.bunker.units:
+            self.squads_by_unit_tag[unit.tag] = self.main_army
+        # self.bunker.transfer_all(self.main_army)
+        self.bunker.empty()
 
     async def harass(self, newest_enemy_base: Point2 = None):
         if not self.harass_squad.units:
@@ -470,12 +478,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     await micro.move(unit, most_injured.position.towards(unit, unit.ground_range - 1))
                 else:
                     await micro.move(unit, harass_location)
-
-    def empty_bunker(self):
-        for unit in self.bunker.units:
-            self.squads_by_unit_tag[unit.tag] = self.main_army
-        # self.bunker.transfer_all(self.main_army)
-        self.bunker.empty()
 
     def get_counter_units(self, unit: Unit):
         unassigned = [UnitTypeId.STALKER, UnitTypeId.SENTRY, UnitTypeId.ADEPT, UnitTypeId.HIGHTEMPLAR, UnitTypeId.DARKTEMPLAR, UnitTypeId.ARCHON, UnitTypeId.IMMORTAL, UnitTypeId.COLOSSUS, UnitTypeId.DISRUPTOR, UnitTypeId.PHOENIX, UnitTypeId.VOIDRAY, UnitTypeId.ORACLE, UnitTypeId.TEMPEST, UnitTypeId.CARRIER, UnitTypeId.MOTHERSHIP]
@@ -556,13 +558,13 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         friendly_damage: float = self.calculate_total_damage(friendlies, enemies)
         
         enemy_health: float = sum([unit.health for unit in enemies])
-        medivacs = enemies.of_type(UnitTypeId.MEDIVAC)
-        for medivac in medivacs:
-            enemy_health += medivac.energy * 2
+        # medivacs = enemies.of_type(UnitTypeId.MEDIVAC)
+        # for medivac in medivacs:
+        #     enemy_health += medivac.energy
         friendly_health: float = sum([unit.health for unit in friendlies])
-        medivacs = friendlies.of_type(UnitTypeId.MEDIVAC)
-        for medivac in medivacs:
-            friendly_health += medivac.energy * 2
+        # medivacs = friendlies.of_type(UnitTypeId.MEDIVAC)
+        # for medivac in medivacs:
+        #     friendly_health += medivac.energy
 
         enemy_strength: float = enemy_damage / max(friendly_health, 1)
         friendly_strength: float = friendly_damage / max(enemy_health, 1)
@@ -576,9 +578,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         target_type_counts = self.count_units_by_type(targets)
         # calculate dps vs each target type if not already cached
         for attacker in attackers:
+            if attacker.type_id not in self.damage_by_type:
+                self.damage_by_type[attacker.type_id] = {}
             for target in targets:
-                if attacker.type_id not in self.damage_by_type:
-                    self.damage_by_type[attacker.type_id] = {}
                 if target.type_id not in self.damage_by_type[attacker.type_id]:
                     if self.can_attack(attacker, target):
                         dps = attacker.calculate_dps_vs_target(target)
@@ -593,6 +595,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             for target_type, target_count in target_type_counts.items():
                 dps = self.damage_by_type[attacker_type][target_type]
                 total_damage_for_type += dps * target_count
+                if attacker_type in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
+                    total_damage_for_type *= 2  # approximate splash damage
             average_damage = total_damage_for_type / len(targets)
             # add total average damage for all attackers of this type
             total_damage += average_damage * attacker_count

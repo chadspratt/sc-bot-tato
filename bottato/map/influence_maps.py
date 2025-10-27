@@ -39,6 +39,7 @@ class InfluenceMaps():
 
         self.destructables_included = {}
         self.minerals_included = {}
+        self.watchtowers_included = {}
 
         # set rocks and mineral walls to pathable in the beginning
         # these will be set nonpathable when updating grids for the destructables
@@ -73,6 +74,17 @@ class InfluenceMaps():
             if mineral.type_id == UnitTypeId.RICHMINERALFIELD:
                 self.long_range_grid[x1, y] = 0
                 self.long_range_grid[x2, y] = 0
+
+        for watchtower in self.bot.watchtowers:
+            self.watchtowers_included[watchtower.position] = watchtower
+            left_bottom = watchtower.position.offset((-1, -1))
+            x_start = int(left_bottom[0])
+            y_start = int(left_bottom[1])
+            x_end = int(x_start + 2)
+            y_end = int(y_start + 2)
+            self.default_grid[x_start:x_end, y_start:y_end] = 0
+            self.default_grid_nodestr[x_start:x_end, y_start:y_end] = 0
+            self.long_range_grid[x_start:x_end, y_start:y_end] = 0
 
     def get_base_pathing_grid(self, include_destructibles: bool = True):
         if include_destructibles:
@@ -166,6 +178,23 @@ class InfluenceMaps():
                 change_destructible_status_in_grid(self.long_range_grid, dest, 1)
 
                 del self.destructables_included[dest_position]
+
+        if len(self.watchtowers_included) != self.bot.watchtowers.amount:
+            new_positions = set(w.position for w in self.bot.watchtowers)
+            old_watchtower_positions = set(self.watchtowers_included)
+            missing_positions = old_watchtower_positions - new_positions
+
+            for watchtower_position in missing_positions:
+                left_bottom = watchtower_position.offset((-1, -1))
+                x_start = int(left_bottom[0])
+                y_start = int(left_bottom[1])
+                x_end = int(x_start + 2)
+                y_end = int(y_start + 2)
+                ret_grid[x_start:x_end, y_start:y_end] = 1
+                self.default_grid[x_start:x_end, y_start:y_end] = 1
+                self.long_range_grid[x_start:x_end, y_start:y_end] = 1
+
+                del self.watchtowers_included[watchtower_position]
 
         return ret_grid
 

@@ -16,6 +16,14 @@ class Path:
 
     def __repr__(self) -> str:
         return f"Path({self.zones}, {self.distance})"
+    
+    def __ne__(self, other: Path) -> bool:
+        if len(self.zones) != len(other.zones):
+            return True
+        for i in range(len(self.zones)):
+            if self.zones[i].id != other.zones[i].id:
+                return True
+        return False
 
     def add_to_start(self, zone: Zone, distance: float) -> Path:
         new_zones = [zone]
@@ -134,22 +142,27 @@ class Zone:
         return new_path
 
     def add_path_to_nonadjacent(self, zone: Zone, path: Path) -> bool:
-        is_shorter: bool = False
+        is_shorter_or_equal: bool = False
         try:
             existing_path: Path = self.shortest_paths[zone.id]
-            if round(existing_path.distance, 2) >= round(path.distance, 2):
-                is_shorter = True
+            existing_distance = round(existing_path.distance, 2)
+            new_distance = round(path.distance, 2)
+            if existing_distance == new_distance:
+                is_shorter_or_equal = True
+            elif existing_distance > new_distance:
+                is_shorter_or_equal = True
                 self.shortest_paths[zone.id] = path
                 zone.shortest_paths[self.id] = path.get_reverse()
-                self.add_longer_path(zone, existing_path)
-            else:
-                self.add_longer_path(zone, path)
+            #     self.add_longer_path(zone, existing_path)
+            # else:
+            #     self.add_longer_path(zone, path)
         except KeyError:
-            is_shorter = True
+            is_shorter_or_equal = True
             self.shortest_paths[zone.id] = path
             zone.shortest_paths[self.id] = path.get_reverse()
-        return is_shorter
+        return is_shorter_or_equal
 
+    # unused
     def add_longer_path(self, zone: Zone, path: Path):
         if zone.id in self.longer_paths:
             existing_paths = self.longer_paths[zone.id]
