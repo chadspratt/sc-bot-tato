@@ -365,12 +365,12 @@ class Scouting(BaseSquad, DebugMixin):
             return early_pool or no_gas or no_expansion
         if self.intel.enemy_race_confirmed == Race.Terran:
             multiple_barracks = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.BARRACKS) > 1
-            no_expansion = self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
+            # no_expansion = self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
             if not self.initial_scout.completed and multiple_barracks > 2:
                 await self.bot.client.chat_send("multiple early barracks detected", False)
-            if no_expansion:
-                await self.bot.client.chat_send("no expansion detected", False)
-            return multiple_barracks or no_expansion
+            # if no_expansion:
+            #     await self.bot.client.chat_send("no expansion detected", False)
+            return multiple_barracks
         # Protoss
         lots_of_gateways = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.GATEWAY) > 2
         no_expansion = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.NEXUS) == 1

@@ -27,14 +27,18 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.DRONE, UnitTypeId.PROBE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.EGG, UnitTypeId.LARVA]
         enemy_unit, enemy_distance = self.enemy.get_closest_target(unit, distance_limit=20, include_structures=False, include_destructables=False, include_out_of_view=False, excluded_types=excluded_types)
+        threats = self.enemy.threats_to(unit)
         logger.debug(f"raven {unit} closest unit {enemy_unit}({enemy_distance}), energy={unit.energy}")
         if enemy_unit is None:
             return False
-        elif enemy_distance < self.ideal_enemy_distance - 2:
+        elif threats and enemy_distance < self.ideal_enemy_distance - 2:
             logger.debug(f"{unit} too close to {enemy_unit} ({enemy_distance})")
             # unit.move(enemy_unit.position.towards(unit, self.ideal_enemy_distance))
             # too close
             return False
+        if enemy_unit.type_id == UnitTypeId.SIEGETANKSIEGED:
+            # don't try to attack sieged tanks
+            return self.drop_turret(unit, enemy_unit.position.towards(unit, enemy_unit.radius + 1))
         return self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
 
     def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:

@@ -79,6 +79,14 @@ class Minerals(Resources, TimerMixin):
                     logger.debug(f"adding mineral patch {mineral}")
                     self.add_node(mineral)
                     self.add_mining_position(mineral, townhall)
+                # remove long-distance minerals
+                nodes_to_remove = []
+                for resource_node in self.nodes:
+                    if resource_node.is_long_distance:
+                        self.depleted_resource_worker_tags.extend(resource_node.worker_tags)
+                        nodes_to_remove.append(resource_node)
+                for node in nodes_to_remove:
+                    self.nodes.remove(node)
 
     def add_mining_position(self, mineral_node: Unit, townhall: Unit = None):
         resource_node: ResourceNode = self.nodes_by_tag.get(mineral_node.tag, None)

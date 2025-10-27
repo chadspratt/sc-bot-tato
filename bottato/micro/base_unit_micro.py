@@ -119,7 +119,7 @@ class BaseUnitMicro(GeometryMixin):
                     unit.move(circle_around_positions[0].towards(self.bot.start_location, 2))
         return True
 
-    def attack_something(self, unit: Unit, health_threshold: float, targets: Units = None, force_move: bool = False) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         if force_move:
             return False
         if unit.tag in self.bot.unit_tags_received_action:
@@ -127,14 +127,22 @@ class BaseUnitMicro(GeometryMixin):
         if unit.health_percentage < health_threshold:
             return False
         candidates = []
-        if targets:
-            candidates = targets.filter(lambda unit: not unit.is_structure and unit.armor < 10)
-            if len(candidates) == 0:
-                candidates = targets
-        else:
-            candidates = self.bot.enemy_units.in_attack_range_of(unit).filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
-            if len(candidates) == 0:
-                candidates = self.bot.enemy_structures.in_attack_range_of(unit)
+
+        candidates = self.bot.enemy_units.in_attack_range_of(unit).filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
+        if len(candidates) == 0:
+            candidates = self.bot.enemy_structures.in_attack_range_of(unit)
+
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+        if unit.is_flying and can_attack and candidates:
+            threats = candidates.filter(lambda u: u.can_attack_air)
+            if len(threats) < 4:
+                if threats:
+                    lowest_target = threats.sorted(key=lambda enemy_unit: enemy_unit.health + enemy_unit.shield).first
+                    unit.attack(lowest_target)
+                else:
+                    lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health + enemy_unit.shield).first
+                    unit.attack(lowest_target)
+                return True
 
         tank_to_retreat_to = self.tank_to_retreat_to(unit)
         if tank_to_retreat_to:
@@ -144,7 +152,7 @@ class BaseUnitMicro(GeometryMixin):
         if not candidates:
             return False
 
-        if unit.weapon_cooldown <= self.time_in_frames_to_attack:
+        if can_attack:
             lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health + enemy_unit.shield).first
             unit.attack(lowest_target)
         else:

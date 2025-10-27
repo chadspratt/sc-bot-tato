@@ -114,7 +114,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 continue
             if UnitTypeId.SCV in step.builder_type:
                 self.priority_queue.insert(0, step)
-            else:
+            elif step.unit_type_id != UnitTypeId.MARINE:
                 self.static_queue.insert(0, step)
         for structure in self.bot.structures_without_construction_SCVs:
             # somehow the build step got lost, re-add it
@@ -129,7 +129,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.stop_timer("move_interupted_to_pending")
 
     def enact_rush_defense(self) -> None:
-        if self.bot.time > 300:
+        if self.bot.time > 300 or self.bot.townhalls.amount > 2:
             # not a rush
             return
         if self.bot.structure_type_build_progress(UnitTypeId.BARRACKSREACTOR) == 1:

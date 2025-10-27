@@ -56,17 +56,11 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     def is_stimmed(self, unit: Unit) -> bool:
         return unit.tag in self.last_stim_time and self.bot.time - self.last_stim_time[unit.tag] < 11
     
-    def attack_something(self, unit: Unit, health_threshold: float, targets: Units = None, force_move: bool = False) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         
-        candidates = []
-        if targets:
-            candidates = targets.filter(lambda unit: not unit.is_structure and unit.armor < 10)
-            if len(candidates) == 0:
-                candidates = targets
-        else:
-            candidates = self.bot.enemy_units.in_attack_range_of(unit).filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
-            if len(candidates) == 0:
-                candidates = self.bot.enemy_structures.in_attack_range_of(unit)
+        candidates = self.bot.enemy_units.in_attack_range_of(unit).filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
+        if len(candidates) == 0:
+            candidates = self.bot.enemy_structures.in_attack_range_of(unit)
 
         if not candidates:
             return False

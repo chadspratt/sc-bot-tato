@@ -42,9 +42,11 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
         is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
         
-        if is_sieged and unit.tag in self.last_transform_time and time_since_last_transform < self.min_seconds_between_transform:
+        transform_cooldown = 0
+        if unit.tag in self.last_transform_time and time_since_last_transform < self.min_seconds_between_transform:
             logger.debug(f"unit last transformed {time_since_last_transform}s ago, need to wait {self.min_seconds_between_transform}")
-            return False
+            transform_cooldown = self.min_seconds_between_transform - time_since_last_transform
+            # return False
 
         # remove missing
         self.sieged_tags = self.bot.units.tags.intersection(self.sieged_tags)
@@ -61,6 +63,10 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
         closest_enemy_after_siege, closest_distance_after_siege = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time/2)
         closest_structure, closest_structure_distance = self.enemy.get_target_closer_than(unit, max_distance=self.sight_range - 1,include_units=False)
+
+        if transform_cooldown > 0 and not is_sieged:
+            # try to actually get in range during cooldown
+            closest_distance_after_siege = closest_distance
 
         # reached_destination = unit.position.distance_to(target) < 2
         # if reached_destination:
