@@ -199,7 +199,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             nydus_canals = self.bot.enemy_structures.of_type(UnitTypeId.NYDUSCANAL)
             if nydus_canals and base_structures.closest_distance_to(nydus_canals.first) < 25 and self.main_army.units:
                 # put massive priority on killing nydus canals near base
-                self.main_army.move(nydus_canals.first.position)
+                await self.main_army.move(nydus_canals.first.position)
                 return
         enemies_in_base: Units = Units([], self.bot)
         enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: base_structures.closest_distance_to(unit) < 25))
