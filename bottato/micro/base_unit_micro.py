@@ -8,6 +8,7 @@ from sc2.unit import Unit
 from sc2.position import Point2
 from sc2.constants import UnitTypeId
 from sc2.ids.effect_id import EffectId
+from sc2.ids.ability_id import AbilityId
 
 from bottato.mixins import GeometryMixin
 from bottato.enemy import Enemy
@@ -47,6 +48,9 @@ class BaseUnitMicro(GeometryMixin):
             if effect.id in (EffectId.LIBERATORTARGETMORPHDELAYPERSISTENT, EffectId.LIBERATORTARGETMORPHPERSISTENT):
                 if effect.is_mine or unit.is_flying:
                     continue
+                if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
+                    unit(AbilityId.UNSIEGE_UNSIEGE)
+                    return True
             safe_distance = (effect.radius + unit.radius + 1) ** 2
             for position in effect.positions:
                 if unit.position._distance_squared(position) < safe_distance:

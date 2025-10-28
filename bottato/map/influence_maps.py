@@ -197,6 +197,18 @@ class InfluenceMaps():
                 del self.watchtowers_included[watchtower_position]
 
         return ret_grid
+    
+    def destructables_changed(self) -> bool:
+        if len(self.destructables_included) != self.bot.destructables.amount:
+            # check that the changed destructable wasn't just an unbuildable
+            new_positions = set(d.position for d in self.bot.destructables)
+            old_dest_positions = set(self.destructables_included)
+            missing_positions = old_dest_positions - new_positions
+            missing_destructables = [self.destructables_included[pos] for pos in missing_positions]
+            for dest in missing_destructables:
+                if "unbuildable" not in dest.name.lower() and "acceleration" not in dest.name.lower():
+                    return True
+        return False
 
     def _bounded_circle(self, center, radius, shape):
         xx, yy = np.ogrid[:shape[0], :shape[1]]

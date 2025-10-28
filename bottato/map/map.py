@@ -43,7 +43,7 @@ class Map(TimerMixin, GeometryMixin):
 
     async def refresh_map(self):
         self.start_timer("refresh_map")
-        if self.bot.time - self.last_refresh_time > 60:
+        if self.influence_maps.destructables_changed():
             self.init_distance_from_edge(self.influence_maps.get_long_range_grid())
             self.zones: Dict[int, Zone] = await self.init_zones(self.distance_from_edge)
             self.last_refresh_time = self.bot.time
@@ -327,16 +327,6 @@ class Map(TimerMixin, GeometryMixin):
                     closest_position = position
         return closest_position
 
-    def get_path(self, start: Point2, end: Point2) -> Path:
-        start_rounded: Point2 = start.rounded
-        end_rounded: Point2 = end.rounded
-        try:
-            start_zone = self.zone_lookup_by_coord[(start_rounded.x, start_rounded.y)]
-            end_zone = self.zone_lookup_by_coord[(end_rounded.x, end_rounded.y)]
-        except KeyError:
-            return Path([], math.inf)
-        return start_zone.path_to(end_zone)
-
     def get_path_points(self, start: Point2, end: Point2) -> List[Point2]:
         point2_path: List[Point2] = [start]
         zone: Zone
@@ -349,6 +339,16 @@ class Map(TimerMixin, GeometryMixin):
             if end != point2_path[-1]:
                 point2_path.append(end)
         return point2_path
+
+    def get_path(self, start: Point2, end: Point2) -> Path:
+        start_rounded: Point2 = start.rounded
+        end_rounded: Point2 = end.rounded
+        try:
+            start_zone = self.zone_lookup_by_coord[(start_rounded.x, start_rounded.y)]
+            end_zone = self.zone_lookup_by_coord[(end_rounded.x, end_rounded.y)]
+        except KeyError:
+            return Path([], math.inf)
+        return start_zone.path_to(end_zone)
 
     def get_pathable_position(self, position: Point2, unit: Unit = None) -> Point2:
         candidates = self.influence_maps.find_lowest_cost_points(position, 3, self.ground_grid)
