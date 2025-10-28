@@ -485,5 +485,7 @@ class Production(UnitReferenceMixin, TimerMixin):
         facility: Facility
         for facility in self.facilities[blocked_facility.type_id][UnitTypeId.NOTAUNIT]:
             if facility.unit.tag == blocked_facility.tag:
-                facility.addon_blocked = True
+                # check that it isn't blocked by an enemy unit
+                if not self.bot.enemy_units.closer_than(1, facility.unit.position) and not self.bot.units.closer_than(1, facility.unit.position):
+                    facility.addon_blocked = True
                 break

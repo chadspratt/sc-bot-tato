@@ -459,7 +459,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     if nearest_threat.ground_range < unit.ground_range:
                         # kite enemies that we outrange
                         # predicted_position = self.predict_future_unit_position(nearest_threat, 1, False)
-                        move_position = nearest_threat.position.towards(unit, unit.ground_range - 0.5)
+                        move_position = nearest_threat.position
+                        if unit.weapon_cooldown != 0:
+                            move_position = nearest_threat.position.towards(unit, unit.ground_range - 0.5)
                         self.bot.client.debug_line_out(nearest_threat, self.convert_point2_to_3(move_position), (255, 0, 0))
                         self.bot.client.debug_sphere_out(self.convert_point2_to_3(move_position), 0.2, (255, 0, 0))
                         await micro.move(unit, move_position)
@@ -477,7 +479,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 if nearby_workers:
                     nearby_workers.sort(key=lambda worker: worker.shield_health_percentage)
                     most_injured: Unit = nearby_workers[0]
-                    await micro.move(unit, most_injured.position.towards(unit, unit.ground_range - 1))
+                    move_position = most_injured.position
+                    if unit.weapon_cooldown != 0:
+                        move_position = most_injured.position.towards(unit, unit.ground_range - 0.5)
+                    await micro.move(unit, move_position)
                 else:
                     await micro.move(unit, harass_location)
 
