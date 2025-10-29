@@ -363,7 +363,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                         placement_step=2,
                     )
                     break
-        elif unit_type_id == UnitTypeId.SUPPLYDEPOT and self.bot.supply_cap < 100:
+        elif unit_type_id == UnitTypeId.SUPPLYDEPOT and self.bot.supply_cap < 75:
             if not special_locations.is_blocked:
                 new_build_position = special_locations.find_placement(unit_type_id)
             if new_build_position is None:

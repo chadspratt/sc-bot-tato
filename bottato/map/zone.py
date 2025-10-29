@@ -58,10 +58,21 @@ class Zone:
         self.points_for_drawing: Dict[tuple, Point3] = {}
         self.midpoint3: Point3 = None
         self.all_midpoints3: List[Point3] = []
+        self.damage_received: list[tuple[float, float]] = []  # (amount, time)
         logger.debug(f"creating zone {id} from {midpoint}")
 
     def __repr__(self) -> str:
         return f"Zone({self.id}, {self.midpoint}, {self.radius})"
+    
+    def add_damage(self, amount: float, time: float) -> None:
+        self.damage_received.append((amount, time))
+
+    def get_damage_in_last_seconds(self, seconds: float, current_time: float) -> float:
+        total_damage = 0.0
+        for damage, time in self.damage_received:
+            if current_time - time <= seconds:
+                total_damage += damage
+        return total_damage
 
     def add_adjacent_zone(self, zone: Zone):
         adjacent_zone: Zone
@@ -153,9 +164,8 @@ class Zone:
                 is_shorter_or_equal = True
                 self.shortest_paths[zone.id] = path
                 zone.shortest_paths[self.id] = path.get_reverse()
-            #     self.add_longer_path(zone, existing_path)
-            # else:
-            #     self.add_longer_path(zone, path)
+            else:
+                self.add_longer_path(zone, path)
         except KeyError:
             is_shorter_or_equal = True
             self.shortest_paths[zone.id] = path

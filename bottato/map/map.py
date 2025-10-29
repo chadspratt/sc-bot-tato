@@ -35,6 +35,7 @@ class Map(TimerMixin, GeometryMixin):
         self.last_refresh_time = 0
         self.natural_position: Point2 = None
         self.enemy_natural_position: Point2 = None
+        self.all_damage_by_position: dict[Point2, list[tuple[float, float]]] = {}
 
     async def init(self):
         self.start_timer("init_zones")
@@ -48,6 +49,11 @@ class Map(TimerMixin, GeometryMixin):
         if self.influence_maps.destructables_changed():
             self.init_distance_from_edge(self.influence_maps.get_long_range_grid())
             self.zones: Dict[int, Zone] = await self.init_zones(self.distance_from_edge)
+            for position, damage_list in self.all_damage_by_position.items():
+                zone = self.zone_lookup_by_coord.get((position.x, position.y))
+                if zone:
+                    for damage, time in damage_list:
+                        zone.add_damage(damage, time)
             self.last_refresh_time = self.bot.time
         self.stop_timer("refresh_map")
 
@@ -366,7 +372,14 @@ class Map(TimerMixin, GeometryMixin):
             self.influence_maps.add_cost(pathable_position, unit.radius, self.ground_grid, np.inf)
         return pathable_position
 
-    def update_influence_maps(self) -> None:
+    def update_influence_maps(self, damage_by_position: dict[Point2, float]) -> None:
+        for position, damage in damage_by_position.items():
+            zone = self.zone_lookup_by_coord.get((position.x, position.y))
+            if zone:
+                zone.add_damage(damage, self.bot.time)
+            if position not in self.all_damage_by_position:
+                self.all_damage_by_position[position] = []
+            self.all_damage_by_position[position].append((damage, self.bot.time))
         self.start_timer("update_influence_maps")
         self.ground_grid = self.influence_maps.get_pyastar_grid()
         self.stop_timer("update_influence_maps")

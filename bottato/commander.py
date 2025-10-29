@@ -37,12 +37,12 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
             "pig_b2gm", bot=self.bot, workers=self.my_workers, production=self.production, map=self.map
         )
         self.scouting = Scouting(self.bot, self.enemy, self.map, self.my_workers, self.military)
-        self.new_damage_taken: dict[int, float] = {}
+        self.new_damage_by_unit: dict[int, float] = {}
+        self.new_damage_by_position: dict[Point2, float] = {}
         self.pathable_position: Point2 = None
         self.stuck_units: Units = Units([], bot_object=self.bot)
         self.rush_detected: bool = False
         self.units_by_tag: dict[int, Unit] = {}
-        # self.test_stuck = None
 
     async def command(self, iteration: int):
         self.start_timer("command")
@@ -52,17 +52,12 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         await self.detect_stuck_units(iteration)
 
         # XXX very slow
-        self.map.update_influence_maps()
+        self.map.update_influence_maps(self.new_damage_by_position)
 
         await self.scout()
         # self.rush_detected = self.bot.time > 70
         if self.rush_detected:
             self.build_order.enact_rush_defense()
-        # XXX extremely slow
-        await self.military.manage_squads(iteration,
-                                          self.build_order.get_blueprints(),
-                                          self.scouting.get_newest_enemy_base(),
-                                          self.rush_detected)
 
         remaining_cap = self.build_order.remaining_cap
         if remaining_cap > 0:
@@ -74,6 +69,12 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
 
         # XXX slow
         await self.build_order.execute(self.military.army_ratio, self.rush_detected)
+        
+        # XXX extremely slow
+        await self.military.manage_squads(iteration,
+                                          self.build_order.get_blueprints(),
+                                          self.scouting.get_newest_enemy_base(),
+                                          self.rush_detected)
 
         await self.my_workers.attack_nearby_enemies()
         self.my_workers.distribute_idle()
@@ -82,7 +83,8 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         #     logger.debug(f"minerals gathered: {self.bot.state.score.collected_minerals}")
         self.my_workers.drop_mules()
 
-        self.new_damage_taken.clear()
+        self.new_damage_by_unit.clear()
+        self.new_damage_by_position.clear()
         self.stop_timer("command")
 
     async def detect_stuck_units(self, iteration: int):
@@ -117,7 +119,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
     async def scout(self):
         self.start_timer("scout")
         self.scouting.update_visibility()
-        await self.scouting.scout(self.new_damage_taken, self.units_by_tag)
+        await self.scouting.scout(self.new_damage_by_unit, self.units_by_tag)
         self.rush_detected = await self.scouting.rush_detected
         self.start_timer("scout")
 
@@ -154,14 +156,27 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
             self.build_order.update_completed_unit(unit)
 
     def log_damage(self, unit: Unit, amount_damage_taken: float):
-        if unit.tag not in self.new_damage_taken:
-            self.new_damage_taken[unit.tag] = amount_damage_taken
+        if unit.is_mine and not unit.is_structure:
+            rounded_position = unit.position.rounded
+            if rounded_position not in self.new_damage_by_position:
+                self.new_damage_by_position[rounded_position] = amount_damage_taken
+            else:
+                self.new_damage_by_position[rounded_position] += amount_damage_taken
+        if unit.tag not in self.new_damage_by_unit:
+            self.new_damage_by_unit[unit.tag] = amount_damage_taken
         else:
-            self.new_damage_taken[unit.tag] += amount_damage_taken
+            self.new_damage_by_unit[unit.tag] += amount_damage_taken
         if unit.is_structure:
-            self.build_order.cancel_damaged_structure(unit, self.new_damage_taken[unit.tag])
+            self.build_order.cancel_damaged_structure(unit, self.new_damage_by_unit[unit.tag])
 
     def remove_destroyed_unit(self, unit_tag: int):
+        destroyed_unit = self.units_by_tag.get(unit_tag)
+        if destroyed_unit and destroyed_unit.is_mine and not destroyed_unit.is_structure and destroyed_unit.type_id != UnitTypeId.MULE:
+            rounded_position = destroyed_unit.position.rounded
+            if rounded_position not in self.new_damage_by_position:
+                self.new_damage_by_position[rounded_position] = destroyed_unit.health
+            else:
+                self.new_damage_by_position[rounded_position] += destroyed_unit.health
         self.enemy.record_death(unit_tag)
         self.military.record_death(unit_tag)
         self.my_workers.record_death(unit_tag)
