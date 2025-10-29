@@ -70,6 +70,9 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 # prioritize slower units, tiebreak with further from home
                 self.units_to_pick_up.sort(key=lambda u: u.movement_speed * 10000 - u.distance_to_squared(self.bot.start_location))
             for passenger in self.units_to_pick_up:
+                if passenger.distance_to(target) < unit.distance_to(target):
+                    # skip units that are already closer to the target
+                    continue
                 if passenger.cargo_size <= unit.cargo_left and self.units_to_pick_up_potential_damage.get(passenger.tag, 0) < unit.health:
                     unit(AbilityId.LOAD, passenger)
                     passenger.move(unit.position) # possible passenger already received an order, but shouldn't hurt

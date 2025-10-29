@@ -11,6 +11,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.game_data import Cost
 
+from bottato.unit_types import UnitTypes
 from bottato.build_step import BuildStep, ResponseCode
 from bottato.economy.workers import Workers, JobType
 from bottato.economy.production import Production
@@ -79,7 +80,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 f"In progress {build_step.unit_type_id} {build_step.upgrade_id}"
                 f"> Builder {build_step.unit_in_charge}"
             )
-            if build_step.is_interrupted():
+            if await build_step.is_interrupted():
                 logger.debug(f"{build_step} Is interrupted!")
                 # move back to pending (demote)
                 to_promote.append(idx)
@@ -112,10 +113,10 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             if step.interrupted_count > 10:
                 logger.info(f"{step} interrupted too many times, removing from build order")
                 continue
-            if UnitTypeId.SCV in step.builder_type:
+            if step.unit_type_id not in UnitTypes.TERRAN:
                 self.priority_queue.insert(0, step)
-            elif step.unit_type_id != UnitTypeId.MARINE:
-                self.static_queue.insert(0, step)
+            else:
+                self.build_queue.insert(0, step)
         for structure in self.bot.structures_without_construction_SCVs:
             # somehow the build step got lost, re-add it
             if structure.health_percentage > 0.05:
@@ -197,7 +198,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.stop_timer("redistribute_workers")
         logger.debug(f"needed gas {needed_resources.vespene}, minerals {needed_resources.minerals}, moved workers {moved_workers}")
 
-        if len(self.static_queue) < 5:
+        if len(self.static_queue) < 20:
             if needed_resources.vespene > 0 and moved_workers == 0:
                 self.queue_refinery()
 

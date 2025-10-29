@@ -120,8 +120,8 @@ class BuildStarts():
                 UnitTypeId.MARAUDER,
                 UnitTypeId.MARAUDER,
 # GAS ROUND-OUT AND UPGRADES
-                UnitTypeId.REFINERY,
-                UnitTypeId.REFINERY,
+                # UnitTypeId.REFINERY,
+                # UnitTypeId.REFINERY,
                 UpgradeId.PUNISHERGRENADES,
                 UnitTypeId.MEDIVAC,                  # continuous pairs as gas allows,
                 UnitTypeId.MEDIVAC,

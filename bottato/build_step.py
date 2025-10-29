@@ -90,7 +90,11 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge, units_by_tag)
             except self.UnitNotFound:
                 self.unit_in_charge = None
-
+        if self.geysir:
+            try:
+                self.geysir = self.get_updated_unit_reference(self.geysir, units_by_tag)
+            except self.UnitNotFound:
+                self.geysir = None
         if isinstance(self.unit_being_built, Unit):
             try:
                 self.unit_being_built = self.get_updated_unit_reference(self.unit_being_built, units_by_tag)
@@ -130,7 +134,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.stop_timer(f"build_step.execute_scv_build {self.unit_type_id}")
         else:
             self.start_timer(f"build_step.execute_facility_build {self.unit_type_id}")
-            response = self.execute_facility_build()
+            response = await self.execute_facility_build()
             self.stop_timer(f"build_step.execute_facility_build {self.unit_type_id}")
         if response == ResponseCode.SUCCESS:
             self.is_in_progress = True
@@ -233,7 +237,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 if self.unit_in_charge is not None:
                     self.unit_in_charge.move(self.position)
 
-    def execute_facility_build(self) -> ResponseCode:
+    async def execute_facility_build(self) -> ResponseCode:
         response = None
         # not built by scv
         logger.debug(
@@ -249,7 +253,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.unit_in_charge = self.production.get_builder(self.unit_type_id)
             if self.unit_type_id in self.production.add_on_types and self.unit_in_charge:
                 if self.interrupted_count > 5:
-                    self.production.set_addon_blocked(self.unit_in_charge)
+                    await self.production.set_addon_blocked(self.unit_in_charge)
                     self.interrupted_count = 0
                 else:
                     self.position = self.unit_in_charge.add_on_position
@@ -332,7 +336,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2 = None
-            if rush_detected:
+            if rush_detected and self.bot.structures.of_type(UnitTypeId.BARRACKS):
                 # try to build near edge of high ground towards natural
                 # high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
                 ramp_barracks = self.bot.structures.of_type(UnitTypeId.BARRACKS).closest_to(self.bot.main_base_ramp.barracks_correct_placement)
@@ -363,7 +367,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                         placement_step=2,
                     )
                     break
-        elif unit_type_id == UnitTypeId.SUPPLYDEPOT and self.bot.supply_cap < 75:
+        elif unit_type_id == UnitTypeId.SUPPLYDEPOT and self.bot.supply_cap < 70:
             if not special_locations.is_blocked:
                 new_build_position = special_locations.find_placement(unit_type_id)
             if new_build_position is None:
@@ -481,7 +485,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 return vespene_geysirs.closest_to(self.bot.start_location)
         return None
 
-    def is_interrupted(self) -> bool:
+    async def is_interrupted(self) -> bool:
         if self.unit_in_charge is None:
             return True
 
@@ -508,22 +512,31 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                         self.unit_in_charge.smart(self.unit_being_built)
                     else:
                         if self.unit_type_id == UnitTypeId.REFINERY:
-                            self.unit_in_charge(
-                                self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
-                                target=self.geysir,
-                                queue=False,
-                                subtract_cost=False,
-                                can_afford_check=False,
-                            )
+                            if self.bot.gas_buildings and self.bot.gas_buildings.closest_distance_to(self.geysir) > 1:
+                                self.unit_in_charge(
+                                    self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
+                                    target=self.geysir,
+                                    queue=False,
+                                    subtract_cost=False,
+                                    can_afford_check=False,
+                                )
+                            else:
+                                self.position = None
+                                self.geysir = None
+                                return True
                         else:
                             # unit.build subtracts the cost from self.bot.minerals/vespene so we need to use ability directly
-                            self.unit_in_charge(
-                                self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
-                                target=self.position,
-                                queue=False,
-                                subtract_cost=False,
-                                can_afford_check=False,
-                            )
+                            if await self.bot.can_place_single(self.unit_type_id, self.position):
+                                self.unit_in_charge(
+                                    self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
+                                    target=self.position,
+                                    queue=False,
+                                    subtract_cost=False,
+                                    can_afford_check=False,
+                                )
+                            else:
+                                self.position = None
+                                return True
                 if self.unit_being_built is None:
                     if self.unit_in_charge.distance_to_squared(self.position) < 9 and self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
                         self.worker_in_position_time = self.bot.time

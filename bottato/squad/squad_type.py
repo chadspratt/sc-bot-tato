@@ -22,11 +22,11 @@ SquadTypeDefinitions: dict[str, SquadType] = {
         {UnitTypeId.SIEGETANK: 1, UnitTypeId.MARINE: 4, UnitTypeId.RAVEN: 1, UnitTypeId.MEDIVAC: 1, UnitTypeId.BANSHEE: 1})),
     'full army': SquadType('full army', Composition({
         UnitTypeId.SIEGETANK: 2,
-        UnitTypeId.MARAUDER: 2,
-        UnitTypeId.MARINE: 10,
+        UnitTypeId.MARAUDER: 3,
+        UnitTypeId.MARINE: 8,
         UnitTypeId.RAVEN: 1,
         UnitTypeId.MEDIVAC: 2,
-        UnitTypeId.BANSHEE: 2,
+        UnitTypeId.BANSHEE: 3,
         UnitTypeId.VIKINGFIGHTER: 2,
         # UnitTypeId.THOR: 1,
         # UnitTypeId.BATTLECRUISER: 1

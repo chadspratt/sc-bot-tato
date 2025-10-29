@@ -192,7 +192,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.start_timer("my_workers.speed_mine")
         assignment: WorkerAssignment
         for assignment in self.assignments_by_worker.values():
-            if assignment.on_attack_break or not assignment.unit_available or await self.worker_micro.retreat(assignment.unit, 1.0):
+            if assignment.on_attack_break \
+                    or not assignment.unit_available \
+                    or assignment.job_type not in [JobType.MINERALS, JobType.VESPENE] \
+                    or await self.worker_micro.retreat(assignment.unit, 1.0):
                 continue
             
             if not self.bot.townhalls.ready:
@@ -207,10 +210,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 )
                 break
 
-            if assignment.unit_available and assignment.job_type in [JobType.MINERALS, JobType.VESPENE]:
-                # self.bottato_speed_mine(assignment)
-                self.ares_speed_mine(assignment)
-                # self.sharpy_speed_mine(assignment)
+            # self.bottato_speed_mine(assignment)
+            self.ares_speed_mine(assignment)
+            # self.sharpy_speed_mine(assignment)
         self.stop_timer("my_workers.speed_mine")
 
     def sharpy_speed_mine(self, assignment: WorkerAssignment) -> None:
@@ -444,9 +446,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         for existing_enemy in self.units_to_attack:
             if existing_enemy.tag == enemy.tag:
                 self.units_to_attack.remove(existing_enemy)
-                logger.info(f"updated enemy to attack {enemy}")
+                logger.debug(f"updated enemy to attack {enemy}")
                 break
-        logger.info(f"added enemy to attack {enemy}")
+        logger.debug(f"added enemy to attack {enemy}")
         self.units_to_attack.add(enemy)
 
     def update_assigment(self, worker: Unit, job_type: JobType, target: Union[Unit, None]):
