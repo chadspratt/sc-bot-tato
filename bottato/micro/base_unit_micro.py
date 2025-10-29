@@ -101,6 +101,8 @@ class BaseUnitMicro(GeometryMixin):
 
         # check if incoming damage will bring unit below health threshold
         total_potential_damage = sum([threat.calculate_damage_vs_target(unit)[0] for threat in threats])
+        if not unit.health_max:
+            return True
         if (unit.health - total_potential_damage) / unit.health_max >= health_threshold:
             return False
         else:
