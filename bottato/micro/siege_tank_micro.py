@@ -41,6 +41,14 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         time_since_last_transform = self.bot.time - last_transform
 
         is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
+
+        # siege tanks near main base early game
+        if self.bot.time < 300:
+            if unit.distance_to(self.bot.main_base_ramp.bottom_center) > 11:
+                unit.move(self.bot.main_base_ramp.bottom_center.towards(unit.position, 10.5))
+            elif not is_sieged:
+                self.siege(unit)
+            return True
         
         transform_cooldown = 0
         if unit.tag in self.last_transform_time and time_since_last_transform < self.min_seconds_between_transform:

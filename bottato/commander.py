@@ -139,7 +139,9 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         if unit.type_id == UnitTypeId.BARRACKS and len(self.bot.structures(UnitTypeId.BARRACKS)) == 1:
             # set rally point for first barracks away from ramp
             unit(AbilityId.RALLY_UNITS, unit.position.towards(self.bot.main_base_ramp.top_center, -2))
-        if unit.type_id == UnitTypeId.BUNKER:
+        elif unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT):
+            unit(AbilityId.RALLY_UNITS, self.bot.game_info.map_center)
+        elif unit.type_id == UnitTypeId.BUNKER:
             self.military.bunker.structure = unit
 
     def add_unit(self, unit: Unit):

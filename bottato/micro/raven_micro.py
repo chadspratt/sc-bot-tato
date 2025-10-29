@@ -25,6 +25,8 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         super().__init__(bot, enemy)
 
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+        if force_move:
+            return False
         excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.DRONE, UnitTypeId.PROBE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.EGG, UnitTypeId.LARVA]
         enemy_unit, enemy_distance = self.enemy.get_closest_target(unit, distance_limit=20, include_structures=False, include_destructables=False, include_out_of_view=False, excluded_types=excluded_types)
         threats = self.enemy.threats_to(unit)
@@ -38,25 +40,29 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             return False
         if enemy_unit.type_id == UnitTypeId.SIEGETANKSIEGED:
             # don't try to attack sieged tanks
-            return self.drop_turret(unit, enemy_unit.position.towards(unit, enemy_unit.radius + 1))
-        return self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
+            return await self.drop_turret(unit, enemy_unit.position.towards(unit, enemy_unit.radius + 1))
+        return await self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
 
     def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         # doesn't have an auto attack
         return False
 
-    def attack_with_turret(self, unit: Unit, target: Point2):
+    async def attack_with_turret(self, unit: Unit, target: Point2):
         if self.turret_available(unit):
             self.bot.client.debug_line_out(unit, self.convert_point2_to_3(target), (100, 255, 50))
             turret_position = target.towards(unit, self.turret_attack_range - 1, limit=True)
-            self.drop_turret(unit, turret_position)
+            await self.drop_turret(unit, turret_position)
             logger.debug(f"{unit} trying to drop turret at {turret_position} to attack {target} at {target.position}")
             return True
 
         return False
 
-    def drop_turret(self, unit: Unit, target: Point2):
-        unit(AbilityId.BUILDAUTOTURRET_AUTOTURRET, target)
+    async def drop_turret(self, unit: Unit, target: Point2):
+        position = await self.bot.find_placement(UnitTypeId.AUTOTURRET, target, placement_step=1, max_distance=2)
+        if position:
+            unit(AbilityId.BUILDAUTOTURRET_AUTOTURRET, position)
+            return True
+        return False
 
     def fire_missile(self, unit: Unit, target: Unit):
         unit(AbilityId.EFFECT_ANTIARMORMISSILE, target)

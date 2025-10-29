@@ -48,7 +48,11 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
         if force_move and unit.cargo_left > 0:
             if self.units_to_pick_up_last_update != self.bot._total_steps_iterations:
                 self.units_to_pick_up_last_update = self.bot._total_steps_iterations
-                self.units_to_pick_up = self.bot.units.filter(lambda u:  u.movement_speed < unit.movement_speed and not u.is_flying and u.distance_to(target) > 15)
+                self.units_to_pick_up = self.bot.units.filter(
+                    lambda u: u.type_id != UnitTypeId.SIEGETANKSIEGED
+                        and u.movement_speed < unit.movement_speed
+                        and not u.is_flying
+                        and u.distance_to(target) > 15)
                 self.units_to_pick_up_potential_damage.clear()
                 # calculate potential damage to a medivac if it tried to pick up each unit
                 if self.units_to_pick_up and self.bot.enemy_units:

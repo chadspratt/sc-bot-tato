@@ -39,7 +39,7 @@ class BaseUnitMicro(GeometryMixin):
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
 
-    def avoid_effects(self, unit: Unit) -> bool:
+    def avoid_effects(self, unit: Unit, force_move: bool) -> bool:
         # avoid damaging effects
         effects_to_avoid = []
         for effect in self.bot.state.effects:
@@ -48,7 +48,7 @@ class BaseUnitMicro(GeometryMixin):
             if effect.id in (EffectId.LIBERATORTARGETMORPHDELAYPERSISTENT, EffectId.LIBERATORTARGETMORPHPERSISTENT):
                 if effect.is_mine or unit.is_flying:
                     continue
-                if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
+                if unit.type_id == UnitTypeId.SIEGETANKSIEGED and force_move:
                     unit(AbilityId.UNSIEGE_UNSIEGE)
                     return True
             safe_distance = (effect.radius + unit.radius + 1) ** 2
@@ -256,7 +256,7 @@ class BaseUnitMicro(GeometryMixin):
     async def move(self, unit: Unit, target: Point2, force_move: bool = False) -> None:
         if unit.tag in self.bot.unit_tags_received_action:
             return
-        if self.avoid_effects(unit):
+        if self.avoid_effects(unit, force_move):
             logger.debug(f"unit {unit} avoiding effects")
         elif await self.use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
             logger.debug(f"unit {unit} used ability")
@@ -285,3 +285,19 @@ class BaseUnitMicro(GeometryMixin):
         else:
             logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")
             unit.move(scouting_location)
+
+    async def repair(self, unit: Unit, target: Unit):
+        if unit.tag in self.bot.unit_tags_received_action:
+            return
+        if self.avoid_effects(unit, force_move=False):
+            logger.debug(f"unit {unit} avoiding effects")
+        elif self.bot.time < 360:
+            unit.repair(target)
+        else:
+            tank_to_retreat_to = self.tank_to_retreat_to(unit)
+            if tank_to_retreat_to:
+                unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
+            elif await self.retreat(unit, health_threshold=0.25):
+                logger.debug(f"unit {unit} retreating while repairing {target}")
+            else:
+                unit.repair(target)

@@ -482,8 +482,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     if new_target.type_id != UnitTypeId.SCV or self.assignments_by_worker[new_target.tag].job_type != JobType.REPAIR:
                         # don't move if the scv is already repairing something else
                         new_target.move(worker)
-                if not self.bot.enemy_units or self.bot.time < 300 or self.closest_distance(new_target, self.bot.enemy_units) > 5:
-                    worker.repair(new_target)
+                # if not self.bot.enemy_units or self.bot.time < 360 or self.closest_distance(new_target, self.bot.enemy_units) > 5:
+                    # worker.repair(new_target)
             elif assignment.job_type == JobType.VESPENE:
                 if self.vespene.add_worker_to_node(worker, new_target):
                     assignment.gather_position = new_target.position
@@ -508,7 +508,18 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             else:
                 worker.smart(new_target)
         else:
-            if assignment.job_type == JobType.MINERALS:
+            if assignment.job_type == JobType.REPAIR:
+                injured_units = self.units_needing_repair().filter(lambda u: u.tag != worker.tag)
+                if injured_units:
+                    new_target = injured_units.closest_to(worker)
+                    if new_target.tag not in self.bot.unit_tags_received_action:
+                        if new_target.type_id != UnitTypeId.SCV or self.assignments_by_worker[new_target.tag].job_type != JobType.REPAIR:
+                            # don't move if the scv is already repairing something else
+                            new_target.move(worker)
+                    # worker.repair(new_target)
+                else:
+                    return False
+            elif assignment.job_type == JobType.MINERALS:
                 new_target = self.minerals.add_worker(worker)
                 if new_target is None:
                     # No capacity available, keep worker idle
@@ -668,7 +679,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.stop_timer("my_workers.distribute_idle")
 
     async def redistribute_workers(self, needed_resources: Cost) -> int:
-        self.update_repairers()
+        await self.update_repairers()
 
         remaining_cooldown = 3 - (self.bot.time - self.last_worker_stop)
         if remaining_cooldown > 0:
@@ -676,7 +687,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             return -1
 
         max_workers_to_move = 10
-        if needed_resources.vespene > 0:
+        if needed_resources.vespene > -20:
             logger.debug("saturate vespene")
             return self.move_workers_to_vespene(max_workers_to_move)
         if needed_resources.minerals > 0:
@@ -685,21 +696,23 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
         return 0
 
-    def update_repairers(self) -> None:
+    async def update_repairers(self) -> None:
         injured_units = self.units_needing_repair()
         needed_repairers: int = 0
         missing_health = 0
         # limit to percentage of total workers
         max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 5))
         if injured_units:
-            for unit in injured_units:
-                missing_health += unit.health_max - unit.health
-                logger.debug(f"{unit} missing health {unit.health_max - unit.health}")
-            needed_repairers = missing_health / self.health_per_repairer
-            if needed_repairers > max_repairers:
-                needed_repairers = max_repairers
-            elif needed_repairers < len(injured_units):
-                needed_repairers = max(needed_repairers, min(3, len(injured_units)))  # minimum of 3 repairers if there are multiple injured units
+            needed_repairers = 5  # early game, just assign a bunch so wall isn't broken by a rush
+            if self.bot.time > 300:                
+                for unit in injured_units:
+                    missing_health += unit.health_max - unit.health
+                    logger.debug(f"{unit} missing health {unit.health_max - unit.health}")
+                needed_repairers = missing_health / self.health_per_repairer
+                if needed_repairers > max_repairers:
+                    needed_repairers = max_repairers
+                elif needed_repairers < len(injured_units):
+                    needed_repairers = max(needed_repairers, min(3, len(injured_units)))  # minimum of 3 repairers if there are multiple injured units
 
         current_repairers: Units = self.availiable_workers_on_job(JobType.REPAIR)
         repairer_shortage: int = round(needed_repairers) - len(current_repairers)
@@ -726,6 +739,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 units_with_no_repairer = units_with_no_repairer[:5]  # spread out repairers to up to 5 units, mostly to keep initial wall repaired
         for repairer in current_repairers:
             self.update_assigment(repairer, JobType.REPAIR, self.get_repair_target(repairer, injured_units, units_with_no_repairer))
+            assignment = self.assignments_by_worker[repairer.tag]
+            await self.worker_micro.repair(repairer, assignment.target)
 
         # add more repairers
         if repairer_shortage > 0:
@@ -749,6 +764,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
                 if repairer:
                     self.update_assigment(repairer, JobType.REPAIR, self.get_repair_target(repairer, injured_units, units_with_no_repairer))
+                    assignment = self.assignments_by_worker[repairer.tag]
+                    await self.worker_micro.repair(repairer, assignment.target)
                 else:
                     break
 
@@ -764,9 +781,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         return new_target
 
     def units_needing_repair(self) -> Units:
-        injured_mechanical_units = self.bot.units.filter(lambda unit: unit.is_mechanical
-                                                         and unit.health < unit.health_max
-                                                         and len(self.enemy.threats_to_repairer(unit)) == 0)
+        injured_mechanical_units = Units([], self.bot)
+        if self.bot.time > 300:
+            injured_mechanical_units = self.bot.units.filter(lambda unit: unit.is_mechanical
+                                                            and unit.health < unit.health_max
+                                                            and len(self.enemy.threats_to_repairer(unit)) == 0)
         logger.debug(f"injured mechanical units {injured_mechanical_units}")
 
         # can only repair fully built structures

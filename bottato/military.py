@@ -387,14 +387,20 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stop_timer("manage_squads")
 
     def manage_bunker(self, enemies_in_base: Units = None):
-        if not self.bunker.is_built() or not enemies_in_base:
+        if not self.bunker.is_built():
             self.empty_bunker()
             return
+        
+        enemy_distance_to_bunker = 100
+        enemy_distance_to_townhall = 100
+        if enemies_in_base:
+            enemy_distance_to_bunker = enemies_in_base.closest_distance_to(self.bunker.structure)
+            enemy_distance_to_townhall = enemies_in_base.closest_distance_to(self.bot.start_location)
 
-        enemy_distance_to_bunker = enemies_in_base.closest_distance_to(self.bunker.structure)
-        if enemy_distance_to_bunker > 12:
-            self.empty_bunker()
-            return
+        if self.bot.time > 300 or enemy_distance_to_townhall < 15:
+            if enemy_distance_to_bunker > 12:
+                self.empty_bunker()
+                return
 
         for unit in self.bunker.units:
             try:
@@ -408,7 +414,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             if len(self.bunker.units) >= 4:
                 break
             if unit.type_id == UnitTypeId.MARINE:
-                enemy_distance_to_unit = enemies_in_base.closest_distance_to(unit)
+                enemy_distance_to_unit = enemies_in_base.closest_distance_to(unit) if enemies_in_base else 100
                 marine_distance_to_bunker = unit.distance_to(self.bunker.structure)
                 if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
                     # send unit to bunker if they won't have to move past enemies
