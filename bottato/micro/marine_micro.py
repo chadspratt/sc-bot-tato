@@ -46,8 +46,13 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             UnitTypeId.MULE
         ]
         closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
-        tank_to_retreat_to = self.tank_to_retreat_to(unit)
-        if closest_distance <= self.attack_range and tank_to_retreat_to is None:
+        if closest_distance <= self.attack_range and self.tank_to_retreat_to(unit) is None:
+            unit(AbilityId.EFFECT_STIM_MARINE)
+            self.last_stim_time[unit.tag] = self.bot.time
+            return True
+        enemy_sieged_tanks = self.bot.enemy_units(UnitTypeId.SIEGETANKSIEGED)
+        if enemy_sieged_tanks and enemy_sieged_tanks.closest_distance_to(unit) < 7:
+            # stim to rush sieged tanks
             unit(AbilityId.EFFECT_STIM_MARINE)
             self.last_stim_time[unit.tag] = self.bot.time
             return True

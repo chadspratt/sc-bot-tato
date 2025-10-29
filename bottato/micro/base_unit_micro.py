@@ -177,7 +177,7 @@ class BaseUnitMicro(GeometryMixin):
 
             if nearest_sieged_tank:
                 distance_to_tank = unit.distance_to(nearest_sieged_tank)
-                if distance_to_tank < 6:
+                if distance_to_tank < 7:
                     # dive on sieged tanks
                     attack_range = 0
                     target_position = nearest_sieged_tank.position.towards(unit, attack_range)

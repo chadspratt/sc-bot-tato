@@ -275,8 +275,9 @@ class InitialScout(BaseSquad, GeometryMixin):
             
         # Move to current waypoint
         if self.waypoints:
-            micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot, self.enemy)
-            await micro.scout(self.unit, self.waypoints[0])
+            self.unit.move(self.waypoints[0])
+            # micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot, self.enemy)
+            # await micro.scout(self.unit, self.waypoints[0])
 
 class Scouting(BaseSquad, DebugMixin):
     def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers, military: Military):

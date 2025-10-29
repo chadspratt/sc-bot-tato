@@ -384,6 +384,30 @@ class Map(TimerMixin, GeometryMixin):
 
         return closest
 
+    checked_zones = set()
+    zones_to_check: list[Zone] = []
+    async def get_non_visible_position_in_main(self) -> Point2 | None:
+        if not self.zones_to_check:
+            start_location = self.bot.start_location.rounded
+            main_zone = self.zone_lookup_by_coord.get((start_location.x, start_location.y))
+            self.zones_to_check.append(main_zone)
+        while True:
+            current_zone = self.zones_to_check.pop(0)
+            for coord in current_zone.coords:
+                point = Point2(coord)
+                if not self.bot.is_visible(point):
+                    can_place = await self.bot.can_place(UnitTypeId.SUPPLYDEPOT, [point])
+                    if can_place[0]:
+                        self.zones_to_check.insert(0, current_zone)
+                        return point
+            self.checked_zones.add(current_zone)
+            for adjacent_zone in current_zone.adjacent_zones:
+                if adjacent_zone not in self.checked_zones:
+                    self.zones_to_check.append(adjacent_zone)
+            if not self.zones_to_check:
+                break
+        return None
+
     def draw_influence(self) -> None:
         self.influence_maps.draw_influence_in_game(self.ground_grid, 1, 2000)
 
