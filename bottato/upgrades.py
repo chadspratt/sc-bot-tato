@@ -169,3 +169,10 @@ class Upgrades:
                 if len(new_upgrades) == number_needed:
                     break
         return new_upgrades
+    
+    def next_upgrade(self, facility_type: UnitTypeId) -> UpgradeId | None:
+        for upgrade_type in self.upgrades_by_facility[facility_type]:
+            if self.bot.already_pending_upgrade(upgrade_type) > 0:
+                continue
+            return upgrade_type
+        return None

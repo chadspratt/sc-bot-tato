@@ -212,6 +212,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         build_order_message += f"\npriority={'\n'.join([step.friendly_name for step in self.priority_queue])}"
         build_order_message += f"\nstatic={'\n'.join([step.friendly_name for step in self.static_queue])}"
         build_order_message += f"\nbuild_queue={'\n'.join([step.friendly_name for step in self.build_queue])}"
+        build_order_message += f"\nunit_queue={'\n'.join([step.friendly_name for step in self.unit_queue])}"
         return build_order_message
 
     def queue_units(self, unit_types: List[UnitTypeId]) -> None:
@@ -266,12 +267,6 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
 
     def get_in_progress_count(self, unit_type: UnitTypeId) -> int:
         return sum([build_step.unit_type_id == unit_type for build_step in self.started])
-
-    def upgrade_is_in_progress(self, upgrade_type: UpgradeId) -> bool:
-        for build_step in self.started:
-            if build_step.upgrade_id == upgrade_type:
-                return True
-        return False
 
     def get_queued_count(self, unit_type: UnitTypeId, queue: List[BuildStep]) -> int:
         return sum([build_step.unit_type_id == unit_type for build_step in queue])
@@ -357,9 +352,9 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         if self.bot.time > 360:
             for facility_type in self.upgrade_building_types:
                 if self.bot.structures(facility_type).ready.idle:
-                    next_upgrade = self.upgrades.next_upgrades(facility_type)
+                    next_upgrade = self.upgrades.next_upgrade(facility_type)
                     if not self.upgrade_is_in_progress(next_upgrade):
-                        self.add_to_build_queue(self.upgrades.next_upgrades(facility_type), queue=self.priority_queue)
+                        self.add_to_build_queue([next_upgrade], queue=self.priority_queue)
                 elif not self.bot.structures(facility_type) and self.get_in_progress_count(facility_type) == 0:
                     new_build_steps = self.production.build_order_with_prereqs(facility_type)
                     new_build_steps = self.remove_in_progress_from_list(new_build_steps)
@@ -376,6 +371,12 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             #         self.add_to_build_queue(self.production.build_order_with_prereqs(next_upgrade))
             #         # self.add_to_build_order(self.production.build_order_with_prereqs(next_upgrade), 1)
         self.stop_timer("queue_upgrade")
+
+    def upgrade_is_in_progress(self, upgrade_type: UpgradeId) -> bool:
+        for build_step in self.started:
+            if build_step.upgrade_id == upgrade_type:
+                return True
+        return False
 
     def queue_planetary(self) -> None:
         self.start_timer("queue_planetary")
@@ -621,6 +622,9 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             logger.debug(f"building {build_step}, response: {build_response}")
             if build_response == ResponseCode.SUCCESS:
                 self.started.append(build_queue.pop(execution_index))
+                if build_step.interrupted_count > 5:
+                    # can't trust that this actually got built
+                    continue
                 remaining_resources.minerals = 0
                 break
             else:

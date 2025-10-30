@@ -567,8 +567,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         if not friendlies:
             return 0.1
 
+        passengers: list[Unit] = []
+        for medivac in self.bot.units(UnitTypeId.MEDIVAC):
+            for passenger in medivac.passengers:
+                passengers.append(passenger)
         enemy_damage: float = self.calculate_total_damage(enemies, friendlies)
-        friendly_damage: float = self.calculate_total_damage(friendlies, enemies)
+        friendly_damage: float = self.calculate_total_damage(friendlies, enemies, passengers)
         
         enemy_health: float = sum([unit.health + unit.shield for unit in enemies])
         friendly_health: float = sum([unit.health for unit in friendlies])
@@ -579,10 +583,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         return friendly_strength / max(enemy_strength, 0.0001)
 
     damage_by_type: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
-    def calculate_total_damage(self, attackers: Units, targets: Units) -> float:
+    def calculate_total_damage(self, attackers: Units, targets: Units, passengers: list[Unit] = None) -> float:
         total_damage: float = 0.0
         attacker_type_counts = self.count_units_by_type(attackers)
         target_type_counts = self.count_units_by_type(targets)
+        passenger_type_counts = self.count_units_by_type(passengers) if passengers else {}
         # calculate dps vs each target type if not already cached
         for attacker in attackers:
             if attacker.type_id not in self.damage_by_type:
@@ -598,16 +603,32 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         # calculate average damage vs all target types
         total_damage = 0.0
         for attacker_type, attacker_count in attacker_type_counts.items():
+            if attacker_type in passenger_type_counts:
+                attacker_count += passenger_type_counts[attacker_type]
             total_damage_for_type = 0.0
             for target_type, target_count in target_type_counts.items():
                 dps = self.damage_by_type[attacker_type][target_type]
                 total_damage_for_type += dps * target_count
                 if attacker_type in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
-                    total_damage_for_type *= 2  # approximate splash damage
+                    total_damage_for_type += dps * target_count # approximate splash damage
             average_damage = total_damage_for_type / len(targets)
             # add total average damage for all attackers of this type
             total_damage += average_damage * attacker_count
         return total_damage
+
+    def count_units_by_type(self, units: Units) -> dict[UnitTypeId, int]:
+        counts: dict[UnitTypeId, int] = {}
+
+        for unit in units:
+            # passenger units don't have this attribute
+            if hasattr(unit, "is_hallucination") and unit.is_hallucination:
+                continue
+            if unit.type_id not in counts:
+                counts[unit.type_id] = 1
+            else:
+                counts[unit.type_id] = counts[unit.type_id] + 1
+
+        return counts
 
     def simulate_battle(self):
         self.start_timer("simulate_battle")
@@ -698,19 +719,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
     def can_attack(self, source: Unit, target: Unit):
         return source.can_attack_ground and not target.is_flying or (
             source.can_attack_air and (target.is_flying or target.type_id == UnitTypeId.COLOSSUS))
-
-    def count_units_by_type(self, units: Units) -> dict[UnitTypeId, int]:
-        counts: dict[UnitTypeId, int] = {}
-
-        for unit in units:
-            if unit.is_hallucination:
-                continue
-            if unit.type_id not in counts:
-                counts[unit.type_id] = 1
-            else:
-                counts[unit.type_id] = counts[unit.type_id] + 1
-
-        return counts
 
     def report(self):
         _report = "[==MILITARY==] "

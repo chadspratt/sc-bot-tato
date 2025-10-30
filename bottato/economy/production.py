@@ -218,14 +218,14 @@ class Production(UnitReferenceMixin, TimerMixin):
                 if candidate.unit.is_flying or candidate.unit.type_id in (UnitTypeId.BARRACKSFLYING, UnitTypeId.FACTORYFLYING, UnitTypeId.STARPORTFLYING):
                     continue
                 if unit_type in self.add_on_types and (candidate.addon_blocked or self.bot.time - candidate.addon_destroyed_time < 8):
-                    logger.debug(f"can't build addon {unit_type} at {candidate}")
+                    logger.debug(f"can't build addon {unit_type} at {candidate} - addon_blocked: {candidate.addon_blocked}, time_since_destruction: {self.bot.time - candidate.addon_destroyed_time}")
                     continue
 
                 if candidate.has_capacity:
                     candidate.add_queued_unit_id(unit_type)
                     return candidate.unit
                 else:
-                    logger.debug
+                    logger.debug(f"candidate {candidate.unit} has no capacity - orders: {len(candidate.unit.orders)}, queued: {len(candidate.queued_unit_ids)}, capacity: {candidate.capacity}")
 
         return None
 
@@ -405,8 +405,9 @@ class Production(UnitReferenceMixin, TimerMixin):
         if facility_type is not None:
             logger.debug(f"adding builder {unit}")
             if unit.type_id in [UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT]:
-                self.facilities[facility_type][UnitTypeId.NOTAUNIT].append(Facility(self.bot, unit))
-                logger.debug(f"adding to {facility_type}-NOTAUNIT")
+                new_facility = Facility(self.bot, unit)
+                self.facilities[facility_type][UnitTypeId.NOTAUNIT].append(new_facility)
+                logger.debug(f"added {unit} to {facility_type}-NOTAUNIT, total facilities: {len(self.facilities[facility_type][UnitTypeId.NOTAUNIT])}")
             else:
                 facility: Facility
                 logger.debug(f"checking facilities with no addon {self.facilities[facility_type][UnitTypeId.NOTAUNIT]}")
@@ -481,12 +482,21 @@ class Production(UnitReferenceMixin, TimerMixin):
 
         return build_order
 
-    async def set_addon_blocked(self, blocked_facility: Unit) -> None:
+    async def set_addon_blocked(self, blocked_facility: Unit, interrupted_count: int) -> None:
         facility: Facility
         for facility in self.facilities[blocked_facility.type_id][UnitTypeId.NOTAUNIT]:
             if facility.unit.tag == blocked_facility.tag:
+                # if it's been interrupted too many times despite not registering as blocked, mark it anyways
+                if interrupted_count > 20:
+                    logger.info(f"marking {facility} as blocked after {interrupted_count} interruptions")
+                    facility.addon_blocked = True
+                    return True
                 # check that it isn't blocked by an enemy unit
-                if not self.bot.enemy_units.closer_than(1, facility.unit.position) and not self.bot.units.closer_than(1, facility.unit.position):
+                if not self.bot.enemy_units.closer_than(1, facility.unit.add_on_position) and not self.bot.units.closer_than(1, facility.unit.add_on_position):
                     if not await self.bot.can_place_single(UnitTypeId.SUPPLYDEPOT, facility.unit.add_on_position):
                         facility.addon_blocked = True
+                        return True
+                    else:
+                        logger.info(f"addon position for {facility.unit} is not actually blocked")
                 break
+        return False

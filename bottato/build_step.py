@@ -253,8 +253,10 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.unit_in_charge = self.production.get_builder(self.unit_type_id)
             if self.unit_type_id in self.production.add_on_types and self.unit_in_charge:
                 if self.interrupted_count > 5:
-                    await self.production.set_addon_blocked(self.unit_in_charge)
-                    self.interrupted_count = 0
+                    logger.info(f"addon {self.unit_type_id} interrupted too many times ({self.interrupted_count}), setting addon blocked")
+                    if await self.production.set_addon_blocked(self.unit_in_charge, self.interrupted_count):
+                        self.interrupted_count = 0
+                        self.unit_in_charge = None
                 else:
                     self.position = self.unit_in_charge.add_on_position
         elif self.unit_type_id == UnitTypeId.SCV:
