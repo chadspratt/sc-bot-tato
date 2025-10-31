@@ -63,8 +63,12 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.upgrade_id = unit_type
         self.friendly_name = unit_type.name
         self.builder_type: UnitTypeId = self.production.get_builder_type(unit_type)
-        self.cost = bot.calculate_cost(unit_type)
-        self.supply_cost = bot.calculate_supply_cost(unit_type)
+        if unit_type == UnitTypeId.REFINERYRICH:
+            self.cost = bot.calculate_cost(UnitTypeId.REFINERY)
+            self.supply_cost = bot.calculate_supply_cost(UnitTypeId.REFINERY)
+        else:
+            self.cost = bot.calculate_cost(unit_type)
+            self.supply_cost = bot.calculate_supply_cost(unit_type)
 
     def __repr__(self) -> str:
         builder = self.unit_in_charge if self.unit_in_charge else self.builder_type
