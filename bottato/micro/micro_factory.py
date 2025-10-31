@@ -13,6 +13,7 @@ from bottato.micro.siege_tank_micro import SiegeTankMicro
 from bottato.micro.medivac_micro import MedivacMicro
 from bottato.micro.marine_micro import MarineMicro
 from bottato.micro.banshee_micro import BansheeMicro
+from bottato.micro.viking_micro import VikingMicro
 
 
 micro_instances = {}
@@ -24,6 +25,7 @@ micro_lookup = {
     # UnitTypeId.SIEGETANKSIEGED: SiegeTankMicro,
     UnitTypeId.MEDIVAC: MedivacMicro,
     UnitTypeId.BANSHEE: BansheeMicro,
+    UnitTypeId.VIKINGFIGHTER: VikingMicro,
 }
 
 

@@ -527,18 +527,12 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                                 self.geysir = None
                                 return True
                         else:
-                            # unit.build subtracts the cost from self.bot.minerals/vespene so we need to use ability directly
-                            if await self.bot.can_place_single(self.unit_type_id, self.position):
-                                self.unit_in_charge(
-                                    self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
-                                    target=self.position,
-                                    queue=False,
-                                    subtract_cost=False,
-                                    can_afford_check=False,
-                                )
-                            else:
-                                self.position = None
-                                return True
+                            # position might not be buildable, can't trust can_place_single
+                            self.position = None
+                            self.worker_in_position_time = None
+                            self.workers.set_as_idle(self.unit_in_charge)
+                            self.unit_in_charge = None
+                            return True
                 if self.unit_being_built is None:
                     if self.unit_in_charge.distance_to_squared(self.position) < 9 and self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
                         self.worker_in_position_time = self.bot.time

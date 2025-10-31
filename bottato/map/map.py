@@ -411,10 +411,13 @@ class Map(TimerMixin, GeometryMixin):
             for coord in current_zone.coords:
                 point = Point2(coord)
                 if not self.bot.is_visible(point):
-                    can_place = await self.bot.can_place(UnitTypeId.SUPPLYDEPOT, [point])
-                    if can_place[0]:
-                        self.zones_to_check.insert(0, current_zone)
-                        return point
+                    # can_place not reliable, also check terrain height
+                    terrain_height = self.bot.get_terrain_z_height(point)
+                    if terrain_height > 0:
+                        can_place = await self.bot.can_place(UnitTypeId.SUPPLYDEPOT, [point])
+                        if can_place[0]:
+                            self.zones_to_check.insert(0, current_zone)
+                            return point
             self.checked_zones.add(current_zone)
             for adjacent_zone in current_zone.adjacent_zones:
                 if adjacent_zone not in self.checked_zones:

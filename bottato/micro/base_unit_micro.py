@@ -107,9 +107,9 @@ class BaseUnitMicro(GeometryMixin):
             return False
         else:
             avg_threat_position = threats.center
-            if unit.distance_to(self.bot.start_location) < avg_threat_position.distance_to(self.bot.start_location):
-                unit.move(self.bot.start_location)
-                return True
+            # if unit.distance_to(self.bot.start_location) < avg_threat_position.distance_to(self.bot.start_location):
+            #     unit.move(self.bot.start_location)
+            #     return True
             retreat_position = unit.position.towards(avg_threat_position, -5).towards(self.bot.start_location, 2)
             if self.bot.in_pathing_grid(retreat_position):
                 unit.move(retreat_position)

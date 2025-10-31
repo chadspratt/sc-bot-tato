@@ -181,7 +181,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.queue_worker()
         self.queue_supply()
         self.queue_command_center(rush_detected)
-        if len(self.static_queue) < 15:
+        if len(self.static_queue) < 45:
             self.queue_upgrade()
             self.queue_turret()
             self.queue_planetary()
@@ -198,9 +198,8 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.stop_timer("redistribute_workers")
         logger.debug(f"needed gas {needed_resources.vespene}, minerals {needed_resources.minerals}, moved workers {moved_workers}")
 
-        if len(self.static_queue) < 20:
-            if needed_resources.vespene > 0 and moved_workers == 0:
-                self.queue_refinery()
+        if len(self.static_queue) < 30:
+            self.queue_refinery()
 
         await self.execute_pending_builds(only_build_units, rush_detected)
         
@@ -593,13 +592,13 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             if build_step.supply_cost > 0 and build_no_supply_only:
                 continue
             percent_affordable = 1.0
+            if build_step.unit_type_id in failed_types or only_build_units and UnitTypeId.SCV in build_step.builder_type:
+                continue
             if not build_step.is_in_progress:
                 percent_affordable = self.percent_affordable(remaining_resources, build_step.cost)
                 if remaining_resources.minerals < 0:
                     break
                 remaining_resources = remaining_resources - build_step.cost
-            if build_step.unit_type_id in failed_types or only_build_units and UnitTypeId.SCV in build_step.builder_type:
-                continue
             time_since_last_cancel = self.bot.time - build_step.last_cancel_time
             if time_since_last_cancel < 10:
                 # delay rebuilding canceled structures
@@ -635,6 +634,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 elif build_response == ResponseCode.NO_FACILITY:
                     # don't reserve resources for things that don't have an available facility
                     remaining_resources = remaining_resources + build_step.cost
+                    failed_types.append(build_step.unit_type_id)
                 else:
                     failed_types.append(build_step.unit_type_id)
             self.stop_timer(f"handle response {build_response}")
