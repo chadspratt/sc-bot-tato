@@ -353,7 +353,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             for facility_type in self.upgrade_building_types:
                 if self.bot.structures(facility_type).ready.idle:
                     next_upgrade = self.upgrades.next_upgrade(facility_type)
-                    if not self.upgrade_is_in_progress(next_upgrade):
+                    if next_upgrade and not self.upgrade_is_in_progress(next_upgrade):
                         self.add_to_build_queue([next_upgrade], queue=self.priority_queue)
                 elif not self.bot.structures(facility_type) and self.get_in_progress_count(facility_type) == 0:
                     new_build_steps = self.production.build_order_with_prereqs(facility_type)
