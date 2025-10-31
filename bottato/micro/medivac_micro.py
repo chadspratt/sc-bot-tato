@@ -45,7 +45,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 unit(AbilityId.UNLOADALLAT, unit)
                 return True
             return False
-        if force_move and unit.cargo_left > 0:
+        if force_move and self.bot.time > 300 and unit.cargo_left > 0:
             if self.units_to_pick_up_last_update != self.bot._total_steps_iterations:
                 self.units_to_pick_up_last_update = self.bot._total_steps_iterations
                 self.units_to_pick_up = self.bot.units.filter(

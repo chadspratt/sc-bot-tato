@@ -25,6 +25,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     last_transform_time: dict[int, float] = {}
     last_force_move_time: dict[int, float] = {}
     last_siege_attack_time: dict[int, float] = {}
+    previous_positions: dict[int, Point2] = {}
 
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot, enemy)
@@ -44,10 +45,43 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
         # siege tanks near main base early game
         if self.bot.time < 300:
-            if unit.distance_to(self.bot.main_base_ramp.bottom_center) > 11:
-                unit.move(self.bot.main_base_ramp.bottom_center.towards(unit.position, 10.5))
-            elif not is_sieged:
-                self.siege(unit)
+            if unit.tag not in self.previous_positions:
+                self.previous_positions[unit.tag] = unit.position
+            if not is_sieged:
+                tank_position = None
+                bunkers = self.bot.structures(UnitTypeId.BUNKER)
+                bunker: Unit = bunkers[0] if bunkers else None
+                if bunker and bunker.distance_to(self.bot.main_base_ramp.top_center) > 5:
+                    # bunker on low ground, position tank to cover it, a bit away from top of ramp
+                    tank_positions = self.get_triangle_point_c(bunker.position, self.bot.main_base_ramp.top_center, 10.5, 5)
+                    if tank_positions:
+                        high_ground_height = self.bot.get_terrain_height(self.bot.main_base_ramp.top_center)
+                        for position in tank_positions:
+                            if abs(self.bot.get_terrain_height(position) - high_ground_height) < 5:
+                                if tank_position is None or tank_position.distance_to(self.bot.game_info.map_center) > position.distance_to(self.bot.game_info.map_center):
+                                    tank_position = position
+                    if not tank_position:
+                        tank_position = bunker.position.towards(unit, 10.5)
+
+                if tank_position:
+                    current_distance = unit.distance_to(tank_position)
+                    previous_distance = self.previous_positions[unit.tag].distance_to(tank_position)
+                    if current_distance <= 0.5:
+                        self.siege(unit)
+                    elif current_distance < 3 and (unit.position.manhattan_distance(self.previous_positions[unit.tag]) < 0.1 or current_distance > previous_distance):
+                        closest_depot = self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).closest_to(unit)
+                        depot_distance = closest_depot.distance_to(unit)
+                        if depot_distance < 2.2:
+                            unit.move(closest_depot.position.towards(unit.position, 4))
+                        else:
+                            self.siege(unit)
+                    else:
+                        unit.move(tank_position)
+                elif unit.distance_to(self.bot.main_base_ramp.bottom_center) > 11:
+                    unit.move(self.bot.main_base_ramp.bottom_center.towards(unit.position, 10.5))
+                else:
+                    self.siege(unit)
+            self.previous_positions[unit.tag] = unit.position
             return True
         
         transform_cooldown = 0

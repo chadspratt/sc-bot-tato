@@ -227,6 +227,20 @@ class GeometryMixin:
                 closest_unit = unit
         return closest_unit
 
+    def get_triangle_point_c(self, point_a: Point2, point_b: Point2, a_c_distance: float, b_c_distance: float) -> tuple[Point2, Point2]:
+        a_b_distance = point_a.distance_to(point_b)
+        if a_b_distance > a_c_distance + b_c_distance or a_c_distance > a_b_distance + b_c_distance or b_c_distance > a_b_distance + a_c_distance:
+            return None
+        a_b_distance_sq = a_b_distance ** 2
+        a_c_distance_sq = a_c_distance ** 2
+        b_c_distance_sq = b_c_distance ** 2
+        angle_a = math.acos((a_c_distance_sq + a_b_distance_sq - b_c_distance_sq) / (2 * a_b_distance * a_c_distance))
+        a_b_facing = self.get_facing(point_a, point_b)
+        angle_1 = a_b_facing + angle_a
+        angle_2 = a_b_facing - angle_a
+        point_c_1 = point_a + Point2((math.cos(angle_1), math.sin(angle_1))) * a_c_distance
+        point_c_2 = point_a + Point2((math.cos(angle_2), math.sin(angle_2))) * a_c_distance
+        return point_c_1, point_c_2
 
 class TimerMixin:
     def start_timer(self, timer_name: str) -> None:
