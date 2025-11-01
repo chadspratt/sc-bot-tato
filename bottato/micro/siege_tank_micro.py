@@ -45,7 +45,18 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
 
         # siege tanks near main base early game
-        if self.bot.time < 300 or self.bot.time < 420 and len(self.bot.townhalls) < 3:
+        natural_in_place = len(self.bot.townhalls) > 2
+        if not natural_in_place:
+            for el in self.bot.expansion_locations:
+                if el == self.bot.start_location:
+                    continue
+                for townhall in self.bot.townhalls.ready:
+                    if townhall.is_flying:
+                        continue
+                    if townhall.distance_to(el) < 4:
+                        natural_in_place = True
+                        break
+        if self.bot.time < 300 or self.bot.time < 420 and not natural_in_place:
             if unit.tag not in self.previous_positions:
                 self.previous_positions[unit.tag] = unit.position
             if not is_sieged:

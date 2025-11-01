@@ -248,7 +248,7 @@ class BaseUnitMicro(GeometryMixin):
 
         nearest_tank = tanks.closest_to(unit)
         tank_to_enemy_distance = self.distance(nearest_tank, closest_enemy)
-        if tank_to_enemy_distance > 13.5 and tank_to_enemy_distance < 30:
+        if tank_to_enemy_distance > 13.5 and tank_to_enemy_distance < 40:
             return nearest_tank
         elif tank_to_enemy_distance < unit.distance_to(closest_enemy):
             # defend tank if it's closer to enemy than unit
