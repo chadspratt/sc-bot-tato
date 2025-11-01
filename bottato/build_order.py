@@ -8,8 +8,8 @@ from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
-from sc2.units import Units
 from sc2.game_data import Cost
+from sc2.data import Race
 
 from bottato.unit_types import UnitTypes
 from bottato.build_step import BuildStep, ResponseCode
@@ -133,6 +133,16 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         if self.bot.time > 300 or self.bot.townhalls.amount > 2:
             # not a rush
             return
+        if self.bot.enemy_race == Race.Terran:
+            # queue one hellion in case of reaper rush
+            if self.bot.enemy_units(UnitTypeId.REAPER).amount > 0:
+                self.add_to_build_queue([UnitTypeId.HELLION], position=0, queue=self.priority_queue)
+                # swap reactor for techlab (faster, allows marauder)
+                for step in self.static_queue:
+                    if step.unit_type_id == UnitTypeId.BARRACKSREACTOR:
+                        self.static_queue.remove(step)
+                        self.add_to_build_queue([UnitTypeId.BARRACKSTECHLAB, UnitTypeId.MARAUDER], position=0, queue=self.priority_queue)
+                        break
         if self.bot.structure_type_build_progress(UnitTypeId.BARRACKSREACTOR) == 1:
             training_marine_count = len([step for step in self.started if step.unit_type_id == UnitTypeId.MARINE])
             if training_marine_count < 2:

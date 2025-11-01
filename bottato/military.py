@@ -398,7 +398,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             enemy_distance_to_townhall = enemies_in_base.closest_distance_to(self.bot.start_location)
 
         if self.bot.time > 300 or enemy_distance_to_townhall < 15:
-            if enemy_distance_to_bunker > 12:
+            if enemy_distance_to_bunker > 9:
                 self.empty_bunker()
                 return
 

@@ -69,7 +69,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
 
         # XXX slow
         await self.build_order.execute(self.military.army_ratio, self.rush_detected)
-        
+
         # XXX extremely slow
         await self.military.manage_squads(iteration,
                                           self.build_order.get_blueprints(),
