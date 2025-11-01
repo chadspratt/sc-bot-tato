@@ -510,7 +510,10 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             logger.debug(f"{in_progress_step.unit_type_id} {started_structure.type_id}")
             if in_progress_step.unit_type_id == started_structure.type_id or (in_progress_step.unit_type_id == UnitTypeId.REFINERY and started_structure.type_id == UnitTypeId.REFINERYRICH):
                 if in_progress_step.unit_in_charge and in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
-                    in_progress_step.unit_in_charge = self.get_updated_unit_reference(in_progress_step.unit_in_charge)
+                    try:
+                        in_progress_step.unit_in_charge = self.get_updated_unit_reference(in_progress_step.unit_in_charge)
+                    except KeyError:
+                        continue
                     if not in_progress_step.unit_in_charge.is_constructing_scv:
                         # wrong worker
                         continue
