@@ -517,7 +517,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     if self.unit_being_built:
                         self.unit_in_charge.smart(self.unit_being_built)
                     else:
-                        if self.unit_type_id == UnitTypeId.REFINERY:
+                        if self.unit_type_id == UnitTypeId.REFINERY and self.geysir:
                             if self.bot.gas_buildings and self.bot.gas_buildings.closest_distance_to(self.geysir) > 1:
                                 self.unit_in_charge(
                                     self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
