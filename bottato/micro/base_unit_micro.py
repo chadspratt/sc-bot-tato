@@ -80,6 +80,9 @@ class BaseUnitMicro(GeometryMixin):
         threats = self.enemy.threats_to(unit)
 
         if not threats:
+            if unit.type_id == UnitTypeId.SCV:
+                # needs to be doing the repairing
+                return False
             if unit.health_percentage >= health_threshold:
                 return False
             else:
