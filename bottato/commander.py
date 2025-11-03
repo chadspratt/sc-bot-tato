@@ -54,13 +54,13 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         # XXX very slow
         self.map.update_influence_maps(self.new_damage_by_position)
 
-        await self.scout()
-        # self.rush_detected = self.bot.time > 70
-
         await self.structure_micro.execute(self.rush_detected)
 
         # XXX slow
         await self.build_order.execute(self.military.army_ratio, self.rush_detected, self.enemy)
+
+        await self.scout()
+        # self.rush_detected = self.bot.time > 70
 
         # XXX extremely slow
         await self.military.manage_squads(iteration,

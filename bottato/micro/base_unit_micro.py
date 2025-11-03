@@ -110,9 +110,9 @@ class BaseUnitMicro(GeometryMixin):
             return False
         else:
             avg_threat_position = threats.center
-            # if unit.distance_to(self.bot.start_location) < avg_threat_position.distance_to(self.bot.start_location):
-            #     unit.move(self.bot.start_location)
-            #     return True
+            if unit.distance_to(self.bot.start_location) < avg_threat_position.distance_to(self.bot.start_location) + 1:
+                unit.move(self.bot.start_location)
+                return True
             retreat_position = unit.position.towards(avg_threat_position, -5).towards(self.bot.start_location, 2)
             if self.bot.in_pathing_grid(retreat_position):
                 unit.move(retreat_position)
@@ -277,16 +277,20 @@ class BaseUnitMicro(GeometryMixin):
             logger.debug(f"unit {unit} moving to {target}")
 
     async def scout(self, unit: Unit, scouting_location: Point2):
+        if unit.tag in self.bot.unit_tags_received_action:
+            return
         logger.debug(f"scout {unit} health {unit.health}/{unit.health_max} ({unit.health_percentage}) health")
 
-        if await self.use_ability(unit, scouting_location, health_threshold=1.0):
+        if self.avoid_effects(unit, False):
+            logger.debug(f"unit {unit} avoiding effects")
+        elif await self.use_ability(unit, scouting_location, health_threshold=1.0):
             pass
-        elif await self.retreat(unit, health_threshold=0.75):
+        elif await self.retreat(unit, health_threshold=0.95):
             pass
-        # elif self.attack_something(unit, health_threshold=0.0):
+        elif unit.type_id == UnitTypeId.VIKINGFIGHTER and self.attack_something(unit, health_threshold=1.0):
+            pass
+        # elif await self.retreat(unit, health_threshold=0.5):
         #     pass
-        elif await self.retreat(unit, health_threshold=0.5):
-            pass
         else:
             logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")
             unit.move(scouting_location)

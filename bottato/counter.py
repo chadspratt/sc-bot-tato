@@ -129,7 +129,8 @@ class Counter(UnitReferenceMixin):
             UnitTypeId.MARINE: 2.5,
         },
         UnitTypeId.HYDRALISK: { # 2
-            UnitTypeId.SIEGETANK: 0.5
+            UnitTypeId.SIEGETANK: 0.5,
+            UnitTypeId.MARINE: 1
         },
         UnitTypeId.INFESTOR: { # 2
             UnitTypeId.GHOST: 0.5,
@@ -143,16 +144,23 @@ class Counter(UnitReferenceMixin):
             UnitTypeId.LIBERATOR: 0.4,
             UnitTypeId.MARINE: 1
         },
+        UnitTypeId.OVERLORD: {
+            UnitTypeId.VIKINGFIGHTER: 0.05
+        },
+        UnitTypeId.OVERSEER: {
+            UnitTypeId.VIKINGFIGHTER: 0.05
+        },
         UnitTypeId.QUEEN: { # 2
             UnitTypeId.MARINE: 3,
         },
         UnitTypeId.RAVAGER: { # 3
-            UnitTypeId.MARAUDER: 1,
-            UnitTypeId.MARINE: 1
+            UnitTypeId.MARAUDER: 0.6,
+            UnitTypeId.MARINE: 1,
+            UnitTypeId.BANSHEE: 0.4
         },
         UnitTypeId.ROACH: {
-            UnitTypeId.MARAUDER: 0.8,
-            UnitTypeId.BANSHEE: 0.2,
+            UnitTypeId.MARAUDER: 0.6,
+            UnitTypeId.BANSHEE: 0.4,
             UnitTypeId.SIEGETANK: 0.25
         },
         UnitTypeId.SWARMHOSTMP: { # 3
@@ -166,17 +174,16 @@ class Counter(UnitReferenceMixin):
             UnitTypeId.VIKINGFIGHTER: 1
         },
         UnitTypeId.ZERGLING: {
-            UnitTypeId.SIEGETANK: 0.1,
-            UnitTypeId.MARINE: 2
+            UnitTypeId.HELLION: 0.25
         },
     }
 
     def get_counters(self, enemy_units: Units) -> dict[UnitTypeId, int]:
         """Count the number of each unit type in the given units."""
-        counts = self.count_units_by_type(enemy_units)
+        enemy_counts = self.count_units_by_type(enemy_units)
 
         counter_units: dict[UnitTypeId, int] = {}
-        for enemy_type, enemy_count in counts.items():
+        for enemy_type, enemy_count in enemy_counts.items():
             if enemy_type in Counter.counters:
                 unit_counters = Counter.counters[enemy_type]
                 for counter_type, counter_count in unit_counters.items():

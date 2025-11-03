@@ -99,8 +99,8 @@ class Upgrades:
             UpgradeId.PUNISHERGRENADES,
         ],
         UnitTypeId.FACTORYTECHLAB: [
+            UpgradeId.HIGHCAPACITYBARRELS,
             # UpgradeId.HURRICANETHRUSTERS,
-            # UpgradeId.HIGHCAPACITYBARRELS,
             # UpgradeId.SMARTSERVOS,
             # UpgradeId.DRILLCLAWS,
         ],

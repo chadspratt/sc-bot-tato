@@ -37,7 +37,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
         # Lower depos when no enemies are nearby
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:
             for enemy_unit in self.bot.enemy_units:
-                if self.distance(enemy_unit, depot) < 8:
+                if self.distance(enemy_unit, depot) < distance_threshold:
                     break
             else:
                 depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)

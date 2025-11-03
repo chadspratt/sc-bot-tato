@@ -480,10 +480,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         logger.debug(f"worker {worker} changing from {assignment.target} to {new_target}")
         if new_target:
             if assignment.job_type == JobType.REPAIR:
-                if new_target.tag not in self.bot.unit_tags_received_action:
-                    if new_target.type_id != UnitTypeId.SCV or self.assignments_by_worker[new_target.tag].job_type != JobType.REPAIR:
-                        # don't move if the scv is already repairing something else
-                        new_target.move(worker)
+                pass
+                # if new_target.tag not in self.bot.unit_tags_received_action:
+                    # if new_target.type_id != UnitTypeId.SCV or self.assignments_by_worker[new_target.tag].job_type != JobType.REPAIR:
+                    #     # don't move if the scv is already repairing something else
+                    #     new_target.move(worker)
                 # if not self.bot.enemy_units or self.bot.time < 360 or self.closest_distance(new_target, self.bot.enemy_units) > 5:
                     # worker.repair(new_target)
             elif assignment.job_type == JobType.VESPENE:
@@ -511,16 +512,17 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 worker.smart(new_target)
         else:
             if assignment.job_type == JobType.REPAIR:
-                injured_units = self.units_needing_repair().filter(lambda u: u.tag != worker.tag)
-                if injured_units:
-                    new_target = injured_units.closest_to(worker)
-                    if new_target.tag not in self.bot.unit_tags_received_action:
-                        if new_target.type_id != UnitTypeId.SCV or self.assignments_by_worker[new_target.tag].job_type != JobType.REPAIR:
-                            # don't move if the scv is already repairing something else
-                            new_target.move(worker)
-                    # worker.repair(new_target)
-                else:
-                    return False
+                pass
+                # injured_units = self.units_needing_repair().filter(lambda u: u.tag != worker.tag)
+                # if injured_units:
+                #     new_target = injured_units.closest_to(worker)
+                #     if new_target.tag not in self.bot.unit_tags_received_action:
+                #         # if new_target.type_id != UnitTypeId.SCV or self.assignments_by_worker[new_target.tag].job_type != JobType.REPAIR:
+                #         #     # don't move if the scv is already repairing something else
+                #         #     new_target.move(worker)
+                #     # worker.repair(new_target)
+                # else:
+                #     return False
             elif assignment.job_type == JobType.MINERALS:
                 new_target = self.minerals.add_worker(worker)
                 if new_target is None:
@@ -740,9 +742,12 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if len(units_with_no_repairer) > 5:
                 units_with_no_repairer = units_with_no_repairer[:5]  # spread out repairers to up to 5 units, mostly to keep initial wall repaired
         for repairer in current_repairers:
-            self.update_assigment(repairer, JobType.REPAIR, self.get_repair_target(repairer, injured_units, units_with_no_repairer))
-            assignment = self.assignments_by_worker[repairer.tag]
-            await self.worker_micro.repair(repairer, assignment.target)
+            repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
+            self.update_assigment(repairer, JobType.REPAIR, repair_target)
+            await self.worker_micro.repair(repairer, repair_target)
+            if repair_target:
+                target_micro = MicroFactory.get_unit_micro(repair_target, self.bot, self.enemy)
+                await target_micro.move(repair_target, repairer.position)
 
         # add more repairers
         if repairer_shortage > 0:
@@ -765,9 +770,12 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 candidates.remove(repairer)
 
                 if repairer:
-                    self.update_assigment(repairer, JobType.REPAIR, self.get_repair_target(repairer, injured_units, units_with_no_repairer))
-                    assignment = self.assignments_by_worker[repairer.tag]
-                    await self.worker_micro.repair(repairer, assignment.target)
+                    repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
+                    self.update_assigment(repairer, JobType.REPAIR, repair_target)
+                    await self.worker_micro.repair(repairer, repair_target)
+                    if repair_target:
+                        target_micro = MicroFactory.get_unit_micro(repair_target, self.bot, self.enemy)
+                        await target_micro.move(repair_target, repairer.position)
                 else:
                     break
 

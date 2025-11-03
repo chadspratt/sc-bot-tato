@@ -221,8 +221,18 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         UnitTypeId.EGG,
     }
 
-    def get_army(self) -> Units:
-        return (self.enemies_in_view + self.enemies_out_of_view).filter(lambda unit: not unit.is_structure and unit.type_id not in self.non_army_unit_types)
+    non_army_non_scout_unit_types = {
+        UnitTypeId.SCV,
+        UnitTypeId.MULE,
+        UnitTypeId.DRONE,
+        UnitTypeId.PROBE,
+        UnitTypeId.LARVA,
+        UnitTypeId.EGG,
+    }
+
+    def get_army(self, include_scouts: bool = False) -> Units:
+        excluded_types = self.non_army_non_scout_unit_types if include_scouts else self.non_army_unit_types
+        return (self.enemies_in_view + self.enemies_out_of_view).filter(lambda unit: not unit.is_structure and unit.type_id not in excluded_types)
 
     def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True, include_destructables=False, include_out_of_view=True, excluded_types=[], seconds_ahead=0) -> tuple[Unit, float]:
         nearest_enemy: Unit = None

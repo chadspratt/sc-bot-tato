@@ -206,7 +206,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.queue_supply()
         self.queue_command_center(rush_detected)
         self.queue_upgrade()
-        if len(self.static_queue) < 45:
+        if len(self.static_queue) < 5 or self.bot.time > 300:
             self.queue_turret()
             self.queue_planetary()
 
@@ -219,6 +219,8 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             self.add_to_build_queue(military_queue, queue=self.build_queue)
 
             self.queue_production()
+            self.queue_marines()
+            self.queue_medivacs()
 
             only_build_units = army_ratio > 0.0 and army_ratio < 0.8
 
@@ -229,7 +231,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.stop_timer("redistribute_workers")
         logger.debug(f"needed gas {needed_resources.vespene}, minerals {needed_resources.minerals}, moved workers {moved_workers}")
 
-        if len(self.static_queue) < 30:
+        if len(self.static_queue) < 5 or self.bot.time > 300:
             self.queue_refinery()
 
         await self.execute_pending_builds(only_build_units, rush_detected)
@@ -256,7 +258,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.start_timer("get_military_queue")
         worker_supply_cap = min(self.workers.max_workers, self.bot.workers.amount * 1.15)
         military_cap = self.bot.supply_cap - worker_supply_cap
-        ideal_composition = self.counter.get_counters(enemy.get_army())
+        ideal_composition = self.counter.get_counters(enemy.get_army(include_scouts=True))
         current_composition = self.count_units_by_type(self.bot.units)
         if not ideal_composition:
             # if no enemy units, current army is doing pretty well?
@@ -396,6 +398,26 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.add_to_build_queue(extra_production, position=0, queue=self.static_queue)
         self.stop_timer("queue_production-add_to_build_order")
         self.stop_timer("queue_production")
+
+    def queue_marines(self) -> None:
+        self.start_timer("queue_marines")
+        # use excess minerals and idle barracks
+        if self.bot.minerals > 500 and self.bot.vespene < 100 and self.bot.supply_left > 15:
+            idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
+            self.add_to_build_queue([UnitTypeId.MARINE for x in range(idle_capacity)], queue=self.priority_queue)
+        self.stop_timer("queue_marines")
+
+    def queue_medivacs(self) -> None:
+        self.start_timer("queue_medivacs")
+        marine_count = self.bot.units.of_type({UnitTypeId.MARINE}).amount
+        marauder_count = self.bot.units.of_type({UnitTypeId.MARAUDER}).amount
+        medivac_count = self.bot.units.of_type(UnitTypeId.MEDIVAC).amount + self.get_in_progress_count(UnitTypeId.MEDIVAC)
+        desired_medivac_count = min(6, marine_count // 8 + marauder_count // 4)
+        queue_count = desired_medivac_count - medivac_count
+        # use excess minerals and idle starports
+        if queue_count > 0:
+            self.add_to_build_queue([UnitTypeId.MEDIVAC for x in range(queue_count)], queue=self.priority_queue)
+        self.stop_timer("queue_medivacs")
 
     def remove_in_progress_from_list(self, build_list: List[UnitTypeId]) -> List[UnitTypeId]:
         in_progress_counts: Dict[UnitTypeId, int] = {}

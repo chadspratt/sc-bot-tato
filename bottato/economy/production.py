@@ -115,6 +115,15 @@ class Facility(UnitReferenceMixin):
         else:
             logger.debug(f"unit {unit_id} not in queued unit ids {self.queued_unit_ids}")
 
+    def get_available_capacity(self) -> int:
+        used_capacity = len(self.unit.orders) + len(self.queued_unit_ids)
+        return self.capacity - used_capacity
+
+    def is_building_addon(self) -> bool:
+        for order in self.unit.orders:
+            if order.ability.id in (AbilityId.BUILD_REACTOR, AbilityId.BUILD_TECHLAB):
+                return True
+        return False
 
 class Production(UnitReferenceMixin, TimerMixin):
     def __init__(self, bot: BotAI) -> None:
@@ -271,6 +280,17 @@ class Production(UnitReferenceMixin, TimerMixin):
         # XXX add hardcoded answers for sets with more than one entry
         return list(self.get_builder_type(unit_type_id))[0]
 
+    def get_build_capacity(self, builder_type: UnitTypeId, tech_lab_required: bool = False) -> int:
+        capacity = 0
+        if tech_lab_required:
+            for facility in self.facilities[builder_type][UnitTypeId.TECHLAB]:
+                capacity += facility.get_available_capacity()
+        else:
+            for addon_type in self.facilities[builder_type].values():
+                for facility in addon_type:
+                    capacity += facility.get_available_capacity()
+        return capacity
+
     def additional_needed_production(self, unit_types: List[Union[UnitTypeId, UpgradeId]]):
         production_capacity = {
             UnitTypeId.BARRACKS: {
@@ -312,15 +332,11 @@ class Production(UnitReferenceMixin, TimerMixin):
         }
         for builder_type in self.facilities.keys():
             for facility in self.facilities[builder_type][UnitTypeId.TECHLAB]:
-                used_capacity = len(facility.unit.orders) + len(facility.queued_unit_ids)
-                production_capacity[builder_type]["tech"]["available"] += facility.capacity - used_capacity
-
+                production_capacity[builder_type]["tech"]["available"] += facility.get_available_capacity()
             for facility in self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
-                used_capacity = len(facility.unit.orders) + len(facility.queued_unit_ids)
-                production_capacity[builder_type]["normal"]["available"] += facility.capacity - used_capacity
+                production_capacity[builder_type]["normal"]["available"] += facility.get_available_capacity()
             for facility in self.facilities[builder_type][UnitTypeId.REACTOR]:
-                used_capacity = len(facility.unit.orders) + len(facility.queued_unit_ids)
-                production_capacity[builder_type]["normal"]["available"] += facility.capacity - used_capacity
+                production_capacity[builder_type]["normal"]["available"] += facility.get_available_capacity()
 
         for unit_type in unit_types:
             if isinstance(unit_type, UpgradeId):
@@ -353,6 +369,8 @@ class Production(UnitReferenceMixin, TimerMixin):
                     facility: Facility
                     # look for facility with no add-on to upgrade
                     for facility in self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
+                        if facility.is_building_addon():
+                            continue
                         if facility.unit.tag not in upgraded_facility_tags[builder_type]:
                             upgraded_facility_tags[builder_type].append(facility.unit.tag)
                             break
@@ -373,6 +391,8 @@ class Production(UnitReferenceMixin, TimerMixin):
                 for i in range(abs(normal_balance)):
                     facility: Facility
                     for facility in self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
+                        if facility.is_building_addon():
+                            continue
                         if facility.unit.tag not in upgraded_facility_tags[builder_type] and not facility.addon_blocked:
                             upgraded_facility_tags[builder_type].append(facility.unit.tag)
                             additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.REACTOR])

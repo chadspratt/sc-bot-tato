@@ -162,5 +162,5 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
     def is_grouped(self) -> bool:
         if self.position and self.units:
             units_out_of_formation = self.units.further_than(18, self.position)
-            return len(units_out_of_formation) / len(self.units) < 0.35
+            return len(units_out_of_formation) / len(self.units) < 0.4
         return False

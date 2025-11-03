@@ -55,7 +55,7 @@ class Scout(BaseSquad, UnitReferenceMixin):
     def needs(self, unit: Unit) -> bool:
         return unit.type_id in (UnitTypeId.SCV, UnitTypeId.MARINE, UnitTypeId.REAPER)
 
-    def update_scout(self, military: Military, units_by_tag: dict[int, Unit]):
+    def update_scout(self, military: Military, units_by_tag: dict[int, Unit], use_early_air_scout: bool = False):
         """Update unit reference for this scout"""
         if self.unit:
             try:
@@ -64,24 +64,30 @@ class Scout(BaseSquad, UnitReferenceMixin):
             except self.UnitNotFound:
                 self.unit = None
                 pass
+        elif self.bot.time < 500 and use_early_air_scout:
+            # use initial viking to scout enemy army composition
+            for unit in military.main_army.units:
+                if unit.type_id == UnitTypeId.VIKINGFIGHTER:
+                    military.transfer(unit, military.main_army, self)
+                    self.unit = unit
+                    break
         elif self.bot.is_visible(self.bot.enemy_start_locations[0]) and not self.bot.enemy_structures.closer_than(10, self.bot.enemy_start_locations[0]):
             # start territory scouting if enemy main is empty
-            if self.scouts_needed:
-                for unit in military.main_army.units:
-                    if self.needs(unit):
+            for unit in military.main_army.units:
+                if self.needs(unit):
+                    military.transfer(unit, military.main_army, self)
+                    self.unit = unit
+                    break
+            else:
+                # no marines or reapers, use a worker
+                if self.bot.workers:
+                    self.unit = self.bot.workers.random
+                else:
+                    # unlikely, but fallback to any unit
+                    for unit in military.main_army.units:
                         military.transfer(unit, military.main_army, self)
                         self.unit = unit
                         break
-                else:
-                    # no marines or reapers, use a worker
-                    if self.bot.workers:
-                        self.unit = self.bot.workers.random
-                    else:
-                        # unlikely, but fallback to any unit
-                        for unit in military.main_army.units:
-                            military.transfer(unit, military.main_army, self)
-                            self.unit = unit
-                            break
 
     async def move_scout(self, new_damage_taken: dict[int, float]):
         if not self.unit:
@@ -98,7 +104,9 @@ class Scout(BaseSquad, UnitReferenceMixin):
             assignment: ScoutingLocation = self.scouting_locations[next_index]
             logger.debug(f"scout {self.unit} took damage, changing assignment")
 
-        while assignment.last_seen and self.bot.time - assignment.last_seen < 10 or assignment.is_occupied_by_enemy:
+        # goal of viking scout is to see the army, not find unknown bases
+        skip_occupied = self.unit.type_id != UnitTypeId.VIKINGFIGHTER
+        while assignment.last_seen and self.bot.time - assignment.last_seen < 10 or assignment.is_occupied_by_enemy and skip_occupied:
             next_index = (next_index + 1) % len(self.scouting_locations)
             if next_index == self.scouting_locations_index:
                 # full cycle, none need scouting
@@ -418,7 +426,7 @@ class Scouting(BaseSquad, DebugMixin):
     async def scout(self, new_damage_taken: dict[int, float], units_by_tag: dict[int, Unit]):
         # Update scout unit references
         self.friendly_territory.update_scout(self.military, units_by_tag)
-        self.enemy_territory.update_scout(self.military, units_by_tag)
+        self.enemy_territory.update_scout(self.military, units_by_tag, use_early_air_scout=True)
         self.initial_scout.update_scout(self.workers, units_by_tag)
 
         self.update_visibility()
