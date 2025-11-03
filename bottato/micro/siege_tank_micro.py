@@ -66,7 +66,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     tank_position = None
                     bunkers = self.bot.structures(UnitTypeId.BUNKER)
                     bunker: Unit = bunkers[0] if bunkers else None
-                    if bunker and bunker.distance_to(self.bot.main_base_ramp.top_center) > 5:
+                    if bunker and bunker.distance_to(self.bot.main_base_ramp.top_center) > 6:
                         # bunker on low ground, position tank to cover it, a bit away from top of ramp
                         tank_positions = self.get_triangle_point_c(bunker.position, self.bot.main_base_ramp.top_center, 10.5, 5)
                         if tank_positions:
@@ -95,7 +95,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                         unit.move(tank_position)
                     self.early_game_siege_positions[unit.tag] = tank_position
                 elif unit.distance_to(self.bot.main_base_ramp.bottom_center) > 11:
-                    unit.move(self.bot.main_base_ramp.bottom_center.towards(unit.position, 10.5))
+                    unit.move(self.bot.main_base_ramp.bottom_center)
                 else:
                     self.siege(unit)
             self.previous_positions[unit.tag] = unit.position

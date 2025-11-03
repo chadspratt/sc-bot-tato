@@ -413,7 +413,8 @@ class Map(TimerMixin, GeometryMixin):
                 if not self.bot.is_visible(point):
                     # can_place not reliable, also check terrain height
                     terrain_height = self.bot.get_terrain_z_height(point)
-                    if terrain_height > 0:
+                    # also avoid blocking natural with depot
+                    if terrain_height > 0 and point.distance_to(self.natural_position) > 4:
                         can_place = await self.bot.can_place(UnitTypeId.SUPPLYDEPOT, [point])
                         if can_place[0]:
                             self.zones_to_check.insert(0, current_zone)

@@ -56,19 +56,11 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
 
         await self.scout()
         # self.rush_detected = self.bot.time > 70
-        if self.rush_detected:
-            self.build_order.enact_rush_defense()
-
-        remaining_cap = self.build_order.remaining_cap
-        if remaining_cap > 0:
-            logger.debug(f"requesting at least {remaining_cap} supply of units for military")
-            unit_request: list[UnitTypeId] = self.military.get_squad_request(remaining_cap)
-            self.build_order.queue_units(unit_request)
 
         await self.structure_micro.execute(self.rush_detected)
 
         # XXX slow
-        await self.build_order.execute(self.military.army_ratio, self.rush_detected)
+        await self.build_order.execute(self.military.army_ratio, self.rush_detected, self.enemy)
 
         # XXX extremely slow
         await self.military.manage_squads(iteration,

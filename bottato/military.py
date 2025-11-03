@@ -1,3 +1,4 @@
+import math
 from typing import List
 from loguru import logger
 
@@ -585,8 +586,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
     damage_by_type: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
     def calculate_total_damage(self, attackers: Units, targets: Units, passengers: list[Unit] = None) -> float:
         total_damage: float = 0.0
-        attacker_type_counts = self.count_units_by_type(attackers)
-        target_type_counts = self.count_units_by_type(targets)
+        attacker_type_counts = self.count_units_by_type(attackers, use_common_type=False)
+        target_type_counts = self.count_units_by_type(targets, use_common_type=False)
         passenger_type_counts = self.count_units_by_type(passengers) if passengers else {}
         # calculate dps vs each target type if not already cached
         for attacker in attackers:
@@ -615,20 +616,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             # add total average damage for all attackers of this type
             total_damage += average_damage * attacker_count
         return total_damage
-
-    def count_units_by_type(self, units: Units) -> dict[UnitTypeId, int]:
-        counts: dict[UnitTypeId, int] = {}
-
-        for unit in units:
-            # passenger units don't have this attribute
-            if hasattr(unit, "is_hallucination") and unit.is_hallucination:
-                continue
-            if unit.type_id not in counts:
-                counts[unit.type_id] = 1
-            else:
-                counts[unit.type_id] = counts[unit.type_id] + 1
-
-        return counts
 
     def simulate_battle(self):
         self.start_timer("simulate_battle")

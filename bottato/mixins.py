@@ -51,6 +51,21 @@ class UnitReferenceMixin:
                 logger.debug(f"Couldn't find unit {tag}!")
         return _units
 
+    def count_units_by_type(self, units: Units, use_common_type=True) -> dict[UnitTypeId, int]:
+        counts: dict[UnitTypeId, int] = {}
+
+        for unit in units:
+            type_id = unit.unit_alias if use_common_type and unit.unit_alias else unit.type_id
+            # passenger units don't have this attribute
+            if hasattr(unit, "is_hallucination") and unit.is_hallucination:
+                continue
+            if type_id not in counts:
+                counts[type_id] = 1
+            else:
+                counts[type_id] += 1
+
+        return counts
+
     def count_units_by_property(self, units: Units) -> dict[UnitTypeId, int]:
         counts: dict[UnitTypeId, int] = {
             'flying': 0,

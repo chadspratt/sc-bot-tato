@@ -24,7 +24,7 @@ class UnitTypes():
         UnitTypeId.ADEPT: {
             "supply": 2,
             "attributes": (UnitAttribute.LIGHT, UnitAttribute.BIOLOGICAL),
-            "bonus_against": (UnitAttribute.LIGHT,)
+            "bonus_against": (UnitAttribute.LIGHT,),
         },
         UnitTypeId.ARCHON: {
             "supply": 4,
@@ -226,7 +226,7 @@ class UnitTypes():
         UnitTypeId.CORRUPTOR: {
             "supply": 2,
             "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL),
-            "bonus_against": (UnitAttribute.MASSIVE),
+            "bonus_against": (UnitAttribute.MASSIVE,),
         },
         UnitTypeId.DRONE: {
             "supply": 1,
@@ -247,7 +247,7 @@ class UnitTypes():
         UnitTypeId.LURKERMP: {
             "supply": 1,
             "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL),
-            "bonus_against": (UnitAttribute.ARMORED),
+            "bonus_against": (UnitAttribute.ARMORED,),
         },
         UnitTypeId.MUTALISK: {
             "supply": 2,
@@ -270,7 +270,7 @@ class UnitTypes():
             "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.PSIONIC),
         },
         UnitTypeId.RAVAGER: {
-            "supply": 1,
+            "supply": 3,
             "attributes": (UnitAttribute.BIOLOGICAL,),
         },
         UnitTypeId.ROACH: {
