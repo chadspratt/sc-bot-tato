@@ -37,6 +37,8 @@ class Scout(BaseSquad, UnitReferenceMixin):
         self.unit: Unit = None
         self.scouting_locations: List[ScoutingLocation] = list()
         self.scouting_locations_index: int = 0
+        self.closest_distance_to_next_location = 9999
+        self.time_of_closest_distance = 9999
         super().__init__(bot=bot, name="scout")
 
     def __repr__(self):
@@ -95,6 +97,14 @@ class Scout(BaseSquad, UnitReferenceMixin):
         assignment: ScoutingLocation = self.scouting_locations[self.scouting_locations_index]
         logger.debug(f"scout {self.unit} previous assignment: {assignment}")
 
+        distance_to_next_location = self.unit.distance_to(assignment.position)
+        if distance_to_next_location < self.closest_distance_to_next_location:
+            self.closest_distance_to_next_location = distance_to_next_location
+            self.time_of_closest_distance = self.bot.time
+        # mark location as visited if can't get closer for 5 seconds
+        if self.closest_distance_to_next_location < 30 and self.bot.time - self.time_of_closest_distance > 5:
+            assignment.last_seen = self.bot.time
+
         micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot, self.enemy)
 
         # move to next location if taking damage
@@ -112,6 +122,7 @@ class Scout(BaseSquad, UnitReferenceMixin):
                 # full cycle, none need scouting
                 break
             assignment: ScoutingLocation = self.scouting_locations[next_index]
+            self.closest_distance_to_next_location = 9999
         self.scouting_locations_index = next_index
         logger.debug(f"scout {self.unit} new assignment: {assignment}")
 

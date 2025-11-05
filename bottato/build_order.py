@@ -89,7 +89,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 logger.debug(f"{build_step} Is interrupted!")
                 # move back to pending (demote)
                 to_promote.append(idx)
-                if build_step.unit_being_built is None or build_step.unit_being_built == build_step.unit_in_charge:
+                if build_step.unit_being_built is None or build_step.unit_being_built == build_step.unit_in_charge or build_step.unit_type_id in self.production.add_on_types:
                     build_step.is_in_progress = False
                     if build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
                         # if expansion was cancelled, clear position so it can be retried
@@ -119,7 +119,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 logger.info(f"{step} interrupted too many times, removing from build order")
                 continue
             if step.unit_type_id not in self.unit_types.TERRAN:
-                self.priority_queue.insert(0, step)
+                self.static_queue.insert(0, step)
             else:
                 self.build_queue.insert(0, step)
         for structure in self.bot.structures_without_construction_SCVs:
@@ -131,7 +131,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 else:
                     build_step = self.create_build_step(structure.type_id)
                     build_step.unit_being_built = structure
-                    self.priority_queue.insert(0, build_step)
+                    self.static_queue.insert(0, build_step)
         self.stop_timer("move_interupted_to_pending")
 
     def enact_rush_defense(self) -> None:
@@ -404,7 +404,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         # use excess minerals and idle barracks
         if self.bot.minerals > 500 and self.bot.vespene < 100 and self.bot.supply_left > 15:
             idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
-            self.add_to_build_queue([UnitTypeId.MARINE for x in range(idle_capacity)], queue=self.priority_queue)
+            self.add_to_build_queue([UnitTypeId.MARINE for x in range(idle_capacity)], queue=self.static_queue)
         self.stop_timer("queue_marines")
 
     def queue_medivacs(self) -> None:
@@ -416,7 +416,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         queue_count = desired_medivac_count - medivac_count
         # use excess minerals and idle starports
         if queue_count > 0:
-            self.add_to_build_queue([UnitTypeId.MEDIVAC for x in range(queue_count)], queue=self.priority_queue)
+            self.add_to_build_queue([UnitTypeId.MEDIVAC for x in range(queue_count)], queue=self.static_queue)
         self.stop_timer("queue_medivacs")
 
     def remove_in_progress_from_list(self, build_list: List[UnitTypeId]) -> List[UnitTypeId]:
@@ -718,6 +718,14 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                     continue
                 elif build_response == ResponseCode.NO_FACILITY:
                     # don't reserve resources for things that don't have an available facility
+                    if build_step.unit_type_id in self.production.add_on_types:
+                        # unqueue addons that don't have a parent factory/barracks/starport
+                        builder_type = self.production.get_cheapest_builder_type(build_step.unit_type_id)
+                        no_addon_count = len(self.production.facilities[builder_type][UnitTypeId.NOTAUNIT])
+                        in_progress_builder_count = self.get_in_progress_count(builder_type)
+                        if in_progress_builder_count == 0 and no_addon_count == 0:
+                            build_queue.pop(execution_index)
+                            return remaining_resources
                     remaining_resources = remaining_resources + build_step.cost
                     failed_types.append(build_step.unit_type_id)
                 else:
