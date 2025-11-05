@@ -7,6 +7,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
+from sc2.data import Race
 
 
 RESEARCH_ABILITIES: dict[UpgradeId, AbilityId] = {}
@@ -172,6 +173,9 @@ class Upgrades:
     
     def next_upgrade(self, facility_type: UnitTypeId) -> UpgradeId | None:
         for upgrade_type in self.upgrades_by_facility[facility_type]:
+            if self.bot.enemy_race == Race.Terran and upgrade_type == UpgradeId.HIGHCAPACITYBARRELS:
+                # don't research blue flame against terran
+                continue
             if self.bot.already_pending_upgrade(upgrade_type) > 0:
                 continue
             return upgrade_type
