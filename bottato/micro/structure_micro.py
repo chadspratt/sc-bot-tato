@@ -58,7 +58,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                     nearby_enemies = self.bot.enemy_units.closer_than(15, cc)
                     if nearby_enemies:
                         threats = nearby_enemies.filter(lambda enemy: enemy.can_attack_air)
-                        if threats:
+                        if threats and cc.health_percentage < 0.9:
                             cc.move(self.bot.main_base_ramp.top_center)
                         else:
                             cc.move(destination)
