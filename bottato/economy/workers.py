@@ -394,6 +394,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 workers_per_enemy_unit = 2 if nearby_enemy_structures else 3
                 for nearby_enemy in nearby_enemies + nearby_enemy_structures:
                     enemy_position = nearby_enemy if nearby_enemy.age == 0 else self.enemy.get_predicted_position(nearby_enemy, 0.0)
+                    predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
                     attackers = []
                     number_of_attackers = 4 if nearby_enemy.is_structure else workers_per_enemy_unit
                     if len(healthy_workers) > number_of_attackers:
@@ -423,10 +424,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                             continue
                         if nearby_enemy.is_structure:
                             attacker.attack(nearby_enemy)
-                        elif nearby_enemy.age == 0:
+                        elif attacker.distance_to(enemy_position) <= 1:
                             await micro.move(attacker, nearby_enemy.position)
                         else:
-                            await micro.move(attacker, enemy_position)
+                            # try to head off units instead of trailing after them
+                            await micro.move(attacker, predicted_position)
                         attacker_tags.add(attacker.tag)
                         self.assignments_by_worker[attacker.tag].on_attack_break = True
         # put any leftover workers back to work
