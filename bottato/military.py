@@ -163,6 +163,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.status_message = ""
         self.stuck_rescue = StuckRescue(self.bot, self.main_army, self.squads_by_unit_tag)
         self.harass_squad = BaseSquad(bot=self.bot, name="harass", color=(0, 255, 255))
+        self.units_by_tag: dict[int, Unit] = {}
 
     def add_to_main(self, unit: Unit) -> None:
         self.main_army.recruit(unit)
@@ -405,9 +406,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
         for unit in self.bunker.units:
             try:
-                unit = self.get_updated_unit_reference(unit, self.bot.units.by_tag)
+                unit = self.get_updated_unit_reference(unit, self.units_by_tag)
                 # unit didn't enter bunker, maybe got stuck behind wall
-                unit.smart(self.bunker.structure)
+                micro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
+                micro.move(unit, self.bunker.structure.position)
             except Exception:
                 pass
 
@@ -716,6 +718,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
     def update_references(self, units_by_tag: dict[int, Unit]):
         self.start_timer("update_references")
+        self.units_by_tag = units_by_tag
         for unit in self.bot.units:
             if unit.tag in self.squads_by_unit_tag:
                 squad = self.squads_by_unit_tag[unit.tag]
