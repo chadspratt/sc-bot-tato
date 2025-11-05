@@ -23,6 +23,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         # probably need to refresh this
         self.enemies_in_view: Units = Units([], bot)
         self.enemies_out_of_view: Units = Units([], bot)
+        self.enemies_killed: list[tuple[Unit, float]] = []
         self.new_units: Units = Units([], bot)
         self.first_seen: dict[int, float] = {}
         self.last_seen: dict[int, float] = {}
@@ -140,12 +141,14 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             if enemy_unit.tag == unit_tag:
                 found = True
                 self.enemies_out_of_view.remove(enemy_unit)
+                self.enemies_killed.append((enemy_unit, self.bot.time))
                 break
         if not found:
             for enemy_unit in self.enemies_in_view:
                 if enemy_unit.tag == unit_tag:
                     found = True
                     self.enemies_in_view.remove(enemy_unit)
+                    self.enemies_killed.append((enemy_unit, self.bot.time))
                     break
         if found:
             del self.first_seen[unit_tag]
@@ -230,9 +233,24 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         UnitTypeId.EGG,
     }
 
-    def get_army(self, include_scouts: bool = False) -> Units:
+    def get_army(self, include_scouts: bool = False, seconds_since_killed: float = 0) -> Units:
         excluded_types = self.non_army_non_scout_unit_types if include_scouts else self.non_army_unit_types
-        return (self.enemies_in_view + self.enemies_out_of_view).filter(lambda unit: not unit.is_structure and unit.type_id not in excluded_types)
+        enemies = (self.enemies_in_view + self.enemies_out_of_view)
+        if seconds_since_killed > 0:
+            killed_types: dict[UnitTypeId, int] = {}
+            cutoff_time = self.bot.time - seconds_since_killed
+            killed_units = Units([], self.bot)
+            for i in range(len(self.enemies_killed)-1, -1, -1):
+                enemy_unit, death_time = self.enemies_killed[i]
+                killed_added = killed_types.get(enemy_unit.type_id, 0)
+                if death_time >= cutoff_time:
+                    if killed_added < 10:
+                        killed_units.append(enemy_unit)
+                        killed_types[enemy_unit.type_id] = killed_added + 1
+                else:
+                    break
+            enemies += killed_units
+        return enemies.filter(lambda unit: not unit.is_structure and unit.type_id not in excluded_types)
 
     def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True, include_destructables=False, include_out_of_view=True, excluded_types=[], seconds_ahead=0) -> tuple[Unit, float]:
         nearest_enemy: Unit = None

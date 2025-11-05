@@ -73,7 +73,7 @@ class Counter(UnitReferenceMixin):
             UnitTypeId.VIKINGFIGHTER: 0.6
         },
         UnitTypeId.BATTLECRUISER: { # 6
-            UnitTypeId.VIKINGFIGHTER: 3
+            UnitTypeId.VIKINGFIGHTER: 3.5
         },
         UnitTypeId.CYCLONE: { # 3
             UnitTypeId.SIEGETANK: 0.5,

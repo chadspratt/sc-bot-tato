@@ -260,7 +260,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.start_timer("get_military_queue")
         worker_supply_cap = min(self.workers.max_workers, self.bot.workers.amount * 1.15)
         military_cap = self.bot.supply_cap - worker_supply_cap
-        ideal_composition = self.counter.get_counters(enemy.get_army(include_scouts=True))
+        ideal_composition = self.counter.get_counters(enemy.get_army(include_scouts=True, seconds_since_killed=180))
         current_composition = self.count_units_by_type(self.bot.units)
         if not ideal_composition:
             # if no enemy units, current army is doing pretty well?
