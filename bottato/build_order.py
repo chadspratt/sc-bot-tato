@@ -450,8 +450,21 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 if next_upgrade and not self.upgrade_is_in_progress(next_upgrade):
                     self.add_to_build_queue([next_upgrade], queue=self.priority_queue)
             elif self.bot.time > 360 and not self.bot.structures(facility_type) and self.get_in_progress_count(facility_type) == 0:
-                new_build_steps = self.production.build_order_with_prereqs(facility_type)
-                new_build_steps = self.remove_in_progress_from_list(new_build_steps)
+                new_build_steps = []
+                if facility_type in self.production.add_on_types:
+                    # add facility with no addon if needed
+                    builder_type = self.production.get_cheapest_builder_type(facility_type)
+                    no_addon_count = len(self.production.facilities[builder_type][UnitTypeId.NOTAUNIT])
+                    in_progress_builder_count = self.get_in_progress_count(builder_type)
+                    if in_progress_builder_count == 0 and no_addon_count == 0:
+                        new_build_steps = self.production.build_order_with_prereqs(builder_type)
+                        if not new_build_steps:
+                            # requirements met, just need an extra
+                            new_build_steps.append(builder_type)
+                    new_build_steps.append(facility_type)
+                else:
+                    new_build_steps = self.production.build_order_with_prereqs(facility_type)
+                    new_build_steps = self.remove_in_progress_from_list(new_build_steps)
                 self.add_to_build_queue(new_build_steps, queue=self.priority_queue)
         self.stop_timer("queue_upgrade")
 
@@ -725,8 +738,10 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                         builder_type = self.production.get_cheapest_builder_type(build_step.unit_type_id)
                         no_addon_count = len(self.production.facilities[builder_type][UnitTypeId.NOTAUNIT])
                         in_progress_builder_count = self.get_in_progress_count(builder_type)
-                        if in_progress_builder_count == 0 and no_addon_count == 0:
+                        earlier_in_queue = max([step.unit_type_id == builder_type for step in build_queue[:execution_index]], default=False)
+                        if in_progress_builder_count == 0 and no_addon_count == 0 and not earlier_in_queue:
                             build_queue.pop(execution_index)
+                            remaining_resources.minerals = 0
                             return remaining_resources
                     remaining_resources = remaining_resources + build_step.cost
                     failed_types.append(build_step.unit_type_id)

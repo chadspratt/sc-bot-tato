@@ -128,7 +128,7 @@ class BaseUnitMicro(GeometryMixin):
                     unit.move(circle_around_positions[0].towards(self.bot.start_location, 2))
         return True
 
-    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, tank_to_retreat_to: Unit = None) -> bool:
         if force_move:
             return False
         if unit.tag in self.bot.unit_tags_received_action:
@@ -153,7 +153,6 @@ class BaseUnitMicro(GeometryMixin):
                     unit.attack(lowest_target)
                 return True
 
-        tank_to_retreat_to = self.tank_to_retreat_to(unit)
         if tank_to_retreat_to:
             unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
             return True
@@ -259,22 +258,23 @@ class BaseUnitMicro(GeometryMixin):
         return None
 
     async def move(self, unit: Unit, target: Point2, force_move: bool = False) -> None:
+        tank_to_retreat_to = self.tank_to_retreat_to(unit)
         if unit.tag in self.bot.unit_tags_received_action:
             return
         if self.avoid_effects(unit, force_move):
-            logger.debug(f"unit {unit} avoiding effects")
+            pass
         elif await self.use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
-            logger.debug(f"unit {unit} used ability")
-        elif self.attack_something(unit, health_threshold=self.attack_health, force_move=force_move):
-            logger.debug(f"unit {unit} attacked something")
+            pass
+        elif self.attack_something(unit, health_threshold=self.attack_health, force_move=force_move, tank_to_retreat_to=tank_to_retreat_to):
+            pass
         elif force_move:
             unit.move(target)
-            logger.debug(f"unit {unit} moving to {target}")
+            pass
         elif await self.retreat(unit, health_threshold=self.retreat_health):
-            logger.debug(f"unit {unit} retreated")
+            pass
         else:
             unit.move(target)
-            logger.debug(f"unit {unit} moving to {target}")
+            pass
 
     async def scout(self, unit: Unit, scouting_location: Point2):
         if unit.tag in self.bot.unit_tags_received_action:
@@ -300,7 +300,8 @@ class BaseUnitMicro(GeometryMixin):
             return
         if self.avoid_effects(unit, force_move=False):
             logger.debug(f"unit {unit} avoiding effects")
-        elif self.bot.time < 360:
+        elif self.bot.time < 360 and target.type_id in (UnitTypeId.BARRACKS, UnitTypeId.BARRACKSREACTOR, UnitTypeId.BARRACKSTECHLAB, UnitTypeId.SUPPLYDEPOT):
+            # keep ramp wall repaired early game
             unit.repair(target)
         else:
             tank_to_retreat_to = self.tank_to_retreat_to(unit)

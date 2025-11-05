@@ -28,7 +28,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
     target_structure_types = [
         UnitTypeId.SPINECRAWLER,
     ]
-    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, tank_to_retreat_to: Unit = None) -> bool:
         if unit.health_percentage < health_threshold:
             return False
         nearby_enemies = self.bot.enemy_units.closer_than(15, unit)
@@ -53,7 +53,6 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                     target = targets.closest_to(unit)
                     unit.attack(target)
                     return True
-            tank_to_retreat_to = self.tank_to_retreat_to(unit)
             if tank_to_retreat_to:
                 unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
                 return True
