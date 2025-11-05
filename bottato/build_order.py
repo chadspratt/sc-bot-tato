@@ -69,7 +69,9 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         for build_step in self.all_steps:
             build_step.update_references(units_by_tag)
             logger.debug(f"started step {build_step}")
+            self.start_timer("draw_debug_box")
             build_step.draw_debug_box()
+            self.stop_timer("draw_debug_box")
         await self.move_interupted_to_pending()
         self.stop_timer("update_references")
 
