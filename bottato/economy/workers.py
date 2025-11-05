@@ -365,7 +365,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
     async def attack_nearby_enemies(self) -> None:
         self.start_timer("my_workers.attack_nearby_enemies")
         attacker_tags = set()
-        if self.bot.townhalls:
+        if self.bot.townhalls and self.bot.time < 360:
             available_workers = self.bot.workers.filter(lambda u: self.assignments_by_worker[u.tag].job_type in {JobType.MINERALS, JobType.VESPENE})
             healthy_workers = available_workers.filter(lambda u: u.health_percentage > 0.5)
             unhealthy_workers = available_workers.filter(lambda u: u.health_percentage <= 0.5)

@@ -4,6 +4,8 @@ from sc2.position import Point2
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
+
 from .base_unit_micro import BaseUnitMicro
 from ..enemy import Enemy
 from ..mixins import GeometryMixin
@@ -19,12 +21,23 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if await self.bot.can_cast(unit, AbilityId.BEHAVIOR_CLOAKON_BANSHEE) and self.enemy.threats_to(unit):
             unit(AbilityId.BEHAVIOR_CLOAKON_BANSHEE)
 
+    excluded_enemy_types = [
+        UnitTypeId.LARVA,
+        UnitTypeId.EGG
+    ]
+    target_structure_types = [
+        UnitTypeId.SPINECRAWLER,
+    ]
     def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         if unit.health_percentage < health_threshold:
             return False
         nearby_enemies = self.bot.enemy_units.closer_than(15, unit)
-        targets = nearby_enemies.filter(lambda u: not u.is_flying)
-        threats = nearby_enemies.filter(lambda u: u.can_attack_air)
+        nearby_structures = self.bot.enemy_structures.closer_than(15, unit)
+        targets = nearby_enemies.filter(lambda u: not u.is_flying and u.type_id not in self.excluded_enemy_types) \
+            + nearby_structures.filter(lambda s: s.type_id in self.target_structure_types)
+        if not targets:
+            targets = nearby_structures
+        threats = nearby_enemies.filter(lambda u: u.can_attack_air) + nearby_structures.filter(lambda s: s.can_attack_air)
         if targets:
             if not threats:
                 target = targets.closest_to(unit)
@@ -44,6 +57,6 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             if tank_to_retreat_to:
                 unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
                 return True
-            self.stay_at_max_range(unit, nearby_enemies)
+            self.stay_at_max_range(unit, threats)
             return True
         return False

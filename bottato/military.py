@@ -240,7 +240,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 defense_squad = self.countered_enemies[enemy.tag]
                 await defense_squad.move(self.enemy.predicted_position[enemy.tag])
                 # await defense_squad.attack(self.enemy.predicted_position[enemy.tag])
-                logger.debug(f"defending against {enemy} with {defense_squad}")
+                logger.debug(f"defending against {enemy} at {enemy.position} with {defense_squad}")
             elif defend_with_main_army:
                 continue
             else:
@@ -267,7 +267,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     else:
                         # a full composition was assigned
                         await defense_squad.move(self.enemy.predicted_position[enemy.tag])
-                        logger.debug(f"defending against {enemy} with {defense_squad}")
+                        logger.info(f"defending against {enemy} at {enemy.position} with {defense_squad}")
                         break
                 else:
                     # a full composition was not assigned, disband the squad and defend with main army
