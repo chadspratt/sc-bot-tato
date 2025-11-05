@@ -274,7 +274,7 @@ class TimerMixin:
         if hasattr(self, "timers"):
             for timer_name in self.timers.keys():
                 timer = self.timers[timer_name]
-                logger.info(f"{prefix}{timer_name} execution time: {timer['total']}")
+                logger.info(f"{prefix}{timer_name},{timer['total']}")
 
 
 class DebugMixin:
