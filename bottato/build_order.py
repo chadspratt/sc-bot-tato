@@ -150,7 +150,9 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                         self.static_queue.remove(step)
                         self.add_to_build_queue([UnitTypeId.BARRACKSTECHLAB, UnitTypeId.MARAUDER], position=0, queue=self.priority_queue)
                         break
-        # move tank to priority queue
+        # prioritize first tank
+        self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
+        self.move_between_queues(UnitTypeId.FACTORYTECHLAB, self.static_queue, self.priority_queue)
         self.move_between_queues(UnitTypeId.SIEGETANK, self.static_queue, self.priority_queue)
         if self.bot.structure_type_build_progress(UnitTypeId.BARRACKSREACTOR) == 1:
             training_marine_count = len([step for step in self.started if step.unit_type_id == UnitTypeId.MARINE])

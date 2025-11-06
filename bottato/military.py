@@ -408,8 +408,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             try:
                 unit = self.get_updated_unit_reference(unit, self.units_by_tag)
                 # unit didn't enter bunker, maybe got stuck behind wall
-                micro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
-                await micro.move(unit, self.bunker.structure.position)
+                if unit.distance_to(self.bunker.structure) <= 2.5:
+                    unit.smart(self.bunker.structure)
+                else:
+                    micro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
+                    await micro.move(unit, self.bunker.structure.position)
             except Exception:
                 pass
 
