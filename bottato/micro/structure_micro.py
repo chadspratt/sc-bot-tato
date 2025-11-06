@@ -54,8 +54,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                 if cc.tag not in self.command_center_destinations:
                     self.command_center_destinations[cc.tag] = await self.bot.get_next_expansion()
                 destination = self.command_center_destinations[cc.tag]
-                if self.bot.enemy_units:
-                    nearby_enemies = self.bot.enemy_units.closer_than(15, cc)
+                if self.bot.all_enemy_units:
+                    nearby_enemies = self.bot.all_enemy_units.closer_than(15, cc)
                     if nearby_enemies:
                         threats = nearby_enemies.filter(lambda enemy: enemy.can_attack_air)
                         if threats and cc.health_percentage < 0.9:
