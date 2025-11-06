@@ -601,7 +601,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 if in_progress_step.unit_in_charge and in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
                     try:
                         in_progress_step.unit_in_charge = self.get_updated_unit_reference(in_progress_step.unit_in_charge)
-                    except KeyError:
+                    except self.UnitNotFound:
                         continue
                     if not in_progress_step.unit_in_charge.is_constructing_scv:
                         # wrong worker
