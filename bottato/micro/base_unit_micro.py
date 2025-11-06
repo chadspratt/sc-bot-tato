@@ -87,7 +87,7 @@ class BaseUnitMicro(GeometryMixin):
                 return False
             else:
                 if unit.is_mechanical:
-                    repairers = self.bot.workers.filter(lambda unit: unit.is_repairing) or self.bot.workers
+                    repairers = self.bot.workers.filter(lambda unit: hasattr(unit, 'is_repairer')) or self.bot.workers
                     if repairers:
                         repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
                     if repairers:
@@ -128,7 +128,7 @@ class BaseUnitMicro(GeometryMixin):
                     unit.move(circle_around_positions[0].towards(self.bot.start_location, 2))
         return True
 
-    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, tank_to_retreat_to: Unit = None) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         if force_move:
             return False
         if unit.tag in self.bot.unit_tags_received_action:
@@ -153,6 +153,7 @@ class BaseUnitMicro(GeometryMixin):
                     unit.attack(lowest_target)
                 return True
 
+        tank_to_retreat_to = self.tank_to_retreat_to(unit)
         if tank_to_retreat_to:
             unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
             return True
@@ -258,14 +259,13 @@ class BaseUnitMicro(GeometryMixin):
         return None
 
     async def move(self, unit: Unit, target: Point2, force_move: bool = False) -> None:
-        tank_to_retreat_to = self.tank_to_retreat_to(unit)
         if unit.tag in self.bot.unit_tags_received_action:
             return
         if self.avoid_effects(unit, force_move):
             pass
         elif await self.use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
             pass
-        elif self.attack_something(unit, health_threshold=self.attack_health, force_move=force_move, tank_to_retreat_to=tank_to_retreat_to):
+        elif self.attack_something(unit, health_threshold=self.attack_health, force_move=force_move):
             pass
         elif force_move:
             unit.move(target)
@@ -309,5 +309,8 @@ class BaseUnitMicro(GeometryMixin):
                 unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
             elif await self.retreat(unit, health_threshold=0.25):
                 logger.debug(f"unit {unit} retreating while repairing {target}")
+            elif not target.is_structure and unit.distance_to(target) > unit.radius + target.radius + 0.5:
+                # sometimes they get in a weird state where they run from the target
+                unit.move(target.position)
             else:
                 unit.repair(target)

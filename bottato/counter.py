@@ -111,7 +111,7 @@ class Counter(UnitReferenceMixin):
             UnitTypeId.MARAUDER: 3
         },
         UnitTypeId.VIKINGFIGHTER: { # 2
-            UnitTypeId.MARINE: 2,
+            UnitTypeId.VIKINGFIGHTER: 1.15
         },
         UnitTypeId.WIDOWMINE: { # 2
             UnitTypeId.RAVEN: 0.2,

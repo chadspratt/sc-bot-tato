@@ -424,7 +424,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                             continue
                         if nearby_enemy.is_structure:
                             attacker.attack(nearby_enemy)
-                        elif attacker.distance_to(enemy_position) <= 1:
+                        elif attacker.distance_to(enemy_position) < enemy_position.distance_to(predicted_position):
                             await micro.move(attacker, nearby_enemy.position)
                         else:
                             # try to head off units instead of trailing after them
@@ -711,9 +711,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if injured_units:
             needed_repairers = 5  # early game, just assign a bunch so wall isn't broken by a rush
             if self.bot.time > 300:                
-                for unit in injured_units:
-                    missing_health += unit.health_max - unit.health
-                    logger.debug(f"{unit} missing health {unit.health_max - unit.health}")
+                for worker in injured_units:
+                    missing_health += worker.health_max - worker.health
+                    logger.debug(f"{worker} missing health {worker.health_max - worker.health}")
                 needed_repairers = missing_health / self.health_per_repairer
                 if needed_repairers > max_repairers:
                     needed_repairers = max_repairers
@@ -721,6 +721,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     needed_repairers = max(needed_repairers, min(3, len(injured_units)))  # minimum of 3 repairers if there are multiple injured units
 
         current_repairers: Units = self.availiable_workers_on_job(JobType.REPAIR)
+        current_repair_targets = {}
+        for worker in self.bot.workers:
+            if worker.is_repairing:
+                current_repair_targets[worker.orders[0].target] = worker.tag
         repairer_shortage: int = round(needed_repairers) - len(current_repairers)
         logger.debug(f"missing health {missing_health} need repairers {needed_repairers} have {len(current_repairers)} shortage {repairer_shortage}")
 
@@ -747,9 +751,12 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
             self.update_assigment(repairer, JobType.REPAIR, repair_target)
             if repair_target:
+                repairer.is_repairer = True
                 await self.worker_micro.repair(repairer, repair_target)
-                target_micro = MicroFactory.get_unit_micro(repair_target, self.bot, self.enemy)
-                await target_micro.move(repair_target, repairer.position)
+                current_repairer_tag = current_repair_targets.get(repair_target.tag, repairer.tag)
+                if current_repairer_tag == repairer.tag:
+                    target_micro = MicroFactory.get_unit_micro(repair_target, self.bot, self.enemy)
+                    await target_micro.move(repair_target, repairer.position)
 
         # add more repairers
         if repairer_shortage > 0:
@@ -772,12 +779,15 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 candidates.remove(repairer)
 
                 if repairer:
+                    repairer.is_repairer = True
                     repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
                     self.update_assigment(repairer, JobType.REPAIR, repair_target)
                     if repair_target:
                         await self.worker_micro.repair(repairer, repair_target)
-                        target_micro = MicroFactory.get_unit_micro(repair_target, self.bot, self.enemy)
-                        await target_micro.move(repair_target, repairer.position)
+                        current_repairer_tag = current_repair_targets.get(repair_target.tag, repairer.tag)
+                        if current_repairer_tag == repairer.tag:
+                            target_micro = MicroFactory.get_unit_micro(repair_target, self.bot, self.enemy)
+                            await target_micro.move(repair_target, repairer.position)
                 else:
                     break
 

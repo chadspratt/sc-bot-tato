@@ -3,6 +3,7 @@ from __future__ import annotations
 from sc2.position import Point2
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
+from sc2.units import Units
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 
@@ -12,7 +13,7 @@ from ..mixins import GeometryMixin
 
 
 class BansheeMicro(BaseUnitMicro, GeometryMixin):
-    attack_health: float = 0.51
+    attack_health: float = 0.58
 
     def __init__(self, bot: BotAI, enemy: Enemy):
         super().__init__(bot, enemy)
@@ -28,31 +29,32 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
     target_structure_types = [
         UnitTypeId.SPINECRAWLER,
     ]
-    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, tank_to_retreat_to: Unit = None) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         if unit.health_percentage < health_threshold:
             return False
         nearby_enemies = self.bot.enemy_units.closer_than(15, unit)
         nearby_structures = self.bot.enemy_structures.closer_than(15, unit)
         targets = nearby_enemies.filter(lambda u: not u.is_flying and u.type_id not in self.excluded_enemy_types) \
             + nearby_structures.filter(lambda s: s.type_id in self.target_structure_types)
+        tanks: Units = targets.filter(lambda u: u.type_id in (UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK))
         if not targets:
             targets = nearby_structures
         threats = nearby_enemies.filter(lambda u: u.can_attack_air) + nearby_structures.filter(lambda s: s.can_attack_air)
         if targets:
             if not threats:
-                target = targets.closest_to(unit)
-                unit.attack(target)
+                if tanks:
+                    unit.attack(tanks.closest_to(unit))
+                else:
+                    unit.attack(targets.closest_to(unit))
                 return True
             elif unit.weapon_cooldown <= self.time_in_frames_to_attack and len(threats) < 4:
-                attackable_threats = threats.filter(lambda u: not u.is_flying)
+                attackable_threats = threats.filter(lambda u: not u.is_flying) + tanks
                 if attackable_threats:
-                    target = attackable_threats.closest_to(unit)
-                    unit.attack(target)
-                    return True
+                    unit.attack(attackable_threats.closest_to(unit))
                 else:
-                    target = targets.closest_to(unit)
-                    unit.attack(target)
-                    return True
+                    unit.attack(targets.closest_to(unit))
+                return True
+            tank_to_retreat_to = self.tank_to_retreat_to(unit)
             if tank_to_retreat_to:
                 unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
                 return True

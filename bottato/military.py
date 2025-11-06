@@ -209,7 +209,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.main_army.staging_location.distance_to(unit) < 25))
 
         # fill bunker before managing defense. only use visible enemies to avoid crashing cached distance calculations
-        self.manage_bunker(enemies_in_base)
+        await self.manage_bunker(enemies_in_base)
 
         out_of_view_in_base = []
         for enemy in self.enemy.recent_out_of_view():
@@ -388,7 +388,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.report()
         self.stop_timer("manage_squads")
 
-    def manage_bunker(self, enemies_in_base: Units = None):
+    async def manage_bunker(self, enemies_in_base: Units = None):
         if not self.bunker.is_built():
             self.empty_bunker()
             return
@@ -409,7 +409,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 unit = self.get_updated_unit_reference(unit, self.units_by_tag)
                 # unit didn't enter bunker, maybe got stuck behind wall
                 micro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
-                micro.move(unit, self.bunker.structure.position)
+                await micro.move(unit, self.bunker.structure.position)
             except Exception:
                 pass
 

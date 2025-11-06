@@ -61,7 +61,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     def is_stimmed(self, unit: Unit) -> bool:
         return unit.tag in self.last_stim_time and self.bot.time - self.last_stim_time[unit.tag] < 11
     
-    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, tank_to_retreat_to: Unit = None) -> bool:
+    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         candidates = self.bot.enemy_units.in_attack_range_of(unit).filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
         if len(candidates) == 0:
             candidates = self.bot.enemy_structures.in_attack_range_of(unit)
@@ -71,10 +71,12 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             unit.attack(lowest_target)
             return True
         elif unit.health_percentage >= health_threshold:
-            if tank_to_retreat_to and not self.is_stimmed(unit):
-                # retreat to nearby tank if not stimmed
-                unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
-                return True
+            if not self.is_stimmed(unit):
+                tank_to_retreat_to = self.tank_to_retreat_to(unit)
+                if tank_to_retreat_to:
+                    # retreat to nearby tank if not stimmed
+                    unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
+                    return True
 
             if candidates:
                 self.stay_at_max_range(unit, candidates)

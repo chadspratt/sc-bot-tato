@@ -148,9 +148,12 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 self.unsiege(unit, update_last_transform_time=False)
 
         has_friendly_buffer = True
+        structures_under_threat = False
         if closest_enemy:
             friendlies_nearest_to_enemy = self.bot.units.closest_n_units(closest_enemy.position, 5)
             has_friendly_buffer = unit not in friendlies_nearest_to_enemy
+            if closest_enemy.age == 0:
+                structures_under_threat = self.bot.structures.in_attack_range_of(closest_enemy)
 
         # most_are_seiged = len(self.unsieged_tags) < len(self.sieged_tags)
         # enemy_distance = closest_distance if most_are_seiged or has_friendly_buffer else closest_distance_after_siege
@@ -174,7 +177,11 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             enemy_will_be_far_enough = enemy_will_be_close_enough = False
             if has_friendly_buffer:
                 enemy_will_be_far_enough = closest_distance > self.sieged_minimum_range + 2
-                enemy_will_be_close_enough = closest_distance_after_siege <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
+                if structures_under_threat:
+                    # enemy might be immobile while attacking structures, so only siege if in range now
+                    enemy_will_be_close_enough = closest_distance <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
+                else:
+                    enemy_will_be_close_enough = closest_distance_after_siege <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
             else:
                 enemy_will_be_far_enough = closest_distance_after_siege > self.sieged_minimum_range + 0.5
                 enemy_will_be_close_enough = closest_distance_after_siege <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
@@ -184,7 +191,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
         return False
 
-    # def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, tank_to_retreat_to: Unit = None) -> bool:
+    # def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
     #     # prefer grouped enemies
 
     def siege(self, unit: Unit, update_last_transform_time: bool = True):

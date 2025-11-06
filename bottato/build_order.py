@@ -277,6 +277,9 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         if UnitTypeId.RAVEN not in ideal_composition:
             # have at least one raven for detection
             ideal_composition[UnitTypeId.RAVEN] = 0.1
+        if UnitTypeId.VIKINGFIGHTER not in ideal_composition:
+            # have at least one viking for scouting
+            ideal_composition[UnitTypeId.VIKINGFIGHTER] = 0.1
         queued_supply = 0
 
         while queued_supply < self.bot.supply_left and len(queue) < 10:
@@ -458,9 +461,6 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                     in_progress_builder_count = self.get_in_progress_count(builder_type)
                     if in_progress_builder_count == 0 and no_addon_count == 0:
                         new_build_steps = self.production.build_order_with_prereqs(builder_type)
-                        if not new_build_steps:
-                            # requirements met, just need an extra
-                            new_build_steps.append(builder_type)
                     new_build_steps.append(facility_type)
                 else:
                     new_build_steps = self.production.build_order_with_prereqs(facility_type)

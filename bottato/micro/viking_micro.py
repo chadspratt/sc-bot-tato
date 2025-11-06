@@ -27,19 +27,24 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         nearby_enemies = self.bot.enemy_units.closer_than(15, unit.position)
         if unit.is_flying:
-            # land on enemy sieged tanks
-            if len(nearby_enemies) == 1 and nearby_enemies[0].type_id == UnitTypeId.SIEGETANKSIEGED:
-                nearest_tank: Unit = nearby_enemies[0]
-                if unit.distance_to(nearest_tank) > 1.8:
-                    unit.move(nearest_tank.position)
-                elif unit.distance_to(nearest_tank) < 1.1:
-                    unit.move(unit.position.towards(nearest_tank, -1.2))
-                else:
-                    unit(AbilityId.MORPH_VIKINGASSAULTMODE)
-                return True
+            if unit.health_percentage >= health_threshold:
+                # land on enemy sieged tanks
+                if len(nearby_enemies) == 1 and nearby_enemies[0].type_id == UnitTypeId.SIEGETANKSIEGED:
+                    nearest_tank: Unit = nearby_enemies[0]
+                    if unit.distance_to(nearest_tank) > 1.8:
+                        unit.move(nearest_tank.position)
+                    elif unit.distance_to(nearest_tank) < 1.1:
+                        unit.move(unit.position.towards(nearest_tank, -1.2))
+                    else:
+                        unit(AbilityId.MORPH_VIKINGASSAULTMODE)
+                    return True
         else:
-            if len(nearby_enemies) != 1:
+            if len(nearby_enemies) != 1 or unit.health_percentage < health_threshold:
                 # take off if multiple or no enemies nearby
                 unit(AbilityId.MORPH_VIKINGFIGHTERMODE)
+                return True
+            enemy_tank = nearby_enemies.filter(lambda u: u.type_id == UnitTypeId.SIEGETANKSIEGED)
+            if enemy_tank:
+                unit.attack(enemy_tank)
                 return True
         return False
