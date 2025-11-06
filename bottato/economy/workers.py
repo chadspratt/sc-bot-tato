@@ -386,8 +386,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 for enemy in enemies_to_remove:
                     self.units_to_attack.remove(enemy)
                 if nearby_enemies or nearby_enemy_structures:
-                    logger.info(f"units_to_attack: {self.units_to_attack}")
-                    logger.info(f"nearby enemy structures: {nearby_enemy_structures}, nearby enemies: {nearby_enemies}")
+                    logger.debug(f"units_to_attack: {self.units_to_attack}")
+                    logger.debug(f"nearby enemy structures: {nearby_enemy_structures}, nearby enemies: {nearby_enemies}")
 
                 if len(nearby_enemies) >= len(available_workers):
                     # don't suicide workers if outnumbered
@@ -419,12 +419,12 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                                 attackers.extend([worker for worker in unhealthy_workers])
                                 unhealthy_workers.clear()
                     if not attackers:
-                        logger.info(f"no attackers available for enemy {nearby_enemy}")
+                        logger.debug(f"no attackers available for enemy {nearby_enemy}")
                         break
                     for attacker in attackers:
-                        if attacker.distance_to(enemy_position) > 25:
-                            # don't pull workers from far away
-                            logger.info(f"worker {attacker} too far from enemy {nearby_enemy}")
+                        if attacker.distance_to(enemy_position) > 25 or abs(self.bot.get_terrain_height(attacker.position) - self.bot.get_terrain_height(enemy_position)) > 5:
+                            # don't pull workers from far away or go down a ramp
+                            logger.debug(f"worker {attacker} too far from enemy {nearby_enemy}")
                             continue
                         if nearby_enemy.is_structure:
                             attacker.attack(nearby_enemy)

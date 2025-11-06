@@ -65,34 +65,7 @@ class Upgrades:
         # ==ghost academy==
         UpgradeId.PERSONALCLOAKING: [UnitTypeId.GHOST],
     }
-    # upgrade_order: list[UpgradeId] = [
-    #     UpgradeId.SHIELDWALL,  # barracks
-    #     UpgradeId.HURRICANETHRUSTERS,  # factory
-    #     UpgradeId.BANSHEESPEED,  # starport
-    #     UpgradeId.HISECAUTOTRACKING,  # ebay
-    #     UpgradeId.TERRANVEHICLEWEAPONSLEVEL1,  # armory
-    #     UpgradeId.STIMPACK,  # barracks
-    #     UpgradeId.HIGHCAPACITYBARRELS,  # factory
-    #     UpgradeId.BANSHEECLOAK,  # starport
-    #     UpgradeId.TERRANINFANTRYWEAPONSLEVEL1,  # ebay
-    #     UpgradeId.TERRANSHIPWEAPONSLEVEL1,  # armory
-    #     UpgradeId.PUNISHERGRENADES,  # barracks
-    #     UpgradeId.SMARTSERVOS,  # broken
-    #     UpgradeId.TERRANINFANTRYARMORSLEVEL1,  # ebay
-    #     UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1,  # armory, broken
-    #     UpgradeId.TERRANBUILDINGARMOR,  # ebay
-    #     UpgradeId.TERRANINFANTRYWEAPONSLEVEL2,  # ebay
-    #     UpgradeId.TERRANINFANTRYARMORSLEVEL2,  # ebay
-    #     UpgradeId.TERRANSHIPWEAPONSLEVEL2,  # armory
-    #     UpgradeId.TERRANVEHICLEWEAPONSLEVEL2,  # armory
-    #     UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL2,  # armory, broken
-    #     UpgradeId.TERRANINFANTRYWEAPONSLEVEL3,  # ebay
-    #     UpgradeId.TERRANINFANTRYARMORSLEVEL3,  # ebay
-    #     UpgradeId.TERRANSHIPWEAPONSLEVEL3,  # armory
-    #     UpgradeId.TERRANVEHICLEWEAPONSLEVEL3,  # armory
-    #     UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL3,  # armory, broken
-    #     UpgradeId.DRILLCLAWS,  # factory
-    # ]
+    
     upgrades_by_facility: dict[UnitTypeId, list[UpgradeId]] = {
         UnitTypeId.BARRACKSTECHLAB: [
             UpgradeId.SHIELDWALL,
@@ -101,9 +74,9 @@ class Upgrades:
         ],
         UnitTypeId.FACTORYTECHLAB: [
             UpgradeId.HIGHCAPACITYBARRELS,
-            # UpgradeId.HURRICANETHRUSTERS,
-            # UpgradeId.SMARTSERVOS,
-            # UpgradeId.DRILLCLAWS,
+            UpgradeId.HURRICANETHRUSTERS,
+            UpgradeId.SMARTSERVOS,
+            UpgradeId.DRILLCLAWS,
         ],
         UnitTypeId.STARPORTTECHLAB: [
             UpgradeId.BANSHEECLOAK,
@@ -173,8 +146,8 @@ class Upgrades:
     
     def next_upgrade(self, facility_type: UnitTypeId) -> UpgradeId | None:
         for upgrade_type in self.upgrades_by_facility[facility_type]:
-            if self.bot.enemy_race == Race.Terran and upgrade_type == UpgradeId.HIGHCAPACITYBARRELS:
-                # don't research blue flame against terran
+            if not self.bot.units(self.affected_unit_types[upgrade_type]):
+                # don't research if no units benefit
                 continue
             if self.bot.already_pending_upgrade(upgrade_type) > 0:
                 continue

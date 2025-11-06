@@ -150,6 +150,8 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                         self.static_queue.remove(step)
                         self.add_to_build_queue([UnitTypeId.BARRACKSTECHLAB, UnitTypeId.MARAUDER], position=0, queue=self.priority_queue)
                         break
+        # move tank to priority queue
+        self.move_between_queues(UnitTypeId.SIEGETANK, self.static_queue, self.priority_queue)
         if self.bot.structure_type_build_progress(UnitTypeId.BARRACKSREACTOR) == 1:
             training_marine_count = len([step for step in self.started if step.unit_type_id == UnitTypeId.MARINE])
             if training_marine_count < 2:
@@ -160,36 +162,21 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                             self.static_queue.remove(step)
                             break
                     logger.debug("rush detected, queuing 2 marines immediately")
-                    self.add_to_build_queue(UnitTypeId.MARINE, position=0, queue=self.priority_queue)
+                    self.add_to_build_queue(UnitTypeId.MARINE, queue=self.priority_queue)
         if self.rush_defense_enacted:
             return
         self.rush_defense_enacted = True
-        # for step in self.static_queue:
-        #     if step.unit_type_id == UnitTypeId.BARRACKSREACTOR:
-        #         self.static_queue.remove(step)
-        #         self.priority_queue.append(step)
-        #         break
         if self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount < 2:
             # make sure to build second depot before bunker
-            for step in self.static_queue:
-                if step.unit_type_id == UnitTypeId.SUPPLYDEPOT:
-                    self.static_queue.remove(step)
-                    self.priority_queue.append(step)
-                    break
-        for step in self.static_queue:
-            if step.unit_type_id == UnitTypeId.BUNKER:
-                self.static_queue.remove(step)
-                self.priority_queue.append(step)
+            self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
+        self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue)
+    
+    def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep]) -> None:
+        for step in from_queue:
+            if step.unit_type_id == unit_type:
+                from_queue.remove(step)
+                to_queue.append(step)
                 break
-
-    @property
-    def remaining_cap(self) -> int:
-        remaining = self.bot.supply_left
-        # for step in self.pending:
-        # for step in self.build_queue:
-        #     if step.unit_type_id:
-        #         remaining -= self.bot.calculate_supply_cost(step.unit_type_id)
-        return remaining
 
     async def execute(self, army_ratio: float, rush_detected: bool, enemy: Enemy):
         self.start_timer("build_order.execute")
@@ -198,12 +185,8 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
 
         self.build_queue.clear()
 
-        # if self.static_queue and self.static_queue[0].unit_type_id in (UnitTypeId.ORBITALCOMMAND, UnitTypeId.SUPPLYDEPOT):
-        #     self.priority_queue.append(self.static_queue.pop(0))
-
         only_build_units = False
-        # XXX queue workers more aggressively
-        # switch to dynamic build later, put SCVs in static
+
         self.queue_worker()
         self.queue_supply()
         self.queue_command_center(rush_detected)
