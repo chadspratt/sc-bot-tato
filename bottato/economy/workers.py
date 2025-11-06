@@ -746,8 +746,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         for repairer in current_repairers:
             repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
             self.update_assigment(repairer, JobType.REPAIR, repair_target)
-            await self.worker_micro.repair(repairer, repair_target)
             if repair_target:
+                await self.worker_micro.repair(repairer, repair_target)
                 target_micro = MicroFactory.get_unit_micro(repair_target, self.bot, self.enemy)
                 await target_micro.move(repair_target, repairer.position)
 
@@ -774,8 +774,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 if repairer:
                     repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
                     self.update_assigment(repairer, JobType.REPAIR, repair_target)
-                    await self.worker_micro.repair(repairer, repair_target)
                     if repair_target:
+                        await self.worker_micro.repair(repairer, repair_target)
                         target_micro = MicroFactory.get_unit_micro(repair_target, self.bot, self.enemy)
                         await target_micro.move(repair_target, repairer.position)
                 else:
