@@ -376,8 +376,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 10000 + a.distance_to(townhall))
                 nearby_enemy_range = 25 if nearby_enemy_structures else 12
                 nearby_enemies = self.bot.enemy_units.closer_than(nearby_enemy_range, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
-                if nearby_enemies or nearby_enemy_structures:
-                    logger.info(f"nearby enemy structures: {nearby_enemy_structures}, nearby enemies: {nearby_enemies}")
                 enemies_to_remove = []
                 for enemy in self.units_to_attack:
                     predicted_position = self.enemy.get_predicted_position(enemy, 0.0)
@@ -387,7 +385,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         nearby_enemies.append(enemy)
                 for enemy in enemies_to_remove:
                     self.units_to_attack.remove(enemy)
-                logger.info(f"units_to_attack: {self.units_to_attack}")
+                if nearby_enemies or nearby_enemy_structures:
+                    logger.info(f"units_to_attack: {self.units_to_attack}")
+                    logger.info(f"nearby enemy structures: {nearby_enemy_structures}, nearby enemies: {nearby_enemies}")
 
                 if len(nearby_enemies) >= len(available_workers):
                     # don't suicide workers if outnumbered
@@ -422,9 +422,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         logger.info(f"no attackers available for enemy {nearby_enemy}")
                         break
                     for attacker in attackers:
-                        max_attack_distance = 25 if nearby_enemy.is_structure else 15
-                        if attacker.distance_to(enemy_position) > max_attack_distance:
+                        if attacker.distance_to(enemy_position) > 25:
                             # don't pull workers from far away
+                            logger.info(f"worker {attacker} too far from enemy {nearby_enemy}")
                             continue
                         if nearby_enemy.is_structure:
                             attacker.attack(nearby_enemy)
