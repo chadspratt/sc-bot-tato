@@ -171,6 +171,8 @@ class GeometryMixin:
                                      check_pathable: bool = True,
                                      frame_vector: Point2 = None
                                      ) -> Point2:
+        if unit.is_structure:
+            return unit.position
         unit_speed: float
         forward_unit_vector: Point2
         max_speed = unit.calculate_speed()

@@ -371,11 +371,12 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             unhealthy_workers = available_workers.filter(lambda u: u.health_percentage <= 0.5)
 
             for townhall in self.bot.townhalls:
-                nearby_enemy_structures = self.bot.enemy_structures.closer_than(20, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
+                nearby_enemy_structures = self.bot.enemy_structures.closer_than(23, townhall).filter(lambda u: not u.is_flying)
                 if nearby_enemy_structures:
                     nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 10000 + a.distance_to(townhall))
                 nearby_enemy_range = 25 if nearby_enemy_structures else 12
                 nearby_enemies = self.bot.enemy_units.closer_than(nearby_enemy_range, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
+                logger.info(f"nearby enemy structures: {nearby_enemy_structures}, nearby enemies: {nearby_enemies}")
                 enemies_to_remove = []
                 for enemy in self.units_to_attack:
                     predicted_position = self.enemy.get_predicted_position(enemy, 0.0)
@@ -385,6 +386,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         nearby_enemies.append(enemy)
                 for enemy in enemies_to_remove:
                     self.units_to_attack.remove(enemy)
+                logger.info(f"units_to_attack: {self.units_to_attack}")
 
                 if len(nearby_enemies) >= len(available_workers):
                     # don't suicide workers if outnumbered
@@ -416,9 +418,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                                 attackers.extend([worker for worker in unhealthy_workers])
                                 unhealthy_workers.clear()
                     if not attackers:
+                        logger.info(f"no attackers available for enemy {nearby_enemy}")
                         break
                     for attacker in attackers:
-                        max_attack_distance = 20 if nearby_enemy.is_structure else 15
+                        max_attack_distance = 25 if nearby_enemy.is_structure else 15
                         if attacker.distance_to(enemy_position) > max_attack_distance:
                             # don't pull workers from far away
                             continue
