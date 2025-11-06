@@ -376,7 +376,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 10000 + a.distance_to(townhall))
                 nearby_enemy_range = 25 if nearby_enemy_structures else 12
                 nearby_enemies = self.bot.enemy_units.closer_than(nearby_enemy_range, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
-                logger.info(f"nearby enemy structures: {nearby_enemy_structures}, nearby enemies: {nearby_enemies}")
+                if nearby_enemies or nearby_enemy_structures:
+                    logger.info(f"nearby enemy structures: {nearby_enemy_structures}, nearby enemies: {nearby_enemies}")
                 enemies_to_remove = []
                 for enemy in self.units_to_attack:
                     predicted_position = self.enemy.get_predicted_position(enemy, 0.0)
