@@ -47,9 +47,10 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         threats = self.bot.enemy_units.filter(lambda enemy: enemy.can_attack_air)
         if threats:
             nearest_threat = threats.closest_to(unit)
-            target_position = nearest_threat.position.towards(unit, unit.sight_range - 1)
-            unit.move(target_position)
-            return True
+            if nearest_threat.distance_to(unit) < unit.sight_range:
+                target_position = nearest_threat.position.towards(unit, unit.sight_range - 1)
+                unit.move(target_position)
+                return True
         return False
 
     async def attack_with_turret(self, unit: Unit, target: Point2):

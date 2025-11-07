@@ -226,11 +226,14 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
         self.formations.append(Formation(self.bot, formation_type, unit_tags, offset, spacing))
 
     def get_unit_destinations(
-        self, formation_destination: Point2, units: Units, destination_facing: float = None, units_by_tag: dict[int, Unit] = None
+        self, formation_destination: Point2, units: Units, grouped_units: Units, destination_facing: float = None, units_by_tag: dict[int, Unit] = None
     ) -> dict[int, Point2]:
         unit_destinations = {}
         reference_point: Point2 = Point2((0, 0))
         facing = destination_facing
+
+        if len(grouped_units) == 0:
+            grouped_units = units
 
         if not self.front_center:
             # initialize
@@ -255,7 +258,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
             # destination should be next waypoint, but need to
             next_waypoint = self.path[1] if len(self.path) > 1 else formation_destination
             self.start_timer("formation calculate front center")
-            self.front_center = self.calculate_formation_front_center(units, next_waypoint)
+            self.front_center = self.calculate_formation_front_center(grouped_units, next_waypoint)
             self.stop_timer("formation calculate front center")
             # limit front_center jumping around
             # self.front_center = self.front_center.towards(new_front_center, 2, limit=True)
@@ -303,7 +306,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
         # close_units = units.closer_than(15, closest_to_enemy)
         self.closest_unit = units.closest_to(destination)
         closest_position = self.closest_unit.position
-        
+
         close_units = units.closer_than(15, self.closest_unit)
         # in_formation_units: Units = close_units if close_units else units
         units_center = close_units.center

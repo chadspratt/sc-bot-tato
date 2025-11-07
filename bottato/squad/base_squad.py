@@ -83,9 +83,11 @@ class BaseSquad(UnitReferenceMixin):
                 self.remove(unit)
                 break
 
-    def recruit(self, unit: Unit):
-        logger.debug(f"Recruiting {unit} into {self.name} squad")
-        self.units.append(unit)
+    def recruit(self, new_unit: Unit):
+        for unit in self.units:
+            if unit.tag == new_unit.tag:
+                return
+        self.units.append(new_unit)
         has = len(self.units)
         if has >= 10:
             self.state = SquadState.FULL

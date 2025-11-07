@@ -338,20 +338,26 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                         target_position = target
                 if not army_is_grouped:
                     self.start_timer("military move squads regroup")
-                    army_center = self.main_army.units.closest_to(target_position).position
-                    # back off if too close to enemy
-                    closest_enemy = army_center.closest(self.bot.enemy_units) if self.bot.enemy_units else None
-                    closest_distance = closest_enemy.distance_to(army_center) if closest_enemy else 100
-                    if closest_distance < 15:
-                        path = self.map.get_path_points(army_center, self.bot.start_location)
-                        i = 0
-                        while i + 1 < len(path):
-                            army_center = path[i + 1]
-                            next_node_distance = path[i].distance_to(path[i + 1])
-                            if closest_distance + next_node_distance >= 15:
-                                break
-                            closest_distance += next_node_distance
-                            i += 1
+                    sieged_tanks = self.bot.units.of_type(UnitTypeId.SIEGETANKSIEGED)
+                    army_center: Point2 = None
+                    if sieged_tanks:
+                        # regroup on sieged tanks so as not to abandon them
+                        army_center = sieged_tanks.closest_to(target_position).position
+                    else:
+                        army_center = self.main_army.units.closest_to(target_position).position
+                        # back off if too close to enemy
+                        closest_enemy = army_center.closest(self.bot.enemy_units) if self.bot.enemy_units else None
+                        closest_distance = closest_enemy.distance_to(army_center) if closest_enemy else 100
+                        if closest_distance < 15:
+                            path = self.map.get_path_points(army_center, self.bot.start_location)
+                            i = 0
+                            while i + 1 < len(path):
+                                army_center = path[i + 1]
+                                next_node_distance = path[i].distance_to(path[i + 1])
+                                closest_distance += next_node_distance
+                                if closest_distance >= 15:
+                                    break
+                                i += 1
                     await self.main_army.move(army_center, target_position, blueprints=blueprints)
                     self.stop_timer("military move squads regroup")
                 else:
@@ -364,10 +370,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 # generally a retreat due to being outnumbered
                 logger.debug(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
-                if rush_detected and len(self.main_army.units) < 16:
+                if rush_detected and len(self.main_army.units) < 16 and len(self.bot.townhalls) < 3:
                     self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 10)
                 elif len(self.bot.townhalls) > 1:
-                    closest_base = self.bot.townhalls.closest_to(enemy_position)
+                    closest_base = self.map.get_closest_unit_by_path(self.bot.townhalls, enemy_position)
+                    if closest_base is None:
+                        closest_base = self.bot.townhalls.closest_to(enemy_position)
                     second_closest_base = self.bot.townhalls.filter(lambda base: base.tag != closest_base.tag).closest_to(enemy_position)
                     path = self.map.get_path_points(closest_base.position, second_closest_base.position)
                     backtrack_distance = 15

@@ -438,21 +438,18 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                             )
                     except (ConnectionAlreadyClosedError, ConnectionResetError, ProtocolError):
                         return None
-                    if new_build_position is None:
-                        if retry_count > 0:
-                            return None
-                        retry_count += 1
-                    # don't build near edge to avoid trapping units
-                    edge_distance = self.map.get_distance_from_edge(new_build_position.rounded)
-                    if edge_distance <= 3:
-                        max_distance += 1
-                        logger.debug(f"{new_build_position} is {edge_distance} from edge")
-                        # accept defeat, is ok to do it sometimes
-                        if max_distance > 50:
-                            break
-                        retry_count += 1
-                        new_build_position = None
-        if new_build_position is not None:
+                    if new_build_position:
+                        # don't build near edge to avoid trapping units
+                        edge_distance = self.map.get_distance_from_edge(new_build_position.rounded)
+                        if edge_distance <= 3:
+                            max_distance += 1
+                            logger.debug(f"{new_build_position} is {edge_distance} from edge")
+                            # accept defeat, is ok to do it sometimes
+                            if max_distance > 25:
+                                break
+                            retry_count += 1
+                            new_build_position = None
+        if new_build_position:
             if self.bot.enemy_units:
                 threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground and u.type_id not in (UnitTypeId.DRONE, UnitTypeId.SCV, UnitTypeId.PROBE))
                 if threats and threats.closer_than(10, new_build_position):
