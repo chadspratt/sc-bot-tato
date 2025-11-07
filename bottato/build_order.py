@@ -209,7 +209,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             self.queue_marines()
             self.queue_medivacs()
 
-            only_build_units = army_ratio > 0.0 and army_ratio < 0.8
+            only_build_units = self.bot.supply_left > 5 and army_ratio > 0.0 and army_ratio < 0.8
 
         needed_resources: Cost = self.get_first_resource_shortage(only_build_units)
 
@@ -331,8 +331,8 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
     def get_in_progress_count(self, unit_type: UnitTypeId) -> int:
         return sum([build_step.unit_type_id == unit_type for build_step in self.started])
 
-    def get_queued_count(self, unit_type: UnitTypeId, queue: List[BuildStep]) -> int:
-        return sum([build_step.unit_type_id == unit_type for build_step in queue])
+    def get_queued_count(self, unit_type: UnitTypeId) -> int:
+        return sum([build_step.unit_type_id == unit_type for build_step in self.priority_queue + self.static_queue + self.build_queue])
 
     def queue_command_center(self, rush_detected: bool) -> None:
         self.start_timer("queue_command_center")
@@ -346,7 +346,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[JobType.MINERALS]) + len(self.bot.townhalls.ready) * 4)
             surplus_worker_count = projected_worker_count - projected_worker_capacity
             
-            cc_count = self.get_in_progress_count(UnitTypeId.COMMANDCENTER) + self.get_queued_count(UnitTypeId.COMMANDCENTER, self.static_queue)
+            cc_count = self.get_in_progress_count(UnitTypeId.COMMANDCENTER) + self.get_queued_count(UnitTypeId.COMMANDCENTER)
             needed_cc_count = math.ceil(surplus_worker_count / 16)
 
             logger.debug(f"expansion: {surplus_worker_count} surplus workers need {needed_cc_count} cc(s)")
@@ -358,7 +358,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
 
     def queue_refinery(self) -> None:
         self.start_timer("queue_refinery")
-        refinery_count = len(self.bot.gas_buildings.ready) + self.get_in_progress_count(UnitTypeId.REFINERY) + self.get_queued_count(UnitTypeId.REFINERY, self.static_queue)
+        refinery_count = len(self.bot.gas_buildings.ready) + self.get_in_progress_count(UnitTypeId.REFINERY) + self.get_queued_count(UnitTypeId.REFINERY)
         # build refinery if less than 2 per town hall (function is only called if gas is needed but no room to move workers)
         logger.debug(f"refineries: {refinery_count}, townhalls: {len(self.bot.townhalls)}")
         if self.bot.townhalls.ready:
@@ -433,10 +433,11 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
     def queue_upgrade(self) -> None:
         self.start_timer("queue_upgrade")
         for facility_type in self.upgrade_building_types:
+            next_upgrade = self.upgrades.next_upgrade(facility_type)
+            if next_upgrade is None or self.upgrade_is_in_progress(next_upgrade):
+                continue
             if self.bot.structures(facility_type).ready.idle:
-                next_upgrade = self.upgrades.next_upgrade(facility_type)
-                if next_upgrade and not self.upgrade_is_in_progress(next_upgrade):
-                    self.add_to_build_queue([next_upgrade], queue=self.priority_queue)
+                self.add_to_build_queue([next_upgrade], queue=self.priority_queue)
             elif self.bot.time > 360 and not self.bot.structures(facility_type) and self.get_in_progress_count(facility_type) == 0:
                 new_build_steps = []
                 if facility_type in self.production.add_on_types:
@@ -448,9 +449,12 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                         new_build_steps = self.production.build_order_with_prereqs(builder_type)
                     new_build_steps.append(facility_type)
                 else:
-                    new_build_steps = self.production.build_order_with_prereqs(facility_type)
-                    new_build_steps = self.remove_in_progress_from_list(new_build_steps)
-                self.add_to_build_queue(new_build_steps, queue=self.priority_queue)
+                    queued_count = self.get_in_progress_count(facility_type) + self.get_queued_count(facility_type)
+                    if queued_count == 0 or self.bot.minerals > 500 and self.bot.vespene > 250:
+                        # build if none or if we have excess resources
+                        new_build_steps = self.production.build_order_with_prereqs(facility_type)
+                        new_build_steps = self.remove_in_progress_from_list(new_build_steps)
+                self.add_to_build_queue(new_build_steps, queue=self.priority_queue, position=0)
         self.stop_timer("queue_upgrade")
 
     def upgrade_is_in_progress(self, upgrade_type: UpgradeId) -> bool:
@@ -677,7 +681,9 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             if build_step.supply_cost > 0 and build_no_supply_only:
                 continue
             percent_affordable = 1.0
-            if build_step.unit_type_id in failed_types or only_build_units and UnitTypeId.SCV in build_step.builder_type:
+            if build_step.unit_type_id in failed_types:
+                continue
+            if only_build_units and build_step.unit_type_id not in self.unit_types.TERRAN and build_step.unit_type_id not in (UnitTypeId.SCV, UnitTypeId.COMMANDCENTER):
                 continue
             if not build_step.is_in_progress:
                 percent_affordable = self.percent_affordable(remaining_resources, build_step.cost)

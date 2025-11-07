@@ -46,6 +46,7 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
         # self.targets: Units = Units([], bot_object=self.bot)
         self.parent_formation: ParentFormation = ParentFormation(self.bot, self.map)
         self.destination_facing: float = None
+        self.last_ungrouped_time: float = -5
 
     def __repr__(self):
         return f"FormationSquad({self.name},{self.state},{len(self.units)}, {self.parent_formation})"
@@ -160,7 +161,13 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
                     self.stop_timer("formation assign positions move")
 
     def is_grouped(self) -> bool:
+        if self.bot.time - self.last_ungrouped_time < 2:
+            # give it a couple seconds to regroup before checking again
+            return False
         if self.position and self.units:
             units_out_of_formation = self.units.further_than(18, self.position)
-            return len(units_out_of_formation) / len(self.units) < 0.4
+            if len(units_out_of_formation) / len(self.units) < 0.4:
+                return True
+            else:
+                self.last_ungrouped_time = self.bot.time
         return False

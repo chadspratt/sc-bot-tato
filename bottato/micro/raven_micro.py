@@ -44,7 +44,12 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         return await self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
 
     def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
-        # doesn't have an auto attack
+        threats = self.bot.enemy_units.filter(lambda enemy: enemy.can_attack_air)
+        if threats:
+            nearest_threat = threats.closest_to(unit)
+            target_position = nearest_threat.position.towards(unit, unit.sight_range - 1)
+            unit.move(target_position)
+            return True
         return False
 
     async def attack_with_turret(self, unit: Unit, target: Point2):

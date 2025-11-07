@@ -338,7 +338,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                         target_position = target
                 if not army_is_grouped:
                     self.start_timer("military move squads regroup")
-                    army_center = self.main_army.units.closest_to(self.bot.enemy_start_locations[0]).position
+                    army_center = self.main_army.units.closest_to(target_position).position
                     # back off if too close to enemy
                     closest_enemy = army_center.closest(self.bot.enemy_units) if self.bot.enemy_units else None
                     closest_distance = closest_enemy.distance_to(army_center) if closest_enemy else 100

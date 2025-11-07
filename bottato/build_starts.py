@@ -73,7 +73,7 @@ class BuildStarts():
 # you may PAUSE STARPORT and extra FACTORY units until 4x BARRACKS start and upgrades begin, then resume MEDIVAC and SIEGETANK
 
 # POWER SPIKE SETUP
-                UnitTypeId.ENGINEERINGBAY,              # start TERRANINFANTRYWEAPONSLEVEL1 when ready,
+                # UnitTypeId.ENGINEERINGBAY,              # start TERRANINFANTRYWEAPONSLEVEL1 when ready,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.REFINERY,
