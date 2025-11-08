@@ -294,7 +294,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         enemies_in_range: Units = Units([], self.bot)
         candidates = self.get_candidates(include_structures, include_units, include_destructables, excluded_types)
         for candidate in candidates:
-            range = self.distance(friendly_unit, candidate)
+            range = self.distance(friendly_unit, candidate) - friendly_unit.radius - candidate.radius
             if candidate.is_flying:
                 if range < friendly_unit.air_range:
                     enemies_in_range.append(candidate)

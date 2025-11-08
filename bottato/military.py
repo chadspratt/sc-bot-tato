@@ -419,7 +419,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 if unit.distance_to(self.bunker.structure) <= 2.5:
                     unit.smart(self.bunker.structure)
                 else:
-                    micro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
+                    micro = MicroFactory.get_unit_micro(unit)
                     await micro.move(unit, self.bunker.structure.position)
             except Exception:
                 pass
@@ -467,7 +467,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         harass_location = self.harass_squad.harass_location
 
         for unit in self.harass_squad.units:
-            micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
+            micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
             nearby_enemies = self.bot.enemy_units.closer_than(15, unit)
             threatening_structures = self.bot.enemy_structures.filter(lambda structure: structure.can_attack_ground and structure.distance_to(unit) < 15)
             if not nearby_enemies and not threatening_structures:

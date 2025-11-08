@@ -24,9 +24,6 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     attack_range: float = 5.0
     time_in_frames_to_attack: float = 0.3 * 22.4  # 0.3 seconds
 
-    def __init__(self, bot: BotAI, enemy: Enemy):
-        super().__init__(bot, enemy)
-
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.health <= 35:
             return False

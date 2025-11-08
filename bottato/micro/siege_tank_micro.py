@@ -28,9 +28,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     previous_positions: dict[int, Point2] = {}
     early_game_siege_positions: dict[int, Point2] = {}
 
-    def __init__(self, bot: BotAI, enemy: Enemy):
-        super().__init__(bot, enemy)
-
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag not in self.known_tags:
             self.known_tags.add(unit.tag)
@@ -60,7 +57,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             enemies_near_ramp = self.bot.all_enemy_units.closer_than(20, self.bot.main_base_ramp.bottom_center)
             closest_enemy_to_ramp = enemies_near_ramp.closest_to(unit) if enemies_near_ramp else None
             enemy_out_of_range = closest_enemy_to_ramp and not unit.target_in_range(closest_enemy_to_ramp)
-            if is_sieged and enemy_out_of_range:
+            if is_sieged and enemy_out_of_range and closest_enemy_to_ramp.is_structure:
                 self.unsiege(unit)
                 return True
             if unit.tag not in self.previous_positions:
@@ -68,8 +65,9 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             if not is_sieged:
                 if closest_enemy_to_ramp:
                     if enemy_out_of_range:
-                        unit.move(closest_enemy_to_ramp.position)
-                        return True
+                        if closest_enemy_to_ramp.is_structure:
+                            unit.move(closest_enemy_to_ramp.position)
+                            return True
                     else:
                         self.siege(unit)
                         return True

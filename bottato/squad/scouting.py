@@ -105,7 +105,7 @@ class Scout(BaseSquad, UnitReferenceMixin):
         if self.closest_distance_to_next_location < 30 and self.bot.time - self.time_of_closest_distance > 5:
             assignment.last_seen = self.bot.time
 
-        micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot, self.enemy)
+        micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit)
 
         # move to next location if taking damage
         next_index = self.scouting_locations_index
@@ -295,7 +295,7 @@ class InitialScout(BaseSquad, GeometryMixin):
         # Move to current waypoint
         if self.waypoints:
             self.unit.move(self.waypoints[0])
-            # micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit, self.bot, self.enemy)
+            # micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit)
             # await micro.scout(self.unit, self.waypoints[0])
 
 class Scouting(BaseSquad, DebugMixin):

@@ -159,7 +159,7 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
                     continue
                 # don't spam duplicate move commands
                 previous_position = self.executed_positions.get(unit.tag, None)
-                micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit, self.bot, self.enemy)
+                micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
                 logger.debug(f"unit {unit} using micro {micro}")
                 self.start_timer("formation assign positions move")
                 self.start_timer(f"formation assign positions move {unit.type_id}")

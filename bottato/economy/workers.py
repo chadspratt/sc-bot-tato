@@ -73,7 +73,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         for worker in self.bot.workers:
             self.add_worker(worker)
         self.aged_mules: Units = Units([], bot)
-        self.worker_micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first, self.bot, self.enemy)
+        self.worker_micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first)
         self.units_to_attack = set()
 
     def update_references(self, units_by_tag: dict[int, Unit], builder_tags: list[int]):
@@ -393,7 +393,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     # don't suicide workers if outnumbered
                     continue
                 # assign closest 3 workers to attack each enemy
-                micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first, self.bot, self.enemy)
+                micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first)
                 workers_per_enemy_unit = 2 if nearby_enemy_structures else 3
                 for nearby_enemy in nearby_enemies + nearby_enemy_structures:
                     enemy_position = nearby_enemy if nearby_enemy.age == 0 else self.enemy.get_predicted_position(nearby_enemy, 0.0)
@@ -759,7 +759,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 await self.worker_micro.repair(repairer, repair_target)
                 current_repairer_tag = current_repair_targets.get(repair_target.tag, repairer.tag)
                 if current_repairer_tag == repairer.tag:
-                    target_micro = MicroFactory.get_unit_micro(repair_target, self.bot, self.enemy)
+                    target_micro = MicroFactory.get_unit_micro(repair_target)
                     await target_micro.move(repair_target, repairer.position)
 
         # add more repairers
@@ -790,7 +790,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         await self.worker_micro.repair(repairer, repair_target)
                         current_repairer_tag = current_repair_targets.get(repair_target.tag, repairer.tag)
                         if current_repairer_tag == repairer.tag:
-                            target_micro = MicroFactory.get_unit_micro(repair_target, self.bot, self.enemy)
+                            target_micro = MicroFactory.get_unit_micro(repair_target)
                             await target_micro.move(repair_target, repairer.position)
                 else:
                     break

@@ -32,9 +32,6 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     units_to_pick_up_potential_damage: dict[int, float] = {}
     threat_damage: dict[UnitTypeId, float] = {}
 
-    def __init__(self, bot: BotAI, enemy: Enemy):
-        super().__init__(bot, enemy)
-
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         threats = self.enemy.threats_to(unit, 5)
         if unit.health_percentage < self.health_threshold_for_healing and threats:

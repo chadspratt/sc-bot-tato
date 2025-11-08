@@ -352,7 +352,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             else:
                 ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
                 enemy_start: Point2 = self.bot.enemy_start_locations[0]
-                candidate = ((ramp_position + self.map.natural_position) / 2).towards(enemy_start, distance=3)
+                candidate = ((ramp_position + self.map.natural_position) / 2).towards(enemy_start, distance=1)
             retry_count = 0
             while not new_build_position or self.bot.distance_math_hypot_squared(new_build_position, self.map.natural_position) < 16:
                 new_build_position = await self.bot.find_placement(

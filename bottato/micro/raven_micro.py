@@ -21,9 +21,6 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     ability_health = 0.6
     turret_drop_time = 1.5
 
-    def __init__(self, bot: BotAI, enemy: Enemy):
-        super().__init__(bot, enemy)
-
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if force_move:
             return False

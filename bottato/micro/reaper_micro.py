@@ -23,11 +23,9 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     grenade_cooldowns: dict[int, int] = {}
     unconfirmed_grenade_throwers: list[int] = []
 
-    def __init__(self, bot: BotAI, enemy: Enemy):
-        super().__init__(bot, enemy)
-
+    excluded_types = [UnitTypeId.EGG, UnitTypeId.LARVA]
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
-        targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False)
+        targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False, excluded_types=self.excluded_types)
         grenade_targets = []
         if targets and await self.grenade_available(unit):
             for target_unit in targets:
@@ -52,7 +50,9 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
     def attack_something(self, unit, health_threshold, force_move: bool = False):
         if unit.health_percentage < self.attack_health:
-            return False
+            threats = self.enemy.threats_to(unit)
+            if threats:
+                return False
         if unit.weapon_cooldown > self.time_in_frames_to_attack:
             return False
 
@@ -60,32 +60,78 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         if not nearby_enemies:
             return False
 
-        enemy_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
+        # enemy_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
         threats = nearby_enemies.filter(lambda enemy: enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG))
 
-        if enemy_workers:
-            lowest_target = enemy_workers.sorted(key=lambda worker:  (worker.shield_health_percentage) * 10000 + unit.distance_to(worker)).first
-            unit.attack(lowest_target)
-        elif threats:
-            nearest_threat = threats.closest_to(unit)
-            if nearest_threat.ground_range < unit.ground_range:
-                unit.attack(nearest_threat)
-            else:
-                # don't attack enemies that outrange
-                return False
-        else:
-            return False
+        # if enemy_workers:
+        #     lowest_target = enemy_workers.sorted(key=lambda worker:  (worker.shield_health_percentage) * 10000 + unit.distance_to(worker)).first
+        #     unit.attack(lowest_target)
+        if threats:
+            for threat in threats:
+                if threat.ground_range > unit.ground_range:
+                    # don't attack enemies that outrange
+                    return False
+        weakest_enemy = nearby_enemies.sorted(key=lambda t: t.shield + t.health).first
+        unit.attack(weakest_enemy)
+        # else:
+        #     return False
         return True
 
-    # async def retreat(self, unit: Unit, health_threshold: float) -> bool:
-    #     if unit.health_percentage < 0.7:
-    #         return self.retreat_to_medivac(unit)
-    #     elif unit.tag in self.healing_unit_tags:
-    #         if unit.health_percentage < 0.9:
-    #             return self.retreat_to_medivac(unit)
-    #         else:
-    #             self.healing_unit_tags.remove(unit.tag)
-    #     return False
+    async def retreat(self, unit: Unit, health_threshold: float) -> bool:
+        if unit.tag in self.bot.unit_tags_received_action:
+            return False
+        threats = self.enemy.threats_to(unit, attack_range_buffer=3)
+
+        if not threats:
+            if unit.health_percentage >= health_threshold:
+                return False
+            # just stop and wait for regen
+            unit.stop()
+            return True
+
+        # retreat if there is nothing this unit can attack
+        do_retreat = False
+        if unit.can_attack:
+            visible_threats = threats.filter(lambda t: t.age == 0)
+            targets = visible_threats.in_attack_range_of(unit, bonus_distance=3)
+            if not targets:
+                do_retreat = True
+
+        # check if incoming damage will bring unit below health threshold
+        if not do_retreat:
+            total_potential_damage = sum([threat.calculate_damage_vs_target(unit)[0] for threat in threats])
+            if not unit.health_max:
+                # rare weirdness
+                return True
+            if (unit.health - total_potential_damage) / unit.health_max < health_threshold:
+                do_retreat = True
+
+        if do_retreat:
+            avg_threat_position = threats.center
+            if unit.distance_to(self.bot.start_location) < avg_threat_position.distance_to(self.bot.start_location) - 2:
+                unit.move(self.bot.start_location)
+                return True
+            retreat_position = unit.position.towards(avg_threat_position, -5)
+            # .towards(self.bot.start_location, 2)
+            if self.bot.in_pathing_grid(retreat_position):
+                unit.move(retreat_position)
+            else:
+                if unit.position == avg_threat_position:
+                    # avoid divide by zero
+                    unit.move(self.bot.start_location)
+                else:
+                    threat_to_unit_vector = (unit.position - avg_threat_position).normalized
+                    tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
+                    away_from_enemy_position = unit.position.towards(avg_threat_position, -1)
+                    circle_around_positions = [away_from_enemy_position + tangent_vector, away_from_enemy_position - tangent_vector]
+                    path_to_start = self.map.get_path_points(unit.position, self.bot.start_location)
+                    next_waypoint = self.bot.start_location
+                    if len(path_to_start) > 1:
+                        next_waypoint = path_to_start[1]
+                    circle_around_positions.sort(key=lambda pos: pos.distance_to(next_waypoint))
+                    unit.move(circle_around_positions[0].towards(self.bot.start_location, 2))
+            return True
+        return False
 
     async def grenade_jump(self, unit: Unit, target: Unit) -> bool:
         if await self.grenade_available(unit):

@@ -10,6 +10,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
+from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import TimerMixin, GeometryMixin, UnitReferenceMixin
 from bottato.build_order import BuildOrder
 from bottato.micro.structure_micro import StructureMicro
@@ -29,6 +30,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         # for loc in self.expansion_locations_list:
         #     self.map.get_path(self.game_info.player_start_location, loc)
         self.enemy: Enemy = Enemy(self.bot)
+        MicroFactory.set_common_objects(self.bot, self.enemy, self.map)
         self.my_workers: Workers = Workers(self.bot, self.enemy, self.map)
         self.military: Military = Military(self.bot, self.enemy, self.map, self.my_workers)
         self.structure_micro: StructureMicro = StructureMicro(self.bot, self.enemy)

@@ -27,19 +27,29 @@ micro_lookup = {
     UnitTypeId.BANSHEE: BansheeMicro,
     UnitTypeId.VIKINGFIGHTER: VikingMicro,
 }
+common_objects = {
+    "bot": None,
+    "enemy": None,
+    "map": None
+}
 
 
 class MicroFactory:
-    def get_unit_micro(unit: Unit, bot: BotAI, enemy: Enemy) -> BaseUnitMicro:
+    def set_common_objects(bot: BotAI, enemy: Enemy, map):
+        common_objects["bot"] = bot
+        common_objects["enemy"] = enemy
+        common_objects["map"] = map
+
+    def get_unit_micro(unit: Unit) -> BaseUnitMicro:
         type_id = unit.unit_alias if unit.unit_alias else unit.type_id
         if type_id not in micro_instances:
             if type_id in micro_lookup:
                 logger.debug(f"creating {type_id} micro for {unit}")
-                micro_instances[type_id] = micro_lookup[type_id](bot, enemy)
+                micro_instances[type_id] = micro_lookup[type_id](common_objects["bot"], common_objects["enemy"], common_objects["map"])
             else:
                 logger.debug(f"creating generic micro for {unit}")
                 if UnitTypeId.NOTAUNIT not in micro_instances:
-                    micro_instances[UnitTypeId.NOTAUNIT] = BaseUnitMicro(bot, enemy)
+                    micro_instances[UnitTypeId.NOTAUNIT] = BaseUnitMicro(common_objects["bot"], common_objects["enemy"], common_objects["map"])
                 micro_instances[type_id] = micro_instances[UnitTypeId.NOTAUNIT]
 
         return micro_instances[type_id]

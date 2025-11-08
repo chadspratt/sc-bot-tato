@@ -10,6 +10,7 @@ from sc2.constants import UnitTypeId
 from sc2.ids.effect_id import EffectId
 from sc2.ids.ability_id import AbilityId
 
+from bottato.map.map import Map
 from bottato.mixins import GeometryMixin
 from bottato.enemy import Enemy
 
@@ -35,9 +36,10 @@ class BaseUnitMicro(GeometryMixin):
         EffectId.LURKERMP,
         'KD8CHARGE',
     ]
-    def __init__(self, bot: BotAI, enemy: Enemy):
+    def __init__(self, bot: BotAI, enemy: Enemy, map: Map):
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
+        self.map: Map = map
 
     def avoid_effects(self, unit: Unit, force_move: bool) -> bool:
         # avoid damaging effects
@@ -183,7 +185,8 @@ class BaseUnitMicro(GeometryMixin):
         # retreat if there is nothing this unit can attack
         do_retreat = False
         if unit.can_attack:
-            targets = threats.in_attack_range_of(unit, bonus_distance=3)
+            visible_threats = threats.filter(lambda t: t.age == 0)
+            targets = visible_threats.in_attack_range_of(unit, bonus_distance=3)
             if not targets:
                 if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
                     unit(AbilityId.UNSIEGE_UNSIEGE)
@@ -206,7 +209,7 @@ class BaseUnitMicro(GeometryMixin):
                 return True
             retreat_position = unit.position.towards(avg_threat_position, -5)
             # .towards(self.bot.start_location, 2)
-            if self.bot.in_pathing_grid(retreat_position):
+            if unit.is_flying or self.bot.in_pathing_grid(retreat_position):
                 unit.move(retreat_position)
             else:
                 if unit.position == avg_threat_position:
@@ -215,8 +218,13 @@ class BaseUnitMicro(GeometryMixin):
                 else:
                     threat_to_unit_vector = (unit.position - avg_threat_position).normalized
                     tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
-                    circle_around_positions = [unit.position + tangent_vector, unit.position - tangent_vector]
-                    circle_around_positions.sort(key=lambda pos: pos.distance_to(self.bot.start_location))
+                    away_from_enemy_position = unit.position.towards(avg_threat_position, -1)
+                    circle_around_positions = [away_from_enemy_position + tangent_vector, away_from_enemy_position - tangent_vector]
+                    path_to_start = self.map.get_path_points(unit.position, self.bot.start_location)
+                    next_waypoint = self.bot.start_location
+                    if len(path_to_start) > 1:
+                        next_waypoint = path_to_start[1]
+                    circle_around_positions.sort(key=lambda pos: pos.distance_to(next_waypoint))
                     unit.move(circle_around_positions[0].towards(self.bot.start_location, 2))
             return True
         return False

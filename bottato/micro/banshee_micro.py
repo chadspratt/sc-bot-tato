@@ -15,9 +15,6 @@ from ..mixins import GeometryMixin
 class BansheeMicro(BaseUnitMicro, GeometryMixin):
     attack_health: float = 0.58
 
-    def __init__(self, bot: BotAI, enemy: Enemy):
-        super().__init__(bot, enemy)
-
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if await self.bot.can_cast(unit, AbilityId.BEHAVIOR_CLOAKON_BANSHEE) and self.enemy.threats_to(unit):
             unit(AbilityId.BEHAVIOR_CLOAKON_BANSHEE)
