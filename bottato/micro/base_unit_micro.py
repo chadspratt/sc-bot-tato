@@ -10,6 +10,7 @@ from sc2.constants import UnitTypeId
 from sc2.ids.effect_id import EffectId
 from sc2.ids.ability_id import AbilityId
 
+from bottato.unit_types import UnitTypes
 from bottato.map.map import Map
 from bottato.mixins import GeometryMixin
 from bottato.enemy import Enemy
@@ -94,7 +95,7 @@ class BaseUnitMicro(GeometryMixin):
 
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if unit.is_flying and can_attack and candidates:
-            threats = candidates.filter(lambda u: u.can_attack_air)
+            threats = candidates.filter(lambda u: UnitTypes.can_attack_air(u))
             if len(threats) < 4:
                 if threats:
                     lowest_target = threats.sorted(key=lambda enemy_unit: enemy_unit.health + enemy_unit.shield).first
@@ -267,7 +268,7 @@ class BaseUnitMicro(GeometryMixin):
             return None
 
         close_enemies = self.bot.enemy_units.closer_than(15, unit).filter(
-            lambda u: u.type_id not in excluded_enemy_types and not u.is_flying and u.can_attack_ground and u.unit_alias != UnitTypeId.CHANGELING)
+            lambda u: u.type_id not in excluded_enemy_types and not u.is_flying and UnitTypes.can_attack_ground(u) and u.unit_alias != UnitTypeId.CHANGELING)
         if len(close_enemies) < 8:
             return None
         
@@ -300,7 +301,7 @@ class BaseUnitMicro(GeometryMixin):
         elif await self.retreat(unit, health_threshold=self.retreat_health):
             pass
         else:
-            if previous_position is None or target.manhattan_distance(previous_position) > 1:
+            if previous_position is None or unit.is_moving and target.manhattan_distance(previous_position) > 1:
                 unit.move(target)
                 return True
         return False

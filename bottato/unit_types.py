@@ -1,6 +1,8 @@
 import enum
 from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.unit import Unit
+
 
 
 class UnitAttribute(enum.Enum):
@@ -341,3 +343,15 @@ class UnitTypes():
             return self.ZERG[common_id]
         else:
             return None
+        
+    def can_attack_air(unit: Unit) -> bool:
+        """
+        Check if a unit type can attack air units.
+        """
+        return unit.can_attack_air or unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY}
+    
+    def can_attack_ground(unit: Unit) -> bool:
+        """
+        Check if a unit type can attack air units.
+        """
+        return unit.can_attack_ground or unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BANELING}

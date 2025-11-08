@@ -10,6 +10,8 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2, Point3
 
+from bottato.unit_types import UnitTypes
+
 
 class UnitReferenceMixin:
     class UnitNotFound(Exception):
@@ -100,9 +102,9 @@ class UnitReferenceMixin:
                 counts['mechanical'] += 1
             if unit.is_psionic:
                 counts['psionic'] += 1
-            if unit.can_attack_ground:
+            if UnitTypes.can_attack_ground(unit):
                 counts['attacks ground'] += 1
-            if unit.can_attack_air:
+            if UnitTypes.can_attack_air(unit):
                 counts['attacks air'] += 1
 
         return counts
@@ -207,20 +209,16 @@ class GeometryMixin:
     def distance(self, unit1: Unit, unit2: Unit) -> float:
         if unit1 is None or unit2 is None:
             return 9999
-        try:
+        if unit1.age == 0 and unit2.age == 0:
             return unit1.distance_to(unit2)
-        except IndexError:
-            logger.debug(f"cached distance error on {unit1} ({unit1.game_loop}), {unit2}({unit2.game_loop})")
-            return unit1.distance_to(unit2.position)
+        return unit1.distance_to(unit2.position)
         
     def distance_squared(self, unit1: Unit, unit2: Unit) -> float:
         if unit1 is None or unit2 is None:
             return 9999
-        try:
-            return unit1.distance_to_squared(unit2)
-        except IndexError:
-            logger.debug(f"cached distance error on {unit1} ({unit1.game_loop}), {unit2}({unit2.game_loop})")
-            return unit1.distance_to_squared(unit2.position)
+        if unit1.age == 0 and unit2.age == 0:
+            return unit1.distance_to_squared(unit2)        
+        return unit1.distance_to_squared(unit2.position)
 
     def closest_distance(self, unit1: Unit, units: Units) -> float:
         distance = 9999

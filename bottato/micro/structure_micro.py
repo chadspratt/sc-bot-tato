@@ -6,9 +6,10 @@ from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit
 from sc2.position import Point2
 
+from bottato.unit_types import UnitTypes
 from bottato.enemy import Enemy
-from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin, TimerMixin
+from bottato.micro.base_unit_micro import BaseUnitMicro
 
 
 class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
@@ -57,7 +58,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                 if self.bot.all_enemy_units:
                     nearby_enemies = self.bot.all_enemy_units.closer_than(15, cc)
                     if nearby_enemies:
-                        threats = nearby_enemies.filter(lambda enemy: enemy.can_attack_air)
+                        threats = nearby_enemies.filter(lambda enemy: UnitTypes.can_attack_air(enemy))
                         if threats and cc.health_percentage < 0.9:
                             cc.move(self.bot.main_base_ramp.top_center)
                         else:
@@ -77,7 +78,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                 if cc.health_percentage < 0.8 and self.bot.enemy_units:
                     nearby_enemies = self.bot.enemy_units.closer_than(6, cc)
                     if nearby_enemies:
-                        threats = nearby_enemies.filter(lambda enemy: enemy.can_attack_ground)
+                        threats = nearby_enemies.filter(lambda enemy: UnitTypes.can_attack_ground(enemy))
                         if threats:
                             self.command_center_destinations[cc.tag] = cc.position
                             cc(AbilityId.CANCEL_LAST)

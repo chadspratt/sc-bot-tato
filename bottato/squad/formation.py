@@ -8,10 +8,10 @@ from sc2.bot_ai import BotAI
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-# from sc2.units import Units
 
-from ..mixins import GeometryMixin, TimerMixin, UnitReferenceMixin
-from ..map.map import Map
+from bottato.unit_types import UnitTypes
+from bottato.mixins import GeometryMixin, TimerMixin, UnitReferenceMixin
+from bottato.map.map import Map
 
 
 class FormationType(enum.Enum):
@@ -51,9 +51,9 @@ class Formation:
     def get_unit_attack_range(self, unit: Unit) -> float:
         # PS: this might belong in the `Bottato` class, but it goes here for now
         #   The code itself is taken from `sc2.unit.target_in_range
-        if unit.can_attack_ground:
+        if UnitTypes.can_attack_ground(unit):
             unit_attack_range = unit.ground_range
-        elif unit.can_attack_air:
+        elif UnitTypes.can_attack_air(unit):
             unit_attack_range = unit.air_range
         else:
             unit_attack_range = False

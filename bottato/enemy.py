@@ -8,6 +8,7 @@ from sc2.units import Units
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
+from .unit_types import UnitTypes
 from .mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
 from .squad.enemy_squad import EnemySquad
 
@@ -189,9 +190,9 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                          if enemy_unit.target_in_range(friendly_unit, attack_range_buffer)],
                         self.bot)
         for enemy_unit in self.recent_out_of_view():
-            if enemy_unit.can_attack_ground and not friendly_unit.is_flying:
+            if UnitTypes.can_attack_ground(enemy_unit) and not friendly_unit.is_flying:
                 enemy_attack_range = enemy_unit.ground_range + enemy_unit.distance_per_step
-            elif enemy_unit.can_attack_air and (friendly_unit.is_flying or friendly_unit.type_id == UnitTypeId.COLOSSUS):
+            elif UnitTypes.can_attack_air(enemy_unit) and (friendly_unit.is_flying or friendly_unit.type_id == UnitTypeId.COLOSSUS):
                 enemy_attack_range = enemy_unit.air_range + enemy_unit.distance_per_step
             else:
                 continue
@@ -323,10 +324,18 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         if excluded_types:
             candidates = candidates.filter(lambda unit: unit.type_id not in excluded_types)
         return candidates
+    
+    burrowing_unit_types = {
+        UnitTypeId.LURKERMP,
+        UnitTypeId.WIDOWMINE,
+    }
+    def enemies_needing_detection(self) -> Units:
+        return self.enemies_in_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types) + \
+               self.enemies_out_of_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types)
 
     def recent_out_of_view(self) -> Units:
         return self.enemies_out_of_view.filter(
             lambda enemy_unit: self.bot.time - self.last_seen[enemy_unit.tag] < Enemy.unit_probably_moved_seconds)
 
     def can_attack(self, friendly: Unit, enemy: Unit) -> bool:
-        return friendly.can_attack_ground and not enemy.is_flying or friendly.can_attack_air and (enemy.is_flying or enemy.type_id == UnitTypeId.COLOSSUS)
+        return UnitTypes.can_attack_ground(friendly) and not enemy.is_flying or UnitTypes.can_attack_air(friendly) and (enemy.is_flying or enemy.type_id == UnitTypeId.COLOSSUS)

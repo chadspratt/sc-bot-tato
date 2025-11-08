@@ -10,14 +10,13 @@ from sc2.position import Point2, Point3
 from sc2.constants import UnitTypeId
 
 from bottato.build_step import BuildStep
-
-from ..mixins import GeometryMixin, TimerMixin
-from .formation import FormationType, ParentFormation
-from ..micro.base_unit_micro import BaseUnitMicro
-from ..micro.micro_factory import MicroFactory
-from .base_squad import BaseSquad
-from ..enemy import Enemy
-from ..map.map import Map
+from bottato.mixins import GeometryMixin, TimerMixin
+from bottato.squad.formation import FormationType, ParentFormation
+from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.micro.micro_factory import MicroFactory
+from bottato.squad.base_squad import BaseSquad
+from bottato.enemy import Enemy
+from bottato.map.map import Map
 
 
 class SquadOrderEnum(enum.Enum):
@@ -166,6 +165,8 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
                 # 1/3 of total command execution time
                 if await micro.move(unit, formation_positions[unit.tag], force_move, previous_position=previous_position):
                     self.executed_positions[unit.tag] = formation_positions[unit.tag]
+                elif unit.tag in  self.executed_positions:
+                    del self.executed_positions[unit.tag]
                 self.stop_timer(f"formation assign positions move {unit.type_id}")
                 self.stop_timer("formation assign positions move")
 

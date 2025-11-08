@@ -1,17 +1,15 @@
 from __future__ import annotations
 from loguru import logger
 
-from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
 from sc2.protocol import ProtocolError
 from sc2.ids.unit_typeid import UnitTypeId
-
-from .base_unit_micro import BaseUnitMicro
 from sc2.ids.ability_id import AbilityId
-from ..enemy import Enemy
-from ..mixins import GeometryMixin
+
+from bottato.mixins import GeometryMixin
+from bottato.micro.base_unit_micro import BaseUnitMicro
 
 
 class ReaperMicro(BaseUnitMicro, GeometryMixin):

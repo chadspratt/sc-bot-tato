@@ -2,14 +2,13 @@ from __future__ import annotations
 from loguru import logger
 
 from sc2.position import Point2
-from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
-
-from .base_unit_micro import BaseUnitMicro
 from sc2.ids.ability_id import AbilityId
-from ..enemy import Enemy
-from ..mixins import GeometryMixin
+
+from bottato.unit_types import UnitTypes
+from bottato.mixins import GeometryMixin
+from bottato.micro.base_unit_micro import BaseUnitMicro
 
 
 class RavenMicro(BaseUnitMicro, GeometryMixin):
@@ -19,7 +18,9 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     # XXX use shorter range if enemy unit is facing away from raven, likely fleeing
     turret_energy_cost = 50
     ability_health = 0.6
+    attack_health = 0.7
     turret_drop_time = 1.5
+    missing_hidden_units: set[int] = set()
 
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if force_move:
@@ -41,13 +42,30 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         return await self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
 
     def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
-        threats = self.bot.enemy_units.filter(lambda enemy: enemy.can_attack_air)
+        if unit.health_percentage < health_threshold:
+            return False
+        # stay safe
+        threats = self.bot.enemy_units.filter(lambda enemy: UnitTypes.can_attack_air(enemy))
         if threats:
             nearest_threat = threats.closest_to(unit)
             if nearest_threat.distance_to(unit) < unit.sight_range:
                 target_position = nearest_threat.position.towards(unit, unit.sight_range - 1)
                 unit.move(target_position)
                 return True
+        # provide detection
+        need_detection = self.enemy.enemies_needing_detection()
+        for enemy in need_detection:
+            if enemy.age == 0:
+                self.missing_hidden_units.discard(enemy.tag)
+        need_detection = need_detection.filter(lambda enemy: enemy.tag not in self.missing_hidden_units)
+        if need_detection:
+            closest_unit: Unit = self.closest_unit_to_unit(unit, need_detection)
+            if self.distance(closest_unit, unit) > unit.sight_range:
+                target_position = closest_unit.position.towards(unit, unit.sight_range - 1)
+                unit.move(target_position)
+                return True
+            elif self.bot.is_visible(closest_unit.position) and closest_unit.age > 0:
+                self.missing_hidden_units.add(closest_unit.tag)
         return False
 
     async def attack_with_turret(self, unit: Unit, target: Point2):

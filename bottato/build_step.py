@@ -13,6 +13,7 @@ from sc2.position import Point2, Point3
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.protocol import ConnectionAlreadyClosedError, ProtocolError
 
+from bottato.unit_types import UnitTypes
 from bottato.map.map import Map
 from bottato.mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
 from bottato.economy.workers import JobType, Workers
@@ -201,7 +202,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
         threats = None
         if self.bot.enemy_units:
-            threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground)
+            threats = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_ground(u))
         if threats and threats.closest_distance_to(self.position) < 15:
             return ResponseCode.TOO_CLOSE_TO_ENEMY
 
@@ -451,7 +452,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                             new_build_position = None
         if new_build_position:
             if self.bot.enemy_units:
-                threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground and u.type_id not in (UnitTypeId.DRONE, UnitTypeId.SCV, UnitTypeId.PROBE))
+                threats = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_ground(u) and u.type_id not in (UnitTypeId.DRONE, UnitTypeId.SCV, UnitTypeId.PROBE))
                 if threats and threats.closer_than(10, new_build_position):
                     logger.debug(f"found enemy near proposed build position {new_build_position}, rejecting")
                     return None

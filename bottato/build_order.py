@@ -88,7 +88,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 if build_step.position.distance_to(self.bot.start_location) < 15:
                     # don't interrupt builds in main base
                     continue
-                threats = self.bot.enemy_units.filter(lambda u: u.can_attack_ground and u.type_id not in (UnitTypeId.MULE, UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER))
+                threats = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_ground(u) and u.type_id not in (UnitTypeId.MULE, UnitTypeId.OBSERVER, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER))
                 if threats:
                     closest_threat = threats.closest_to(build_step.unit_in_charge)
                     enemy_is_close = closest_threat.distance_to_squared(build_step.unit_in_charge) < 225 # 15 squared
@@ -190,11 +190,12 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             military_queue.sort(key=lambda step: random.randint(0,255), reverse=True)
             self.add_to_build_queue(military_queue, queue=self.build_queue)
 
-            self.queue_production()
+            only_build_units = self.bot.supply_left > 5 and army_ratio > 0.0 and army_ratio < 0.8
+            more_production_needed = self.queue_production(only_build_units)
             self.queue_marines()
             self.queue_medivacs()
+            only_build_units = only_build_units and not more_production_needed
 
-            only_build_units = self.bot.supply_left > 5 and army_ratio > 0.0 and army_ratio < 0.8
 
         needed_resources: Cost = self.get_first_resource_shortage(only_build_units)
 
@@ -352,11 +353,11 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         # should also build a new one if current bases run out of resources
         self.stop_timer("queue_refinery")
 
-    def queue_production(self) -> None:
+    def queue_production(self, only_build_units: bool) -> bool:
         self.start_timer("queue_production")
         # add more barracks/factories/starports to handle backlog of pending affordable units
         self.start_timer("queue_production-get_affordable_build_list")
-        affordable_units: List[UnitTypeId] = self.get_affordable_build_list()
+        affordable_units: List[UnitTypeId] = self.get_affordable_build_list(only_build_units)
         if len(affordable_units) == 0 and self.unit_queue and len(self.static_queue) < 4:
             affordable_units.append(self.unit_queue[0].unit_type_id)
         self.stop_timer("queue_production-get_affordable_build_list")
@@ -364,11 +365,13 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         extra_production: List[UnitTypeId] = self.production.additional_needed_production(affordable_units)
         # only add if not already in progress
         extra_production = self.remove_in_progress_from_list(extra_production)
+        is_extra_production_needed = len(extra_production) > 0
         self.stop_timer("queue_production-additional_needed_production")
         self.start_timer("queue_production-add_to_build_order")
         self.add_to_build_queue(extra_production, position=0, queue=self.static_queue)
         self.stop_timer("queue_production-add_to_build_order")
         self.stop_timer("queue_production")
+        return is_extra_production_needed
 
     def queue_marines(self) -> None:
         self.start_timer("queue_marines")
@@ -508,12 +511,14 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             needed_resources.vespene += build_step.cost.vespene
         return needed_resources
 
-    def get_affordable_build_list(self) -> List[UnitTypeId]:
+    def get_affordable_build_list(self, only_build_units: bool) -> List[UnitTypeId]:
         affordable_items: List[UnitTypeId] = []
         needed_resources: Cost = Cost(-self.bot.minerals, -self.bot.vespene)
 
         # find first shortage, unit_queue hasn't been added to build_queue yet
         for build_step in self.priority_queue + self.static_queue + self.build_queue + self.unit_queue:
+            if only_build_units and build_step.unit_type_id not in self.unit_types.TERRAN:
+                continue
             if not self.subtract_and_can_afford(needed_resources, build_step.cost):
                 break
             if build_step.unit_type_id:

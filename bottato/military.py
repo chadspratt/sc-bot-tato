@@ -10,6 +10,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.data import Race
 
+from bottato.unit_types import UnitTypes
 from bottato.build_step import BuildStep
 from bottato.economy.workers import Workers
 from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
@@ -473,7 +474,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             if not nearby_enemies and not threatening_structures:
                 await micro.move(unit, harass_location)
             else:
-                nearby_threats = (nearby_enemies + threatening_structures).filter(lambda enemy: enemy.can_attack_ground and enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
+                nearby_threats = (nearby_enemies + threatening_structures).filter(lambda enemy: UnitTypes.can_attack_ground(enemy) and enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
                 if nearby_threats:
                     nearest_threat = nearby_threats.closest_to(unit)
                     if nearest_threat.ground_range < unit.ground_range:
@@ -717,8 +718,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         return (unmatched_friendlies, unmatched_enemies)
 
     def can_attack(self, source: Unit, target: Unit):
-        return source.can_attack_ground and not target.is_flying or (
-            source.can_attack_air and (target.is_flying or target.type_id == UnitTypeId.COLOSSUS))
+        return UnitTypes.can_attack_ground(source) and not target.is_flying or (
+            UnitTypes.can_attack_air(source) and (target.is_flying or target.type_id == UnitTypeId.COLOSSUS))
 
     def report(self):
         _report = "[==MILITARY==] "

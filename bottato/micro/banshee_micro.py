@@ -1,15 +1,14 @@
 from __future__ import annotations
 
 from sc2.position import Point2
-from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 
-from .base_unit_micro import BaseUnitMicro
-from ..enemy import Enemy
-from ..mixins import GeometryMixin
+from bottato.unit_types import UnitTypes
+from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.mixins import GeometryMixin
 
 
 class BansheeMicro(BaseUnitMicro, GeometryMixin):
@@ -36,7 +35,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         tanks: Units = targets.filter(lambda u: u.type_id in (UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK))
         if not targets:
             targets = nearby_structures
-        threats = nearby_enemies.filter(lambda u: u.can_attack_air) + nearby_structures.filter(lambda s: s.can_attack_air)
+        threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_air(u)) + nearby_structures.filter(lambda s: UnitTypes.can_attack_air(s))
         if targets:
             if not threats:
                 if tanks:
