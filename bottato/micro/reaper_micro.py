@@ -25,6 +25,9 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
     excluded_types = [UnitTypeId.EGG, UnitTypeId.LARVA]
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+        if unit.health_percentage < self.attack_health:
+            # too much risk of grenading self
+            return False
         targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False, excluded_types=self.excluded_types)
         grenade_targets = []
         if targets and await self.grenade_available(unit):

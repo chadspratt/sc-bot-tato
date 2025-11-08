@@ -469,7 +469,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     def get_geysir(self) -> Union[Unit, None]:
         if self.bot.townhalls:
-            vespene_geysirs = []
+            vespene_geysirs = None
             if self.bot.townhalls.ready:
                 vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
                     distance=10, other_units=self.bot.townhalls.ready
@@ -481,7 +481,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 )
             if len(self.bot.gas_buildings) == len(vespene_geysirs):
                 return None
-            if self.bot.gas_buildings:
+            if self.bot.gas_buildings and vespene_geysirs:
                 vespene_geysirs = vespene_geysirs.filter(
                     lambda geysir: self.bot.gas_buildings.closest_distance_to(geysir) > 1)
             if vespene_geysirs:
