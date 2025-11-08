@@ -93,8 +93,16 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     current_distance = unit.distance_to(tank_position)
                     previous_distance = self.previous_positions[unit.tag].distance_to(tank_position)
                     if current_distance <= 0.5:
-                        self.siege(unit)
+                        # don't block barracks addon from building
+                        barracks_addon_position = self.bot.structures(UnitTypeId.BARRACKS).ready.closest_to(unit).add_on_position
+                        addon_distance = barracks_addon_position.distance_to(unit)
+                        if addon_distance < 2:
+                            tank_position = barracks_addon_position.towards(unit.position, 1)
+                            unit.move(tank_position)
+                        else:
+                            self.siege(unit)
                     elif current_distance < 3 and (unit.position.manhattan_distance(self.previous_positions[unit.tag]) < 0.1 or current_distance > previous_distance):
+                        # don't block depots from raising
                         closest_depot = self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).closest_to(unit)
                         depot_distance = closest_depot.distance_to(unit)
                         if depot_distance < 2.2:
