@@ -40,8 +40,8 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 # take off if multiple or no enemies nearby
                 unit(AbilityId.MORPH_VIKINGFIGHTERMODE)
                 return True
-            enemy_tank = nearby_enemies.filter(lambda u: u.type_id == UnitTypeId.SIEGETANKSIEGED)
-            if enemy_tank:
-                unit.attack(enemy_tank)
+            enemy_tanks = nearby_enemies.filter(lambda u: u.type_id == UnitTypeId.SIEGETANKSIEGED)
+            if enemy_tanks:
+                unit.attack(enemy_tanks.first)
                 return True
         return False
