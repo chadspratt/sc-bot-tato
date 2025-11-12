@@ -6,6 +6,7 @@ from sc2.unit import Unit
 from sc2.ids.ability_id import AbilityId
 from sc2.constants import UnitTypeId
 
+from bottato.unit_types import UnitTypes
 from bottato.mixins import GeometryMixin
 from bottato.micro.base_unit_micro import BaseUnitMicro
 
@@ -151,13 +152,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         #         self.siege(unit)
         #         return True
         #     return False
-
-        if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
-            if is_sieged and (closest_distance > self.sieged_range - 2 or closest_enemy.age != 0):
-                self.unsiege(unit)
-                return True
-            else:
-                return False
         # fix miscategorizations
         if is_sieged != (unit.tag in self.sieged_tags):
             if is_sieged:
@@ -165,13 +159,20 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             else:
                 self.unsiege(unit, update_last_transform_time=False)
 
-        has_friendly_buffer = True
+        has_friendly_buffer = False
         structures_under_threat = False
         if closest_enemy:
             friendlies_nearest_to_enemy = self.bot.units.closest_n_units(closest_enemy.position, 5)
             has_friendly_buffer = unit not in friendlies_nearest_to_enemy
             if closest_enemy.age == 0:
-                structures_under_threat = self.bot.structures.in_attack_range_of(closest_enemy)
+                structures_under_threat = UnitTypes.in_attack_range_of(self.bot.structures, closest_enemy)
+
+        if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
+            if is_sieged and (closest_distance > self.sieged_range - 2 or closest_enemy.age != 0) and not has_friendly_buffer:
+                self.unsiege(unit)
+                return True
+            else:
+                return False
 
         # most_are_seiged = len(self.unsieged_tags) < len(self.sieged_tags)
         # enemy_distance = closest_distance if most_are_seiged or has_friendly_buffer else closest_distance_after_siege

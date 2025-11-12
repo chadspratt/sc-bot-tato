@@ -6,6 +6,7 @@ from typing import Optional, Union
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
+from sc2.units import Units
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
@@ -227,6 +228,8 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     
     async def position_worker(self, special_locations: SpecialLocations, rush_detected: bool = False):
         if UnitTypeId.SCV in self.builder_type:
+            if self.unit_type_id == UnitTypeId.REFINERYRICH:
+                self.unit_type_id = UnitTypeId.REFINERY
             if self.position is None:
                 if self.unit_type_id == UnitTypeId.REFINERY:
                     # Vespene targets unit to build instead of position
@@ -470,7 +473,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     def get_geysir(self) -> Union[Unit, None]:
         if self.bot.townhalls:
-            vespene_geysirs = None
+            vespene_geysirs = Units([], self.bot)
             if self.bot.townhalls.ready:
                 vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
                     distance=10, other_units=self.bot.townhalls.ready

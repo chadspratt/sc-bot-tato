@@ -2,6 +2,8 @@ import enum
 from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
+from sc2.units import Units
+
 
 
 
@@ -389,3 +391,30 @@ class UnitTypes():
             return 6.0
         else:
             return 0.0
+        
+    def target_in_range(unit: Unit, target: Unit, bonus_distance: float = 0.0) -> bool:
+        """
+        Check if a target unit is in range of the given unit, considering both air and ground attacks.
+        """
+        if not unit.is_ready:
+            return False
+        if target.is_flying:
+            if not UnitTypes.can_attack_air(unit):
+                return False
+            attack_range = UnitTypes.air_range(unit)
+        else:
+            if not UnitTypes.can_attack_ground(unit):
+                return False
+            attack_range = UnitTypes.ground_range(unit)
+        distance = unit.distance_to_squared(target)
+        return distance <= (unit.radius + target.radius + attack_range + bonus_distance) ** 2
+    
+    def in_attack_range_of(units: Units, attacker: Unit, bonus_distance: float = 0.0) -> Units:
+        """
+        Filter a set of units to those that are in attack range of the given attacker unit.
+        """
+        in_range_units = Units([], units._bot_object)
+        for unit in units:
+            if UnitTypes.target_in_range(attacker, unit, bonus_distance):
+                in_range_units.append(unit)
+        return in_range_units

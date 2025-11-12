@@ -71,6 +71,63 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
     def all_steps(self) -> List[BuildStep]:
         return self.started + self.priority_queue + self.static_queue + self.build_queue
 
+    async def execute(self, army_ratio: float, rush_detected: bool, enemy: Enemy):
+        self.start_timer("build_order.execute")
+        if rush_detected:
+            self.enact_rush_defense()
+        if self.bot.time < 360 and (self.bot.enemy_units.filter(lambda u: u.type_id in (
+                UnitTypeId.TEMPEST, UnitTypeId.BATTLECRUISER, UnitTypeId.CARRIER,
+                UnitTypeId.WIDOWMINE, UnitTypeId.SWARMHOSTMP)) or self.bot.enemy_units.closer_than(25, self.map.natural_position).amount >= 10):
+            # abort static build order if we need a specialized response
+            self.static_queue.clear()
+
+        self.build_queue.clear()
+
+        only_build_units = False
+
+        self.queue_townhall_work()
+        self.queue_supply()
+        self.queue_command_center(rush_detected)
+        self.queue_upgrade()
+        if len(self.static_queue) < 5 or self.bot.time > 300:
+            self.queue_turret()
+
+            # randomize unit queue so it doesn't get stuck on one unit type
+            # XXX this should be better, maybe put one of the unit with least in current army, then one of next least, etc
+            military_queue = self.get_military_queue(enemy)
+            military_queue.sort(key=lambda step: random.randint(0,255), reverse=True)
+            self.queue_prereqs(military_queue)
+            self.add_to_build_queue(military_queue, queue=self.build_queue)
+
+            only_build_units = self.bot.supply_left > 5 and army_ratio > 0.0 and army_ratio < 0.8
+            more_production_needed = self.queue_production(only_build_units)
+            self.queue_marines()
+            self.queue_medivacs()
+            only_build_units = only_build_units and not more_production_needed
+
+
+        needed_resources: Cost = self.get_first_resource_shortage(only_build_units)
+
+        self.start_timer("redistribute_workers")
+        moved_workers = await self.workers.redistribute_workers(needed_resources)
+        self.stop_timer("redistribute_workers")
+
+        if len(self.static_queue) < 5 or self.bot.time > 300:
+            self.queue_refinery()
+
+        await self.execute_pending_builds(only_build_units, rush_detected)
+        
+        self.bot.client.debug_text_screen(self.get_build_queue_string(), (0.01, 0.1))
+        self.stop_timer("build_order.execute")
+    
+    def get_build_queue_string(self):
+        build_order_message = f"started={'\n'.join([step.friendly_name for step in self.started])}"
+        build_order_message += f"\npriority={'\n'.join([step.friendly_name for step in self.priority_queue])}"
+        build_order_message += f"\nstatic={'\n'.join([step.friendly_name for step in self.static_queue])}"
+        build_order_message += f"\nbuild_queue={'\n'.join([step.friendly_name for step in self.build_queue])}"
+        build_order_message += f"\nunit_queue={'\n'.join([step.friendly_name for step in self.unit_queue])}"
+        return build_order_message
+
     async def move_interupted_to_pending(self) -> None:
         self.start_timer("move_interupted_to_pending")
         to_promote = []
@@ -164,60 +221,6 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 from_queue.remove(step)
                 to_queue.append(step)
                 break
-
-    async def execute(self, army_ratio: float, rush_detected: bool, enemy: Enemy):
-        self.start_timer("build_order.execute")
-        if rush_detected:
-            self.enact_rush_defense()
-
-        self.build_queue.clear()
-
-        only_build_units = False
-
-        self.queue_townhall_work()
-        self.queue_supply()
-        self.queue_command_center(rush_detected)
-        self.queue_upgrade()
-        if len(self.static_queue) < 5 or self.bot.time > 300:
-            self.queue_turret()
-            # self.queue_planetary()
-
-            # randomize unit queue so it doesn't get stuck on one unit type
-            # XXX this should be better, maybe put one of the unit with least in current army, then one of next least, etc
-            military_queue = self.get_military_queue(enemy)
-            self.queue_prereqs(military_queue)
-
-            military_queue.sort(key=lambda step: random.randint(0,255), reverse=True)
-            self.add_to_build_queue(military_queue, queue=self.build_queue)
-
-            only_build_units = self.bot.supply_left > 5 and army_ratio > 0.0 and army_ratio < 0.8
-            more_production_needed = self.queue_production(only_build_units)
-            self.queue_marines()
-            self.queue_medivacs()
-            only_build_units = only_build_units and not more_production_needed
-
-
-        needed_resources: Cost = self.get_first_resource_shortage(only_build_units)
-
-        self.start_timer("redistribute_workers")
-        moved_workers = await self.workers.redistribute_workers(needed_resources)
-        self.stop_timer("redistribute_workers")
-
-        if len(self.static_queue) < 5 or self.bot.time > 300:
-            self.queue_refinery()
-
-        await self.execute_pending_builds(only_build_units, rush_detected)
-        
-        self.bot.client.debug_text_screen(self.get_build_queue_string(), (0.01, 0.1))
-        self.stop_timer("build_order.execute")
-    
-    def get_build_queue_string(self):
-        build_order_message = f"started={'\n'.join([step.friendly_name for step in self.started])}"
-        build_order_message += f"\npriority={'\n'.join([step.friendly_name for step in self.priority_queue])}"
-        build_order_message += f"\nstatic={'\n'.join([step.friendly_name for step in self.static_queue])}"
-        build_order_message += f"\nbuild_queue={'\n'.join([step.friendly_name for step in self.build_queue])}"
-        build_order_message += f"\nunit_queue={'\n'.join([step.friendly_name for step in self.unit_queue])}"
-        return build_order_message
     
     def queue_prereqs(self, unit_types: List[UnitTypeId]) -> None:
         for unit_type in unit_types:
@@ -279,7 +282,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         worker_build_capacity: int = len(available_townhalls)
         available_command_centers = available_townhalls.filter(lambda cc: cc.type_id == UnitTypeId.COMMANDCENTER)
         if available_command_centers:
-            if len(self.bot.townhalls) < 4:
+            if len(self.bot.townhalls.of_type(UnitTypeId.ORBITALCOMMAND)) < 3:
                 if self.bot.minerals >= 150 and self.bot.structures(UnitTypeId.BARRACKS).ready:
                     # queue orbital instead if can afford
                     self.add_to_build_queue([UnitTypeId.ORBITALCOMMAND], queue=self.priority_queue, position=0)
@@ -322,22 +325,31 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
 
     def queue_command_center(self, rush_detected: bool) -> None:
         self.start_timer("queue_command_center")
-        if not rush_detected and self.bot.time > 100 or self.bot.time > 300:
-            projected_worker_capacity = self.workers.get_mineral_capacity()
-            for build_step in self.started + self.static_queue + self.priority_queue:
-                if build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
-                    projected_worker_capacity += 16
+        if self.bot.townhalls.amount == 2 and self.bot.townhalls.flying:
+            # don't queue another expansion if current one is still in air
+            # probably unsafe or it would have landed
+            self.stop_timer("queue_command_center")
+            return
+        if self.bot.time < 100 or rush_detected and self.bot.time < 300:
+            # don't expand too early during rush
+            self.stop_timer("queue_command_center")
+            return
 
-            # adds number of townhalls to account for near-term production
-            projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[JobType.MINERALS]) + len(self.bot.townhalls.ready) * 4)
-            surplus_worker_count = projected_worker_count - projected_worker_capacity
-            
-            cc_count = self.get_in_progress_count(UnitTypeId.COMMANDCENTER) + self.get_queued_count(UnitTypeId.COMMANDCENTER)
-            needed_cc_count = math.ceil(surplus_worker_count / 16)
+        projected_worker_capacity = self.workers.get_mineral_capacity()
+        for build_step in self.started + self.static_queue + self.priority_queue:
+            if build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
+                projected_worker_capacity += 16
 
-            # expand if running out of room for workers at current bases
-            if needed_cc_count > cc_count:
-                self.add_to_build_queue([UnitTypeId.COMMANDCENTER for x in range(needed_cc_count - cc_count)], queue=self.priority_queue)
+        # adds number of townhalls to account for near-term production
+        projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[JobType.MINERALS]) + len(self.bot.townhalls.ready) * 4)
+        surplus_worker_count = projected_worker_count - projected_worker_capacity
+        
+        cc_count = self.get_in_progress_count(UnitTypeId.COMMANDCENTER) + self.get_queued_count(UnitTypeId.COMMANDCENTER)
+        needed_cc_count = math.ceil(surplus_worker_count / 16)
+
+        # expand if running out of room for workers at current bases
+        if needed_cc_count > cc_count:
+            self.add_to_build_queue([UnitTypeId.COMMANDCENTER for x in range(needed_cc_count - cc_count)], queue=self.priority_queue)
         self.stop_timer("queue_command_center")
 
     def queue_refinery(self) -> None:

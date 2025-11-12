@@ -94,7 +94,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         # retreat if there is nothing this unit can attack
         do_retreat = False
         visible_threats = threats.filter(lambda t: t.age == 0)
-        targets = visible_threats.in_attack_range_of(unit, bonus_distance=3)
+        targets = UnitTypes.in_attack_range_of(visible_threats, unit, bonus_distance=3)
         if not targets:
             do_retreat = True
 

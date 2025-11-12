@@ -1,8 +1,9 @@
+import math
+
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
 
 from bottato.mixins import UnitReferenceMixin
-from bottato.unit_types import UnitTypes
 
 class Counter(UnitReferenceMixin):
     counters: dict[UnitTypeId, dict[UnitTypeId, float]] = {
@@ -54,7 +55,8 @@ class Counter(UnitReferenceMixin):
             UnitTypeId.SIEGETANK: 0.2
         },
         UnitTypeId.TEMPEST: { # 4
-            UnitTypeId.VIKINGFIGHTER: 3
+            UnitTypeId.VIKINGFIGHTER: 2,
+            UnitTypeId.CYCLONE: 1
         },
         UnitTypeId.VOIDRAY: { # 4
             UnitTypeId.VIKINGFIGHTER: 2
@@ -138,7 +140,8 @@ class Counter(UnitReferenceMixin):
         },
         UnitTypeId.LURKERMP: { # 3
             UnitTypeId.RAVEN: 0.2,
-            UnitTypeId.SIEGETANK: 1
+            UnitTypeId.SIEGETANK: 0.5,
+            UnitTypeId.BANSHEE: 0.4
         },
         UnitTypeId.MUTALISK: { # 2
             UnitTypeId.LIBERATOR: 0.4,
@@ -195,11 +198,6 @@ class Counter(UnitReferenceMixin):
                         counter_units[counter_type] = needed
         return counter_units
 
-    # def get_counter(enemy_type: UnitTypeId, count: int) -> list[UnitTypeId]:
-    #     enemy_info = UnitTypes.get_unit_info(enemy_type)
-    #     total_supply = enemy_info["supply"] * count
-    #     good_against = set()
-    #     for attribute in enemy_info["attributes"]:
-    #         good_against = good_against.union(UnitTypes.GOOD_AGAINST[attribute]["TERRAN"])
-    #     for unit_type in good_against:
-    #         unit_info = UnitTypes.get_unit_info(unit_type)
+    def get_counter_list(self, enemy_units: Units) -> list[UnitTypeId]:
+        counter_units = self.get_counters(enemy_units)
+        return [unit for unit, count in counter_units.items() for _ in range(math.ceil(count))]

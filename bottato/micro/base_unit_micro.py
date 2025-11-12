@@ -20,7 +20,7 @@ class BaseUnitMicro(GeometryMixin):
     ability_health: float = 0.1
     attack_health: float = 0.1
     retreat_health: float = 0.75
-    time_in_frames_to_attack: float = 0.25 * 22.4  # 0.3 seconds
+    time_in_frames_to_attack: float = 0.25 * 22.4
     scout_tags: set[int] = set()
     
     damaging_effects = [
@@ -90,9 +90,9 @@ class BaseUnitMicro(GeometryMixin):
             return False
         candidates = []
 
-        candidates = self.bot.enemy_units.in_attack_range_of(unit, bonus_distance=3).filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
+        candidates = UnitTypes.in_attack_range_of(self.bot.enemy_units, unit, bonus_distance=3).filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
         if len(candidates) == 0:
-            candidates = self.bot.enemy_structures.in_attack_range_of(unit)
+            candidates = UnitTypes.in_attack_range_of(self.bot.enemy_structures, unit)
 
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if unit.is_flying and can_attack and candidates:
@@ -205,7 +205,7 @@ class BaseUnitMicro(GeometryMixin):
         do_retreat = False
         if UnitTypes.can_attack(unit):
             visible_threats = threats.filter(lambda t: t.age == 0)
-            targets = visible_threats.in_attack_range_of(unit, bonus_distance=3)
+            targets = UnitTypes.in_attack_range_of(visible_threats, unit, bonus_distance=3)
             if not targets:
                 if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
                     unit(AbilityId.UNSIEGE_UNSIEGE)

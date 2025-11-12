@@ -133,12 +133,7 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
 
         self.start_timer("formation get_unit_destinations")
         # 1/3 of total command execution time
-        grouped_units = Units([], bot_object=self.bot)
-        most_nearby_unit = self.get_most_grouped_unit()
-        if most_nearby_unit:
-            for unit in self.units:
-                if unit.position.manhattan_distance(most_nearby_unit.position) < 10:
-                    grouped_units.append(unit)
+        grouped_units = self.get_most_grouped_unit(self.units, 10)[1]
         formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.units, grouped_units, self.destination_facing, self.units_by_tag)
         self.stop_timer("formation get_unit_destinations")
 
@@ -170,24 +165,15 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
                 self.stop_timer(f"formation assign positions move {unit.type_id}")
                 self.stop_timer("formation assign positions move")
 
-    def get_most_grouped_unit(self) -> Unit:
-        most_nearby_count = 0
-        most_nearby_unit = None
-        for unit in self.units:
-            nearby_count = sum(1 for u in self.units if u.position.manhattan_distance(unit.position) < 10)
-            if nearby_count > most_nearby_count:
-                most_nearby_count = nearby_count
-                most_nearby_unit = unit
-        return most_nearby_unit
-
     def is_grouped(self) -> bool:
         if self.bot.time - self.last_ungrouped_time < 2:
             # give it a couple seconds to regroup before checking again
             return False
         if self.units:
-            most_grouped_unit = self.get_most_grouped_unit()
+            most_grouped_unit, grouped_units = self.get_most_grouped_unit(self.units, 10)
             if most_grouped_unit:
-                units_out_of_formation = self.units.further_than(18, most_grouped_unit.position)
+                distance_limit = 18 ** 2
+                units_out_of_formation = self.units.filter(lambda u: u.tag not in grouped_units.tags and u.distance_to_squared(most_grouped_unit) > distance_limit)
                 if len(units_out_of_formation) / len(self.units) < 0.4:
                     return True
                 else:

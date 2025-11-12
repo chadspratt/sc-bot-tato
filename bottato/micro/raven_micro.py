@@ -15,31 +15,52 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     turret_drop_range = 2
     turret_attack_range = 6
     ideal_enemy_distance = turret_drop_range + turret_attack_range - 1
-    # XXX use shorter range if enemy unit is facing away from raven, likely fleeing
     turret_energy_cost = 50
+    missile_energy_cost = 75
     ability_health = 0.6
-    attack_health = 0.7
+    attack_health = 0.7 # detection
     turret_drop_time = 1.5
     missing_hidden_units: set[int] = set()
+    last_missile_launch: dict[int, tuple[float, int]] = {}
 
+    excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.SCV, UnitTypeId.MULE,
+                        UnitTypeId.DRONE, UnitTypeId.PROBE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.EGG, UnitTypeId.LARVA]
     async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if force_move:
             return False
-        excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.DRONE, UnitTypeId.PROBE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.EGG, UnitTypeId.LARVA]
-        enemy_unit, enemy_distance = self.enemy.get_closest_target(unit, distance_limit=20, include_structures=False, include_destructables=False, include_out_of_view=False, excluded_types=excluded_types)
-        threats = self.enemy.threats_to(unit)
-        logger.debug(f"raven {unit} closest unit {enemy_unit}({enemy_distance}), energy={unit.energy}")
+        if unit.energy < self.turret_energy_cost:
+            # not enough energy for cheapest spell
+            return False
+        
+        military_units = self.bot.units.filter(lambda u: u.type_id not in self.excluded_types)
+        nearby_friendly_units = military_units.filter(lambda u: u.type_id not in self.excluded_types and u.distance_to_squared(unit) < 100)
+        
+        if military_units.amount > 15 and nearby_friendly_units.amount <= 5 and unit.energy < 180 and unit.health_percentage >= 0.4:
+            # save energy for supporting army
+            return False
+        
+        if unit.energy >= self.missile_energy_cost and nearby_friendly_units.amount > 5:
+            nearby_enemies = self.bot.enemy_units.filter(lambda enemy: enemy.type_id not in self.excluded_types and enemy.distance_to_squared(unit) < 225)
+            most_grouped_enemy, grouped_enemies = self.get_most_grouped_unit(nearby_enemies, 3.5)
+            if grouped_enemies.amount >= 5:
+                self.fire_missile(unit, most_grouped_enemy)
+                return True
+
+        enemy_unit, enemy_distance = self.enemy.get_closest_target(unit, distance_limit=20, include_structures=False, include_destructables=False,
+                                                                   include_out_of_view=False, excluded_types=self.excluded_types)
         if enemy_unit is None:
             return False
-        elif threats and enemy_distance < self.ideal_enemy_distance - 2:
-            logger.debug(f"{unit} too close to {enemy_unit} ({enemy_distance})")
-            # unit.move(enemy_unit.position.towards(unit, self.ideal_enemy_distance))
+
+        threats = self.enemy.threats_to(unit)
+        if threats and enemy_distance < self.ideal_enemy_distance - 2:
             # too close
             return False
+
         if enemy_unit.type_id == UnitTypeId.SIEGETANKSIEGED:
-            # don't try to attack sieged tanks
             return await self.drop_turret(unit, enemy_unit.position.towards(unit, enemy_unit.radius + 1))
+        
         return await self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
+        
 
     def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         if unit.health_percentage < health_threshold:
@@ -69,14 +90,11 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         return False
 
     async def attack_with_turret(self, unit: Unit, target: Point2):
-        if self.turret_available(unit):
-            self.bot.client.debug_line_out(unit, self.convert_point2_to_3(target), (100, 255, 50))
-            turret_position = target.towards(unit, self.turret_attack_range - 1, limit=True)
-            await self.drop_turret(unit, turret_position)
-            logger.debug(f"{unit} trying to drop turret at {turret_position} to attack {target} at {target.position}")
-            return True
-
-        return False
+        self.bot.client.debug_line_out(unit, self.convert_point2_to_3(target), (100, 255, 50))
+        turret_position = target.towards(unit, self.turret_attack_range - 1, limit=True)
+        await self.drop_turret(unit, turret_position)
+        logger.debug(f"{unit} trying to drop turret at {turret_position} to attack {target} at {target.position}")
+        return True
 
     async def drop_turret(self, unit: Unit, target: Point2):
         position = await self.bot.find_placement(UnitTypeId.AUTOTURRET, target, placement_step=1, max_distance=2)
@@ -86,10 +104,14 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         return False
 
     def fire_missile(self, unit: Unit, target: Unit):
+        if unit.tag in self.last_missile_launch:
+            last_time, energy_before_launch = self.last_missile_launch[unit.tag]
+            if self.bot.time - last_time < 11:
+                if unit.energy < energy_before_launch:
+                    # just launched a missile
+                    return
+        self.last_missile_launch[unit.tag] = (self.bot.time, unit.energy)
         unit(AbilityId.EFFECT_ANTIARMORMISSILE, target)
 
     def interfere(self, unit: Unit, target: Unit):
         unit(AbilityId.EFFECT_INTERFERENCEMATRIX, target)
-
-    def turret_available(self, unit: Unit) -> bool:
-        return unit.energy >= self.turret_energy_cost

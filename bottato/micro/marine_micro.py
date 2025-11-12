@@ -7,6 +7,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.ability_id import AbilityId
 from sc2.constants import UnitTypeId
 
+from bottato.unit_types import UnitTypes
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin
 
@@ -54,9 +55,9 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
         return unit.tag in self.last_stim_time and self.bot.time - self.last_stim_time[unit.tag] < 11
     
     def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
-        candidates = self.bot.enemy_units.in_attack_range_of(unit).filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
+        candidates = UnitTypes.in_attack_range_of(self.bot.enemy_units, unit).filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
         if len(candidates) == 0:
-            candidates = self.bot.enemy_structures.in_attack_range_of(unit)
+            candidates = UnitTypes.in_attack_range_of(self.bot.enemy_structures, unit)
 
         if candidates and unit.weapon_cooldown < self.time_in_frames_to_attack:
             lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first

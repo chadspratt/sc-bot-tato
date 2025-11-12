@@ -187,7 +187,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     def threats_to(self, friendly_unit: Unit, attack_range_buffer=2) -> Units:
         threats = Units([enemy_unit for enemy_unit in self.enemies_in_view
-                         if enemy_unit.target_in_range(friendly_unit, attack_range_buffer)],
+                         if UnitTypes.target_in_range(enemy_unit, friendly_unit, attack_range_buffer)],
                         self.bot)
         for enemy_unit in self.recent_out_of_view():
             if UnitTypes.can_attack_ground(enemy_unit) and not friendly_unit.is_flying:
@@ -202,7 +202,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     def threats_to_repairer(self, friendly_unit: Unit, attack_range_buffer=2) -> Units:
         threats = Units([enemy_unit for enemy_unit in self.enemies_in_view
-                         if enemy_unit.target_in_range(friendly_unit, attack_range_buffer)],
+                         if UnitTypes.target_in_range(enemy_unit, friendly_unit, attack_range_buffer)],
                         self.bot)
         for enemy_unit in self.recent_out_of_view():
             enemy_attack_range = UnitTypes.ground_range(enemy_unit) + enemy_unit.distance_per_step

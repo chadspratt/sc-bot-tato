@@ -256,6 +256,16 @@ class GeometryMixin:
         point_c_1 = point_a + Point2((math.cos(angle_1), math.sin(angle_1))) * a_c_distance
         point_c_2 = point_a + Point2((math.cos(angle_2), math.sin(angle_2))) * a_c_distance
         return point_c_1, point_c_2
+    
+    def get_most_grouped_unit(self, units: Units, range=10) -> tuple[Unit, Units]:
+        most_nearby_unit = None
+        most_nearby_units = Units([], bot_object=self.bot)
+        for unit in units:
+            nearby_units = units.filter(lambda u: u.position.manhattan_distance(unit.position) < range)
+            if nearby_units.amount > most_nearby_units.amount:
+                most_nearby_unit = unit
+                most_nearby_units = nearby_units
+        return (most_nearby_unit, most_nearby_units)
 
 class TimerMixin:
     def start_timer(self, timer_name: str) -> None:
