@@ -31,7 +31,7 @@ class Upgrades:
         UpgradeId.SHIELDWALL: [UnitTypeId.MARINE],
         UpgradeId.STIMPACK: [UnitTypeId.MARINE, UnitTypeId.MARAUDER],
         # ==factory techlab==
-        UpgradeId.HURRICANETHRUSTERS: [UnitTypeId.CYCLONE],
+        UpgradeId.CYCLONELOCKONDAMAGEUPGRADE: [UnitTypeId.CYCLONE],
         UpgradeId.DRILLCLAWS: [UnitTypeId.WIDOWMINE],
         # blue flame
         UpgradeId.HIGHCAPACITYBARRELS: [UnitTypeId.HELLION],
@@ -74,7 +74,7 @@ class Upgrades:
         ],
         UnitTypeId.FACTORYTECHLAB: [
             UpgradeId.HIGHCAPACITYBARRELS,
-            UpgradeId.HURRICANETHRUSTERS,
+            UpgradeId.CYCLONELOCKONDAMAGEUPGRADE,
             UpgradeId.SMARTSERVOS,
             UpgradeId.DRILLCLAWS,
         ],
