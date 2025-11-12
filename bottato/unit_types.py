@@ -355,3 +355,37 @@ class UnitTypes():
         Check if a unit type can attack air units.
         """
         return unit.can_attack_ground or unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BANELING}
+
+    def can_attack(unit: Unit) -> bool:
+        """
+        Check if a unit type can attack (either air or ground).
+        """
+        return UnitTypes.can_attack_air(unit) or UnitTypes.can_attack_ground(unit)
+
+    def ground_range(unit: Unit) -> float:
+        """
+        Get the ground attack range of a unit type.
+        """
+        if unit.can_attack_ground:
+            return unit.ground_range
+        elif unit.type_id == UnitTypeId.SENTRY:
+            return 5.0
+        elif unit.type_id in {UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY}:
+            return 6.0
+        elif unit.type_id == UnitTypeId.BANELING:
+            return 1.0  # Banelings have melee range
+        else:
+            return 0.0
+        
+    def air_range(unit: Unit) -> float:
+        """
+        Get the air attack range of a unit type.
+        """
+        if unit.can_attack_air:
+            return unit.air_range
+        elif unit.type_id == UnitTypeId.SENTRY:
+            return 5.0
+        elif unit.type_id in {UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY}:
+            return 6.0
+        else:
+            return 0.0

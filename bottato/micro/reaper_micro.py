@@ -8,6 +8,7 @@ from sc2.protocol import ProtocolError
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 
+from bottato.unit_types import UnitTypes
 from bottato.mixins import GeometryMixin
 from bottato.micro.base_unit_micro import BaseUnitMicro
 
@@ -69,7 +70,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         #     unit.attack(lowest_target)
         if threats:
             for threat in threats:
-                if threat.ground_range > unit.ground_range:
+                if UnitTypes.ground_range(threat) > unit.ground_range:
                     # don't attack enemies that outrange
                     return False
         weakest_enemy = nearby_enemies.sorted(key=lambda t: t.shield + t.health).first
@@ -92,11 +93,10 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         # retreat if there is nothing this unit can attack
         do_retreat = False
-        if unit.can_attack:
-            visible_threats = threats.filter(lambda t: t.age == 0)
-            targets = visible_threats.in_attack_range_of(unit, bonus_distance=3)
-            if not targets:
-                do_retreat = True
+        visible_threats = threats.filter(lambda t: t.age == 0)
+        targets = visible_threats.in_attack_range_of(unit, bonus_distance=3)
+        if not targets:
+            do_retreat = True
 
         # check if incoming damage will bring unit below health threshold
         if not do_retreat:

@@ -376,7 +376,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
     def queue_marines(self) -> None:
         self.start_timer("queue_marines")
         # use excess minerals and idle barracks
-        if self.bot.minerals > 500 and self.bot.vespene < 100 and self.bot.supply_left > 15:
+        if self.bot.minerals > 500 and self.bot.supply_left > 15:
             idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
             self.add_to_build_queue([UnitTypeId.MARINE for x in range(idle_capacity)], queue=self.static_queue)
         self.stop_timer("queue_marines")

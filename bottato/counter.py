@@ -54,7 +54,7 @@ class Counter(UnitReferenceMixin):
             UnitTypeId.SIEGETANK: 0.2
         },
         UnitTypeId.TEMPEST: { # 4
-            UnitTypeId.VIKINGFIGHTER: 2
+            UnitTypeId.VIKINGFIGHTER: 3
         },
         UnitTypeId.VOIDRAY: { # 4
             UnitTypeId.VIKINGFIGHTER: 2

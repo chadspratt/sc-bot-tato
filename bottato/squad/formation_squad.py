@@ -106,7 +106,7 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
         if reset:
             self.parent_formation.clear()
         if not self.parent_formation.formations:
-            unit_type_order = [UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.HELLION, UnitTypeId.REAPER, UnitTypeId.BANSHEE, UnitTypeId.CYCLONE, UnitTypeId.VIKINGFIGHTER, UnitTypeId.BATTLECRUISER, UnitTypeId.THOR, UnitTypeId.RAVEN, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.MEDIVAC]
+            unit_type_order = [UnitTypeId.MARINE, UnitTypeId.VIKINGASSAULT, UnitTypeId.MARAUDER, UnitTypeId.HELLION, UnitTypeId.REAPER, UnitTypeId.BANSHEE, UnitTypeId.CYCLONE, UnitTypeId.VIKINGFIGHTER, UnitTypeId.BATTLECRUISER, UnitTypeId.THOR, UnitTypeId.GHOST, UnitTypeId.RAVEN, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.MEDIVAC]
             y_offset = 0
             for unit_type in unit_type_order:
                 if self.add_unit_formation(unit_type, y_offset):

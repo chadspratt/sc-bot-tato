@@ -52,9 +52,9 @@ class Formation:
         # PS: this might belong in the `Bottato` class, but it goes here for now
         #   The code itself is taken from `sc2.unit.target_in_range
         if UnitTypes.can_attack_ground(unit):
-            unit_attack_range = unit.ground_range
+            unit_attack_range = UnitTypes.ground_range(unit)
         elif UnitTypes.can_attack_air(unit):
-            unit_attack_range = unit.air_range
+            unit_attack_range = UnitTypes.air_range(unit)
         else:
             unit_attack_range = False
         return unit_attack_range

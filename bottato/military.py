@@ -477,12 +477,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 nearby_threats = (nearby_enemies + threatening_structures).filter(lambda enemy: UnitTypes.can_attack_ground(enemy) and enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
                 if nearby_threats:
                     nearest_threat = nearby_threats.closest_to(unit)
-                    if nearest_threat.ground_range < unit.ground_range:
+                    if UnitTypes.ground_range(nearest_threat) < UnitTypes.ground_range(unit):
                         # kite enemies that we outrange
                         # predicted_position = self.predict_future_unit_position(nearest_threat, 1, False)
                         move_position = nearest_threat.position
                         if unit.weapon_cooldown != 0:
-                            move_position = nearest_threat.position.towards(unit, unit.ground_range - 0.5)
+                            move_position = nearest_threat.position.towards(unit, UnitTypes.ground_range(unit) - 0.5)
                         self.bot.client.debug_line_out(nearest_threat, self.convert_point2_to_3(move_position), (255, 0, 0))
                         self.bot.client.debug_sphere_out(self.convert_point2_to_3(move_position), 0.2, (255, 0, 0))
                         await micro.move(unit, move_position)
@@ -502,7 +502,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     most_injured: Unit = nearby_workers[0]
                     move_position = most_injured.position
                     if unit.weapon_cooldown != 0:
-                        move_position = most_injured.position.towards(unit, unit.ground_range - 0.5)
+                        move_position = most_injured.position.towards(unit, UnitTypes.ground_range(unit) - 0.5)
                     await micro.move(unit, move_position)
                 else:
                     await micro.move(unit, harass_location)

@@ -7,6 +7,7 @@ from sc2.units import Units
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 
+from bottato.unit_types import UnitTypes
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin
 
@@ -49,7 +50,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 self.units_to_pick_up_potential_damage.clear()
                 # calculate potential damage to a medivac if it tried to pick up each unit
                 if self.units_to_pick_up and self.bot.enemy_units:
-                    threats = self.bot.enemy_units.filter(lambda e: e.air_range > 0)
+                    threats = self.bot.enemy_units.filter(lambda e: UnitTypes.air_range(e) > 0)
                     for passenger in self.units_to_pick_up:
                         potential_damage = 0
                         for threat in threats:
@@ -57,7 +58,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                                 self.threat_damage[threat.type_id] = threat.calculate_damage_vs_target(unit)[0]
                             if self.threat_damage[threat.type_id] <= 0:
                                 continue
-                            if threat.distance_to(passenger) + self.pick_up_range <= threat.air_range:
+                            if threat.distance_to(passenger) + self.pick_up_range <= UnitTypes.air_range(threat):
                                 potential_damage += self.threat_damage[threat.type_id]
                         self.units_to_pick_up_potential_damage[passenger.tag] = potential_damage
                 # prioritize slower units, tiebreak with further from home

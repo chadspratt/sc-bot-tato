@@ -21,6 +21,7 @@ class BaseUnitMicro(GeometryMixin):
     attack_health: float = 0.1
     retreat_health: float = 0.75
     time_in_frames_to_attack: float = 0.25 * 22.4  # 0.3 seconds
+    scout_tags: set[int] = set()
     
     damaging_effects = [
         EffectId.PSISTORMPERSISTENT,
@@ -146,14 +147,31 @@ class BaseUnitMicro(GeometryMixin):
                     unit.move(target_position)
                     return
 
-        attack_range = unit.ground_range
+        attack_range = UnitTypes.ground_range(unit)
         if nearest_target.is_flying:
-            attack_range = unit.air_range
+            attack_range = UnitTypes.air_range(unit)
         future_enemy_position = nearest_target.position
         if nearest_target.distance_to(unit) > attack_range / 2:
             future_enemy_position = self.enemy.get_predicted_position(nearest_target, unit.weapon_cooldown / 22.4)
-        target_position = future_enemy_position.towards(unit, attack_range)
+        target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius)
         unit.move(target_position)
+
+    def kite(self, unit: Unit, target: Unit = None):
+        if target is None:
+            return
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+        if not can_attack:
+            self.stay_at_max_range(unit, Units([target], bot_object=self.bot))
+            return
+        unit_range = UnitTypes.air_range(unit) if target.is_flying else UnitTypes.ground_range(unit)
+        target_range = UnitTypes.air_range(target) if unit.is_flying else UnitTypes.ground_range(target)
+        do_kite = unit_range > target_range and unit.movement_speed >= target.movement_speed
+        if do_kite:
+            target_distance = self.distance(unit, target) - target.radius - unit.radius
+            if target_distance < target_range + 0.8:
+                self.stay_at_max_range(unit, Units([target], bot_object=self.bot))
+                return
+        unit.attack(target)
 
     async def retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
@@ -169,8 +187,8 @@ class BaseUnitMicro(GeometryMixin):
             else:
                 if unit.is_mechanical:
                     repairers = self.bot.workers.filter(lambda unit: hasattr(unit, 'is_repairer')) or self.bot.workers
-                    if repairers:
-                        repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
+                    # if repairers:
+                    #     repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
                     if repairers:
                         unit.move(repairers.closest_to(unit))
                     else:
@@ -185,7 +203,7 @@ class BaseUnitMicro(GeometryMixin):
 
         # retreat if there is nothing this unit can attack
         do_retreat = False
-        if unit.can_attack:
+        if UnitTypes.can_attack(unit):
             visible_threats = threats.filter(lambda t: t.age == 0)
             targets = visible_threats.in_attack_range_of(unit, bonus_distance=3)
             if not targets:
@@ -295,18 +313,21 @@ class BaseUnitMicro(GeometryMixin):
         elif self.attack_something(unit, health_threshold=self.attack_health, force_move=force_move):
             pass
         elif force_move:
-            if previous_position is None or target.manhattan_distance(previous_position) > 1:
+            position_to_compare = target if unit.is_moving else unit.position
+            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
                 unit.move(target)
-                return True
+            return True
         elif await self.retreat(unit, health_threshold=self.retreat_health):
             pass
         else:
-            if previous_position is None or unit.is_moving and target.manhattan_distance(previous_position) > 1:
+            position_to_compare = target if unit.is_moving else unit.position
+            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
                 unit.move(target)
-                return True
+            return True
         return False
 
     async def scout(self, unit: Unit, scouting_location: Point2):
+        self.scout_tags.add(unit.tag)
         if unit.tag in self.bot.unit_tags_received_action:
             return
         logger.debug(f"scout {unit} health {unit.health}/{unit.health_max} ({unit.health_percentage}) health")
