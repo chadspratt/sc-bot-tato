@@ -23,7 +23,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     unconfirmed_grenade_throwers: list[int] = []
 
     excluded_types = [UnitTypeId.EGG, UnitTypeId.LARVA]
-    async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.health_percentage < self.attack_health:
             # too much risk of grenading self
             return False
@@ -50,7 +50,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         return False
 
-    def attack_something(self, unit, health_threshold, force_move: bool = False):
+    def _attack_something(self, unit, health_threshold, force_move: bool = False):
         if unit.health_percentage < self.attack_health:
             threats = self.enemy.threats_to(unit)
             if threats:
@@ -79,7 +79,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         #     return False
         return True
 
-    async def retreat(self, unit: Unit, health_threshold: float) -> bool:
+    async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
         threats = self.enemy.threats_to(unit, attack_range_buffer=3)
@@ -94,7 +94,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         # retreat if there is nothing this unit can attack
         do_retreat = False
         visible_threats = threats.filter(lambda t: t.age == 0)
-        targets = UnitTypes.in_attack_range_of(visible_threats, unit, bonus_distance=3)
+        targets = UnitTypes.in_attack_range_of(unit, visible_threats, bonus_distance=3)
         if not targets:
             do_retreat = True
 

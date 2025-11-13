@@ -7,24 +7,27 @@ from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.enemy import Enemy
 from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.micro.reaper_micro import ReaperMicro
-from bottato.micro.raven_micro import RavenMicro
-from bottato.micro.siege_tank_micro import SiegeTankMicro
-from bottato.micro.medivac_micro import MedivacMicro
-from bottato.micro.marine_micro import MarineMicro
 from bottato.micro.banshee_micro import BansheeMicro
+from bottato.micro.hellion_micro import HellionMicro
+from bottato.micro.marauder_micro import MarauderMicro
+from bottato.micro.marine_micro import MarineMicro
+from bottato.micro.medivac_micro import MedivacMicro
+from bottato.micro.raven_micro import RavenMicro
+from bottato.micro.reaper_micro import ReaperMicro
+from bottato.micro.siege_tank_micro import SiegeTankMicro
 from bottato.micro.viking_micro import VikingMicro
 
 
 micro_instances = {}
 micro_lookup = {
-    UnitTypeId.REAPER: ReaperMicro,
-    UnitTypeId.MARINE: MarineMicro,
-    UnitTypeId.RAVEN: RavenMicro,
-    UnitTypeId.SIEGETANK: SiegeTankMicro,
-    # UnitTypeId.SIEGETANKSIEGED: SiegeTankMicro,
-    UnitTypeId.MEDIVAC: MedivacMicro,
     UnitTypeId.BANSHEE: BansheeMicro,
+    UnitTypeId.HELLION: HellionMicro,
+    UnitTypeId.MARAUDER: MarauderMicro,
+    UnitTypeId.MARINE: MarineMicro,
+    UnitTypeId.MEDIVAC: MedivacMicro,
+    UnitTypeId.RAVEN: RavenMicro,
+    UnitTypeId.REAPER: ReaperMicro,
+    UnitTypeId.SIEGETANK: SiegeTankMicro,
     UnitTypeId.VIKINGFIGHTER: VikingMicro,
 }
 common_objects = {

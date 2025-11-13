@@ -18,18 +18,19 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
     target_assignments: dict[int, Unit] = {}  # viking tag -> enemy tag
     attack_health = 0.4
 
-    async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag in self.scout_tags:
             # scout mode, don't land
             return False
         if unit.is_flying:
-            nearby_enemies = self.bot.enemy_units.closer_than(25, unit)
+            nearby_enemies = self.bot.enemy_units.closer_than(25, unit) \
+                + self.bot.enemy_structures.of_type((UnitTypeId.MISSILETURRET, UnitTypeId.SPORECRAWLER)).closer_than(25, unit)
             if unit.health_percentage >= health_threshold:
-                # land if only ground enemies nearby
+                # don't land if there are air targets nearby
                 if not nearby_enemies:
                     nearby_enemies = self.bot.enemy_structures.closer_than(10, unit).filter(
                         lambda u: self.bot.get_terrain_height(u) <= self.bot.get_terrain_height(unit))
-                if nearby_enemies and len(nearby_enemies.filter(lambda u: u.is_flying)) == 0:
+                if nearby_enemies and len(nearby_enemies.filter(lambda u: u.is_flying or u.type_id == UnitTypeId.COLOSSUS)) == 0:
                     # land on enemy sieged tanks
                     if nearby_enemies.of_type(UnitTypeId.SIEGETANKSIEGED):
                         nearest_tank: Unit = nearby_enemies[0]
@@ -40,9 +41,11 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                         else:
                             unit(AbilityId.MORPH_VIKINGASSAULTMODE)
                         return True
-                    unit(AbilityId.MORPH_VIKINGASSAULTMODE)
-                    return True
-            else:
+                    if nearby_enemies.closest_distance_to(unit) < 10:
+                        # wait to land until closer to enemies
+                        unit(AbilityId.MORPH_VIKINGASSAULTMODE)
+                        return True
+            elif len(nearby_enemies) < 4:
                 # land if hurt and getting chased down by a faster unit
                 aerial_threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_air(u)
                                                        and not UnitTypes.can_attack_ground(u)
@@ -51,17 +54,21 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                     unit(AbilityId.MORPH_VIKINGASSAULTMODE)
                     return True
         else:
-            nearby_enemies = self.bot.enemy_units.closer_than(27, unit)
+            nearby_enemies = self.bot.enemy_units.closer_than(27, unit) \
+                + self.bot.enemy_structures.of_type((UnitTypeId.MISSILETURRET, UnitTypeId.SPORECRAWLER)).closer_than(27, unit)
             if unit.health_percentage < health_threshold:
-                ground_threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_ground(u)
-                                                       and not UnitTypes.can_attack_air(u))
-                if ground_threats:
-                    unit(AbilityId.MORPH_VIKINGFIGHTERMODE)
-                    return True
+                aerial_threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_air(u)
+                                                       and not UnitTypes.can_attack_ground(u))
+                if not aerial_threats:
+                    ground_threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_ground(u)
+                                                        and not UnitTypes.can_attack_air(u))
+                    if ground_threats:
+                        unit(AbilityId.MORPH_VIKINGFIGHTERMODE)
+                        return True
             if not nearby_enemies:
                 nearby_enemies = self.bot.enemy_structures.closer_than(10, unit).filter(
                     lambda u: self.bot.get_terrain_height(u) <= self.bot.get_terrain_height(unit))
-            if not nearby_enemies or len(nearby_enemies.filter(lambda u: u.is_flying and UnitTypes.can_attack(u))) > 0:
+            if not nearby_enemies or len(nearby_enemies.filter(lambda u: (u.is_flying or u.type_id == UnitTypeId.COLOSSUS) and UnitTypes.can_attack(u))) > 0:
                 # take off if no enemies or any fliers nearby
                 unit(AbilityId.MORPH_VIKINGFIGHTERMODE)
                 return True
@@ -71,7 +78,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 return True
         return False
 
-    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         if force_move:
             return False
         if unit.tag in self.bot.unit_tags_received_action:
@@ -90,7 +97,9 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             # make lists of vikings that can attack each enemy
             damage_vs_type: dict[int, float] = {}
             for viking in vikings:
-                enemies = UnitTypes.in_attack_range_of(self.bot.enemy_units, viking, bonus_distance=5).filter(
+                if not viking.is_flying:
+                    continue
+                enemies = UnitTypes.in_attack_range_of(viking, self.bot.enemy_units, bonus_distance=5).filter(
                     lambda unit: unit.can_be_attacked)
                 for enemy in enemies:
                     if enemy.type_id not in damage_vs_type:
@@ -128,28 +137,25 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                             if enemy_health <= 0:
                                 break
 
-        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if unit.tag in self.target_assignments:
             target = self.target_assignments[unit.tag]
-            self.kite(unit, target)
-            return True
+            if self._kite(unit, target):
+                return True
 
-        tank_to_retreat_to = self.tank_to_retreat_to(unit)
-        if tank_to_retreat_to:
-            unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
+        if self._retreat_to_tank(unit):
             return True
 
         bonus_distance = 2 if unit.is_flying else 4
-        candidates = UnitTypes.in_attack_range_of(self.bot.enemy_units, unit, bonus_distance).filter(
+        candidates = UnitTypes.in_attack_range_of(unit, self.bot.enemy_units, bonus_distance).filter(
             lambda unit: unit.can_be_attacked and unit.armor < 10)
         if len(candidates) == 0:
-            candidates = UnitTypes.in_attack_range_of(self.bot.enemy_structures, unit, bonus_distance)
+            candidates = UnitTypes.in_attack_range_of(unit, self.bot.enemy_structures, bonus_distance)
         if not candidates:
             return False
 
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if can_attack:
             closest_target = candidates.closest_to(unit)
-            self.kite(unit, closest_target)
-        else:
-            self.stay_at_max_range(unit, candidates)
-        return True
+            return self._kite(unit, closest_target)
+
+        return self._stay_at_max_range(unit, candidates)

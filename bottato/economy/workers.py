@@ -195,7 +195,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if assignment.on_attack_break \
                     or not assignment.unit_available \
                     or assignment.job_type not in [JobType.MINERALS, JobType.VESPENE] \
-                    or await self.worker_micro.retreat(assignment.unit, 1.0):
+                    or await self.worker_micro._retreat(assignment.unit, 1.0):
                 continue
             
             if not self.bot.townhalls.ready:

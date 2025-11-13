@@ -12,8 +12,9 @@ from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin
 
 
-class MarineMicro(BaseUnitMicro, GeometryMixin):
+class MarauderMicro(BaseUnitMicro, GeometryMixin):
     attack_health: float = 0.51
+    retreat_health: float = 0.7
     last_stim_time: dict[int, int] = {}
     stim_researched: bool = False
     attack_range: float = 5.0
@@ -75,7 +76,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
         return False
 
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
-        if unit.health_percentage < 0.7:
+        if unit.health_percentage < health_threshold:
             return self._retreat_to_medivac(unit)
         elif unit.tag in self.healing_unit_tags:
             if unit.health_percentage < 0.9:

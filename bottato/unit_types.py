@@ -398,18 +398,13 @@ class UnitTypes():
         """
         if not unit.is_ready:
             return False
-        if target.is_flying:
-            if not UnitTypes.can_attack_air(unit):
-                return False
-            attack_range = UnitTypes.air_range(unit)
-        else:
-            if not UnitTypes.can_attack_ground(unit):
-                return False
-            attack_range = UnitTypes.ground_range(unit)
+        attack_range = UnitTypes.range_vs_target(unit, target)
+        if attack_range == 0.0:
+            return False
         distance = unit.distance_to_squared(target)
         return distance <= (unit.radius + target.radius + attack_range + bonus_distance) ** 2
     
-    def in_attack_range_of(units: Units, attacker: Unit, bonus_distance: float = 0.0) -> Units:
+    def in_attack_range_of(attacker: Unit, units: Units, bonus_distance: float = 0.0) -> Units:
         """
         Filter a set of units to those that are in attack range of the given attacker unit.
         """
@@ -418,3 +413,20 @@ class UnitTypes():
             if UnitTypes.target_in_range(attacker, unit, bonus_distance):
                 in_range_units.append(unit)
         return in_range_units
+    
+    def range_vs_target(attacker: Unit, target: Unit) -> float:
+        """
+        Get the attack range of the attacker unit against the target unit.
+        """
+        if target.is_flying:
+            return UnitTypes.air_range(attacker)
+        elif target.type_id == UnitTypeId.COLOSSUS:
+            return max(UnitTypes.ground_range(attacker), UnitTypes.air_range(attacker))
+        else:
+            return UnitTypes.ground_range(attacker)
+        
+    def can_attack_target(attacker: Unit, target: Unit) -> bool:
+        """
+        Check if the attacker unit can attack the target unit.
+        """
+        return UnitTypes.range_vs_target(attacker, target) > 0

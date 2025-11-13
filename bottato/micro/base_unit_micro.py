@@ -6,7 +6,7 @@ from sc2.units import Units
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.position import Point2
-from sc2.constants import UnitTypeId
+from sc2.constants import UnitTypeId, TARGET_AIR, TARGET_GROUND
 from sc2.ids.effect_id import EffectId
 from sc2.ids.ability_id import AbilityId
 
@@ -22,6 +22,7 @@ class BaseUnitMicro(GeometryMixin):
     retreat_health: float = 0.75
     time_in_frames_to_attack: float = 0.25 * 22.4
     scout_tags: set[int] = set()
+    healing_unit_tags: set[int] = set()
     
     damaging_effects = [
         EffectId.PSISTORMPERSISTENT,
@@ -43,7 +44,81 @@ class BaseUnitMicro(GeometryMixin):
         self.enemy: Enemy = enemy
         self.map: Map = map
 
-    def avoid_effects(self, unit: Unit, force_move: bool) -> bool:
+    ###########################################################################
+    # meta actions - used by non-micro classes to order units
+    ###########################################################################
+    async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 = None) -> bool:
+        attack_health = self.attack_health
+        if force_move and unit.distance_to_squared(target) < 225:
+            # force move is used for retreating. allow attacking and other micro when near staging location
+            attack_health = 0.0
+            force_move = False
+            
+        if unit.tag in self.bot.unit_tags_received_action:
+            return
+        if self._avoid_effects(unit, force_move):
+            pass
+        elif await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
+            pass
+        elif self._attack_something(unit, health_threshold=attack_health, force_move=force_move):
+            pass
+        elif force_move:
+            position_to_compare = target if unit.is_moving else unit.position
+            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
+                unit.move(target)
+            return True
+        elif await self._retreat(unit, health_threshold=self.retreat_health):
+            pass
+        else:
+            position_to_compare = target if unit.is_moving else unit.position
+            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
+                unit.move(target)
+            return True
+        return False
+
+    async def scout(self, unit: Unit, scouting_location: Point2):
+        self.scout_tags.add(unit.tag)
+        if unit.tag in self.bot.unit_tags_received_action:
+            return
+        logger.debug(f"scout {unit} health {unit.health}/{unit.health_max} ({unit.health_percentage}) health")
+
+        if self._avoid_effects(unit, False):
+            logger.debug(f"unit {unit} avoiding effects")
+        elif await self._use_ability(unit, scouting_location, health_threshold=1.0):
+            pass
+        elif await self._retreat(unit, health_threshold=0.95):
+            pass
+        elif unit.type_id == UnitTypeId.VIKINGFIGHTER and self._attack_something(unit, health_threshold=1.0):
+            pass
+        # elif await self.retreat(unit, health_threshold=0.5):
+        #     pass
+        else:
+            logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")
+            unit.move(scouting_location)
+
+    async def repair(self, unit: Unit, target: Unit):
+        if unit.tag in self.bot.unit_tags_received_action:
+            return
+        if self._avoid_effects(unit, force_move=False):
+            logger.debug(f"unit {unit} avoiding effects")
+        elif self.bot.time < 360 and target.type_id in (UnitTypeId.BARRACKS, UnitTypeId.BARRACKSREACTOR, UnitTypeId.BARRACKSTECHLAB, UnitTypeId.SUPPLYDEPOT):
+            # keep ramp wall repaired early game
+            unit.repair(target)
+        else:
+            if self._retreat_to_tank(unit):
+                logger.debug(f"unit {unit} retreating to tank")
+            elif await self._retreat(unit, health_threshold=0.25):
+                logger.debug(f"unit {unit} retreating while repairing {target}")
+            elif not target.is_structure and unit.distance_to(target) > unit.radius + target.radius + 0.5:
+                # sometimes they get in a weird state where they run from the target
+                unit.move(target.position)
+            else:
+                unit.repair(target)
+
+    ###########################################################################
+    # main actions - iterated through by meta actions
+    ###########################################################################
+    def _avoid_effects(self, unit: Unit, force_move: bool) -> bool:
         # avoid damaging effects
         effects_to_avoid = []
         for effect in self.bot.state.effects:
@@ -78,10 +153,17 @@ class BaseUnitMicro(GeometryMixin):
             return True
         return False
 
-    async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         return False
 
-    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+    offensive_structure_types = (
+        UnitTypeId.BUNKER,
+        UnitTypeId.PHOTONCANNON,
+        UnitTypeId.MISSILETURRET,
+        UnitTypeId.SPINECRAWLER,
+        UnitTypeId.SPORECRAWLER,
+    )
+    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         if force_move:
             return False
         if unit.tag in self.bot.unit_tags_received_action:
@@ -90,9 +172,10 @@ class BaseUnitMicro(GeometryMixin):
             return False
         candidates = []
 
-        candidates = UnitTypes.in_attack_range_of(self.bot.enemy_units, unit, bonus_distance=3).filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
+        attackable_enemies = self.bot.enemy_units.filter(lambda u: u.can_be_attacked and u.armor < 10) + self.bot.enemy_structures.of_type(self.offensive_structure_types)
+        candidates = UnitTypes.in_attack_range_of(unit, attackable_enemies, bonus_distance=3)
         if len(candidates) == 0:
-            candidates = UnitTypes.in_attack_range_of(self.bot.enemy_structures, unit)
+            candidates = UnitTypes.in_attack_range_of(unit, self.bot.enemy_structures)
 
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if unit.is_flying and can_attack and candidates:
@@ -106,9 +189,7 @@ class BaseUnitMicro(GeometryMixin):
                     unit.attack(lowest_target)
                 return True
 
-        tank_to_retreat_to = self.tank_to_retreat_to(unit)
-        if tank_to_retreat_to:
-            unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
+        if self._retreat_to_tank(unit):
             return True
 
         if not candidates:
@@ -117,63 +198,11 @@ class BaseUnitMicro(GeometryMixin):
         if can_attack:
             lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health + enemy_unit.shield).first
             unit.attack(lowest_target)
-        else:
-            self.stay_at_max_range(unit, candidates)
-        return True
+            return True
+        
+        return self._stay_at_max_range(unit, candidates)
 
-    def stay_at_max_range(self, unit: Unit, targets: Units = None):
-        # move away if weapon on cooldown
-        nearest_target = targets.closest_to(unit)
-        if not unit.is_flying:
-            nearest_sieged_tank = None
-            if nearest_target.type_id == UnitTypeId.SIEGETANKSIEGED:
-                nearest_sieged_tank = nearest_target
-            else:
-                enemy_tanks = targets.of_type(UnitTypeId.SIEGETANKSIEGED)
-                if enemy_tanks:
-                    nearest_sieged_tank = enemy_tanks.closest_to(unit)
-
-            if nearest_sieged_tank:
-                distance_to_tank = unit.distance_to(nearest_sieged_tank)
-                if distance_to_tank < 7:
-                    # dive on sieged tanks
-                    attack_range = 0
-                    target_position = nearest_sieged_tank.position.towards(unit, attack_range)
-                    unit.move(target_position)
-                    return
-                if distance_to_tank < 15:
-                    attack_range = 14
-                    target_position = nearest_sieged_tank.position.towards(unit, attack_range)
-                    unit.move(target_position)
-                    return
-
-        attack_range = UnitTypes.ground_range(unit)
-        if nearest_target.is_flying:
-            attack_range = UnitTypes.air_range(unit)
-        future_enemy_position = nearest_target.position
-        if nearest_target.distance_to(unit) > attack_range / 2:
-            future_enemy_position = self.enemy.get_predicted_position(nearest_target, unit.weapon_cooldown / 22.4)
-        target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius)
-        unit.move(target_position)
-
-    def kite(self, unit: Unit, target: Unit = None):
-        if target is None:
-            return
-        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
-        if not can_attack:
-            self.stay_at_max_range(unit, Units([target], bot_object=self.bot))
-            return
-        unit_range = UnitTypes.air_range(unit) if target.is_flying else UnitTypes.ground_range(unit)
-        target_range = UnitTypes.air_range(target) if unit.is_flying else UnitTypes.ground_range(target)
-        do_kite = unit_range > target_range and unit.movement_speed >= target.movement_speed
-        if do_kite:
-            target_distance = self.distance(unit, target) - target.radius - unit.radius
-            if target_distance < target_range + 0.8:
-                self.stay_at_max_range(unit, Units([target], bot_object=self.bot))
-                return
-        unit.attack(target)
-
-    async def retreat(self, unit: Unit, health_threshold: float) -> bool:
+    async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
         threats = self.enemy.threats_to(unit)
@@ -205,7 +234,7 @@ class BaseUnitMicro(GeometryMixin):
         do_retreat = False
         if UnitTypes.can_attack(unit):
             visible_threats = threats.filter(lambda t: t.age == 0)
-            targets = UnitTypes.in_attack_range_of(visible_threats, unit, bonus_distance=3)
+            targets = UnitTypes.in_attack_range_of(unit, visible_threats, bonus_distance=3)
             if not targets:
                 if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
                     unit(AbilityId.UNSIEGE_UNSIEGE)
@@ -228,49 +257,99 @@ class BaseUnitMicro(GeometryMixin):
                 return True
             retreat_position = unit.position.towards(avg_threat_position, -5)
             # .towards(self.bot.start_location, 2)
-            if unit.is_flying or self.bot.in_pathing_grid(retreat_position):
-                unit.move(retreat_position)
+            if self._move_to_pathable_position(unit, retreat_position):
+                return True
+
+            if unit.position == avg_threat_position:
+                # avoid divide by zero
+                unit.move(self.bot.start_location)
             else:
-                if unit.position == avg_threat_position:
-                    # avoid divide by zero
-                    unit.move(self.bot.start_location)
-                else:
-                    threat_to_unit_vector = (unit.position - avg_threat_position).normalized
-                    tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
-                    away_from_enemy_position = unit.position.towards(avg_threat_position, -1)
-                    circle_around_positions = [away_from_enemy_position + tangent_vector, away_from_enemy_position - tangent_vector]
-                    path_to_start = self.map.get_path_points(unit.position, self.bot.start_location)
-                    next_waypoint = self.bot.start_location
-                    if len(path_to_start) > 1:
-                        next_waypoint = path_to_start[1]
-                    circle_around_positions.sort(key=lambda pos: pos.distance_to(next_waypoint))
-                    unit.move(circle_around_positions[0].towards(self.bot.start_location, 2))
+                threat_to_unit_vector = (unit.position - avg_threat_position).normalized
+                tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
+                away_from_enemy_position = unit.position.towards(avg_threat_position, -1)
+                circle_around_positions = [away_from_enemy_position + tangent_vector, away_from_enemy_position - tangent_vector]
+                path_to_start = self.map.get_path_points(unit.position, self.bot.start_location)
+                next_waypoint = self.bot.start_location
+                if len(path_to_start) > 1:
+                    next_waypoint = path_to_start[1]
+                circle_around_positions.sort(key=lambda pos: pos.distance_to(next_waypoint))
+                unit.move(circle_around_positions[0].towards(self.bot.start_location, 2))
             return True
         return False
 
-    def retreat_to_medivac(self, unit: Unit) -> bool:
+    ###########################################################################
+    # utility behaviors - used by main actions
+    ###########################################################################
+    def _stay_at_max_range(self, unit: Unit, targets: Units = None) -> bool:
+        # move away if weapon on cooldown
+        nearest_target = targets.closest_to(unit)
+        if not unit.is_flying:
+            nearest_sieged_tank = None
+            if nearest_target.type_id == UnitTypeId.SIEGETANKSIEGED:
+                nearest_sieged_tank = nearest_target
+            else:
+                enemy_tanks = targets.of_type(UnitTypeId.SIEGETANKSIEGED)
+                if enemy_tanks:
+                    nearest_sieged_tank = enemy_tanks.closest_to(unit)
+
+            if nearest_sieged_tank:
+                distance_to_tank = unit.distance_to(nearest_sieged_tank)
+                if distance_to_tank < 7:
+                    # dive on sieged tanks
+                    attack_range = 0
+                    target_position = nearest_sieged_tank.position.towards(unit, attack_range)
+                    return self._move_to_pathable_position(unit, target_position)
+                if distance_to_tank < 15:
+                    attack_range = 14
+                    target_position = nearest_sieged_tank.position.towards(unit, attack_range)
+                    return self._move_to_pathable_position(unit, target_position)
+
+        attack_range = UnitTypes.range_vs_target(unit, nearest_target)
+        future_enemy_position = nearest_target.position
+        if nearest_target.distance_to(unit) > attack_range / 2:
+            future_enemy_position = self.enemy.get_predicted_position(nearest_target, unit.weapon_cooldown / 22.4)
+        target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius)
+        return self._move_to_pathable_position(unit, target_position)
+
+    weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
+
+    def _kite(self, unit: Unit, target: Unit = None) -> bool:
+        if target is None:
+            return False
+
+        attack_range = UnitTypes.range_vs_target(unit, target)
+        target_range = UnitTypes.range_vs_target(target, unit)
+        do_kite = attack_range > target_range and unit.movement_speed >= target.movement_speed
+        if do_kite:
+            # can attack while staying out of range
+            target_distance = self.distance(unit, target) - target.radius - unit.radius
+            if target_distance < target_range + 0.8:
+                if self._stay_at_max_range(unit, Units([target], bot_object=self.bot)):
+                    return True
+        unit.attack(target)
+        return True
+    
+    def _move_to_pathable_position(self, unit: Unit, position: Point2) -> bool:
+        if unit.is_flying and self.bot.in_map_bounds(position) or self.bot.in_pathing_grid(position):
+            unit.move(position)
+            return True
+        return False
+
+    def _retreat_to_medivac(self, unit: Unit) -> bool:
         medivacs = self.bot.units.filter(lambda unit: unit.type_id == UnitTypeId.MEDIVAC and unit.energy > 5 and unit.cargo_used == 0)
         if medivacs:
             nearest_medivac = medivacs.closest_to(unit)
             if unit.distance_to(nearest_medivac) > 4:
                 unit.move(nearest_medivac)
             else:
-                self.attack_something(unit, 0.0)
+                self._attack_something(unit, 0.0)
             logger.debug(f"{unit} marine retreating to heal at {nearest_medivac} hp {unit.health_percentage}")
             self.healing_unit_tags.add(unit.tag)
-        # elif self.bot.townhalls:
-        #     landed_townhalls = self.bot.townhalls.filter(lambda th: not th.is_flying)
-        #     if landed_townhalls:
-        #         closest_townhall = landed_townhalls.closest_to(unit)
-        #     if closest_townhall and unit.distance_to(closest_townhall) > 5:
-        #         unit.move(closest_townhall)
-        #     else:
-        #         self.attack_something(unit, 0.0)
         else:
             return False
         return True
         
-    def tank_to_retreat_to(self, unit: Unit) -> Unit | None:
+    def _retreat_to_tank(self, unit: Unit) -> bool:
         excluded_enemy_types = [
             UnitTypeId.PROBE,
             UnitTypeId.SCV,
@@ -283,85 +362,24 @@ class BaseUnitMicro(GeometryMixin):
         ]
         tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))
         if not tanks:
-            return None
+            return False
 
         close_enemies = self.bot.enemy_units.closer_than(15, unit).filter(
             lambda u: u.type_id not in excluded_enemy_types and not u.is_flying and UnitTypes.can_attack_ground(u) and u.unit_alias != UnitTypeId.CHANGELING)
         if len(close_enemies) < 8:
-            return None
+            return False
         
         closest_enemy = close_enemies.closest_to(unit)
         if not closest_enemy or closest_enemy.is_flying:
-            return None
+            return False
 
         nearest_tank = tanks.closest_to(unit)
         tank_to_enemy_distance = self.distance(nearest_tank, closest_enemy)
         if tank_to_enemy_distance > 13.5 + nearest_tank.radius + closest_enemy.radius and tank_to_enemy_distance < 40:
-            return nearest_tank
+            unit.move(unit.position.towards(nearest_tank.position, 2))
+            return True
         elif tank_to_enemy_distance < unit.distance_to(closest_enemy):
             # defend tank if it's closer to enemy than unit
-            return nearest_tank
-        return None
-
-    async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 = None) -> bool:
-        if unit.tag in self.bot.unit_tags_received_action:
-            return
-        if self.avoid_effects(unit, force_move):
-            pass
-        elif await self.use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
-            pass
-        elif self.attack_something(unit, health_threshold=self.attack_health, force_move=force_move):
-            pass
-        elif force_move:
-            position_to_compare = target if unit.is_moving else unit.position
-            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-                unit.move(target)
-            return True
-        elif await self.retreat(unit, health_threshold=self.retreat_health):
-            pass
-        else:
-            position_to_compare = target if unit.is_moving else unit.position
-            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-                unit.move(target)
+            unit.move(unit.position.towards(nearest_tank.position, 2))
             return True
         return False
-
-    async def scout(self, unit: Unit, scouting_location: Point2):
-        self.scout_tags.add(unit.tag)
-        if unit.tag in self.bot.unit_tags_received_action:
-            return
-        logger.debug(f"scout {unit} health {unit.health}/{unit.health_max} ({unit.health_percentage}) health")
-
-        if self.avoid_effects(unit, False):
-            logger.debug(f"unit {unit} avoiding effects")
-        elif await self.use_ability(unit, scouting_location, health_threshold=1.0):
-            pass
-        elif await self.retreat(unit, health_threshold=0.95):
-            pass
-        elif unit.type_id == UnitTypeId.VIKINGFIGHTER and self.attack_something(unit, health_threshold=1.0):
-            pass
-        # elif await self.retreat(unit, health_threshold=0.5):
-        #     pass
-        else:
-            logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")
-            unit.move(scouting_location)
-
-    async def repair(self, unit: Unit, target: Unit):
-        if unit.tag in self.bot.unit_tags_received_action:
-            return
-        if self.avoid_effects(unit, force_move=False):
-            logger.debug(f"unit {unit} avoiding effects")
-        elif self.bot.time < 360 and target.type_id in (UnitTypeId.BARRACKS, UnitTypeId.BARRACKSREACTOR, UnitTypeId.BARRACKSTECHLAB, UnitTypeId.SUPPLYDEPOT):
-            # keep ramp wall repaired early game
-            unit.repair(target)
-        else:
-            tank_to_retreat_to = self.tank_to_retreat_to(unit)
-            if tank_to_retreat_to:
-                unit.move(unit.position.towards(tank_to_retreat_to.position, 2))
-            elif await self.retreat(unit, health_threshold=0.25):
-                logger.debug(f"unit {unit} retreating while repairing {target}")
-            elif not target.is_structure and unit.distance_to(target) > unit.radius + target.radius + 0.5:
-                # sometimes they get in a weird state where they run from the target
-                unit.move(target.position)
-            else:
-                unit.repair(target)

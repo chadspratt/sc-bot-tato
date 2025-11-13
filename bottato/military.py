@@ -263,7 +263,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 for e in enemy_group:
                     self.countered_enemies[e.tag] = defense_squad
                 await defense_squad.move(self.enemy.predicted_position[enemy.tag])
-                logger.info(f"defending against {enemy_group} at {enemy.position} with {defense_squad}")
+                # logger.info(f"defending against {enemy_group} at {enemy.position} with {defense_squad}")
                 break
         self.stop_timer("military enemies_in_base counter")
         self.stop_timer("military enemies_in_base")
@@ -600,7 +600,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.damage_by_type[attacker.type_id] = {}
             for target in targets:
                 if target.type_id not in self.damage_by_type[attacker.type_id]:
-                    if self.can_attack(attacker, target):
+                    if UnitTypes.can_attack_target(attacker, target):
                         dps = attacker.calculate_dps_vs_target(target)
                     else:
                         dps = 0.0
@@ -664,7 +664,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     elif remaining_health[friendly_unit.tag] <= 0:
                         continue
 
-                    if self.can_attack(friendly_unit, enemy_unit):
+                    if UnitTypes.can_attack_target(friendly_unit, enemy_unit):
                         enemy_can_be_attacked = True
                         # init friendly dps
                         if friendly_unit.tag not in remaining_dps:
@@ -676,7 +676,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                             remaining_dps[friendly_unit.tag] -= smaller_amount
                             logger.debug(f"subtracting {smaller_amount} from enemy health {enemy_unit}:{remaining_health[enemy_unit.tag]} and friendly dps  - {friendly_unit}{remaining_dps[friendly_unit.tag]}")
 
-                    if self.can_attack(enemy_unit, friendly_unit):
+                    if UnitTypes.can_attack_target(enemy_unit, friendly_unit):
                         if friendly_unit.tag in unattackable_friendly_tags:
                             unattackable_friendly_tags.remove(friendly_unit.tag)
                         # init enemy dps
@@ -707,10 +707,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 break
         self.stop_timer("simulate_battle")
         return (unmatched_friendlies, unmatched_enemies)
-
-    def can_attack(self, source: Unit, target: Unit):
-        return UnitTypes.can_attack_ground(source) and not target.is_flying or (
-            UnitTypes.can_attack_air(source) and (target.is_flying or target.type_id == UnitTypeId.COLOSSUS))
 
     def report(self):
         _report = "[==MILITARY==] "

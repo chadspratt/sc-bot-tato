@@ -25,7 +25,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
 
     excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.SCV, UnitTypeId.MULE,
                         UnitTypeId.DRONE, UnitTypeId.PROBE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.EGG, UnitTypeId.LARVA]
-    async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if force_move:
             return False
         if unit.energy < self.turret_energy_cost:
@@ -43,8 +43,8 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             nearby_enemies = self.bot.enemy_units.filter(lambda enemy: enemy.type_id not in self.excluded_types and enemy.distance_to_squared(unit) < 225)
             most_grouped_enemy, grouped_enemies = self.get_most_grouped_unit(nearby_enemies, 3.5)
             if grouped_enemies.amount >= 5:
-                self.fire_missile(unit, most_grouped_enemy)
-                return True
+                if self.fire_missile(unit, most_grouped_enemy):
+                    return True
 
         enemy_unit, enemy_distance = self.enemy.get_closest_target(unit, distance_limit=20, include_structures=False, include_destructables=False,
                                                                    include_out_of_view=False, excluded_types=self.excluded_types)
@@ -62,11 +62,13 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         return await self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
         
 
-    def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         if unit.health_percentage < health_threshold:
             return False
         # stay safe
-        threats = self.bot.enemy_units.filter(lambda enemy: UnitTypes.can_attack_air(enemy))
+        threats = self.bot.enemy_units.filter(lambda enemy: UnitTypes.can_attack_air(enemy)) \
+            + self.bot.enemy_structures.filter(lambda enemy: enemy.type_id in self.offensive_structure_types
+                                               and UnitTypes.can_attack_air(enemy))
         if threats:
             nearest_threat = threats.closest_to(unit)
             if nearest_threat.distance_to(unit) < unit.sight_range:
@@ -89,29 +91,29 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                 self.missing_hidden_units.add(closest_unit.tag)
         return False
 
-    async def attack_with_turret(self, unit: Unit, target: Point2):
+    async def attack_with_turret(self, unit: Unit, target: Point2) -> bool:
         self.bot.client.debug_line_out(unit, self.convert_point2_to_3(target), (100, 255, 50))
         turret_position = target.towards(unit, self.turret_attack_range - 1, limit=True)
-        await self.drop_turret(unit, turret_position)
         logger.debug(f"{unit} trying to drop turret at {turret_position} to attack {target} at {target.position}")
-        return True
+        return await self.drop_turret(unit, turret_position)
 
-    async def drop_turret(self, unit: Unit, target: Point2):
+    async def drop_turret(self, unit: Unit, target: Point2) -> bool:
         position = await self.bot.find_placement(UnitTypeId.AUTOTURRET, target, placement_step=1, max_distance=2)
         if position:
             unit(AbilityId.BUILDAUTOTURRET_AUTOTURRET, position)
             return True
         return False
 
-    def fire_missile(self, unit: Unit, target: Unit):
+    def fire_missile(self, unit: Unit, target: Unit) -> bool:
         if unit.tag in self.last_missile_launch:
             last_time, energy_before_launch = self.last_missile_launch[unit.tag]
             if self.bot.time - last_time < 11:
                 if unit.energy < energy_before_launch:
                     # just launched a missile
-                    return
+                    return False
         self.last_missile_launch[unit.tag] = (self.bot.time, unit.energy)
         unit(AbilityId.EFFECT_ANTIARMORMISSILE, target)
+        return True
 
     def interfere(self, unit: Unit, target: Unit):
         unit(AbilityId.EFFECT_INTERFERENCEMATRIX, target)

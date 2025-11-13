@@ -190,13 +190,11 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                          if UnitTypes.target_in_range(enemy_unit, friendly_unit, attack_range_buffer)],
                         self.bot)
         for enemy_unit in self.recent_out_of_view():
-            if UnitTypes.can_attack_ground(enemy_unit) and not friendly_unit.is_flying:
-                enemy_attack_range = UnitTypes.ground_range(enemy_unit) + enemy_unit.distance_per_step
-            elif UnitTypes.can_attack_air(enemy_unit) and (friendly_unit.is_flying or friendly_unit.type_id == UnitTypeId.COLOSSUS):
-                enemy_attack_range = UnitTypes.air_range(enemy_unit) + enemy_unit.distance_per_step
-            else:
+            enemy_attack_range = UnitTypes.range_vs_target(enemy_unit, friendly_unit)
+            if enemy_attack_range == 0.0:
                 continue
-            if friendly_unit.distance_to(self.predicted_position[enemy_unit.tag]) < enemy_attack_range:
+            enemy_attack_range += attack_range_buffer
+            if friendly_unit.distance_to(self.predicted_position[enemy_unit.tag]) <= enemy_attack_range:
                 threats.append(enemy_unit)
         return threats
 
@@ -205,7 +203,10 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                          if UnitTypes.target_in_range(enemy_unit, friendly_unit, attack_range_buffer)],
                         self.bot)
         for enemy_unit in self.recent_out_of_view():
-            enemy_attack_range = UnitTypes.ground_range(enemy_unit) + enemy_unit.distance_per_step
+            enemy_attack_range = UnitTypes.ground_range(enemy_unit)
+            if enemy_attack_range == 0.0:
+                continue
+            enemy_attack_range += attack_range_buffer
             if friendly_unit.distance_to(self.predicted_position[enemy_unit.tag]) < enemy_attack_range:
                 threats.append(enemy_unit)
         return threats
@@ -296,10 +297,8 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         candidates = self.get_candidates(include_structures, include_units, include_destructables, excluded_types)
         for candidate in candidates:
             range = self.distance(friendly_unit, candidate) - friendly_unit.radius - candidate.radius
-            if candidate.is_flying:
-                if range < UnitTypes.air_range(friendly_unit):
-                    enemies_in_range.append(candidate)
-            elif range < UnitTypes.ground_range(friendly_unit) or candidate.type_id == UnitTypeId.COLOSSUS and range < UnitTypes.air_range(friendly_unit):
+            attack_range = UnitTypes.range_vs_target(friendly_unit, candidate)
+            if range <= attack_range:
                 enemies_in_range.append(candidate)
         return enemies_in_range
 
@@ -337,5 +336,5 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         return self.enemies_out_of_view.filter(
             lambda enemy_unit: self.bot.time - self.last_seen[enemy_unit.tag] < Enemy.unit_probably_moved_seconds)
 
-    def can_attack(self, friendly: Unit, enemy: Unit) -> bool:
-        return UnitTypes.can_attack_ground(friendly) and not enemy.is_flying or UnitTypes.can_attack_air(friendly) and (enemy.is_flying or enemy.type_id == UnitTypeId.COLOSSUS)
+    def can_attack(self, attacker: Unit, target: Unit) -> bool:
+        return UnitTypes.range_vs_target(attacker, target) > 0.0

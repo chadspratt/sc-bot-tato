@@ -28,7 +28,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     previous_positions: dict[int, Point2] = {}
     early_game_siege_positions: dict[int, Point2] = {}
 
-    async def use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag not in self.known_tags:
             self.known_tags.add(unit.tag)
             self.unsieged_tags.add(unit.tag)
@@ -165,7 +165,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             friendlies_nearest_to_enemy = self.bot.units.closest_n_units(closest_enemy.position, 5)
             has_friendly_buffer = unit not in friendlies_nearest_to_enemy
             if closest_enemy.age == 0:
-                structures_under_threat = UnitTypes.in_attack_range_of(self.bot.structures, closest_enemy)
+                structures_under_threat = UnitTypes.in_attack_range_of(closest_enemy, self.bot.structures)
 
         if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
             if is_sieged and (closest_distance > self.sieged_range - 2 or closest_enemy.age != 0) and not has_friendly_buffer:

@@ -47,7 +47,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
         turret: Unit
         for turret in self.bot.structures(UnitTypeId.AUTOTURRET):
             logger.debug(f"turret {turret} attacking")
-            self.attack_something(turret, 0)
+            self._attack_something(turret, 0)
 
     async def move_command_centers(self):
         for cc in self.bot.structures((UnitTypeId.COMMANDCENTER, UnitTypeId.COMMANDCENTERFLYING, UnitTypeId.ORBITALCOMMAND, UnitTypeId.ORBITALCOMMANDFLYING)).ready:

@@ -26,6 +26,7 @@ from bottato.counter import Counter
 
 class BuildOrder(TimerMixin, UnitReferenceMixin):
     # gets processed first, for supply depots and workers
+    interrupted_queue: List[BuildStep] = []
     priority_queue: List[BuildStep] = []
     # initial build order and interrupted builds
     static_queue: List[BuildStep] = []
@@ -122,6 +123,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
     
     def get_build_queue_string(self):
         build_order_message = f"started={'\n'.join([step.friendly_name for step in self.started])}"
+        build_order_message += f"\ninterrupted={'\n'.join([step.friendly_name for step in self.interrupted_queue])}"
         build_order_message += f"\npriority={'\n'.join([step.friendly_name for step in self.priority_queue])}"
         build_order_message += f"\nstatic={'\n'.join([step.friendly_name for step in self.static_queue])}"
         build_order_message += f"\nbuild_queue={'\n'.join([step.friendly_name for step in self.build_queue])}"
@@ -164,7 +166,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 logger.info(f"{step} interrupted too many times, removing from build order")
                 continue
             if step.unit_type_id not in self.unit_types.TERRAN:
-                self.static_queue.insert(0, step)
+                self.interrupted_queue.insert(0, step)
             else:
                 self.build_queue.insert(0, step)
         for structure in self.bot.structures_without_construction_SCVs:
@@ -176,7 +178,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 else:
                     build_step = self.create_build_step(structure.type_id)
                     build_step.unit_being_built = structure
-                    self.static_queue.insert(0, build_step)
+                    self.interrupted_queue.insert(0, build_step)
         self.stop_timer("move_interupted_to_pending")
 
     def enact_rush_defense(self) -> None:
@@ -318,7 +320,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.stop_timer("queue_supply")
 
     def get_in_progress_count(self, unit_type: UnitTypeId) -> int:
-        return sum([build_step.unit_type_id == unit_type for build_step in self.started])
+        return sum([build_step.unit_type_id == unit_type for build_step in self.started + self.interrupted_queue])
 
     def get_queued_count(self, unit_type: UnitTypeId) -> int:
         return sum([build_step.unit_type_id == unit_type for build_step in self.priority_queue + self.static_queue + self.build_queue])
@@ -470,10 +472,21 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
     def queue_turret(self) -> None:
         self.start_timer("queue_turret")
         if self.bot.time > 300:
-            turret_count = len(self.bot.structures.of_type(UnitTypeId.MISSILETURRET).ready) + self.get_in_progress_count(UnitTypeId.MISSILETURRET)
+            turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
+            turret_count = len(turrets.ready)
+            in_progress_count = self.get_in_progress_count(UnitTypeId.MISSILETURRET)
             base_count = len(self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}))
-            if turret_count < base_count:
+            if turret_count + in_progress_count < base_count:
                 self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
+            elif in_progress_count == 0:
+                # add turrets to bases without one in case multiple were built at a different base
+                for townhall in self.bot.townhalls:
+                    for turret in turrets:
+                        if turret.distance_to_squared(townhall) < 100:
+                            break
+                    else:
+                        self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
+
         self.stop_timer("queue_turret")
 
     def add_to_build_queue(self, unit_types: Union[UnitTypeId, List[UnitTypeId]], position=None, queue: List[BuildStep] = None) -> None:
@@ -632,7 +645,9 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
 
     async def execute_pending_builds(self, only_build_units: bool, rush_detected: bool) -> None:
         self.start_timer("execute_pending_builds")
-        remaining_resources: Cost = await self.build_from_queue(self.priority_queue, only_build_units, allow_skip=(self.bot.time > 60), rush_detected=rush_detected)
+        remaining_resources: Cost = await self.build_from_queue(self.interrupted_queue, only_build_units, allow_skip=(self.bot.time > 60), rush_detected=rush_detected)
+        if remaining_resources.minerals > 0:
+            remaining_resources: Cost = await self.build_from_queue(self.priority_queue, only_build_units, allow_skip=(self.bot.time > 60), rush_detected=rush_detected)
         if remaining_resources.minerals > 0:
             remaining_resources = await self.build_from_queue(self.static_queue, only_build_units, allow_skip=True, rush_detected=rush_detected, remaining_resources=remaining_resources)
         if remaining_resources.minerals > 0:
