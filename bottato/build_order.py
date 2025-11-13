@@ -70,7 +70,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
 
     @property
     def all_steps(self) -> List[BuildStep]:
-        return self.started + self.priority_queue + self.static_queue + self.build_queue
+        return self.started + self.interrupted_queue + self.priority_queue + self.static_queue + self.build_queue
 
     async def execute(self, army_ratio: float, rush_detected: bool, enemy: Enemy):
         self.start_timer("build_order.execute")
@@ -338,7 +338,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             return
 
         projected_worker_capacity = self.workers.get_mineral_capacity()
-        for build_step in self.started + self.static_queue + self.priority_queue:
+        for build_step in self.all_steps:
             if build_step.unit_type_id == UnitTypeId.COMMANDCENTER:
                 projected_worker_capacity += 16
 
