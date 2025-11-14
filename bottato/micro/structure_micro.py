@@ -62,7 +62,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                         if cc.health_percentage < 0.9:
                             bunker = self.bot.structures(UnitTypeId.BUNKER)
                             if bunker:
-                                cc.move(bunker.position)
+                                cc.move(bunker.first.position)
                             else:
                                 cc.move(self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 5))
                         elif threats:
