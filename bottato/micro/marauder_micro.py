@@ -20,6 +20,13 @@ class MarauderMicro(BaseUnitMicro, GeometryMixin):
     attack_range: float = 5.0
     time_in_frames_to_attack: float = 0.3 * 22.4  # 0.3 seconds
 
+    excluded_ability_unit_types: set[UnitTypeId] = set((
+        UnitTypeId.PROBE,
+        UnitTypeId.SCV,
+        UnitTypeId.DRONE,
+        UnitTypeId.DRONEBURROWED,
+        UnitTypeId.MULE,
+    ))
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.health <= 35:
             return False
@@ -30,17 +37,11 @@ class MarauderMicro(BaseUnitMicro, GeometryMixin):
                 return False
         if self.is_stimmed(unit):
             return False
-        
-        excluded_enemy_types = [
-            UnitTypeId.PROBE,
-            UnitTypeId.SCV,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONEBURROWED,
-            UnitTypeId.MULE
-        ]
-        closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
+
+        closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=self.excluded_ability_unit_types)
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if closest_distance <= self.attack_range:
-            if self._retreat_to_tank(unit):
+            if self._retreat_to_tank(unit, can_attack):
                 return True
             unit(AbilityId.EFFECT_STIM_MARINE)
             self.last_stim_time[unit.tag] = self.bot.time
@@ -62,13 +63,14 @@ class MarauderMicro(BaseUnitMicro, GeometryMixin):
         candidates = UnitTypes.in_attack_range_of(unit, attackable_enemies)
         if len(candidates) == 0:
             candidates = UnitTypes.in_attack_range_of(unit, self.bot.enemy_structures)
-
-        if candidates and unit.weapon_cooldown < self.time_in_frames_to_attack:
+        
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+        if candidates and can_attack:
             lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first
             unit.attack(lowest_target)
             return True
         elif unit.health_percentage >= health_threshold:
-            if not self.is_stimmed(unit) and self._retreat_to_tank(unit):
+            if not self.is_stimmed(unit) and self._retreat_to_tank(unit, can_attack):
                 return True
 
             if candidates:

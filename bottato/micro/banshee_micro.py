@@ -35,6 +35,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if not targets:
             targets = nearby_structures
         threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_air(u))
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if targets:
             if not threats:
                 if tanks:
@@ -42,14 +43,14 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 else:
                     unit.attack(targets.closest_to(unit))
                 return True
-            elif unit.weapon_cooldown <= self.time_in_frames_to_attack and len(threats) < 4:
+            elif can_attack and len(threats) < 4:
                 attackable_threats = threats.filter(lambda u: not u.is_flying) + tanks
                 if attackable_threats:
                     unit.attack(attackable_threats.closest_to(unit))
                 else:
                     unit.attack(targets.closest_to(unit))
                 return True
-            if self._retreat_to_tank(unit):
+            if self._retreat_to_tank(unit, can_attack):
                 return True
             if self._stay_at_max_range(unit, threats):
                 return True

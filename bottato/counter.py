@@ -116,7 +116,7 @@ class Counter(UnitReferenceMixin):
             UnitTypeId.VIKINGFIGHTER: 1.15
         },
         UnitTypeId.WIDOWMINE: { # 2
-            UnitTypeId.RAVEN: 0.2,
+            UnitTypeId.RAVEN: 0.4,
             UnitTypeId.MARAUDER: 0.8
         },
         # Zerg units

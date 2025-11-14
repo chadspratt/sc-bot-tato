@@ -19,7 +19,8 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
         if unit.health_percentage < health_threshold:
             return False
 
-        if self._retreat_to_tank(unit):
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+        if self._retreat_to_tank(unit, can_attack):
             return True
 
         bonus_distance = 4
@@ -30,7 +31,7 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
         if not candidates:
             return False
 
-        if unit.weapon_cooldown <= self.time_in_frames_to_attack:
+        if can_attack:
             closest_target = candidates.closest_to(unit)
             return self._kite(unit, closest_target)
         

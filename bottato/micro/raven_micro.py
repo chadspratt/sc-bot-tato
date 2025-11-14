@@ -63,6 +63,8 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         
 
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+        if force_move:
+            return False
         if unit.health_percentage < health_threshold:
             return False
         # stay safe
@@ -83,7 +85,8 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         need_detection = need_detection.filter(lambda enemy: enemy.tag not in self.missing_hidden_units)
         if need_detection:
             closest_unit: Unit = self.closest_unit_to_unit(unit, need_detection)
-            if self.distance(closest_unit, unit) > unit.sight_range:
+            closest_distance = self.distance(closest_unit, unit)
+            if closest_distance < 30 and closest_distance > unit.sight_range:
                 target_position = closest_unit.position.towards(unit, unit.sight_range - 1)
                 unit.move(target_position)
                 return True

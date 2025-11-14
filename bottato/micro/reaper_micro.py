@@ -82,7 +82,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
-        threats = self.enemy.threats_to(unit, attack_range_buffer=3)
+        threats = self.enemy.threats_to(unit, attack_range_buffer=4)
 
         if not threats:
             if unit.health_percentage >= health_threshold:

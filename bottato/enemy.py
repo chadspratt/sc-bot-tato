@@ -193,8 +193,8 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             enemy_attack_range = UnitTypes.range_vs_target(enemy_unit, friendly_unit)
             if enemy_attack_range == 0.0:
                 continue
-            enemy_attack_range += attack_range_buffer
-            if friendly_unit.distance_to(self.predicted_position[enemy_unit.tag]) <= enemy_attack_range:
+            enemy_attack_range = (enemy_attack_range + attack_range_buffer) ** 2
+            if friendly_unit.distance_to_squared(self.predicted_position[enemy_unit.tag]) <= enemy_attack_range:
                 threats.append(enemy_unit)
         return threats
 
@@ -206,8 +206,8 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             enemy_attack_range = UnitTypes.ground_range(enemy_unit)
             if enemy_attack_range == 0.0:
                 continue
-            enemy_attack_range += attack_range_buffer
-            if friendly_unit.distance_to(self.predicted_position[enemy_unit.tag]) < enemy_attack_range:
+            enemy_attack_range = (enemy_attack_range + attack_range_buffer) ** 2
+            if friendly_unit.distance_to_squared(self.predicted_position[enemy_unit.tag]) < enemy_attack_range:
                 threats.append(enemy_unit)
         return threats
 
@@ -254,7 +254,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             enemies += killed_units
         return enemies.filter(lambda unit: not unit.is_structure and unit.type_id not in excluded_types)
 
-    def get_closest_target(self, friendly_unit: Unit, distance_limit=9999, include_structures=True, include_units=True, include_destructables=False, include_out_of_view=True, excluded_types=[], seconds_ahead=0) -> tuple[Unit, float]:
+    def get_closest_target(self, friendly_unit: Unit, distance_limit=999999, include_structures=True, include_units=True, include_destructables=False, include_out_of_view=True, excluded_types=[], seconds_ahead=0) -> tuple[Unit, float]:
         nearest_enemy: Unit = None
         nearest_distance = distance_limit
 
@@ -264,32 +264,35 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         if friendly_unit.type_id != UnitTypeId.RAVEN:
             candidates = candidates.filter(lambda enemy: self.can_attack(friendly_unit, enemy))
         for enemy in candidates:
-            enemy_distance = friendly_unit.distance_to(self.get_predicted_position(enemy, seconds_ahead)) - enemy.radius - friendly_unit.radius
+            enemy_distance = friendly_unit.distance_to_squared(self.get_predicted_position(enemy, seconds_ahead))
             if (enemy_distance < nearest_distance):
                 nearest_enemy = enemy
                 nearest_distance = enemy_distance
         # can attack a destructable if no enemies in sight range
         if include_destructables and nearest_distance > 30:
             for destructable in self.bot.destructables:
-                enemy_distance = friendly_unit.distance_to(destructable)
+                enemy_distance = friendly_unit.distance_to_squared(destructable)
                 if (enemy_distance < nearest_distance):
                     nearest_enemy = destructable
                     nearest_distance = enemy_distance
 
+        if nearest_enemy:
+            nearest_distance = nearest_distance ** 0.5 - nearest_enemy.radius - friendly_unit.radius
         return (nearest_enemy, nearest_distance)
     
     def get_target_closer_than(self, friendly_unit: Unit, max_distance: float, include_structures=True, include_units=True, include_destructables=False, excluded_types=[], seconds_ahead=0) -> tuple[Unit, float]:
         candidates: Units = self.get_candidates(include_structures, include_units, include_destructables, True, excluded_types)
+        distance_limit = max_distance ** 2
         for enemy in candidates:
             if seconds_ahead > 0:
-                enemy_distance = friendly_unit.distance_to(self.get_predicted_position(enemy, seconds_ahead)) - enemy.radius - friendly_unit.radius
+                enemy_distance = friendly_unit.distance_to_squared(self.get_predicted_position(enemy, seconds_ahead))
             else:
                 if enemy.age == 0:
-                    enemy_distance = friendly_unit.distance_to(enemy) - enemy.radius - friendly_unit.radius
+                    enemy_distance = friendly_unit.distance_to_squared(enemy)
                 else:
-                    enemy_distance = friendly_unit.distance_to(enemy.position) - enemy.radius - friendly_unit.radius
-            if enemy_distance < max_distance:
-                return (enemy, enemy_distance)
+                    enemy_distance = friendly_unit.distance_to_squared(enemy.position)
+            if enemy_distance < distance_limit:
+                return (enemy, enemy_distance ** 0.5 - enemy.radius - friendly_unit.radius)
         return (None, 9999)
 
     def get_enemies_in_range(self, friendly_unit: Unit, include_structures=True, include_units=True, include_destructables=False, excluded_types=[]) -> Units:

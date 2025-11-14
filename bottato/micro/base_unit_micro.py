@@ -105,7 +105,7 @@ class BaseUnitMicro(GeometryMixin):
             # keep ramp wall repaired early game
             unit.repair(target)
         else:
-            if self._retreat_to_tank(unit):
+            if self._retreat_to_tank(unit, can_attack=True):
                 logger.debug(f"unit {unit} retreating to tank")
             elif await self._retreat(unit, health_threshold=0.25):
                 logger.debug(f"unit {unit} retreating while repairing {target}")
@@ -189,7 +189,7 @@ class BaseUnitMicro(GeometryMixin):
                     unit.attack(lowest_target)
                 return True
 
-        if self._retreat_to_tank(unit):
+        if self._retreat_to_tank(unit, can_attack):
             return True
 
         if not candidates:
@@ -314,9 +314,6 @@ class BaseUnitMicro(GeometryMixin):
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
 
     def _kite(self, unit: Unit, target: Unit = None) -> bool:
-        if target is None:
-            return False
-
         attack_range = UnitTypes.range_vs_target(unit, target)
         target_range = UnitTypes.range_vs_target(target, unit)
         do_kite = attack_range > target_range and unit.movement_speed >= target.movement_speed
@@ -348,9 +345,8 @@ class BaseUnitMicro(GeometryMixin):
         else:
             return False
         return True
-        
-    def _retreat_to_tank(self, unit: Unit) -> bool:
-        excluded_enemy_types = [
+    
+    retreat_to_tank_excluded_types: set[UnitTypeId] = set((
             UnitTypeId.PROBE,
             UnitTypeId.SCV,
             UnitTypeId.DRONE,
@@ -359,18 +355,21 @@ class BaseUnitMicro(GeometryMixin):
             UnitTypeId.OBSERVER,
             UnitTypeId.LARVA,
             UnitTypeId.EGG
-        ]
+    ))
+    def _retreat_to_tank(self, unit: Unit, can_attack: bool) -> bool:
+        if unit.type_id in {UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED}:
+            return False
         tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))
         if not tanks:
             return False
 
         close_enemies = self.bot.enemy_units.closer_than(15, unit).filter(
-            lambda u: u.type_id not in excluded_enemy_types and not u.is_flying and UnitTypes.can_attack_ground(u) and u.unit_alias != UnitTypeId.CHANGELING)
-        if len(close_enemies) < 8:
+            lambda u: u.type_id not in self.retreat_to_tank_excluded_types and not u.is_flying and UnitTypes.can_attack_ground(u) and u.unit_alias != UnitTypeId.CHANGELING)
+        if len(close_enemies) == 0:
             return False
         
         closest_enemy = close_enemies.closest_to(unit)
-        if not closest_enemy or closest_enemy.is_flying:
+        if closest_enemy.is_flying:
             return False
 
         nearest_tank = tanks.closest_to(unit)
@@ -378,8 +377,8 @@ class BaseUnitMicro(GeometryMixin):
         if tank_to_enemy_distance > 13.5 + nearest_tank.radius + closest_enemy.radius and tank_to_enemy_distance < 40:
             unit.move(unit.position.towards(nearest_tank.position, 2))
             return True
-        elif tank_to_enemy_distance < unit.distance_to(closest_enemy):
+        elif not can_attack and tank_to_enemy_distance < unit.distance_to(closest_enemy) + 3:
             # defend tank if it's closer to enemy than unit
-            unit.move(unit.position.towards(nearest_tank.position, 2))
+            unit.move(nearest_tank.position.towards(closest_enemy.position, 3))
             return True
         return False
