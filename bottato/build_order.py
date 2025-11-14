@@ -286,12 +286,13 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         worker_build_capacity: int = len(available_townhalls)
         available_command_centers = available_townhalls.filter(lambda cc: cc.type_id == UnitTypeId.COMMANDCENTER)
         if available_command_centers:
-            if len(self.bot.townhalls.of_type(UnitTypeId.ORBITALCOMMAND)) < 3:
-                if self.bot.minerals >= 150 and self.bot.structures(UnitTypeId.BARRACKS).ready:
-                    # queue orbital instead if can afford
-                    self.add_to_build_queue([UnitTypeId.ORBITALCOMMAND], queue=self.priority_queue, position=0)
-                    self.stop_timer("queue_townhall_build")
-                    return
+            if len(self.bot.townhalls.of_type(UnitTypeId.ORBITALCOMMAND)) < 3 and self.bot.time > 90 \
+                    and self.get_in_progress_count(UnitTypeId.ORBITALCOMMAND) == 0:
+                # if self.bot.minerals >= 150 and self.bot.structures(UnitTypeId.BARRACKS).ready:
+                # queue orbital instead if can afford
+                self.add_to_build_queue([UnitTypeId.ORBITALCOMMAND], queue=self.priority_queue, position=0)
+                self.stop_timer("queue_townhall_build")
+                return
             elif self.bot.minerals >= 150 and self.bot.vespene >= 150 and self.bot.structures(UnitTypeId.ENGINEERINGBAY).ready:
                 self.add_to_build_queue([UnitTypeId.PLANETARYFORTRESS], queue=self.priority_queue, position=0)
                 self.stop_timer("queue_townhall_build")
