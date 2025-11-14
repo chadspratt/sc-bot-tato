@@ -39,7 +39,8 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 unit(AbilityId.UNLOADALLAT, unit)
                 return True
             return False
-        if force_move and self.bot.time > 300 and unit.cargo_left > 0:
+        enemy_distance_to_target = self.bot.enemy_units.closest_distance_to(target) if self.bot.enemy_units else 9999
+        if force_move and self.bot.time > 300 and unit.cargo_left > 0 and enemy_distance_to_target > 20:
             if self.units_to_pick_up_last_update != self.bot._total_steps_iterations:
                 self.units_to_pick_up_last_update = self.bot._total_steps_iterations
                 self.units_to_pick_up = self.bot.units.filter(
@@ -72,7 +73,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                     passenger.move(unit.position) # possible passenger already received an order, but shouldn't hurt
                     self.units_to_pick_up.remove(passenger)
                     return True
-        if unit.cargo_used > 0 and unit.distance_to(target) < 10:
+        if unit.cargo_used > 0 and (unit.distance_to(target) < 10 or enemy_distance_to_target <= 20):
             unit(AbilityId.UNLOADALLAT, unit)
             return True
         if not self.heal_available(unit):
@@ -102,7 +103,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
 
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         # doesn't have an attack
-        return False
+        return self._retreat_to_tank(unit, can_attack=False)
 
     def heal_available(self, unit: Unit) -> bool:
         if unit.tag in self.stopped_for_healing:

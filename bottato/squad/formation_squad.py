@@ -127,13 +127,16 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
             return
         self.current_order = SquadOrderEnum.MOVE
         self._destination = destination
+        most_grouped_unit, grouped_units = self.get_most_grouped_unit(self.units, 10)
         if facing_position is None:
-            facing_position = destination + (destination - self.position)
+            if destination == self.position:
+                facing_position = destination + (destination - most_grouped_unit.position)
+            else:
+                facing_position = destination + (destination - self.position)
         self.destination_facing = self.get_facing(destination, facing_position)
 
         self.start_timer("formation get_unit_destinations")
         # 1/3 of total command execution time
-        grouped_units = self.get_most_grouped_unit(self.units, 10)[1]
         formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.units, grouped_units, self.destination_facing, self.units_by_tag)
         self.stop_timer("formation get_unit_destinations")
 
