@@ -98,7 +98,7 @@ class Counter(UnitReferenceMixin):
             UnitTypeId.MARINE: 0.5
         },
         UnitTypeId.MEDIVAC: { # 2
-            UnitTypeId.VIKINGFIGHTER: 0.5
+            UnitTypeId.VIKINGFIGHTER: 0.75
         },
         UnitTypeId.RAVEN: { # 2
             UnitTypeId.VIKINGFIGHTER: 0.5
