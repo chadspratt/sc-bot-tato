@@ -414,6 +414,16 @@ class UnitTypes():
                 in_range_units.append(unit)
         return in_range_units
     
+    def threats(unit: Unit, attackers: Units, bonus_distance: float = 0.0) -> Units:
+        """
+        Get enemy units that can attack the given unit.
+        """
+        threats = Units([], attackers._bot_object)
+        for attacker in attackers:
+            if UnitTypes.target_in_range(attacker, unit, bonus_distance):
+                threats.append(attacker)
+        return threats
+    
     def range_vs_target(attacker: Unit, target: Unit) -> float:
         """
         Get the attack range of the attacker unit against the target unit.
