@@ -390,9 +390,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         
         enemy_distance_to_bunker = 100
         enemy_distance_to_townhall = 100
+        current_enemies = enemies_in_base.filter(lambda unit: unit.age == 0)
         if enemies_in_base:
-            enemy_distance_to_bunker = enemies_in_base.closest_distance_to(self.bunker.structure)
-            enemy_distance_to_townhall = enemies_in_base.closest_distance_to(self.bot.start_location)
+            enemy_distance_to_bunker = current_enemies.closest_distance_to(self.bunker.structure)
+            enemy_distance_to_townhall = current_enemies.closest_distance_to(self.bot.start_location)
 
         if self.bot.time > 300 or enemy_distance_to_townhall < 15:
             if enemy_distance_to_bunker > 9:
@@ -415,7 +416,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             if len(self.bunker.units) >= 4:
                 break
             if unit.type_id == UnitTypeId.MARINE:
-                enemy_distance_to_unit = enemies_in_base.closest_distance_to(unit) if enemies_in_base else 100
+                enemy_distance_to_unit = current_enemies.closest_distance_to(unit) if current_enemies else 100
                 marine_distance_to_bunker = unit.distance_to(self.bunker.structure)
                 if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
                     # send unit to bunker if they won't have to move past enemies
