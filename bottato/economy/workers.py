@@ -367,7 +367,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
     async def attack_nearby_enemies(self) -> None:
         self.start_timer("my_workers.attack_nearby_enemies")
         attacker_tags = set()
-        if self.bot.townhalls and self.bot.time < 360:
+        if self.bot.townhalls and self.bot.time < 200:
             available_workers = self.bot.workers.filter(lambda u: self.assignments_by_worker[u.tag].job_type in {JobType.MINERALS, JobType.VESPENE})
             healthy_workers = available_workers.filter(lambda u: u.health_percentage > 0.5)
             unhealthy_workers = available_workers.filter(lambda u: u.health_percentage <= 0.5)
@@ -715,16 +715,20 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         # limit to percentage of total workers
         max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 5))
         if injured_units:
-            needed_repairers = 5  # early game, just assign a bunch so wall isn't broken by a rush
-            if self.bot.time > 300:                
-                for worker in injured_units:
-                    missing_health += worker.health_max - worker.health
-                    logger.debug(f"{worker} missing health {worker.health_max - worker.health}")
-                needed_repairers = missing_health / self.health_per_repairer
-                if needed_repairers > max_repairers:
-                    needed_repairers = max_repairers
-                elif needed_repairers < len(injured_units):
-                    needed_repairers = max(needed_repairers, min(3, len(injured_units)))  # minimum of 3 repairers if there are multiple injured units
+            bunker = injured_units(UnitTypeId.BUNKER)
+            if bunker:
+                needed_repairers = self.bot.workers.closer_than(10, bunker.first).amount
+            else:
+                needed_repairers = 5  # early game, just assign a bunch so wall isn't broken by a rush
+                if self.bot.time > 300:                
+                    for worker in injured_units:
+                        missing_health += worker.health_max - worker.health
+                        logger.debug(f"{worker} missing health {worker.health_max - worker.health}")
+                    needed_repairers = missing_health / self.health_per_repairer
+                    if needed_repairers > max_repairers:
+                        needed_repairers = max_repairers
+                    elif needed_repairers < len(injured_units):
+                        needed_repairers = max(needed_repairers, min(3, len(injured_units)))  # minimum of 3 repairers if there are multiple injured units
 
         current_repairers: Units = self.availiable_workers_on_job(JobType.REPAIR)
         current_repair_targets = {}

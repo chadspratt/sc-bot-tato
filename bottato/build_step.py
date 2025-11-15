@@ -39,17 +39,17 @@ class ResponseCode(enum.Enum):
 
 
 class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
-    unit_type_id: UnitTypeId = None
-    upgrade_id: UpgradeId = None
+    unit_type_id: UnitTypeId | None = None
+    upgrade_id: UpgradeId | None = None
     unit_in_charge: Optional[Unit] = None
     unit_being_built: Optional[Unit] = None
-    position: Union[Unit, Point2] = None
-    geysir: Unit = None
+    position: Union[Unit, Point2, None] = None
+    geysir: Unit | None = None
     check_idle: bool = False
     last_cancel_time: float = -10
-    start_time: int = None
-    completed_time: int = None
-    worker_in_position_time: int = None
+    start_time: int | None = None
+    completed_time: int | None = None
+    worker_in_position_time: int | None = None
     is_in_progress: bool = False
     interrupted_count: int = 0
 
@@ -64,13 +64,16 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
         else:
             self.upgrade_id = unit_type
         self.friendly_name = unit_type.name
-        self.builder_type: UnitTypeId = self.production.get_builder_type(unit_type)
+        self.builder_type: set[UnitTypeId] = self.production.get_builder_type(unit_type)
         if unit_type == UnitTypeId.REFINERYRICH:
             self.cost = bot.calculate_cost(UnitTypeId.REFINERY)
             self.supply_cost = bot.calculate_supply_cost(UnitTypeId.REFINERY)
         else:
             self.cost = bot.calculate_cost(unit_type)
-            self.supply_cost = bot.calculate_supply_cost(unit_type)
+            if isinstance(unit_type, UpgradeId):
+                self.supply_cost = 0
+            else:
+                self.supply_cost = bot.calculate_supply_cost(unit_type)
 
     def __repr__(self) -> str:
         builder = self.unit_in_charge if self.unit_in_charge else self.builder_type
@@ -120,9 +123,10 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     self.upgrade_id.name, self.unit_in_charge.position3d)
         if self.position:
             self.bot.client.debug_box2_out(self.convert_point2_to_3(self.position), 0.5)
-            self.bot.client.debug_text_world(
-                self.unit_type_id.name, Point3((*self.position, 10))
-            )
+            if self.unit_type_id is not None:
+                self.bot.client.debug_text_world(
+                    self.unit_type_id.name, Point3((*self.position, 10))
+                )
         if self.unit_being_built is not None and self.unit_being_built is not True:
             logger.debug(f"unit being built {self.unit_being_built}")
             self.bot.client.debug_box2_out(self.unit_being_built, 0.75)
