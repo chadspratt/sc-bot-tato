@@ -391,7 +391,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         enemy_distance_to_bunker = 100
         enemy_distance_to_townhall = 100
         current_enemies = enemies_in_base.filter(lambda unit: unit.age == 0)
-        if enemies_in_base:
+        if current_enemies:
             enemy_distance_to_bunker = current_enemies.closest_distance_to(self.bunker.structure)
             enemy_distance_to_townhall = current_enemies.closest_distance_to(self.bot.start_location)
 
