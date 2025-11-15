@@ -231,6 +231,14 @@ class GeometryMixin:
         for unit in units:
             closest_distance_sq = min(closest_distance_sq, self.distance_squared(unit1, unit))
         return closest_distance_sq
+    
+    def units_closer_than(self, unit1: Unit, units: Units, distance: float) -> Units:
+        close_units = Units([], bot_object=self.bot)
+        distance_sq = distance * distance
+        for unit in units:
+            if self.distance_squared(unit1, unit) < distance_sq:
+                close_units.append(unit)
+        return close_units
 
     def closest_unit_to_unit(self, unit1: Unit, units: Units) -> float:
         closest_distance = 9999

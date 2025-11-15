@@ -81,6 +81,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.minerals.update_references(units_by_tag)
         self.vespene.update_references(units_by_tag)
 
+        self.mule_energy_threshold = 50 if self.bot.units(UnitTypeId.RAVEN) else 100
+
         self.assignments_by_job[JobType.IDLE].clear()
         self.assignments_by_job[JobType.MINERALS].clear()
         self.assignments_by_job[JobType.VESPENE].clear()

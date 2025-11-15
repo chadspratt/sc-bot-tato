@@ -357,6 +357,9 @@ class BaseUnitMicro(GeometryMixin):
             UnitTypeId.EGG
     ))
     def _retreat_to_tank(self, unit: Unit, can_attack: bool) -> bool:
+        if unit.health_percentage >= 0.9:
+            # poke out at full health otherwise enemy might never be engaged
+            return False
         if unit.type_id in {UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED}:
             return False
         tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))

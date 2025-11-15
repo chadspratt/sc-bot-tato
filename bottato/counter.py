@@ -186,7 +186,7 @@ class Counter(UnitReferenceMixin):
         """Count the number of each unit type in the given units."""
         enemy_counts = self.count_units_by_type(enemy_units)
 
-        counter_units: dict[UnitTypeId, int] = {}
+        counter_units: dict[UnitTypeId, float] = {}
         for enemy_type, enemy_count in enemy_counts.items():
             if enemy_type in Counter.counters:
                 unit_counters = Counter.counters[enemy_type]
