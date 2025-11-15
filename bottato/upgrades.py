@@ -19,7 +19,7 @@ for builder_type, upgrades in RESEARCH_INFO.items():
 class Upgrades:
     # subset of UPGRADE_RESEARCHED_FROM
     infantry_types = [UnitTypeId.MARINE, UnitTypeId.REAPER, UnitTypeId.MARAUDER, UnitTypeId.GHOST]
-    vehicle_types = [UnitTypeId.HELLION, UnitTypeId.SIEGETANK, UnitTypeId.CYCLONE, UnitTypeId.HELLIONTANK, UnitTypeId.THOR]
+    vehicle_types = [UnitTypeId.HELLION, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.CYCLONE, UnitTypeId.HELLIONTANK, UnitTypeId.THOR]
     ship_types = [UnitTypeId.VIKINGFIGHTER, UnitTypeId.BANSHEE, UnitTypeId.LIBERATOR, UnitTypeId.BATTLECRUISER]
 
     affected_unit_types: dict[UpgradeId, list[UnitTypeId]] = {
@@ -40,7 +40,7 @@ class Upgrades:
         UpgradeId.BANSHEESPEED: [UnitTypeId.BANSHEE],
         # ==engineering bay==
         UpgradeId.HISECAUTOTRACKING: [UnitTypeId.RAVEN, UnitTypeId.MISSILETURRET, UnitTypeId.PLANETARYFORTRESS],
-        UpgradeId.TERRANBUILDINGARMOR: [],
+        UpgradeId.TERRANBUILDINGARMOR: [UnitTypeId.BARRACKS],
         UpgradeId.TERRANINFANTRYARMORSLEVEL1: infantry_types,
         UpgradeId.TERRANINFANTRYARMORSLEVEL2: infantry_types,
         UpgradeId.TERRANINFANTRYARMORSLEVEL3: infantry_types,
@@ -120,10 +120,30 @@ class Upgrades:
     
     def next_upgrade(self, facility_type: UnitTypeId) -> UpgradeId | None:
         for upgrade_type in self.upgrades_by_facility[facility_type]:
-            if not self.bot.units(self.affected_unit_types[upgrade_type]):
+            if upgrade_type != UpgradeId.TERRANBUILDINGARMOR and not self.bot.units(self.affected_unit_types[upgrade_type]):
                 # don't research if no units benefit
                 continue
-            if self.bot.already_pending_upgrade(upgrade_type) > 0:
+            if self.already_pending_upgrade(facility_type, upgrade_type) > 0:
                 continue
             return upgrade_type
         return None
+    
+    # patched version of python-sc2 which has wrong ability ids for some upgrades
+    def already_pending_upgrade(self, facility_type: UnitTypeId, upgrade_type: UpgradeId) -> float:
+        assert isinstance(upgrade_type, UpgradeId), f"{upgrade_type} is no UpgradeId"
+        if upgrade_type in self.bot.state.upgrades:
+            return 1
+        creationAbilityID = self.bot.game_data.upgrades[upgrade_type.value].research_ability.exact_id
+        if upgrade_type == UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1:
+            creationAbilityID = AbilityId.ARMORYRESEARCH_TERRANVEHICLEANDSHIPPLATINGLEVEL1
+        elif upgrade_type == UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL2:
+            creationAbilityID = AbilityId.ARMORYRESEARCH_TERRANVEHICLEANDSHIPPLATINGLEVEL2
+        elif upgrade_type == UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL3:
+            creationAbilityID = AbilityId.ARMORYRESEARCH_TERRANVEHICLEANDSHIPPLATINGLEVEL3
+        elif upgrade_type == UpgradeId.INTERFERENCEMATRIX:
+            creationAbilityID = AbilityId.STARPORTTECHLABRESEARCH_RESEARCHRAVENINTERFERENCEMATRIX
+        for structure in self.bot.structures.filter(lambda unit: unit.type_id == facility_type and unit.is_ready):
+            for order in structure.orders:
+                if order.ability.exact_id == creationAbilityID:
+                    return order.progress
+        return 0

@@ -158,13 +158,13 @@ class Counter(UnitReferenceMixin):
             UnitTypeId.SIEGETANK: 0.3
         },
         UnitTypeId.RAVAGER: { # 3
-            UnitTypeId.MARAUDER: 0.6,
+            UnitTypeId.MARAUDER: 0.5,
             UnitTypeId.MARINE: 1,
-            UnitTypeId.BANSHEE: 0.4
+            UnitTypeId.BANSHEE: 0.5
         },
         UnitTypeId.ROACH: {
-            UnitTypeId.MARAUDER: 0.6,
-            UnitTypeId.BANSHEE: 0.4,
+            UnitTypeId.MARAUDER: 0.5,
+            UnitTypeId.BANSHEE: 0.5,
             UnitTypeId.SIEGETANK: 0.25
         },
         UnitTypeId.SWARMHOSTMP: { # 3

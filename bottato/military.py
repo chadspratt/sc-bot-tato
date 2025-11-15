@@ -206,9 +206,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         if self.main_army.staging_location:
             enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.main_army.staging_location.distance_to(unit) < 25))
 
-        # fill bunker before managing defense. only use visible enemies to avoid crashing cached distance calculations
-        await self.manage_bunker(enemies_in_base)
-
         out_of_view_in_base = []
         for enemy in self.enemy.recent_out_of_view():
             if base_structures.closest_distance_to(self.enemy.predicted_position[enemy.tag]) <= 25:
@@ -276,15 +273,17 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.army_ratio = self.calculate_army_ratio()
         army_is_big_enough = self.army_ratio > 1.3 or self.bot.supply_used > 160
         army_is_grouped = self.main_army.is_grouped()
-        mount_offense = not defend_with_main_army and army_is_big_enough and (self.bot.supply_used >= 110 or self.bot.time > 600)
+        mount_offense = not defend_with_main_army and army_is_big_enough and (self.bot.supply_used >= 40 or self.bot.time > 300) # and (self.bot.supply_used >= 110 or self.bot.time > 600)
         if not mount_offense and enemies_in_base:
             defend_with_main_army = True
         self.status_message = f"army ratio {self.army_ratio:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
         self.stop_timer("military army value")
 
+        # fill bunker before managing defense. only use visible enemies to avoid crashing cached distance calculations
+        await self.manage_bunker(enemies_in_base, mount_offense)
+
         if mount_offense:
-            self.empty_bunker()
             if self.offense_start_supply == 200:
                 self.offense_start_supply = self.bot.supply_army
         else:
@@ -384,8 +383,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.report()
         self.stop_timer("manage_squads")
 
-    async def manage_bunker(self, enemies_in_base: Units = None):
-        if not self.bunker.is_built():
+    async def manage_bunker(self, enemies_in_base: Units = None, mount_offense: bool = False):
+        if mount_offense or not self.bunker.is_built():
             self.empty_bunker()
             return
         

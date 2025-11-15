@@ -31,7 +31,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
         if unit.health <= 35:
             return False
         if not self.stim_researched:
-            if self.bot.already_pending_upgrade(UpgradeId.STIMPACK) == 1:
+            if UpgradeId.STIMPACK in self.bot.state.upgrades:
                 self.stim_researched = True
             else:
                 return False
