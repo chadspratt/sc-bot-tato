@@ -127,7 +127,9 @@ class UnitReferenceMixin:
 
 
 class GeometryMixin:
-    def convert_point2_to_3(self, point2: Point2) -> Point3:
+    def convert_point2_to_3(self, point2: Point2 | Unit) -> Point3:
+        if isinstance(point2, Unit):
+            point2 = point2.position
         height: float = max(0, self.bot.get_terrain_z_height(point2) + 1)
         return Point3((point2.x, point2.y, height))
 

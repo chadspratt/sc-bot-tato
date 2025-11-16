@@ -332,6 +332,15 @@ class UnitTypes():
         },
     }
 
+    ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS = {
+        UnitTypeId.SPORECRAWLER,
+        UnitTypeId.SPINECRAWLER,
+        UnitTypeId.EXTRACTOR,
+        UnitTypeId.CREEPTUMOR,
+        UnitTypeId.CREEPTUMORBURROWED,
+        UnitTypeId.CREEPTUMORQUEEN,
+    }
+
     def get_unit_info(self, unit_type_id: UnitTypeId) -> dict:
         """
         Get the unit info for a given unit type ID.

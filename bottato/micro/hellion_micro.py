@@ -24,8 +24,8 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
             return True
 
         bonus_distance = 4
-        candidates = UnitTypes.in_attack_range_of(unit, self.bot.enemy_units, bonus_distance).filter(
-            lambda unit: unit.can_be_attacked and unit.armor < 10)
+        attackable_enemies = self.bot.enemy_units.filter(lambda u: u.can_be_attacked and u.armor < 10) + self.bot.enemy_structures.of_type(self.offensive_structure_types)
+        candidates = UnitTypes.in_attack_range_of(unit, attackable_enemies, bonus_distance)
         if len(candidates) == 0:
             candidates = UnitTypes.in_attack_range_of(unit, self.bot.enemy_structures, bonus_distance)
         if not candidates:
@@ -33,6 +33,7 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
 
         if can_attack:
             closest_target = candidates.closest_to(unit)
-            return self._kite(unit, closest_target)
+            unit.attack(closest_target)
+            return True
         
         return self._stay_at_max_range(unit, candidates)

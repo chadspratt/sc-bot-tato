@@ -205,7 +205,7 @@ class BaseUnitMicro(GeometryMixin):
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
-        threats = self.enemy.threats_to(unit)
+        threats = self.enemy.threats_to(unit, attack_range_buffer=3)
 
         if not threats:
             if unit.type_id == UnitTypeId.SCV:
@@ -281,8 +281,13 @@ class BaseUnitMicro(GeometryMixin):
     # utility behaviors - used by main actions
     ###########################################################################
     def _stay_at_max_range(self, unit: Unit, targets: Units = None) -> bool:
-        # move away if weapon on cooldown
         nearest_target = targets.closest_to(unit)
+        # don't keep distance from structures since it prevents units in back from attacking
+        # except for zerg structures that spawn broodlings when they die
+        if nearest_target.is_structure and (nearest_target.race != "Zerg" or nearest_target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS):
+            unit.move(nearest_target.position)
+            return False
+        # move away if weapon on cooldown
         if not unit.is_flying:
             nearest_sieged_tank = None
             if nearest_target.type_id == UnitTypeId.SIEGETANKSIEGED:
@@ -316,7 +321,7 @@ class BaseUnitMicro(GeometryMixin):
     def _kite(self, unit: Unit, target: Unit = None) -> bool:
         attack_range = UnitTypes.range_vs_target(unit, target)
         target_range = UnitTypes.range_vs_target(target, unit)
-        do_kite = attack_range > target_range and unit.movement_speed >= target.movement_speed
+        do_kite = attack_range > target_range and unit.movement_speed > target.movement_speed
         if do_kite:
             # can attack while staying out of range
             target_distance = self.distance(unit, target) - target.radius - unit.radius

@@ -42,8 +42,9 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                         else:
                             unit(AbilityId.MORPH_VIKINGASSAULTMODE)
                         return True
-                    nearest_structure = self.bot.enemy_structures.closest_to(unit)
-                    nearest_distance = min(nearest_distance, unit.distance_to(nearest_structure))
+                    if self.bot.enemy_structures:
+                        nearest_structure = self.bot.enemy_structures.closest_to(unit)
+                        nearest_distance = min(nearest_distance, unit.distance_to(nearest_structure))
                     if nearest_distance < 11:
                         # wait to land until closer to enemies
                         unit(AbilityId.MORPH_VIKINGASSAULTMODE)
