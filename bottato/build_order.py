@@ -165,7 +165,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             step: BuildStep = self.started.pop(idx)
             step.interrupted_count += 1
             if step.interrupted_count > 10:
-                logger.info(f"{step} interrupted too many times, removing from build order")
+                logger.info(f"{self.bot.time}:{step} interrupted too many times, removing from build order")
                 continue
             if step.unit_type_id not in self.unit_types.TERRAN:
                 self.interrupted_queue.insert(0, step)
@@ -187,6 +187,19 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         if self.bot.time > 300 or self.bot.townhalls.amount > 2:
             # not a rush
             return
+        if self.bot.structure_type_build_progress(UnitTypeId.BARRACKSREACTOR) == 1:
+            training_marine_count = len([step for step in self.started if step.unit_type_id == UnitTypeId.MARINE])
+            if training_marine_count < 2:
+                # move marines from static to priority queue
+                for x in range(2 - training_marine_count):
+                    for step in self.static_queue:
+                        if step.unit_type_id == UnitTypeId.MARINE:
+                            self.static_queue.remove(step)
+                            break
+                    self.add_to_build_queue(UnitTypeId.MARINE, queue=self.priority_queue)
+        if self.rush_defense_enacted:
+            return
+        self.rush_defense_enacted = True
         if self.bot.enemy_race == Race.Terran:
             # queue one hellion in case of reaper rush
             if self.bot.enemy_units(UnitTypeId.REAPER).amount > 0:
@@ -201,19 +214,6 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
         self.move_between_queues(UnitTypeId.FACTORYTECHLAB, self.static_queue, self.priority_queue)
         self.move_between_queues(UnitTypeId.SIEGETANK, self.static_queue, self.priority_queue)
-        if self.bot.structure_type_build_progress(UnitTypeId.BARRACKSREACTOR) == 1:
-            training_marine_count = len([step for step in self.started if step.unit_type_id == UnitTypeId.MARINE])
-            if training_marine_count < 2:
-                # move marines from static to priority queue
-                for x in range(2 - training_marine_count):
-                    for step in self.static_queue:
-                        if step.unit_type_id == UnitTypeId.MARINE:
-                            self.static_queue.remove(step)
-                            break
-                    self.add_to_build_queue(UnitTypeId.MARINE, queue=self.priority_queue)
-        if self.rush_defense_enacted:
-            return
-        self.rush_defense_enacted = True
         if self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount < 2:
             # make sure to build second depot before bunker
             self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
