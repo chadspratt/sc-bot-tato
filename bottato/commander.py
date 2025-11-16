@@ -138,7 +138,10 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         elif unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT):
             unit(AbilityId.RALLY_UNITS, self.bot.game_info.map_center)
         elif unit.type_id == UnitTypeId.BUNKER:
-            self.military.bunker.structure = unit
+            if not self.military.bunker.is_built():
+                self.military.bunker.structure = unit
+            elif not self.military.bunker2.is_built():
+                self.military.bunker2.structure = unit
 
     def add_unit(self, unit: Unit):
         if unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE):

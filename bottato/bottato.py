@@ -16,6 +16,7 @@ class BotTato(BotAI, TimerMixin):
     async def on_start(self):
         # self.disable_logging()
         self.last_timer_print = 0
+        self.last_build_order_print = 0
         self.commander = Commander(self)
         await self.commander.map.init()
         # await self.client.debug_fast_build()
@@ -40,6 +41,7 @@ class BotTato(BotAI, TimerMixin):
         # self.print_all_timers(30)
         if self.draw_map:
             self.commander.map.draw()
+        self.print_build_order(10)
 
     def toggle_map_drawing(self):
         self.draw_map = not self.draw_map
@@ -66,7 +68,12 @@ class BotTato(BotAI, TimerMixin):
             self.print_timers("main-")
             self.commander.print_all_timers()
             logger.info(self.commander.build_order.get_build_queue_string())
-            logger.debug(f"upgrades: {self.state.upgrades}")
+            logger.info(f"upgrades: {self.state.upgrades}")
+
+    def print_build_order(self, interval: int = 0):
+        if self.time - self.last_build_order_print > interval:
+            self.last_build_order_print = self.time
+            logger.info(self.commander.build_order.get_build_queue_string())
 
     def disable_logging(self):
         logger.disable("bottato")

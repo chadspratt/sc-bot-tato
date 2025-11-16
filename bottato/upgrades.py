@@ -113,6 +113,19 @@ class Upgrades:
         ],
     }
 
+    prereqs: dict[UpgradeId, UpgradeId | None] = {
+        UpgradeId.TERRANINFANTRYWEAPONSLEVEL2: UpgradeId.TERRANINFANTRYWEAPONSLEVEL1,
+        UpgradeId.TERRANINFANTRYWEAPONSLEVEL3: UpgradeId.TERRANINFANTRYWEAPONSLEVEL2,
+        UpgradeId.TERRANINFANTRYARMORSLEVEL2: UpgradeId.TERRANINFANTRYARMORSLEVEL1,
+        UpgradeId.TERRANINFANTRYARMORSLEVEL3: UpgradeId.TERRANINFANTRYARMORSLEVEL2,
+        UpgradeId.TERRANVEHICLEWEAPONSLEVEL2: UpgradeId.TERRANVEHICLEWEAPONSLEVEL1,
+        UpgradeId.TERRANVEHICLEWEAPONSLEVEL3: UpgradeId.TERRANVEHICLEWEAPONSLEVEL2,
+        UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL2: UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1,
+        UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL3: UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL2,
+        UpgradeId.TERRANSHIPWEAPONSLEVEL2: UpgradeId.TERRANSHIPWEAPONSLEVEL1,
+        UpgradeId.TERRANSHIPWEAPONSLEVEL3: UpgradeId.TERRANSHIPWEAPONSLEVEL2,
+    }
+
     def __init__(self, bot: BotAI) -> None:
         logger.debug("created upgrades manager")
         self.bot = bot
@@ -124,6 +137,8 @@ class Upgrades:
                 # don't research if no units benefit
                 continue
             if self.already_pending_upgrade(facility_type, upgrade_type) > 0:
+                continue
+            if upgrade_type in self.prereqs and self.already_pending_upgrade(facility_type, self.prereqs[upgrade_type]) != 1:
                 continue
             return upgrade_type
         return None

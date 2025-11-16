@@ -101,7 +101,7 @@ class BaseUnitMicro(GeometryMixin):
             return
         if self._avoid_effects(unit, force_move=False):
             logger.debug(f"unit {unit} avoiding effects")
-        elif self.bot.time < 360 and target.type_id in (UnitTypeId.BARRACKS, UnitTypeId.BARRACKSREACTOR, UnitTypeId.BARRACKSTECHLAB, UnitTypeId.SUPPLYDEPOT):
+        elif self.bot.time < 360 and target.distance_to_squared(self.bot.main_base_ramp.top_center) < 9:
             # keep ramp wall repaired early game
             unit.repair(target)
         else:
@@ -162,6 +162,7 @@ class BaseUnitMicro(GeometryMixin):
         UnitTypeId.MISSILETURRET,
         UnitTypeId.SPINECRAWLER,
         UnitTypeId.SPORECRAWLER,
+        UnitTypeId.PLANETARYFORTRESS,
     )
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         if force_move:

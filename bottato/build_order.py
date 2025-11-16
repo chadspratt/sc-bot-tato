@@ -82,7 +82,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 UnitTypeId.TEMPEST, UnitTypeId.BATTLECRUISER, UnitTypeId.CARRIER,
                 UnitTypeId.WIDOWMINE, UnitTypeId.SWARMHOSTMP)) or self.bot.enemy_units.closer_than(25, self.map.natural_position).amount >= 10):
             # abort static build order if we need a specialized response
-            self.static_queue.clear()
+            self.static_queue = self.static_queue[:10]
 
         self.build_queue.clear()
 
@@ -218,6 +218,8 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             # make sure to build second depot before bunker
             self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
         self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue)
+        # add a second bunker for low ground
+        self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
     
     def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep]) -> None:
         for step in from_queue:
@@ -434,6 +436,16 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         UnitTypeId.STARPORTTECHLAB,
         # UnitTypeId.GHOSTACADEMY,
     }
+    max_facilities: Dict[UnitTypeId, int] = {
+        UnitTypeId.ARMORY: 3,
+        UnitTypeId.ENGINEERINGBAY: 2,
+        UnitTypeId.BARRACKSTECHLAB: 2,
+        UnitTypeId.FACTORYTECHLAB: 2,
+        UnitTypeId.STARPORTTECHLAB: 2,
+        # UnitTypeId.GHOSTACADEMY: 1,
+        # UnitTypeId.FUSIONCORE: 1,
+    }
+
     def queue_upgrade(self) -> None:
         self.start_timer("queue_upgrade")
         for facility_type in self.upgrade_building_types:
@@ -442,9 +454,10 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 continue
             if self.bot.structures(facility_type).ready.idle:
                 self.add_to_build_queue([next_upgrade], queue=self.priority_queue)
-            elif self.bot.time > 360 and self.get_in_progress_count(facility_type) == 0:
+            elif self.bot.townhalls.amount > 2 and self.get_in_progress_count(facility_type) == 0:
                 facilities = self.bot.structures(facility_type)
-                if not facilities or self.bot.minerals > 500 and self.bot.vespene > 250 and len(facilities) < 3:
+                if not facilities or self.bot.minerals > 500 and self.bot.vespene > 250 \
+                        and len(facilities) < self.max_facilities.get(facility_type, 1):
                     new_build_steps = []
                     if facility_type in self.production.add_on_types:
                         # add facility with no addon if needed

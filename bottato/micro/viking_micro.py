@@ -24,7 +24,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             return False
         if unit.is_flying:
             nearby_enemies = self.bot.enemy_units.closer_than(25, unit) \
-                + self.bot.enemy_structures.of_type((UnitTypeId.MISSILETURRET, UnitTypeId.SPORECRAWLER)).closer_than(25, unit)
+                + self.bot.enemy_structures.of_type(self.offensive_structure_types).closer_than(25, unit)
             if unit.health_percentage >= health_threshold:
                 # don't land if there are air targets nearby
                 if not nearby_enemies:
@@ -59,7 +59,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                     return True
         else:
             nearby_enemies = self.bot.enemy_units.closer_than(27, unit) \
-                + self.bot.enemy_structures.of_type((UnitTypeId.MISSILETURRET, UnitTypeId.SPORECRAWLER)).closer_than(27, unit)
+                + self.bot.enemy_structures.of_type(self.offensive_structure_types).closer_than(27, unit)
             if unit.health_percentage < health_threshold:
                 aerial_threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_air(u)
                                                        and not UnitTypes.can_attack_ground(u))

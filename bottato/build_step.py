@@ -350,7 +350,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2 = None
-            if rush_detected and self.bot.structures.of_type(UnitTypeId.BARRACKS):
+            if rush_detected and self.bot.structures.of_type(UnitTypeId.BARRACKS) and not self.bot.structures.of_type(UnitTypeId.BUNKER):
                 # try to build near edge of high ground towards natural
                 # high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
                 ramp_barracks = self.bot.structures.of_type(UnitTypeId.BARRACKS).closest_to(self.bot.main_base_ramp.barracks_correct_placement)
@@ -381,7 +381,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                         placement_step=2,
                     )
                     break
-        elif unit_type_id == UnitTypeId.SUPPLYDEPOT and self.bot.supply_cap < 70:
+        elif unit_type_id == UnitTypeId.SUPPLYDEPOT and self.bot.supply_cap < 45:
             if not special_locations.is_blocked:
                 new_build_position = special_locations.find_placement(unit_type_id)
             if new_build_position is None:

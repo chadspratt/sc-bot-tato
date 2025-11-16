@@ -155,6 +155,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             name='main'
         )
         self.bunker = Bunker(self.bot)
+        self.bunker2 = Bunker(self.bot)
         self.squads_by_unit_tag: dict[int, BaseSquad] = {}
         self.squads: List[BaseSquad] = []
         self.created_squad_type_counts: dict[int, int] = {}
@@ -280,8 +281,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
         self.stop_timer("military army value")
 
-        # fill bunker before managing defense. only use visible enemies to avoid crashing cached distance calculations
-        await self.manage_bunker(enemies_in_base, mount_offense)
+        await self.manage_bunker(self.bunker, enemies_in_base, mount_offense)
+        await self.manage_bunker(self.bunker2, enemies_in_base, mount_offense)
 
         if mount_offense:
             if self.offense_start_supply == 200:
@@ -383,51 +384,51 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.report()
         self.stop_timer("manage_squads")
 
-    async def manage_bunker(self, enemies_in_base: Units = None, mount_offense: bool = False):
-        if mount_offense or not self.bunker.is_built():
-            self.empty_bunker()
+    async def manage_bunker(self, bunker: Bunker, enemies_in_base: Units = None, mount_offense: bool = False):
+        if mount_offense or not bunker.is_built():
+            self.empty_bunker(bunker)
             return
         
         enemy_distance_to_bunker = 100
         enemy_distance_to_townhall = 100
         current_enemies = enemies_in_base.filter(lambda unit: unit.age == 0)
         if current_enemies:
-            enemy_distance_to_bunker = current_enemies.closest_distance_to(self.bunker.structure)
+            enemy_distance_to_bunker = current_enemies.closest_distance_to(bunker.structure)
             enemy_distance_to_townhall = current_enemies.closest_distance_to(self.bot.start_location)
 
         if self.bot.time > 300 or enemy_distance_to_townhall < 15:
             if enemy_distance_to_bunker > 9:
-                self.empty_bunker()
+                self.empty_bunker(bunker)
                 return
 
-        for unit in self.bunker.units:
+        for unit in bunker.units:
             try:
                 unit = self.get_updated_unit_reference(unit, self.units_by_tag)
                 # unit didn't enter bunker, maybe got stuck behind wall
-                if unit.distance_to(self.bunker.structure) <= 2.5:
-                    unit.smart(self.bunker.structure)
+                if unit.distance_to(bunker.structure) <= 2.5:
+                    unit.smart(bunker.structure)
                 else:
                     micro = MicroFactory.get_unit_micro(unit)
-                    await micro.move(unit, self.bunker.structure.position)
+                    await micro.move(unit, bunker.structure.position)
             except Exception:
                 pass
 
         for unit in self.main_army.units:
-            if len(self.bunker.units) >= 4:
+            if len(bunker.units) >= 4:
                 break
             if unit.type_id == UnitTypeId.MARINE:
                 enemy_distance_to_unit = current_enemies.closest_distance_to(unit) if current_enemies else 100
-                marine_distance_to_bunker = unit.distance_to(self.bunker.structure)
+                marine_distance_to_bunker = unit.distance_to(bunker.structure)
                 if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
                     # send unit to bunker if they won't have to move past enemies
-                    self.transfer(unit, self.main_army, self.bunker)
-                    unit.smart(self.bunker.structure)
+                    self.transfer(unit, self.main_army, bunker)
+                    unit.smart(bunker.structure)
 
-    def empty_bunker(self):
-        for unit in self.bunker.units:
+    def empty_bunker(self, bunker: Bunker = None):
+        for unit in bunker.units:
             self.squads_by_unit_tag[unit.tag] = self.main_army
         # self.bunker.transfer_all(self.main_army)
-        self.bunker.empty()
+        bunker.empty()
 
     async def harass(self, newest_enemy_base: Point2 = None):
         if not self.harass_squad.units:
