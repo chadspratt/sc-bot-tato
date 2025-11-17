@@ -8,6 +8,7 @@ from sc2.constants import UnitTypeId
 
 from bottato.unit_types import UnitTypes
 from bottato.mixins import GeometryMixin
+from bottato.log_helper import LogHelper
 from bottato.micro.base_unit_micro import BaseUnitMicro
 
 
@@ -56,6 +57,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if self.bot.time < 300 or self.bot.time < 420 and not natural_in_place:
             enemies_near_ramp = self.bot.all_enemy_units.closer_than(20, self.bot.main_base_ramp.bottom_center)
             closest_enemy_to_ramp = enemies_near_ramp.closest_to(unit) if enemies_near_ramp else None
+            LogHelper.add_log(f"Early game siege tank micro for {unit}, closest enemy to ramp: {closest_enemy_to_ramp}")
             # bonus_distance = 0 if is_sieged else 6
             in_range_distance = 11 if closest_enemy_to_ramp and closest_enemy_to_ramp.is_structure else 13
             enemy_out_of_range = closest_enemy_to_ramp and unit.distance_to(closest_enemy_to_ramp) <= in_range_distance
@@ -72,6 +74,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                             return True
                     else:
                         self.siege(unit)
+                        LogHelper.add_log(f"Early game siege tank sieging to cover ramp against {closest_enemy_to_ramp}, range {unit.distance_to(closest_enemy_to_ramp)}")
                         return True
                 if unit.tag in self.early_game_siege_positions:
                     tank_position = self.early_game_siege_positions[unit.tag]
@@ -103,6 +106,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                             unit.move(tank_position)
                         else:
                             self.siege(unit)
+                            LogHelper.add_log(f"Early game siege tank sieging to cover ramp at desired position")
                     elif current_distance < 3 and (unit.position.manhattan_distance(self.previous_positions[unit.tag]) < 0.1 or current_distance > previous_distance):
                         # don't block depots from raising
                         closest_depot = self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).closest_to(unit)
@@ -112,6 +116,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                             unit.move(tank_position)
                         else:
                             self.siege(unit)
+                            LogHelper.add_log(f"Early game siege tank sieging to cover ramp at closest possible position")
                     else:
                         unit.move(tank_position)
                     self.early_game_siege_positions[unit.tag] = tank_position
@@ -119,6 +124,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     unit.move(self.bot.main_base_ramp.bottom_center)
                 else:
                     self.siege(unit)
+                    LogHelper.add_log(f"Early game siege tank sieging to cover ramp at default position")
             self.previous_positions[unit.tag] = unit.position
             return True
         
