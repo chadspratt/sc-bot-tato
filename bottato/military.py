@@ -274,7 +274,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.army_ratio = self.calculate_army_ratio()
         army_is_big_enough = self.army_ratio > 1.3 or self.bot.supply_used > 160
         army_is_grouped = self.main_army.is_grouped()
-        mount_offense = not defend_with_main_army and army_is_big_enough and (self.bot.supply_used >= 40 or self.bot.time > 300) # and (self.bot.supply_used >= 110 or self.bot.time > 600)
+        mount_offense = army_is_big_enough
+        if defend_with_main_army:
+            mount_offense = False
+        elif self.bot.time < 300: # previously 600
+            if rush_detected:
+                mount_offense = False
+            elif self.bot.supply_used < 45: # previously 110
+                mount_offense = False
         if not mount_offense and enemies_in_base:
             defend_with_main_army = True
         self.status_message = f"army ratio {self.army_ratio:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"

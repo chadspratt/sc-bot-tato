@@ -43,7 +43,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
         # siege tanks near main base early game
         natural_in_place = len(self.bot.townhalls) > 2
-        if not natural_in_place:
+        if not natural_in_place and 300 < self.bot.time < 420:
             for el in self.bot.expansion_locations:
                 if el == self.bot.start_location:
                     continue
@@ -114,7 +114,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     else:
                         unit.move(tank_position)
                     self.early_game_siege_positions[unit.tag] = tank_position
-                elif unit.distance_to(self.bot.main_base_ramp.bottom_center) > 11:
+                elif unit.distance_to(self.bot.main_base_ramp.bottom_center) > 9:
                     unit.move(self.bot.main_base_ramp.bottom_center)
                 else:
                     self.siege(unit)
