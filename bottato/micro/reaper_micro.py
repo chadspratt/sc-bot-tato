@@ -65,19 +65,16 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         # enemy_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
         threats = nearby_enemies.filter(lambda enemy: enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG))
 
-        # if enemy_workers:
-        #     lowest_target = enemy_workers.sorted(key=lambda worker:  (worker.shield_health_percentage) * 10000 + unit.distance_to(worker)).first
-        #     unit.attack(lowest_target)
         if threats:
             for threat in threats:
                 if UnitTypes.ground_range(threat) > unit.ground_range:
                     # don't attack enemies that outrange
                     return False
-        weakest_enemy = nearby_enemies.sorted(key=lambda t: t.shield + t.health).first
-        unit.attack(weakest_enemy)
-        # else:
-        #     return False
-        return True
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+        if can_attack:
+            weakest_enemy = nearby_enemies.sorted(key=lambda t: t.shield + t.health).first
+            return self._kite(unit, weakest_enemy)
+        return self._stay_at_max_range(unit, nearby_enemies)
 
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
@@ -109,7 +106,8 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         if do_retreat:
             avg_threat_position = threats.center
-            if unit.distance_to(self.bot.start_location) < avg_threat_position.distance_to(self.bot.start_location) - 2:
+            if unit.distance_to(self.bot.start_location) < avg_threat_position.distance_to(self.bot.start_location) + 2:
+                # if closer to start or already near enemy, move past them to go home
                 unit.move(self.bot.start_location)
                 return True
             retreat_position = unit.position.towards(avg_threat_position, -5)

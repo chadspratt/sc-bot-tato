@@ -360,8 +360,14 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 candidate = candidate.towards(self.bot.main_base_ramp.top_center.towards(ramp_barracks.position, distance=2), distance=-1)
             else:
                 ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
-                enemy_start: Point2 = self.bot.enemy_start_locations[0]
-                candidate = ((ramp_position + self.map.natural_position) / 2).towards(enemy_start, distance=1)
+                # enemy_start: Point2 = self.bot.enemy_start_locations[0]
+                ramp_to_natural_vector = (self.map.natural_position - ramp_position).normalized
+                ramp_to_natural_perp_vector = Point2((-ramp_to_natural_vector.x, ramp_to_natural_vector.y))
+                toward_natural = ramp_position + ramp_to_natural_vector * 3
+                candidates = [toward_natural + ramp_to_natural_perp_vector * 3, toward_natural - ramp_to_natural_perp_vector * 3]
+                candidates.sort(key=lambda p: p.distance_to(self.bot.game_info.map_center))
+                candidate = candidates[0]
+                # candidate = ramp_position.towards(self.map.natural_position, 2).towards(enemy_start, distance=1)
             retry_count = 0
             while not new_build_position or self.bot.distance_math_hypot_squared(new_build_position, self.map.natural_position) < 16:
                 new_build_position = await self.bot.find_placement(

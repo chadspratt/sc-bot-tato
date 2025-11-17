@@ -457,7 +457,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 self.units_to_attack.remove(existing_enemy)
                 logger.debug(f"updated enemy to attack {enemy}")
                 break
-        logger.debug(f"added enemy to attack {enemy}")
+        LogHelper.add_log(f"added enemy to attack {enemy}")
         self.units_to_attack.add(enemy)
 
     def update_assigment(self, worker: Unit, job_type: JobType, target: Union[Unit, None]):

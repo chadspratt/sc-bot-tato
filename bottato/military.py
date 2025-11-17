@@ -468,71 +468,54 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
         for unit in self.harass_squad.units:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
-            nearby_enemies = self.bot.enemy_units.closer_than(15, unit)
+            nearby_enemies = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_ground(u) and u.distance_to(unit) < 15)
             threatening_structures = self.bot.enemy_structures.filter(
                 lambda structure: structure.is_ready and structure.can_attack_ground
                     and structure.distance_to(unit) < structure.ground_range + 3)
+
             if not nearby_enemies and not threatening_structures:
                 await micro.move(unit, harass_location)
-            else:
-                nearby_threats = (nearby_enemies + threatening_structures).filter(
-                    lambda enemy: UnitTypes.can_attack_ground(enemy)
-                        and enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
-                if nearby_threats:
-                    nearest_threat = nearby_threats.closest_to(unit)
-                    if UnitTypes.ground_range(nearest_threat) < UnitTypes.ground_range(unit):
-                        # kite enemies that we outrange
-                        # predicted_position = self.predict_future_unit_position(nearest_threat, 1, False)
-                        move_position = nearest_threat.position
-                        if unit.weapon_cooldown != 0:
-                            move_position = nearest_threat.position.towards(unit, UnitTypes.ground_range(unit) - 0.5)
-                        self.bot.client.debug_line_out(nearest_threat, self.convert_point2_to_3(move_position), (255, 0, 0))
-                        self.bot.client.debug_sphere_out(self.convert_point2_to_3(move_position), 0.2, (255, 0, 0))
-                        await micro.move(unit, move_position)
-                        continue
-                    elif nearest_threat.distance_to_squared(harass_location) < unit.distance_to_squared(harass_location):
-                        # try to circle around threats that outrange us
-                        threat_to_unit_vector = (unit.position - nearest_threat.position).normalized
-                        tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
-                        circle_around_positions = [unit.position + tangent_vector, unit.position - tangent_vector]
-                        circle_around_positions.sort(key=lambda pos: pos.distance_to(harass_location))
-                        await micro.move(unit, circle_around_positions[0])
-                        continue
-                
-                nearby_workers = nearby_enemies.filter(
-                    lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
-                if nearby_workers:
-                    nearby_workers.sort(key=lambda worker: worker.shield_health_percentage)
-                    most_injured: Unit = nearby_workers[0]
-                    move_position = most_injured.position
-                    if unit.weapon_cooldown != 0:
-                        move_position = most_injured.position.towards(unit, UnitTypes.ground_range(unit) - 0.5)
-                    await micro.move(unit, move_position)
-                else:
-                    await micro.move(unit, harass_location)
+                continue
 
-    # def get_counter_units(self, unit: Unit):
-    #     unassigned = [UnitTypeId.STALKER, UnitTypeId.SENTRY, UnitTypeId.ADEPT, UnitTypeId.HIGHTEMPLAR, UnitTypeId.DARKTEMPLAR, UnitTypeId.ARCHON, UnitTypeId.IMMORTAL, UnitTypeId.COLOSSUS, UnitTypeId.DISRUPTOR, UnitTypeId.PHOENIX, UnitTypeId.VOIDRAY, UnitTypeId.ORACLE, UnitTypeId.TEMPEST, UnitTypeId.CARRIER, UnitTypeId.MOTHERSHIP]
-    #     unassigned.extend([UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.GHOST, UnitTypeId.HELLION, UnitTypeId.HELLIONTANK, UnitTypeId.WIDOWMINE, UnitTypeId.CYCLONE, UnitTypeId.THOR, UnitTypeId.VIKINGFIGHTER, UnitTypeId.RAVEN, UnitTypeId.BATTLECRUISER])
-    #     unassigned.extend([UnitTypeId.QUEEN, UnitTypeId.ZERGLING, UnitTypeId.BANELING, UnitTypeId.ROACH, UnitTypeId.RAVAGER, UnitTypeId.HYDRALISK, UnitTypeId.LURKER, UnitTypeId.MUTALISK, UnitTypeId.CORRUPTOR, UnitTypeId.SWARMHOSTMP, UnitTypeId.INFESTOR, UnitTypeId.VIPER, UnitTypeId.ULTRALISK, UnitTypeId.BROODLORD])
-    #     if unit.type_id in (UnitTypeId.LIBERATOR, UnitTypeId.LIBERATORAG, UnitTypeId.WARPPRISM, UnitTypeId.BANSHEE, UnitTypeId.MEDIVAC):
-    #         return [[UnitTypeId.VIKINGFIGHTER]]
-    #     if unit.type_id in (UnitTypeId.STALKER,):
-    #         return [[UnitTypeId.SIEGETANK, UnitTypeId.MARINE], [UnitTypeId.MARAUDER, UnitTypeId.MARINE]]
-    #     elif unit.type_id in (UnitTypeId.REAPER, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.ADEPT, UnitTypeId.ZEALOT, UnitTypeId.ZERGLING):
-    #         return [[UnitTypeId.BANSHEE], [UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]]
-    #     elif unit.type_id in (UnitTypeId.OBSERVER, ):
-    #         return [[UnitTypeId.RAVEN, UnitTypeId.VIKINGFIGHTER]]
-    #     elif unit.type_id in (UnitTypeId.VOIDRAY, ):
-    #         return [[UnitTypeId.VIKINGFIGHTER, UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]]
-    #     elif unit.type_id in (UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.PROBE):
-    #         return [[UnitTypeId.MARINE]]
-    #     elif unit.type_id in (UnitTypeId.ZERGLING,):
-    #         return [[UnitTypeId.MARINE, UnitTypeId.MARINE]]
-    #     elif unit.type_id in (UnitTypeId.LURKER, UnitTypeId.LURKERMP):
-    #         return [[UnitTypeId.RAVEN, UnitTypeId.SIEGETANK]]
-    #     else:
-    #         return [[UnitTypeId.MARINE, UnitTypeId.MARINE, UnitTypeId.MARINE]]
+            nearest_threat = None
+            nearest_distance = 99999
+            for threat in nearby_enemies + threatening_structures:
+                distance = threat.distance_to_squared(unit) - UnitTypes.ground_range(threat) ** 2
+                if distance < nearest_distance:
+                    nearest_distance = distance
+                    nearest_threat = threat
+
+            if UnitTypes.ground_range(nearest_threat) < UnitTypes.ground_range(unit):
+                # kite enemies that we outrange
+                # predicted_position = self.predict_future_unit_position(nearest_threat, 1, False)
+                move_position = nearest_threat.position
+                # if unit.weapon_cooldown != 0:
+                #     move_position = nearest_threat.position.towards(unit, UnitTypes.ground_range(unit) - 0.5)
+                self.bot.client.debug_line_out(nearest_threat, self.convert_point2_to_3(move_position), (255, 0, 0))
+                self.bot.client.debug_sphere_out(self.convert_point2_to_3(move_position), 0.2, (255, 0, 0))
+                await micro.move(unit, move_position)
+                continue
+            else:
+            # elif nearest_threat.distance_to_squared(harass_location) < unit.distance_to_squared(harass_location):
+                # try to circle around threats that outrange us
+                threat_to_unit_vector = (unit.position - nearest_threat.position).normalized
+                tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
+                circle_around_positions = [unit.position + tangent_vector, unit.position - tangent_vector]
+                circle_around_positions.sort(key=lambda pos: pos.distance_to(harass_location))
+                await micro.move(unit, circle_around_positions[0])
+                continue
+            
+            # nearby_workers = nearby_enemies.filter(
+            #     lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
+            # if nearby_workers:
+            #     nearby_workers.sort(key=lambda worker: worker.shield_health_percentage)
+            #     most_injured: Unit = nearby_workers[0]
+            #     move_position = most_injured.position
+            #     if unit.weapon_cooldown != 0:
+            #         move_position = most_injured.position.towards(unit, UnitTypes.ground_range(unit) - 0.5)
+            #     await micro.move(unit, move_position)
+            # else:
+            #     await micro.move(unit, harass_location)
 
     def get_squad_request(self, remaining_cap: int) -> list[UnitTypeId]:
         self.start_timer("get_squad_request")
@@ -590,6 +573,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         for medivac in self.bot.units(UnitTypeId.MEDIVAC):
             for passenger in medivac.passengers:
                 passengers.append(passenger)
+        # clear to take upgrades in to account
+        self.damage_by_type.clear()
         enemy_damage: float = self.calculate_total_damage(enemies, friendlies)
         friendly_damage: float = self.calculate_total_damage(friendlies, enemies, passengers)
         

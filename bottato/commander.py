@@ -48,6 +48,17 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
 
     async def command(self, iteration: int):
         self.start_timer("command")
+        # self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.bot.main_base_ramp.bottom_center), 1, (255, 0, 0))
+        # self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.bot.game_info.map_center), 1, (255, 255, 255))
+        # ramp_to_natural_vector = (self.map.natural_position - self.bot.main_base_ramp.bottom_center).normalized
+        # ramp_to_natural_perp_vector = Point2((-ramp_to_natural_vector.y, ramp_to_natural_vector.x))
+        # toward_natural = self.bot.main_base_ramp.bottom_center.towards(self.map.natural_position, 3)
+        # candidates = [toward_natural + ramp_to_natural_perp_vector * 3, toward_natural - ramp_to_natural_perp_vector * 3]
+        # candidates.sort(key=lambda p: p.distance_to(self.bot.game_info.map_center))
+        # self.bot.client.debug_sphere_out(self.convert_point2_to_3(toward_natural), 1, (0, 255, 0))
+        # self.bot.client.debug_sphere_out(self.convert_point2_to_3(candidates[0]), 1, (255, 255, 255))
+        # self.bot.client.debug_sphere_out(self.convert_point2_to_3(candidates[1]), 1, (255, 255, 0))
+        # self.bot.client.debug_sphere_out(self.convert_point2_to_3(toward_natural.towards(self.bot.game_info.map_center, 3)), 1, (0, 0, 255))
 
         await self.map.refresh_map()
         # check for stuck units
