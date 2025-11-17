@@ -8,7 +8,7 @@ from sc2.constants import UnitTypeId
 from sc2.position import Point2
 
 
-from ..mixins import GeometryMixin, UnitReferenceMixin
+from bottato.mixins import GeometryMixin, UnitReferenceMixin
 
 class ResourceNode(UnitReferenceMixin):
     def __init__(self, node: Unit, max_workers: int, max_mules: int, is_long_distance: bool = False):

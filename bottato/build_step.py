@@ -14,6 +14,7 @@ from sc2.position import Point2, Point3
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.protocol import ConnectionAlreadyClosedError, ProtocolError
 
+from bottato.log_helper import LogHelper
 from bottato.unit_types import UnitTypes
 from bottato.map.map import Map
 from bottato.mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
@@ -265,7 +266,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.unit_in_charge = self.production.get_builder(self.unit_type_id)
             if self.unit_type_id in self.production.add_on_types and self.unit_in_charge:
                 if self.interrupted_count > 5:
-                    logger.info(f"{self.bot.time}: addon {self.unit_type_id} interrupted too many times ({self.interrupted_count}), setting addon blocked")
+                    LogHelper.add_log(f"addon {self.unit_type_id} interrupted too many times ({self.interrupted_count}), setting addon blocked")
                     if await self.production.set_addon_blocked(self.unit_in_charge, self.interrupted_count):
                         self.interrupted_count = 0
                         self.unit_in_charge = None
@@ -333,7 +334,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 expansions_to_check.append(el)
 
             if not expansions_to_check:
-                logger.info("No valid expansions found. attempted_expansion_positions: {self.attempted_expansion_positions}")
+                LogHelper.add_log("No valid expansions found. attempted_expansion_positions: {self.attempted_expansion_positions}")
                 self.attempted_expansion_positions.clear()
                 return None
 

@@ -11,6 +11,7 @@ from sc2.unit import Unit
 from sc2.game_data import Cost
 from sc2.data import Race
 
+from bottato.log_helper import LogHelper
 from bottato.enemy import Enemy
 from bottato.unit_types import UnitTypes
 from bottato.build_step import BuildStep, ResponseCode
@@ -169,9 +170,9 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         for idx in reversed(to_promote):
             step: BuildStep = self.started.pop(idx)
             step.interrupted_count += 1
-            logger.info(f"{self.bot.time}:{step} interrupted")
-            if step.interrupted_count > 10:
-                logger.info(f"{self.bot.time}:{step} interrupted too many times, removing from build order")
+            LogHelper.add_log(f"{step} interrupted")
+            if step.interrupted_count > 10 and step.unit_being_built is None:
+                LogHelper.add_log(f"{step} interrupted too many times, removing from build order")
                 continue
             if step.unit_type_id not in self.unit_types.TERRAN:
                 self.interrupted_queue.insert(0, step)
@@ -739,7 +740,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             self.stop_timer("build_step.execute")
             self.start_timer(f"handle response {build_response}")
             if build_response == ResponseCode.SUCCESS:
-                logger.info(f"{self.bot.time}:Started building {build_step}")
+                LogHelper.add_log(f"Started building {build_step}")
                 self.started.append(build_queue.pop(execution_index))
                 if build_step.interrupted_count > 5:
                     # can't trust that this actually got built
@@ -748,7 +749,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 break
             else:
                 if build_response != ResponseCode.NO_FACILITY:
-                    logger.info(f"{self.bot.time}:failed to start {build_step}: {build_response}")
+                    LogHelper.add_log(f"failed to start {build_step}: {build_response}")
                 if not allow_skip:
                     break
                 if build_response == ResponseCode.NO_LOCATION:

@@ -8,7 +8,7 @@ from sc2.unit import Unit
 # from MapAnalyzer.constructs import MDRamp, VisionBlockerArea
 # from .cext import CMapChoke
 # from .settings import ROOT_DIR
-from .destructibles import destructibles
+from bottato.map.destructibles import destructibles
 
 
 def change_destructible_status_in_grid(grid: np.ndarray, unit: Unit, status: int):

@@ -1,6 +1,6 @@
 from sc2.ids.unit_typeid import UnitTypeId
 
-from .composition import Composition
+from bottato.squad.composition import Composition
 
 
 class SquadType():

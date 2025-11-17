@@ -3,9 +3,8 @@ from loguru import logger
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 
-from .resources import Resources
-
 from bottato.mixins import TimerMixin
+from bottato.economy.resources import Resources
 
 
 class Vespene(Resources, TimerMixin):

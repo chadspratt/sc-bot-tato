@@ -6,8 +6,8 @@ from sc2.position import Point2, Point3
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.bot_ai import BotAI
 
-from .utils import change_destructible_status_in_grid
-from .destructibles import BUILDINGS
+from bottato.map.utils import change_destructible_status_in_grid
+from bottato.map.destructibles import BUILDINGS
 
 from loguru import logger
 import numpy as np

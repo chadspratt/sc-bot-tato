@@ -8,9 +8,9 @@ from sc2.units import Units
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
-from .unit_types import UnitTypes
-from .mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
-from .squad.enemy_squad import EnemySquad
+from bottato.unit_types import UnitTypes
+from bottato.mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
+from bottato.squad.enemy_squad import EnemySquad
 
 
 class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
@@ -35,7 +35,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         self.predicted_frame_vector: dict[int, Point2] = {}
         self.enemy_squads: List[EnemySquad] = []
         self.squads_by_unit_tag: dict[int, EnemySquad] = {}
-        self.bot.state.game_loop
+        self.all_seen: dict[UnitTypeId, set[int]] = {}
 
     def update_references(self, units_by_tag: dict[int, Unit]):
         self.start_timer("enemy.update_references")
@@ -91,6 +91,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.predicted_frame_vector[enemy_unit.tag] = self.get_average_movement_per_step(self.last_seen_positions[enemy_unit.tag])
             if enemy_unit.tag not in self.first_seen:
                 self.first_seen[enemy_unit.tag] = self.bot.time
+                self.all_seen.setdefault(enemy_unit.type_id, set()).add(enemy_unit.tag)
 
         # add not visible to out_of_view
         for enemy_unit in self.enemies_in_view:
@@ -341,3 +342,6 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     def can_attack(self, attacker: Unit, target: Unit) -> bool:
         return UnitTypes.range_vs_target(attacker, target) > 0.0
+    
+    def get_total_count_of_type_seen(self, unit_type: UnitTypeId) -> int:
+        return len(self.all_seen.get(unit_type, set()))

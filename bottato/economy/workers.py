@@ -10,6 +10,7 @@ from sc2.constants import UnitTypeId, AbilityId
 from sc2.position import Point2, Point3
 from sc2.game_data import Cost
 
+from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.micro_factory import MicroFactory
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -674,7 +675,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     continue
 
                 if self.minerals.add_long_distance_minerals((idle_count - reassigned_count)) > 0:
-                    logger.info(f"adding {worker.tag} to long-distance")
+                    LogHelper.add_log(f"adding {worker.tag} to long-distance")
                     self.update_assigment(worker, JobType.MINERALS, None)
                 else:
                     # nothing to do, just send them home

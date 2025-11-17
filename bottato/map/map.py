@@ -13,9 +13,9 @@ from sc2.position import Point2
 from sc2.ids.unit_typeid import UnitTypeId
 
 
-from ..mixins import TimerMixin, GeometryMixin
-from .zone import Path, Zone
-from .influence_maps import InfluenceMaps
+from bottato.mixins import TimerMixin, GeometryMixin
+from bottato.map.zone import Path, Zone
+from bottato.map.influence_maps import InfluenceMaps
 
 
 class Map(TimerMixin, GeometryMixin):

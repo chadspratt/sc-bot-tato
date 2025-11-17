@@ -376,13 +376,16 @@ class Scouting(BaseSquad, DebugMixin):
             early_pool = self.intel.first_building_time.get(UnitTypeId.SPAWNINGPOOL, float('inf')) < 40
             no_gas = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.EXTRACTOR) == 0
             no_expansion = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.HATCHERY) == 1
+            zergling_rush = self.enemy.get_total_count_of_type_seen(UnitTypeId.ZERGLING) >= 8 and self.bot.time < 180
             if early_pool:
                 await self.bot.client.chat_send("early pool detected", False)
             if no_gas:
                 await self.bot.client.chat_send("no gas detected", False)
             if no_expansion:
                 await self.bot.client.chat_send("no expansion detected", False)
-            return early_pool or no_gas or no_expansion
+            if zergling_rush:
+                await self.bot.client.chat_send("zergling rush detected", False)
+            return early_pool or no_gas or no_expansion or zergling_rush
         if self.intel.enemy_race_confirmed == Race.Terran:
             multiple_barracks = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.BARRACKS) > 1
             # no_expansion = self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed

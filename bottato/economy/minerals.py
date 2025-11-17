@@ -9,7 +9,7 @@ from sc2.position import Point2
 
 from bottato.map.map import Map
 from bottato.mixins import TimerMixin
-from .resources import ResourceNode, Resources
+from bottato.economy.resources import ResourceNode, Resources
 
 
 class Minerals(Resources, TimerMixin):

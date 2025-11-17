@@ -5,7 +5,7 @@ from loguru import logger
 from sc2.unit import Unit
 from sc2.position import Point2
 
-from .base_squad import BaseSquad
+from bottato.squad.base_squad import BaseSquad
 
 
 NEARBY_THRESHOLD = 5

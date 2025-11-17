@@ -8,6 +8,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 
+from bottato.log_helper import LogHelper
 from bottato.commander import Commander
 from bottato.mixins import TimerMixin
 
@@ -27,6 +28,7 @@ class BotTato(BotAI, TimerMixin):
         logger.debug(f"destructibles: {self.destructables}")
         self.draw_map = False
         self.patch_game_data()
+        LogHelper.bot = self
 
     async def on_step(self, iteration):
         logger.debug(f"======starting step {iteration} ({self.time}s)======")
@@ -42,6 +44,7 @@ class BotTato(BotAI, TimerMixin):
         if self.draw_map:
             self.commander.map.draw()
         self.print_build_order(10)
+        LogHelper.print_logs()
 
     def toggle_map_drawing(self):
         self.draw_map = not self.draw_map
@@ -67,13 +70,13 @@ class BotTato(BotAI, TimerMixin):
             self.last_timer_print = self.time
             self.print_timers("main-")
             self.commander.print_all_timers()
-            logger.info(self.commander.build_order.get_build_queue_string())
-            logger.info(f"upgrades: {self.state.upgrades}")
+            LogHelper.add_log(self.commander.build_order.get_build_queue_string())
+            LogHelper.add_log(f"upgrades: {self.state.upgrades}")
 
     def print_build_order(self, interval: int = 0):
         if self.time - self.last_build_order_print > interval:
             self.last_build_order_print = self.time
-            logger.info(f"{self.bot.time}: {self.commander.build_order.get_build_queue_string()}")
+            LogHelper.add_log(f"{self.commander.build_order.get_build_queue_string()}")
 
     def disable_logging(self):
         logger.disable("bottato")

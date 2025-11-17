@@ -8,8 +8,8 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
 
-from ..mixins import UnitReferenceMixin
-from .squad_type import SquadType, SquadTypeDefinitions
+from bottato.mixins import UnitReferenceMixin
+from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
 
 
 class SquadState(enum.Enum):

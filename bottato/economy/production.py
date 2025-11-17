@@ -13,8 +13,9 @@ from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.constants import abilityid_to_unittypeid
 from sc2.position import Point2
 
-from ..mixins import UnitReferenceMixin, TimerMixin
-from ..tech_tree import TECH_TREE
+from bottato.log_helper import LogHelper
+from bottato.mixins import UnitReferenceMixin, TimerMixin
+from bottato.tech_tree import TECH_TREE
 
 
 class Facility(UnitReferenceMixin):
@@ -508,7 +509,7 @@ class Production(UnitReferenceMixin, TimerMixin):
             if facility.unit.tag == blocked_facility.tag:
                 # if it's been interrupted too many times despite not registering as blocked, mark it anyways
                 if interrupted_count > 20:
-                    logger.info(f"marking {facility} as blocked after {interrupted_count} interruptions")
+                    LogHelper.add_log(f"marking {facility} as blocked after {interrupted_count} interruptions")
                     facility.addon_blocked = True
                     return True
                 # check that it isn't blocked by an enemy unit
@@ -517,6 +518,6 @@ class Production(UnitReferenceMixin, TimerMixin):
                         facility.addon_blocked = True
                         return True
                     else:
-                        logger.info(f"addon position for {facility.unit} is not actually blocked")
+                        LogHelper.add_log(f"addon position for {facility.unit} is not actually blocked")
                 break
         return False

@@ -10,6 +10,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.data import Race
 
+from bottato.log_helper import LogHelper
 from bottato.counter import Counter
 from bottato.unit_types import UnitTypes
 from bottato.build_step import BuildStep
@@ -261,7 +262,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 for e in enemy_group:
                     self.countered_enemies[e.tag] = defense_squad
                 await defense_squad.move(self.enemy.predicted_position[enemy.tag])
-                # logger.info(f"defending against {enemy_group} at {enemy.position} with {defense_squad}")
+                LogHelper.add_log(f"defending against {enemy_group} at {enemy.position} with {defense_squad}")
                 break
         self.stop_timer("military enemies_in_base counter")
         self.stop_timer("military enemies_in_base")
@@ -275,6 +276,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         army_is_big_enough = self.army_ratio > 1.3 or self.bot.supply_used > 160
         army_is_grouped = self.main_army.is_grouped()
         mount_offense = army_is_big_enough
+
         if defend_with_main_army:
             mount_offense = False
         elif self.bot.time < 300: # previously 600
@@ -282,7 +284,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 mount_offense = False
             elif self.bot.supply_used < 45: # previously 110
                 mount_offense = False
-        if not mount_offense and enemies_in_base:
+        if not mount_offense and enemies_in_base and self.army_ratio > 1.0:
             defend_with_main_army = True
         self.status_message = f"army ratio {self.army_ratio:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
@@ -306,7 +308,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             self.main_army.update_formation()
             self.stop_timer("military move squads update formation")
             if defend_with_main_army:
-                logger.debug(f"squad {self.main_army.name} mounting defense")
+                LogHelper.add_log(f"squad {self.main_army.name} mounting defense")
                 self.start_timer("military move squads defend")
                 await self.main_army.move(enemies_in_base.closest_to(self.main_army.position).position)
                 self.stop_timer("military move squads defend")

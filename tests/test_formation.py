@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from ..bottato.formation import (
+from ..bottato.squad.formation import (
     ParentFormation,
     Formation,
     UnitDemographics,
