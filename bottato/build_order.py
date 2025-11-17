@@ -739,7 +739,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             self.stop_timer("build_step.execute")
             self.start_timer(f"handle response {build_response}")
             if build_response == ResponseCode.SUCCESS:
-                logger.info(f"Started building {build_step}")
+                logger.info(f"{self.bot.time}:Started building {build_step}")
                 self.started.append(build_queue.pop(execution_index))
                 if build_step.interrupted_count > 5:
                     # can't trust that this actually got built
@@ -748,7 +748,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 break
             else:
                 if build_response != ResponseCode.NO_FACILITY:
-                    logger.info(f"failed to start {build_step}: {build_response}")
+                    logger.info(f"{self.bot.time}:failed to start {build_step}: {build_response}")
                 if not allow_skip:
                     break
                 if build_response == ResponseCode.NO_LOCATION:
