@@ -56,7 +56,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if self.bot.time < 300 or self.bot.time < 420 and not natural_in_place:
             enemies_near_ramp = self.bot.all_enemy_units.closer_than(20, self.bot.main_base_ramp.bottom_center)
             closest_enemy_to_ramp = enemies_near_ramp.closest_to(unit) if enemies_near_ramp else None
-            enemy_out_of_range = closest_enemy_to_ramp and not unit.target_in_range(closest_enemy_to_ramp)
+            bonus_distance = 0 if is_sieged else 6
+            enemy_out_of_range = closest_enemy_to_ramp and not unit.target_in_range(closest_enemy_to_ramp, bonus_distance)
             if is_sieged and enemy_out_of_range and closest_enemy_to_ramp.is_structure:
                 self.unsiege(unit)
                 return True
