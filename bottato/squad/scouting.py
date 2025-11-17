@@ -441,6 +441,8 @@ class Scouting(BaseSquad, DebugMixin):
         # Update scout unit references
         self.friendly_territory.update_scout(self.military, units_by_tag)
         self.enemy_territory.update_scout(self.military, units_by_tag, use_early_air_scout=True)
+        if await self.rush_detected:
+            self.initial_scout.completed = True
         self.initial_scout.update_scout(self.workers, units_by_tag)
 
         self.update_visibility()

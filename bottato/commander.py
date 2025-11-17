@@ -9,6 +9,7 @@ from sc2.units import Units
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from sc2.game_state import EffectData
 
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import TimerMixin, GeometryMixin, UnitReferenceMixin
@@ -76,6 +77,9 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         # self.rush_detected = self.bot.time > 70
 
         # XXX extremely slow
+        blueprints = self.build_order.get_blueprints()
+        for blueprint in blueprints:
+            self.create_fake_grenade(blueprint.position)
         await self.military.manage_squads(iteration,
                                           self.build_order.get_blueprints(),
                                           self.scouting.get_newest_enemy_base(),
@@ -91,6 +95,18 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.new_damage_by_unit.clear()
         self.new_damage_by_position.clear()
         self.stop_timer("command")
+
+    class FakeGrenadeProto:
+        def __init__(self, position: Point2):
+            self.radius = 0.5
+            self.tag = 0
+            self.unit_type = UnitTypeId.KD8CHARGE.value
+            self.pos = position
+            self.alliance = 3  # Effect
+
+    def create_fake_grenade(self, position: Point2):
+        fake_reaper_grenade = self.FakeGrenadeProto(position)
+        self.bot.state.effects.add(EffectData(fake_reaper_grenade, fake=True))
 
     async def detect_stuck_units(self, iteration: int):
         self.start_timer("detect_stuck_units")
