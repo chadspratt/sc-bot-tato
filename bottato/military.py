@@ -229,6 +229,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
         # assign squads to counter enemies that are alone or in small groups
         for enemy in enemies_in_base:
+            if not self.main_army.units and enemy.type_id == UnitTypeId.PROBE:
+                # cannon rush response
+                self.workers.attack_enemy(enemy)
+                continue
             if rush_detected and len(self.main_army.units) < 10:
                 # don't send out units if getting rushed and army is small
                 break
@@ -253,8 +257,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     # a full composition was not assigned, disband the squad and defend with main army
                     self.transfer_all(defense_squad, self.main_army)
                     defend_with_main_army = True
-                    if not self.main_army.units and enemy.type_id == UnitTypeId.PROBE:
-                        self.workers.attack_enemy(enemy)
                     break
             else:
                 # a full composition was assigned
