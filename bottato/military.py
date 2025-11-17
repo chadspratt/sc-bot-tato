@@ -734,6 +734,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stuck_rescue.update_references(units_by_tag)
         self.harass_squad.update_references(units_by_tag)
         self.bunker.update_references(units_by_tag)
+        self.bunker2.update_references(units_by_tag)
         self.stop_timer("update_references")
 
     def record_death(self, unit_tag):
