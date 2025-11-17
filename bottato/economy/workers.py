@@ -717,7 +717,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if injured_units:
             bunker = injured_units(UnitTypeId.BUNKER)
             if bunker:
-                needed_repairers = self.bot.workers.closest_n_units(7, bunker.first).amount
+                needed_repairers = self.bot.workers.closest_n_units(bunker.first, 7).amount
             else:
                 needed_repairers = 5  # early game, just assign a bunch so wall isn't broken by a rush
                 if self.bot.time > 300:                
