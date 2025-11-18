@@ -47,7 +47,7 @@ class BaseUnitMicro(GeometryMixin):
     ###########################################################################
     # meta actions - used by non-micro classes to order units
     ###########################################################################
-    async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 = None) -> bool:
+    async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
         attack_health = self.attack_health
         if force_move and unit.distance_to_squared(target) < 225:
             # force move is used for retreating. allow attacking and other micro when near staging location
@@ -55,7 +55,7 @@ class BaseUnitMicro(GeometryMixin):
             force_move = False
             
         if unit.tag in self.bot.unit_tags_received_action:
-            return
+            return True
         if self._avoid_effects(unit, force_move):
             pass
         elif await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
@@ -281,7 +281,7 @@ class BaseUnitMicro(GeometryMixin):
     ###########################################################################
     # utility behaviors - used by main actions
     ###########################################################################
-    def _stay_at_max_range(self, unit: Unit, targets: Units = None) -> bool:
+    def _stay_at_max_range(self, unit: Unit, targets: Units) -> bool:
         nearest_target = targets.closest_to(unit)
         # don't keep distance from structures since it prevents units in back from attacking
         # except for zerg structures that spawn broodlings when they die
@@ -319,7 +319,7 @@ class BaseUnitMicro(GeometryMixin):
 
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
 
-    def _kite(self, unit: Unit, target: Unit = None) -> bool:
+    def _kite(self, unit: Unit, target: Unit) -> bool:
         attack_range = UnitTypes.range_vs_target(unit, target)
         target_range = UnitTypes.range_vs_target(target, unit)
         do_kite = attack_range > target_range and unit.movement_speed > target.movement_speed

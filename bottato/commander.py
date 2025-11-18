@@ -16,11 +16,12 @@ from bottato.mixins import TimerMixin, GeometryMixin, UnitReferenceMixin
 from bottato.build_order import BuildOrder
 from bottato.micro.structure_micro import StructureMicro
 from bottato.enemy import Enemy
-from bottato.economy.workers import JobType, Workers
+from bottato.economy.workers import Workers
 from bottato.economy.production import Production
 from bottato.military import Military
 from bottato.squad.scouting import Scouting
 from bottato.map.map import Map
+from bottato.enums import RushType, WorkerJobType
 
 
 class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
@@ -44,7 +45,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.new_damage_by_position: dict[Point2, float] = {}
         self.pathable_position: Point2 = None
         self.stuck_units: Units = Units([], bot_object=self.bot)
-        self.rush_detected: bool = False
+        self.rush_detected_type: RushType = RushType.NONE
         self.units_by_tag: dict[int, Unit] = {}
 
     async def command(self, iteration: int):
@@ -68,13 +69,13 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         # XXX very slow
         self.map.update_influence_maps(self.new_damage_by_position)
 
-        await self.structure_micro.execute(self.rush_detected)
+        await self.structure_micro.execute(self.rush_detected_type)
 
         # XXX slow
-        await self.build_order.execute(self.military.army_ratio, self.rush_detected, self.enemy)
+        await self.build_order.execute(self.military.army_ratio, self.rush_detected_type, self.enemy)
 
         await self.scout()
-        # self.rush_detected = self.bot.time > 70
+        # self.rush_detected_type = RushType.STANDARAD if self.bot.time > 70 else RushType.NONE
 
         # XXX extremely slow
         blueprints = self.build_order.get_blueprints()
@@ -83,7 +84,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         await self.military.manage_squads(iteration,
                                           self.build_order.get_blueprints(),
                                           self.scouting.get_newest_enemy_base(),
-                                          self.rush_detected)
+                                          self.rush_detected_type)
 
         await self.my_workers.attack_nearby_enemies()
         self.my_workers.distribute_idle()
@@ -116,7 +117,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
                 self.pathable_position = await self.bot.find_placement(UnitTypeId.MISSILETURRET,self.bot.game_info.map_center, 25, placement_step = 5)
             else:
                 # check that position still pathable
-                miners = self.my_workers.availiable_workers_on_job(JobType.MINERALS)
+                miners = self.my_workers.availiable_workers_on_job(WorkerJobType.MINERALS)
                 if not miners:
                     return
                 furthest_miner = miners.furthest_to(self.pathable_position)
@@ -141,7 +142,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.start_timer("scout")
         self.scouting.update_visibility()
         await self.scouting.scout(self.new_damage_by_unit, self.units_by_tag)
-        self.rush_detected = await self.scouting.rush_detected
+        self.rush_detected_type = await self.scouting.rush_detected_type
         self.start_timer("scout")
 
     async def update_references(self, units_by_tag: dict[int, Unit]):

@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Any
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -30,7 +31,7 @@ micro_lookup = {
     UnitTypeId.SIEGETANK: SiegeTankMicro,
     UnitTypeId.VIKINGFIGHTER: VikingMicro,
 }
-common_objects = {
+common_objects: dict[str, Any] = {
     "bot": None,
     "enemy": None,
     "map": None
@@ -38,11 +39,13 @@ common_objects = {
 
 
 class MicroFactory:
+    @staticmethod
     def set_common_objects(bot: BotAI, enemy: Enemy, map):
         common_objects["bot"] = bot
         common_objects["enemy"] = enemy
         common_objects["map"] = map
 
+    @staticmethod
     def get_unit_micro(unit: Unit) -> BaseUnitMicro:
         type_id = unit.unit_alias if unit.unit_alias else unit.type_id
         if type_id not in micro_instances:

@@ -28,7 +28,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             # too much risk of grenading self
             return False
         targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False, excluded_types=self.excluded_types)
-        grenade_targets = []
+        grenade_targets: list[Point2] = []
         if targets and await self.grenade_available(unit):
             for target_unit in targets:
                 if target_unit.is_flying:

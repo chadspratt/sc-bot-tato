@@ -1,4 +1,3 @@
-import math
 from typing import List
 from loguru import logger
 
@@ -23,6 +22,7 @@ from bottato.micro.micro_factory import MicroFactory
 from bottato.enemy import Enemy
 from bottato.map.map import Map
 from bottato.mixins import GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin
+from bottato.enums import RushType
 
 class Bunker(BaseSquad):
     def __init__(self, bot: BotAI):
@@ -190,7 +190,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stop_timer("rescue_stuck_units")
 
     async def manage_squads(self, iteration: int, blueprints: List[BuildStep],
-                            newest_enemy_base: Point2 = None, rush_detected: bool = False):
+                            newest_enemy_base: Point2, rush_detected_type: RushType):
         self.start_timer("manage_squads")
         self.main_army.draw_debug_box()
 
@@ -233,7 +233,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 # cannon rush response
                 self.workers.attack_enemy(enemy)
                 continue
-            if rush_detected and len(self.main_army.units) < 10:
+            if rush_detected_type != RushType.NONE and len(self.main_army.units) < 10:
                 # don't send out units if getting rushed and army is small
                 break
             elif defend_with_main_army:
@@ -282,7 +282,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         if defend_with_main_army:
             mount_offense = False
         elif self.bot.time < 300: # previously 600
-            if rush_detected:
+            if rush_detected_type != RushType.NONE:
                 mount_offense = False
             elif self.bot.supply_used < 45: # previously 110
                 mount_offense = False
@@ -368,7 +368,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 # generally a retreat due to being outnumbered
                 logger.debug(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
-                if rush_detected and len(self.main_army.units) < 16 and len(self.bot.townhalls) < 3:
+                if rush_detected_type != RushType.NONE and len(self.main_army.units) < 16 and len(self.bot.townhalls) < 3:
                     self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 10)
                 elif len(self.bot.townhalls) > 1:
                     closest_base = self.map.get_closest_unit_by_path(self.bot.townhalls, enemy_position)

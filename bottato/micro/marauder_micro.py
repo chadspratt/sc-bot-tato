@@ -15,7 +15,7 @@ from bottato.mixins import GeometryMixin
 class MarauderMicro(BaseUnitMicro, GeometryMixin):
     attack_health: float = 0.51
     retreat_health: float = 0.7
-    last_stim_time: dict[int, int] = {}
+    last_stim_time: dict[int, float] = {}
     stim_researched: bool = False
     attack_range: float = 5.0
     time_in_frames_to_attack: float = 0.3 * 22.4  # 0.3 seconds

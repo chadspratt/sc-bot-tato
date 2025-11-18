@@ -14,8 +14,8 @@ from sc2.data import Race
 from bottato.log_helper import LogHelper
 from bottato.enemy import Enemy
 from bottato.unit_types import UnitTypes
-from bottato.build_step import BuildStep, ResponseCode
-from bottato.economy.workers import Workers, JobType
+from bottato.build_step import BuildStep
+from bottato.economy.workers import Workers
 from bottato.economy.production import Production
 from bottato.mixins import TimerMixin, UnitReferenceMixin
 from bottato.upgrades import Upgrades
@@ -23,6 +23,7 @@ from bottato.special_locations import SpecialLocations, SpecialLocation
 from bottato.map.map import Map
 from bottato.build_starts import BuildStarts
 from bottato.counter import Counter
+from bottato.enums import RushType, BuildResponseCode, WorkerJobType
 
 
 class BuildOrder(TimerMixin, UnitReferenceMixin):
@@ -39,7 +40,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
     # next_unfinished_step_index: int
     tech_tree: Dict[UnitTypeId, List[UnitTypeId]] = {}
     rush_defense_enacted: bool = False
-    rush_detected: bool = False
+    rush_detected_type: RushType = RushType.NONE
 
     def __init__(self, build_name: str, bot: BotAI, workers: Workers, production: Production, map: Map):
         self.recently_completed_units: List[Unit] = []
@@ -74,11 +75,11 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
     def all_steps(self) -> List[BuildStep]:
         return self.started + self.interrupted_queue + self.priority_queue + self.static_queue + self.build_queue
 
-    async def execute(self, army_ratio: float, rush_detected: bool, enemy: Enemy):
+    async def execute(self, army_ratio: float, rush_detected_type: RushType, enemy: Enemy):
         self.start_timer("build_order.execute")
-        self.rush_detected = self.rush_detected or rush_detected
-        if self.rush_detected:
-            self.enact_rush_defense()
+        if rush_detected_type != RushType.NONE:
+            self.rush_detected_type = rush_detected_type
+        self.enact_rush_defense(self.rush_detected_type)
         if self.bot.time < 360 and (self.bot.enemy_units.filter(lambda u: u.type_id in (
                 UnitTypeId.TEMPEST, UnitTypeId.BATTLECRUISER, UnitTypeId.CARRIER,
                 UnitTypeId.WIDOWMINE, UnitTypeId.SWARMHOSTMP)) or self.bot.enemy_units.closer_than(25, self.map.natural_position).amount >= 10):
@@ -162,7 +163,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                     if not enemy_is_close:
                         continue
                     if build_step.unit_in_charge:
-                        self.workers.update_job(build_step.unit_in_charge, JobType.IDLE)
+                        self.workers.update_job(build_step.unit_in_charge, WorkerJobType.IDLE)
                         build_step.unit_in_charge(AbilityId.HALT)
                         build_step.unit_in_charge = None
                     # move back to pending (demote)
@@ -192,7 +193,9 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                     self.interrupted_queue.insert(0, build_step)
         self.stop_timer("move_interupted_to_pending")
 
-    def enact_rush_defense(self) -> None:
+    def enact_rush_defense(self, rush_detected_type: RushType) -> None:
+        if rush_detected_type == RushType.NONE:
+            return
         if self.bot.time > 300 or self.bot.townhalls.amount > 2:
             # not a rush
             return
@@ -206,6 +209,9 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                             self.static_queue.remove(step)
                             break
                     self.add_to_build_queue(UnitTypeId.MARINE, queue=self.priority_queue)
+        elif self.bot.enemy_units and self.bot.enemy_units.closest_distance_to(self.bot.main_base_ramp.top_center) < 15:
+            # rush detected near ramp, prioritize marines, don't build reactor yet
+            self.add_to_build_queue(UnitTypeId.MARINE, queue=self.priority_queue)
         if self.rush_defense_enacted:
             return
         self.rush_defense_enacted = True
@@ -219,8 +225,11 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                         self.static_queue.remove(step)
                         self.add_to_build_queue([UnitTypeId.BARRACKSTECHLAB, UnitTypeId.MARAUDER], position=0, queue=self.priority_queue)
                         break
-        # prioritize first tank
+        # prioritize bunker and first tank
         self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
+        if rush_detected_type == RushType.PROXY:
+            # proxy will hit earlier, really need bunker
+            self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue)
         self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue)
         self.move_between_queues(UnitTypeId.BARRACKSREACTOR, self.static_queue, self.priority_queue)
         self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
@@ -229,16 +238,18 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         if self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount < 2:
             # make sure to build second depot before bunker
             self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
-        self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue)
-        # add a second bunker for low ground
-        self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
+        if rush_detected_type == RushType.STANDARD:
+            if self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue):
+                # add a second bunker for low ground
+                self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
     
-    def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep]) -> None:
+    def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep]) -> bool:
         for step in from_queue:
             if step.unit_type_id == unit_type:
                 from_queue.remove(step)
                 to_queue.append(step)
-                break
+                return True
+        return False
 
     def add_to_build_queue(self, unit_types: Union[UnitTypeId, List[UnitTypeId]], position=None, queue: List[BuildStep] = None) -> None:
         if isinstance(unit_types, UnitTypeId):
@@ -381,7 +392,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             # probably unsafe or it would have landed
             self.stop_timer("queue_command_center")
             return
-        if self.bot.time < 100 or self.rush_detected and self.bot.time < 300:
+        if self.bot.time < 100 or self.rush_detected_type != RushType.NONE and self.bot.time < 300:
             # don't expand too early during rush
             self.stop_timer("queue_command_center")
             return
@@ -392,7 +403,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 projected_worker_capacity += 16
 
         # adds number of townhalls to account for near-term production
-        projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[JobType.MINERALS]) + len(self.bot.townhalls.ready) * 4)
+        projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[WorkerJobType.MINERALS]) + len(self.bot.townhalls.ready) * 4)
         surplus_worker_count = projected_worker_count - projected_worker_capacity
         
         cc_count = self.get_in_progress_count(UnitTypeId.COMMANDCENTER) + self.get_queued_count(UnitTypeId.COMMANDCENTER)
@@ -635,7 +646,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                     if not in_progress_step.unit_in_charge.is_constructing_scv:
                         # wrong worker
                         continue
-                    self.workers.update_assigment(in_progress_step.unit_in_charge, JobType.BUILD, started_structure)
+                    self.workers.update_assigment(in_progress_step.unit_in_charge, WorkerJobType.BUILD, started_structure)
                 in_progress_step.unit_being_built = started_structure
                 in_progress_step.position = started_structure.position
                 break
@@ -659,7 +670,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 if builder.type_id == UnitTypeId.SCV:
                     if in_progress_step.unit_type_id == UnitTypeId.REFINERY:
                         self.workers.vespene.add_node(completed_structure)
-                        self.workers.update_assigment(in_progress_step.unit_in_charge, JobType.VESPENE, completed_structure)
+                        self.workers.update_assigment(in_progress_step.unit_in_charge, WorkerJobType.VESPENE, completed_structure)
                     else:
                         self.workers.set_as_idle(builder)
                 self.move_to_complete(self.started.pop(idx))
@@ -683,65 +694,64 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             if build_step.unit_being_built is not None and build_step.unit_being_built is not True and build_step.unit_being_built.tag == unit.tag:
                 build_step.cancel_construction()
                 if build_step.unit_type_id == UnitTypeId.COMMANDCENTER and len(self.bot.townhalls.ready) == 1:
-                    self.rush_detected = True
+                    self.rush_detected_type = RushType.STANDARD
                 break
 
     async def execute_pending_builds(self, only_build_units: bool) -> None:
         self.start_timer("execute_pending_builds")
-        remaining_resources: Cost = await self.build_from_queue(self.interrupted_queue, only_build_units, allow_skip=(self.bot.time > 60), rush_detected=self.rush_detected)
+        allow_skip = self.bot.time > 60
+        remaining_resources: Cost = await self.build_from_queue(self.interrupted_queue, only_build_units, self.rush_detected_type, allow_skip)
         if remaining_resources.minerals > 0:
-            remaining_resources: Cost = await self.build_from_queue(self.priority_queue, only_build_units, allow_skip=(self.bot.time > 60), rush_detected=self.rush_detected)
+            remaining_resources: Cost = await self.build_from_queue(self.priority_queue, only_build_units, self.rush_detected_type, allow_skip, remaining_resources)
         if remaining_resources.minerals > 0:
-            remaining_resources = await self.build_from_queue(self.static_queue, only_build_units, allow_skip=True, rush_detected=self.rush_detected, remaining_resources=remaining_resources)
+            remaining_resources = await self.build_from_queue(self.static_queue, only_build_units, self.rush_detected_type, remaining_resources)
         if remaining_resources.minerals > 0:
-            await self.build_from_queue(self.build_queue, only_build_units, rush_detected=self.rush_detected, remaining_resources=remaining_resources)
+            await self.build_from_queue(self.build_queue, only_build_units, self.rush_detected_type, remaining_resources)
         self.stop_timer("execute_pending_builds")
 
-    async def build_from_queue(self, build_queue: List[BuildStep], only_build_units: bool = False, allow_skip: bool = True, rush_detected: bool = False, remaining_resources: Cost = None) -> Cost:
-        build_response = ResponseCode.QUEUE_EMPTY
+    async def build_from_queue(self, build_queue: List[BuildStep], only_build_units: bool, rush_detected_type: RushType, allow_skip: bool = True, remaining_resources: Cost = None) -> Cost:
+        build_response = BuildResponseCode.QUEUE_EMPTY
         execution_index = -1
         failed_types: list[UnitTypeId] = []
         if remaining_resources is None:
             remaining_resources = Cost(self.bot.minerals, self.bot.vespene)
-        build_no_supply_only = False
+
         while execution_index < len(build_queue):
             execution_index += 1
             try:
                 build_step = build_queue[execution_index]
             except IndexError:
                 break
-            if build_step.supply_cost > 0 and build_no_supply_only:
-                continue
-            percent_affordable = 1.0
+            # skip steps for various reasons
             if build_step.unit_type_id in failed_types:
+                continue
+            if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
+                build_response = BuildResponseCode.NO_SUPPLY
                 continue
             if only_build_units and build_step.unit_type_id not in self.unit_types.TERRAN and build_step.unit_type_id not in (UnitTypeId.SCV, UnitTypeId.COMMANDCENTER):
                 continue
+            time_since_last_cancel = self.bot.time - build_step.last_cancel_time
+            if time_since_last_cancel < 10:
+                continue
+
+            percent_affordable = 1.0
             if not build_step.is_in_progress:
                 percent_affordable = self.percent_affordable(remaining_resources, build_step.cost)
                 if remaining_resources.minerals < 0:
                     break
                 remaining_resources = remaining_resources - build_step.cost
-            time_since_last_cancel = self.bot.time - build_step.last_cancel_time
-            if time_since_last_cancel < 10:
-                # delay rebuilding canceled structures
-                continue
             if percent_affordable < 1.0:
-                build_response = ResponseCode.NO_RESOURCES
+                build_response = BuildResponseCode.NO_RESOURCES
                 if percent_affordable >= 0.75 and self.bot.tech_requirement_progress(build_step.unit_type_id) == 1.0:
-                    await build_step.position_worker(special_locations=self.special_locations, rush_detected=rush_detected)
-                continue
-            if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
-                build_no_supply_only = True
-                build_response = ResponseCode.NO_SUPPLY
+                    await build_step.position_worker(self.special_locations, rush_detected_type)
                 continue
 
             # XXX slightly slow
             self.start_timer("build_step.execute")
-            build_response = await build_step.execute(special_locations=self.special_locations, rush_defense_enacted=self.rush_defense_enacted)
+            build_response = await build_step.execute(self.special_locations, rush_detected_type)
             self.stop_timer("build_step.execute")
             self.start_timer(f"handle response {build_response}")
-            if build_response == ResponseCode.SUCCESS:
+            if build_response == BuildResponseCode.SUCCESS:
                 LogHelper.add_log(f"Started building {build_step}")
                 self.started.append(build_queue.pop(execution_index))
                 if build_step.interrupted_count > 5:
@@ -750,14 +760,14 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 remaining_resources.minerals = 0
                 break
             else:
-                if build_response != ResponseCode.NO_FACILITY:
+                if build_response != BuildResponseCode.NO_FACILITY:
                     LogHelper.add_log(f"failed to start {build_step}: {build_response}")
                 if not allow_skip:
                     break
-                if build_response == ResponseCode.NO_LOCATION:
+                if build_response == BuildResponseCode.NO_LOCATION:
                     continue
                 failed_types.append(build_step.unit_type_id)
-                if build_response == ResponseCode.NO_FACILITY:
+                if build_response == BuildResponseCode.NO_FACILITY:
                     if build_step.unit_type_id in self.production.add_on_types:
                         # unqueue addons that don't have a parent factory/barracks/starport
                         builder_type = self.production.get_cheapest_builder_type(build_step.unit_type_id)
@@ -771,7 +781,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                     # don't reserve resources for things that don't have an available facility, but don't skip ahead in early build order
                     if self.bot.time > 60:
                         remaining_resources = remaining_resources + build_step.cost
-                elif build_response == ResponseCode.NO_TECH:
+                elif build_response == BuildResponseCode.NO_TECH:
                     if self.bot.time > 60:
                         remaining_resources = remaining_resources + build_step.cost
             self.stop_timer(f"handle response {build_response}")

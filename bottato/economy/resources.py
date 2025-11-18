@@ -17,8 +17,8 @@ class ResourceNode(UnitReferenceMixin):
         self.is_long_distance = is_long_distance
         # workers sometimes disappear (gas) so this is more permanent
         self.worker_tags: list[int] = []
-        self.mule_tag: int = None
-        self.mining_position: Point2 = None
+        self.mule_tag: int | None = None
+        self.mining_position: Point2 | None = None
 
     def needed_workers(self):
         if self.is_long_distance:
@@ -65,21 +65,21 @@ class Resources(UnitReferenceMixin, GeometryMixin):
         self.nodes_by_tag[node.tag] = new_node
         return True
 
-    def nodes_with_capacity(self) -> Units:
+    def nodes_with_capacity(self) -> list[ResourceNode]:
         candidates = [node for node in self.nodes if not node.is_long_distance and node.needed_workers() > 0]
         if not candidates:
             candidates = [node for node in self.nodes if node.needed_workers() > 0]
-        return Units(candidates, bot_object=self.bot)
+        return candidates
 
-    def add_worker(self, worker: Unit) -> Unit:
+    def add_worker(self, worker: Unit) -> Unit | None:
         if worker is None:
             return None
             
         if not self.nodes:
             logger.warning(f"No resource nodes available for worker {worker}")
             return None
-            
-        candidates: Units = None
+
+        candidates: Units | None = None
         if worker.type_id == UnitTypeId.MULE:
             # Mules can be assigned to any node regardless of capacity
             candidates = Units([node.node for node in self.nodes if node.mule_tag is None], bot_object=self.bot)

@@ -8,12 +8,13 @@ class LogHelper:
     previous_messages: dict[str, int] = {}
     new_messages: List[str] = []
 
-    bot: BotAI = None
+    bot: BotAI
 
     @staticmethod
     def add_log(message: str):
         LogHelper.new_messages.append(message)
 
+    @staticmethod
     def print_logs():
         formatted_time = LogHelper.bot.time_formatted
         for message in LogHelper.new_messages:

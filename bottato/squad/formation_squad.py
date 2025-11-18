@@ -1,5 +1,4 @@
 from __future__ import annotations
-import enum
 from typing import List
 # import traceback
 
@@ -11,21 +10,13 @@ from sc2.constants import UnitTypeId
 
 from bottato.build_step import BuildStep
 from bottato.mixins import GeometryMixin, TimerMixin
-from bottato.squad.formation import FormationType, ParentFormation
+from bottato.squad.formation import ParentFormation
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.squad.base_squad import BaseSquad
 from bottato.enemy import Enemy
 from bottato.map.map import Map
-
-
-class SquadOrderEnum(enum.Enum):
-    IDLE = 0
-    MOVE = 1
-    ATTACK = 2
-    DEFEND = 3
-    RETREAT = 4
-    REGROUP = 5
+from bottato.enums import SquadFormationType
 
 
 class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
@@ -39,7 +30,6 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
         self.enemy = enemy
         self.map = map
         self.orders = []
-        self.current_order = SquadOrderEnum.IDLE
         self._destination: Point2 = None
         self.previous_position: Point2 = None
         # self.targets: Units = Units([], bot_object=self.bot)
@@ -49,7 +39,7 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
         self.executed_positions: dict[int, Point2] = {}
 
     def __repr__(self):
-        return f"FormationSquad({self.name},{self.state},{len(self.units)}, {self.parent_formation})"
+        return f"FormationSquad({self.name},{len(self.units)}, {self.parent_formation})"
 
     def draw_debug_box(self):
         if self.parent_formation.front_center:
@@ -118,14 +108,13 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
         units: Units = self.units.of_type(unit_type)
         if units:
             spacing = units[0].radius * 1.3
-            self.parent_formation.add_formation(FormationType.COLUMNS, units.tags, Point2((0, y_offset)), spacing=spacing)
+            self.parent_formation.add_formation(SquadFormationType.COLUMNS, units.tags, Point2((0, y_offset)), spacing=spacing)
             return True
         return False
 
     async def move(self, destination: Point2, facing_position: Point2 = None, force_move: bool = False, blueprints: List[BuildStep] = []):
         if not self.units:
             return
-        self.current_order = SquadOrderEnum.MOVE
         self._destination = destination
         most_grouped_unit, grouped_units = self.get_most_grouped_unit(self.units, 10)
         if facing_position is None:

@@ -11,27 +11,28 @@ from bottato.unit_types import UnitTypes
 from bottato.enemy import Enemy
 from bottato.mixins import GeometryMixin, TimerMixin
 from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.enums import RushType
 
 
 class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
     def __init__(self, bot: BotAI, enemy: Enemy) -> None:
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
-        self.command_center_destinations: dict[int, Point2] = {}
+        self.command_center_destinations: dict[int, Point2 | None] = {}
         self.last_scan_time: float = 0
 
-    async def execute(self, rush_detected: bool):
+    async def execute(self, rush_detected_type: RushType):
         self.start_timer("structure_micro.execute")
         # logger.debug("adjust_supply_depots_for_enemies step")
-        self.adjust_supply_depots_for_enemies(rush_detected)
+        self.adjust_supply_depots_for_enemies(rush_detected_type)
         self.target_autoturrets()
         await self.move_command_centers()
         self.scan()
         self.stop_timer("structure_micro.execute")
 
-    def adjust_supply_depots_for_enemies(self, rush_detected: bool):
+    def adjust_supply_depots_for_enemies(self, rush_detected_type: RushType):
         # Raise depos when enemies are nearby
-        distance_threshold = 15 if rush_detected else 8
+        distance_threshold = 15 if rush_detected_type != RushType.NONE else 8
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
             for enemy_unit in self.bot.enemy_units:
                 if self.distance(enemy_unit, depot) < distance_threshold - 2:
@@ -57,6 +58,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                 if cc.tag not in self.command_center_destinations:
                     self.command_center_destinations[cc.tag] = await self.bot.get_next_expansion()
                 destination = self.command_center_destinations[cc.tag]
+                if destination is None:
+                    continue
                 ccs_at_destination = self.bot.structures(UnitTypeId.COMMANDCENTER).closer_than(5, destination)
                 if ccs_at_destination and cc.tag not in ccs_at_destination.tags:
                     # spot was taken, find a new one

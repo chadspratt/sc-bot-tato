@@ -12,15 +12,7 @@ from sc2.units import Units
 from bottato.unit_types import UnitTypes
 from bottato.mixins import GeometryMixin, TimerMixin, UnitReferenceMixin
 from bottato.map.map import Map
-
-
-class FormationType(enum.Enum):
-    SOLID_CIRCLE = 0
-    HOLLOW_CIRCLE = 1
-    LINE = 3
-    SQUARE = 4
-    HOLLOW_HALF_CIRCLE = 5
-    COLUMNS = 6
+from bottato.enums import SquadFormationType
 
 
 class UnitDemographics:
@@ -31,7 +23,7 @@ class UnitDemographics:
 
 class Formation:
     def __init__(
-        self, bot: BotAI, formation_type: FormationType, unit_tags: List[int], offset: Point2, spacing: float = 0
+        self, bot: BotAI, formation_type: SquadFormationType, unit_tags: List[int], offset: Point2, spacing: float = 0
     ):
         self.bot = bot
         # generate specific formation positions
@@ -72,15 +64,15 @@ class Formation:
 
     def get_formation_positions(self) -> List[Point2]:
         positions = []
-        if self.formation_type == FormationType.LINE:
+        if self.formation_type == SquadFormationType.LINE:
             positions = self.get_line_positions()
-        elif self.formation_type == FormationType.COLUMNS:
+        elif self.formation_type == SquadFormationType.COLUMNS:
             positions = self.get_column_positions()
-        elif self.formation_type == FormationType.HOLLOW_CIRCLE:
+        elif self.formation_type == SquadFormationType.HOLLOW_CIRCLE:
             positions = self.get_hollow_circle_positions()
-        elif self.formation_type == FormationType.HOLLOW_HALF_CIRCLE:
+        elif self.formation_type == SquadFormationType.HOLLOW_HALF_CIRCLE:
             positions = self.get_hollow_half_circle_positions()
-        elif self.formation_type == FormationType.SOLID_CIRCLE:
+        elif self.formation_type == SquadFormationType.SOLID_CIRCLE:
             positions = self.get_solid_circle_positions()
         return positions
 
@@ -215,7 +207,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
 
     def add_formation(
         self,
-        formation_type: FormationType,
+        formation_type: SquadFormationType,
         unit_tags: List[int],
         offset: Point2 = Point2((0, 0)),
         spacing: float = 0,

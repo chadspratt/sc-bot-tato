@@ -6,8 +6,8 @@ from ..bottato.squad.formation import (
     ParentFormation,
     Formation,
     UnitDemographics,
-    FormationType,
 )
+from ..bottato.enums import SquadFormationType
 
 
 class SimplePoint2:
@@ -91,7 +91,7 @@ class TestFormation:
         )
 
         formation = Formation(
-            formation_type=FormationType.HOLLOW_HALF_CIRCLE,
+            formation_type=SquadFormationType.HOLLOW_HALF_CIRCLE,
             unit_tags=[1, 2, 3, 4, 5, 6],
             offset=SimplePoint2(0, 0),
         )
@@ -121,7 +121,7 @@ class TestFormation:
         )
 
         formation = Formation(
-            formation_type=FormationType.HOLLOW_HALF_CIRCLE,
+            formation_type=SquadFormationType.HOLLOW_HALF_CIRCLE,
             unit_tags=list(range(22)),
             offset=SimplePoint2(0, 0),
         )

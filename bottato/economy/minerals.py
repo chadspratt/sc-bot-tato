@@ -88,10 +88,10 @@ class Minerals(Resources, TimerMixin):
                 for node in nodes_to_remove:
                     self.nodes.remove(node)
 
-    def add_mining_position(self, mineral_node: Unit, townhall: Unit = None):
-        resource_node: ResourceNode = self.nodes_by_tag.get(mineral_node.tag, None)
+    def add_mining_position(self, mineral_node: Unit, townhall: Unit | None = None):
+        resource_node: ResourceNode | None = self.nodes_by_tag.get(mineral_node.tag, None)
         if resource_node:
-            townhall_pos = None
+            townhall_pos: Point2
             if townhall:
                 townhall_pos = townhall.position
             else:
@@ -115,7 +115,7 @@ class Minerals(Resources, TimerMixin):
                 self.add_node(closest_node)
                 self.add_mining_position(closest_node)
                 added += 1
-                candidates = [mf for mf in self.bot.mineral_field if mf.tag not in self.nodes_by_tag]
+                candidates = Units([mf for mf in self.bot.mineral_field if mf.tag not in self.nodes_by_tag], self.bot)
         return added
 
     def add_mule(self, mule: Unit, minerals: Unit):

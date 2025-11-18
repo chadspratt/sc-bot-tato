@@ -1,3 +1,4 @@
+import enum
 from typing import List
 from loguru import logger
 
@@ -17,7 +18,7 @@ from bottato.mixins import DebugMixin, GeometryMixin, UnitReferenceMixin
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.economy.workers import Workers
-
+from bottato.enums import RushType
 
 class ScoutingLocation:
     def __init__(self, position: Point2):
@@ -306,7 +307,7 @@ class Scouting(BaseSquad, DebugMixin):
         self.map = map
         self.workers = workers
         self.military = military
-        self.rush_is_detected: bool = False
+        self.rush_type: RushType = RushType.NONE
 
         self.intel = EnemyIntel(self.bot)
         self.friendly_territory = Scout("friendly territory", self.bot, enemy)
@@ -366,12 +367,12 @@ class Scouting(BaseSquad, DebugMixin):
                                 max_time = build_time
                                 self.newest_enemy_base = position
 
-    async def detect_rush(self) -> bool:
+    async def detect_rush(self) -> RushType:
         if self.proxy_detected():
             await self.bot.client.chat_send("proxy suspected", False)
-            return True
+            return RushType.PROXY
         if self.intel.enemy_race_confirmed is None:
-            return False
+            return RushType.NONE
         if self.intel.enemy_race_confirmed == Race.Zerg:
             early_pool = self.intel.first_building_time.get(UnitTypeId.SPAWNINGPOOL, float('inf')) < 40
             no_gas = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.EXTRACTOR) == 0
@@ -385,7 +386,8 @@ class Scouting(BaseSquad, DebugMixin):
                 await self.bot.client.chat_send("no expansion detected", False)
             if zergling_rush:
                 await self.bot.client.chat_send("zergling rush detected", False)
-            return early_pool or no_gas or no_expansion or zergling_rush
+            if early_pool or no_gas or no_expansion or zergling_rush:
+                return RushType.STANDARD
         if self.intel.enemy_race_confirmed == Race.Terran:
             multiple_barracks = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.BARRACKS) > 1
             # no_expansion = self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
@@ -393,7 +395,8 @@ class Scouting(BaseSquad, DebugMixin):
                 await self.bot.client.chat_send("multiple early barracks detected", False)
             # if no_expansion:
             #     await self.bot.client.chat_send("no expansion detected", False)
-            return multiple_barracks
+            if multiple_barracks:
+                return RushType.STANDARD
         # Protoss
         lots_of_gateways = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.GATEWAY) > 2
         no_expansion = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.NEXUS) == 1
@@ -401,7 +404,13 @@ class Scouting(BaseSquad, DebugMixin):
             await self.bot.client.chat_send("lots of gateways detected", False)
         if no_expansion:
             await self.bot.client.chat_send("no expansion detected", False)
-        return lots_of_gateways or no_expansion
+        if lots_of_gateways or no_expansion:
+            return RushType.STANDARD
+        
+        if self.bot.time < 180 and len(self.bot.enemy_units) > 0 and len(self.bot.enemy_units.closer_than(30, self.bot.start_location)) > 5:
+            await self.bot.client.chat_send("early army detected near base", False)
+            return RushType.STANDARD
+        return RushType.NONE
     
     def proxy_detected(self) -> bool:
         if self.intel.enemy_race_confirmed is None:
@@ -441,7 +450,7 @@ class Scouting(BaseSquad, DebugMixin):
         # Update scout unit references
         self.friendly_territory.update_scout(self.military, units_by_tag)
         self.enemy_territory.update_scout(self.military, units_by_tag, use_early_air_scout=True)
-        if await self.rush_detected:
+        if self.rush_type != RushType.NONE:
             self.initial_scout.completed = True
         self.initial_scout.update_scout(self.workers, units_by_tag)
 
@@ -454,6 +463,8 @@ class Scouting(BaseSquad, DebugMixin):
         await self.enemy_territory.move_scout(new_damage_taken)
 
     @property
-    async def rush_detected(self) -> bool:
-        self.rush_is_detected = self.rush_is_detected or await self.detect_rush() or self.bot.time < 180 and len(self.bot.enemy_units) > 0 and len(self.bot.enemy_units.closer_than(30, self.bot.start_location)) > 5
-        return self.rush_is_detected
+    async def rush_detected_type(self) -> RushType:
+        if self.rush_type != RushType.NONE:
+            return self.rush_type
+        self.rush_type = await self.detect_rush()
+        return self.rush_type

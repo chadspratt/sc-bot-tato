@@ -25,10 +25,10 @@ class Facility(UnitReferenceMixin):
         self.add_on_type = UnitTypeId.NOTAUNIT
         self.addon_blocked = False
         self.addon_destroyed_time = 0
-        self.in_progress_unit: Unit = None
+        self.in_progress_unit: Unit | None = None
         self.capacity = 1
         self.queued_unit_ids = []
-        self.new_position: Point2 = None
+        self.new_position: Point2 | None = None
 
     def __repr__(self) -> str:
         return f"facility {self.unit}-{self.add_on_type}"
@@ -87,7 +87,8 @@ class Facility(UnitReferenceMixin):
                 updated_unit(AbilityId.LIFT)
             else:
                 if self.new_position is None:
-                    self.new_position = await self.bot.find_placement(updated_unit.unit_alias, updated_unit.position, placement_step=1, addon_place=True)
+                    unit_type = updated_unit.unit_alias if updated_unit.unit_alias else updated_unit.type_id
+                    self.new_position = await self.bot.find_placement(unit_type, updated_unit.position, placement_step=1, addon_place=True)
                 if updated_unit.position != self.new_position:
                     updated_unit.move(self.new_position)
                 else:
@@ -209,7 +210,7 @@ class Production(UnitReferenceMixin, TimerMixin):
                         facility.remove_queued_unit_id(queued_type)
                         return
 
-    def get_builder(self, unit_type: UnitTypeId) -> Unit:
+    def get_builder(self, unit_type: UnitTypeId) -> Unit | None:
         candidates = []
         builder_type: UnitTypeId = self.get_cheapest_builder_type(unit_type)
         usable_add_ons: List[UnitTypeId]

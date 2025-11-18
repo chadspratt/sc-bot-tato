@@ -17,6 +17,8 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if await self.bot.can_cast(unit, AbilityId.BEHAVIOR_CLOAKON_BANSHEE) and self.enemy.threats_to(unit):
             unit(AbilityId.BEHAVIOR_CLOAKON_BANSHEE)
+            return True
+        return False
 
     excluded_enemy_types = [
         UnitTypeId.LARVA,

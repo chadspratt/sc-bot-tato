@@ -1,27 +1,9 @@
-import enum
 from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
 
-
-
-
-class UnitAttribute(enum.Enum):
-    """
-    Unit attributes for SC2 units.
-    """
-
-    LIGHT = 0
-    BIOLOGICAL = 1
-    PSIONIC = 2
-    MASSIVE = 3
-    MECHANICAL = 4
-    ARMORED = 5
-    HEROIC = 6
-    DETECTOR = 7
-    STRUCTURE = 8
-
+from bottato.enums import UnitAttribute
 
 class UnitTypes():
     PROTOSS = {
@@ -341,7 +323,7 @@ class UnitTypes():
         UnitTypeId.CREEPTUMORQUEEN,
     }
 
-    def get_unit_info(self, unit_type_id: UnitTypeId) -> dict:
+    def get_unit_info(self, unit_type_id: UnitTypeId) -> dict | None:
         """
         Get the unit info for a given unit type ID.
         """
@@ -355,24 +337,28 @@ class UnitTypes():
         else:
             return None
         
+    @staticmethod
     def can_attack_air(unit: Unit) -> bool:
         """
         Check if a unit type can attack air units.
         """
         return unit.can_attack_air or unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY}
     
+    @staticmethod
     def can_attack_ground(unit: Unit) -> bool:
         """
         Check if a unit type can attack air units.
         """
         return unit.can_attack_ground or unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BANELING}
 
+    @staticmethod
     def can_attack(unit: Unit) -> bool:
         """
         Check if a unit type can attack (either air or ground).
         """
         return UnitTypes.can_attack_air(unit) or UnitTypes.can_attack_ground(unit)
 
+    @staticmethod
     def ground_range(unit: Unit) -> float:
         """
         Get the ground attack range of a unit type.
@@ -388,6 +374,7 @@ class UnitTypes():
         else:
             return 0.0
         
+    @staticmethod
     def air_range(unit: Unit) -> float:
         """
         Get the air attack range of a unit type.
@@ -401,6 +388,7 @@ class UnitTypes():
         else:
             return 0.0
         
+    @staticmethod
     def target_in_range(unit: Unit, target: Unit, bonus_distance: float = 0.0) -> bool:
         """
         Check if a target unit is in range of the given unit, considering both air and ground attacks.
@@ -413,6 +401,7 @@ class UnitTypes():
         distance = unit.distance_to_squared(target)
         return distance <= (unit.radius + target.radius + attack_range + bonus_distance) ** 2
     
+    @staticmethod
     def in_attack_range_of(attacker: Unit, units: Units, bonus_distance: float = 0.0) -> Units:
         """
         Filter a set of units to those that are in attack range of the given attacker unit.
@@ -423,6 +412,7 @@ class UnitTypes():
                 in_range_units.append(unit)
         return in_range_units
     
+    @staticmethod
     def threats(unit: Unit, attackers: Units, bonus_distance: float = 0.0) -> Units:
         """
         Get enemy units that can attack the given unit.
@@ -433,6 +423,7 @@ class UnitTypes():
                 threats.append(attacker)
         return threats
     
+    @staticmethod
     def range_vs_target(attacker: Unit, target: Unit) -> float:
         """
         Get the attack range of the attacker unit against the target unit.
@@ -444,6 +435,7 @@ class UnitTypes():
         else:
             return UnitTypes.ground_range(attacker)
         
+    @staticmethod
     def can_attack_target(attacker: Unit, target: Unit) -> bool:
         """
         Check if the attacker unit can attack the target unit.
