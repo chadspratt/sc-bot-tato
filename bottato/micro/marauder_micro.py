@@ -63,18 +63,20 @@ class MarauderMicro(BaseUnitMicro, GeometryMixin):
         candidates = UnitTypes.in_attack_range_of(unit, attackable_enemies)
         if len(candidates) == 0:
             candidates = UnitTypes.in_attack_range_of(unit, self.bot.enemy_structures)
+
+        if not candidates:
+            return False
         
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
-        if candidates and can_attack:
+        if self._retreat_to_tank(unit, can_attack):
+            return True
+        
+        if can_attack:
             lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first
             unit.attack(lowest_target)
             return True
         elif unit.health_percentage >= health_threshold:
-            if not self.is_stimmed(unit) and self._retreat_to_tank(unit, can_attack):
-                return True
-
-            if candidates:
-                return self._stay_at_max_range(unit, candidates)
+            return self._stay_at_max_range(unit, candidates)
         return False
 
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:

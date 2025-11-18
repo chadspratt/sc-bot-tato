@@ -162,6 +162,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         #     return False
         # fix miscategorizations
         if is_sieged != (unit.tag in self.sieged_tags):
+            # probably transforming, just return?
             if is_sieged:
                 self.siege(unit, update_last_transform_time=False)
             else:
