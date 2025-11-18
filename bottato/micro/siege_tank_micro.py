@@ -60,7 +60,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             LogHelper.add_log(f"Early game siege tank micro for {unit}, closest enemy to ramp: {closest_enemy_to_ramp}")
             # bonus_distance = 0 if is_sieged else 6
             in_range_distance = 11 if closest_enemy_to_ramp and closest_enemy_to_ramp.is_structure else 13
-            enemy_out_of_range = closest_enemy_to_ramp and unit.distance_to(closest_enemy_to_ramp) <= in_range_distance
+            enemy_out_of_range = closest_enemy_to_ramp and unit.distance_to(closest_enemy_to_ramp) >= in_range_distance
             if is_sieged and enemy_out_of_range and closest_enemy_to_ramp.is_structure:
                 self.unsiege(unit)
                 return True
