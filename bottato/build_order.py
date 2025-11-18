@@ -171,9 +171,11 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             step: BuildStep = self.started.pop(idx)
             step.interrupted_count += 1
             LogHelper.add_log(f"{step} interrupted")
-            if step.interrupted_count > 10 and step.unit_being_built is None:
-                LogHelper.add_log(f"{step} interrupted too many times, removing from build order")
-                continue
+            if step.unit_being_built is None:
+                step.position = None
+                if step.interrupted_count > 10:
+                    LogHelper.add_log(f"{step} interrupted too many times, removing from build order")
+                    continue
             if step.unit_type_id not in self.unit_types.TERRAN:
                 self.interrupted_queue.insert(0, step)
             else:

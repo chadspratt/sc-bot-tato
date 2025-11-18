@@ -465,8 +465,8 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
                             retry_count += 1
                             new_build_position = None
         if new_build_position:
-            if self.bot.enemy_units:
-                threats = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_ground(u) and u.type_id not in (UnitTypeId.DRONE, UnitTypeId.SCV, UnitTypeId.PROBE))
+            if self.bot.all_enemy_units:
+                threats = self.bot.all_enemy_units.filter(lambda u: UnitTypes.can_attack_ground(u) and u.type_id not in (UnitTypeId.DRONE, UnitTypeId.SCV, UnitTypeId.PROBE))
                 if threats and threats.closer_than(10, new_build_position):
                     logger.debug(f"found enemy near proposed build position {new_build_position}, rejecting")
                     return None
