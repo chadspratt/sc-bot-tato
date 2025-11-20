@@ -1,3 +1,4 @@
+from typing import Dict
 from loguru import logger
 import os
 
@@ -31,7 +32,7 @@ class BotTato(BotAI, TimerMixin):
         self.patch_game_data()
         LogHelper.bot = self
 
-    async def on_step(self, iteration):
+    async def on_step(self, iteration: int):
         logger.debug(f"======starting step {iteration} ({self.time}s)======")
 
         self.start_timer("update_unit_references")
@@ -60,7 +61,7 @@ class BotTato(BotAI, TimerMixin):
 
     async def update_unit_references(self):
         self.start_timer("commander.update_references")
-        units_by_tag = {}
+        units_by_tag: Dict[int, Unit] = {}
         for unit in self.all_units:
             units_by_tag[unit.tag] = unit
         await self.commander.update_references(units_by_tag)
@@ -120,11 +121,11 @@ class BotTato(BotAI, TimerMixin):
     def patch_game_data(self):
         # Patch game data here if needed
         class Proto:
-            def __init__(self, ability_id):
+            def __init__(self, ability_id: int):
                 self.ability_id = ability_id
                 self.remaps_to_ability_id = None
         class PatchedId(AbilityData):
-            def __init__(self, ability_id):
+            def __init__(self, ability_id: int):
                 self._proto = Proto(ability_id)
                 # self.button_name = 'Stop'
                 # self.cost = Cost(0, 0)

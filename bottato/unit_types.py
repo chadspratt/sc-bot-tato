@@ -1,3 +1,4 @@
+from typing import Any, Dict, Tuple
 from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
@@ -6,7 +7,7 @@ from sc2.units import Units
 from bottato.enums import UnitAttribute
 
 class UnitTypes():
-    PROTOSS = {
+    PROTOSS: Dict[UnitTypeId, Dict[str, Any]] = {
         UnitTypeId.ADEPT: {
             "supply": 2,
             "attributes": (UnitAttribute.LIGHT, UnitAttribute.BIOLOGICAL),
@@ -97,7 +98,7 @@ class UnitTypes():
             "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT),
         },
     }
-    TERRAN = {
+    TERRAN: Dict[UnitTypeId, Dict[str, Any]] = {
         UnitTypeId.BANSHEE: {
             "supply": 3,
             "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL),
@@ -191,7 +192,7 @@ class UnitTypes():
             "tech level": 2,
         },
     }
-    ZERG = {
+    ZERG: Dict[UnitTypeId, Dict[str, Any]] = {
         UnitTypeId.BANELING: {
             "supply": 0.5,
             "attributes": (UnitAttribute.BIOLOGICAL,),
@@ -281,7 +282,7 @@ class UnitTypes():
         },
     }
 
-    GOOD_AGAINST = {
+    GOOD_AGAINST: Dict[UnitAttribute, Dict[str, Tuple[UnitTypeId, ...]]] = {
         UnitAttribute.ARMORED: {
             "PROTOSS": (UnitTypeId.IMMORTAL, UnitTypeId.STALKER, UnitTypeId.VOIDRAY),
             "TERRAN": (UnitTypeId.MARAUDER, UnitTypeId.SIEGETANK, UnitTypeId.VIKINGFIGHTER),
@@ -323,7 +324,7 @@ class UnitTypes():
         UnitTypeId.CREEPTUMORQUEEN,
     }
 
-    def get_unit_info(self, unit_type_id: UnitTypeId) -> dict:
+    def get_unit_info(self, unit_type_id: UnitTypeId) -> Dict[str, Any]:
         """
         Get the unit info for a given unit type ID.
         """

@@ -4,6 +4,8 @@ from typing import List
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.game_info import Ramp
 from sc2.position import Point2
+from sc2.unit import Unit
+
 
 
 class SpecialLocation:
@@ -15,7 +17,8 @@ class SpecialLocation:
         self.position = position
         logger.debug(f"Will build {unit_type_id} at {position} to block ramp")
 
-    def __eq__(self, other):
+    def __eq__(self, other: object) -> bool:
+        assert isinstance(other, Unit)
         return self.unit_type_id == other.type_id and self.position == other.position
 
 
@@ -23,7 +26,7 @@ class SpecialLocations:
     def __init__(self, ramp: Ramp):
         self.is_blocked: bool = False
         self.ramps = []
-        self.ramp_blockers = []
+        self.ramp_blockers: List[SpecialLocation] = []
         self.add_ramp(ramp)
 
     def add_ramp(self, ramp: Ramp):

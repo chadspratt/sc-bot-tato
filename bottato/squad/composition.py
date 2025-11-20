@@ -8,7 +8,7 @@ class Composition():
         self.unit_counts = unit_counts
         self.unit_ids: List[UnitTypeId] = []
         for unit_id in unit_counts:
-            for x in range(unit_counts[unit_id]):
+            for _ in range(unit_counts[unit_id]):
                 self.unit_ids.append(unit_id)
 
     def count_type(self, type: UnitTypeId) -> int:

@@ -17,7 +17,8 @@ class Path:
     def __repr__(self) -> str:
         return f"Path({self.zones}, {self.distance})"
     
-    def __ne__(self, other: Path) -> bool:
+    def __ne__(self, other: object) -> bool:
+        assert isinstance(other, Path)
         if len(self.zones) != len(other.zones):
             return True
         for i in range(len(self.zones)):

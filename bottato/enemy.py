@@ -340,8 +340,12 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         UnitTypeId.WIDOWMINE,
     }
     def enemies_needing_detection(self) -> Units:
-        return self.enemies_in_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types) + \
+        need_detection = self.enemies_in_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types) + \
                self.enemies_out_of_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types)
+        creep_tumors_excluded = need_detection.filter(lambda unit: unit.type_id != UnitTypeId.CREEPTUMORBURROWED)
+        if creep_tumors_excluded:
+            return creep_tumors_excluded
+        return need_detection
 
     def recent_out_of_view(self) -> Units:
         return self.enemies_out_of_view.filter(

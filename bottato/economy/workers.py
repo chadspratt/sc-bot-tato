@@ -1,5 +1,5 @@
 import math
-from typing import List
+from typing import List, Set
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -65,7 +65,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.add_worker(worker)
         self.aged_mules: Units = Units([], bot)
         self.worker_micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first)
-        self.units_to_attack = set()
+        self.units_to_attack: Set[Unit] = set()
 
     def update_references(self, units_by_tag: dict[int, Unit], builder_tags: List[int]):
         self.start_timer("update_references")
@@ -179,7 +179,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         queue=True)
         self.stop_timer("my_workers.drop_mules")
 
-    def remove_mule(self, mule):
+    def remove_mule(self, mule: Unit):
         logger.debug(f"removing mule {mule}")
         self.minerals.remove_mule(mule)
         self.aged_mules.remove(mule)

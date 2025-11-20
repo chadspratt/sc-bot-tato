@@ -1,4 +1,5 @@
 import math
+from typing import List
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -26,7 +27,7 @@ class Minerals(Resources, TimerMixin):
     def __init__(self, bot: BotAI, map: Map) -> None:
         super().__init__(bot)
         self.map = map
-        self.known_townhall_tags = []
+        self.known_townhall_tags: List[int] = []
         self.max_workers_per_node = 2
         self.max_mules_per_node = 1
         # self.mule_tags_by_node_tag = {}
@@ -51,7 +52,7 @@ class Minerals(Resources, TimerMixin):
                 node.node.position3d, size=8, color=(255, 255, 255))
         self.stop_timer("minerals.update_references")
 
-    def record_non_worker_death(self, unit_tag):
+    def record_non_worker_death(self, unit_tag: int):
         # townhall destroyed, update all nodes to long distance
         if unit_tag in self.known_townhall_tags:
             self.known_townhall_tags.remove(unit_tag)

@@ -81,8 +81,8 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
         super().transfer_all(to_squad)
         self.update_formation(reset=True)
 
-    def recruit(self, unit: Unit):
-        super().recruit(unit)
+    def recruit(self, new_unit: Unit):
+        super().recruit(new_unit)
         self.update_formation(reset=True)
 
     def get_report(self) -> str:

@@ -35,12 +35,16 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
         distance_threshold = 15 if rush_detected_type != RushType.NONE else 8
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
             for enemy_unit in self.bot.enemy_units:
+                if enemy_unit.is_flying:
+                    continue
                 if self.distance(enemy_unit, depot) < distance_threshold - 2:
                     depot(AbilityId.MORPH_SUPPLYDEPOT_RAISE)
                     break
         # Lower depos when no enemies are nearby
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:
             for enemy_unit in self.bot.enemy_units:
+                if enemy_unit.is_flying:
+                    continue
                 if self.distance(enemy_unit, depot) < distance_threshold:
                     break
             else:

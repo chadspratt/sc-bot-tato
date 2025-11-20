@@ -36,6 +36,6 @@ class EnemySquad(BaseSquad):
                 return True
         return False
 
-    def recruit(self, unit: Unit):
-        logger.debug(f"adding {unit} into {self.name} squad")
-        self.units.append(unit)
+    def recruit(self, new_unit: Unit):
+        logger.debug(f"adding {new_unit} into {self.name} squad")
+        self.units.append(new_unit)

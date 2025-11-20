@@ -1,7 +1,7 @@
 import math
 import random
 from loguru import logger
-from typing import List
+from typing import Dict, List
 from time import perf_counter
 
 from sc2.bot_ai import BotAI
@@ -54,7 +54,7 @@ class UnitReferenceMixin:
                 logger.debug(f"Couldn't find unit {tag}!")
         return _units
 
-    def count_units_by_type(self, units: Units, use_common_type=True) -> dict[UnitTypeId, int]:
+    def count_units_by_type(self, units: Units, use_common_type: bool = True) -> dict[UnitTypeId, int]:
         counts: dict[UnitTypeId, int] = {}
 
         for unit in units:
@@ -111,8 +111,8 @@ class UnitReferenceMixin:
         return counts
 
     def get_army_value(self, units: Units, bot: BotAI) -> float:
-        army_value = 0
-        type_costs = {}
+        army_value: float = 0
+        type_costs: Dict[UnitTypeId, float] = {}
         for unit in units:
             if unit.is_structure:
                 continue
@@ -146,7 +146,7 @@ class GeometryMixin:
             angle += math.pi * 2
         return angle
 
-    def apply_rotation(self, angle: float, point: Point2, reverse_direction=False) -> Point2:
+    def apply_rotation(self, angle: float, point: Point2, reverse_direction: bool = False) -> Point2:
         # rotations default to facing along the y-axis, with a facing of pi/2
         logger.debug(f"apply_rotation at angle {angle}")
         rotation_needed = math.pi / 2 - angle if reverse_direction else angle - math.pi / 2
@@ -215,15 +215,11 @@ class GeometryMixin:
                 return future_position
 
     def distance(self, unit1: Unit, unit2: Unit) -> float:
-        if unit1 is None or unit2 is None:
-            return 9999
         if unit1.age == 0 and unit2.age == 0:
             return unit1.distance_to(unit2)
         return unit1.distance_to(unit2.position)
         
     def distance_squared(self, unit1: Unit, unit2: Unit) -> float:
-        if unit1 is None or unit2 is None:
-            return 9999
         if unit1.age == 0 and unit2.age == 0:
             return unit1.distance_to_squared(unit2)        
         return unit1.distance_to_squared(unit2.position)
@@ -241,7 +237,7 @@ class GeometryMixin:
         return closest_distance_sq
     
     def units_closer_than(self, unit1: Unit, units: Units, distance: float, bot: BotAI) -> Units:
-        close_units = Units([], bot_object=bot)
+        close_units: Units = Units([], bot_object=bot)
         distance_sq = distance * distance
         for unit in units:
             if self.distance_squared(unit1, unit) < distance_sq:
@@ -251,7 +247,7 @@ class GeometryMixin:
     def closest_unit_to_unit(self, unit1: Unit, units: Units) -> Unit:
         assert units, "units list is empty"
         closest_distance = 9999
-        closest_unit = units[0]
+        closest_unit: Unit = units[0]
         for unit in units:
             new_distance = self.distance(unit1, unit)
             if new_distance < closest_distance:
@@ -276,8 +272,8 @@ class GeometryMixin:
     
     def get_most_grouped_unit(self, units: Units, bot: BotAI, range: float = 10) -> tuple[Unit, Units]:
         assert units, "units list is empty"
-        most_nearby_unit = units[0]
-        most_nearby_units = Units([], bot_object=bot)
+        most_nearby_unit: Unit = units[0]
+        most_nearby_units: Units = Units([], bot_object=bot)
         for unit in units:
             nearby_units = units.filter(lambda u: u.position.manhattan_distance(unit.position) < range)
             if nearby_units.amount > most_nearby_units.amount:
@@ -288,7 +284,7 @@ class GeometryMixin:
 class TimerMixin:
     def start_timer(self, timer_name: str) -> None:
         if not hasattr(self, "timers"):
-            self.timers = {}
+            self.timers: Dict[str, Dict[str, float]] = {}
         if timer_name not in self.timers:
             self.timers[timer_name] = {"start": perf_counter(), 'total': 0}
         else:

@@ -25,9 +25,6 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
     excluded_types = [UnitTypeId.EGG, UnitTypeId.LARVA]
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
-        if unit.health_percentage < self.attack_health:
-            # too much risk of grenading self
-            return False
         targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False, excluded_types=self.excluded_types)
         grenade_targets: List[Point2] = []
         if targets and await self.grenade_available(unit):
@@ -37,10 +34,15 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 future_target_position = self.enemy.get_predicted_position(target_unit, self.grenade_timer)
                 # future_target_position = target_unit.position
                 grenade_target = future_target_position
+                if grenade_target._distance_squared(unit.position) < grenade_target._distance_squared(target_unit.position) and \
+                    target_unit.distance_to_squared(unit) < grenade_target._distance_squared(target_unit.position):
+                    # don't throw grenade on opposite side of reaper from enemy, which ruins retreating
+                    # instead just throw it slightly behind reaper towards enemy
+                    grenade_target = unit.position.towards(target_unit.position, 0.1)
                 # grenade_target = future_target_position.towards(unit).
-                if unit.in_ability_cast_range(AbilityId.KD8CHARGE_KD8CHARGE, grenade_target):
+                if unit.in_ability_cast_range(AbilityId.KD8CHARGE_KD8CHARGE, grenade_target): # type: ignore
                     logger.debug(f"{unit} grenade candidates {target_unit}: {future_target_position} -> {grenade_target}")
-                    grenade_targets.append(grenade_target)
+                    grenade_targets.append(grenade_target) # type: ignore
 
         if grenade_targets:
             # choose furthest to reduce chance of grenading self
@@ -107,7 +109,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         if do_retreat:
             avg_threat_position = threats.center
-            if unit.distance_to(self.bot.start_location) < avg_threat_position.distance_to(self.bot.start_location) + 2:
+            if unit.distance_to(self.bot.start_location) < avg_threat_position.distance_to(self.bot.start_location) - 2:
                 # if closer to start or already near enemy, move past them to go home
                 unit.move(self.bot.start_location)
                 return True
