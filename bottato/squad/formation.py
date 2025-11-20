@@ -221,7 +221,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
     ) -> dict[int, Point2]:
         unit_destinations = {}
         reference_point: Point2 = Point2((0, 0))
-        facing = destination_facing
+        facing = None
 
         if len(grouped_units) == 0:
             grouped_units = units
@@ -233,6 +233,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
         if distance_remaining < 10:
             self.destination = formation_destination
             self.front_center = formation_destination
+            facing = destination_facing
             self.path = [formation_destination]
             logger.debug(f"distance to {self.destination} < 5")
         else:
@@ -262,12 +263,17 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
                 # if no path, tell all units to go to the destination. happens if already in destination zone or if reference point passes over non-pathable area
                 self.destination = formation_destination
 
-            if distance_remaining > 5:
+            # face nearest enemy
+            if self.bot.enemy_units:
+                nearest_enemy = self.bot.enemy_units.closest_to(self.front_center)
+                if nearest_enemy.distance_to(self.front_center) < 20:
+                    facing = self.get_facing(self.front_center, nearest_enemy.position)
+            if not facing:
                 facing = self.get_facing(self.front_center, self.destination)
-                for formation in self.formations:
-                    if self.closest_unit.tag in formation.unit_tags:
-                        reference_point = formation.offset
-                        break
+            for formation in self.formations:
+                if self.closest_unit.tag in formation.unit_tags:
+                    reference_point = formation.offset
+                    break
 
         for formation in self.formations:
             # create list of positions to fill

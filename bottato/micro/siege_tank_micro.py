@@ -42,6 +42,14 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
         is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
 
+        # fix miscategorizations, though it's probably just transforming
+        if is_sieged != (unit.tag in self.sieged_tags):
+            if is_sieged:
+                self.unsiege(unit, update_last_transform_time=False)
+            else:
+                self.siege(unit, update_last_transform_time=False)
+            return True
+
         # siege tanks near main base early game
         natural_in_place = len(self.bot.townhalls) > 2
         if not natural_in_place and 300 < self.bot.time < 420:
@@ -158,14 +166,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             # try to actually get in range during cooldown
             closest_distance_after_siege = closest_distance
 
-        # fix miscategorizations
-        if is_sieged != (unit.tag in self.sieged_tags):
-            # probably transforming, just return?
-            if is_sieged:
-                self.siege(unit, update_last_transform_time=False)
-            else:
-                self.unsiege(unit, update_last_transform_time=False)
-
         has_friendly_buffer = False
         structures_under_threat = False
         closest_enemy_is_visible = False
@@ -230,7 +230,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     #     # prefer grouped enemies
 
     def siege(self, unit: Unit, update_last_transform_time: bool = True):
-        logger.debug(f"{unit} sieging")
         unit(AbilityId.SIEGEMODE_SIEGEMODE)
         self.update_siege_state(unit, self.unsieged_tags, self.sieged_tags, update_last_transform_time)
 

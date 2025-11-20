@@ -35,7 +35,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 # future_target_position = target_unit.position
                 grenade_target = future_target_position
                 if grenade_target._distance_squared(unit.position) < grenade_target._distance_squared(target_unit.position) and \
-                    target_unit.distance_to_squared(unit) < grenade_target._distance_squared(target_unit.position):
+                    self.distance_squared(target_unit, unit) < grenade_target._distance_squared(target_unit.position):
                     # don't throw grenade on opposite side of reaper from enemy, which ruins retreating
                     # instead just throw it slightly behind reaper towards enemy
                     grenade_target = unit.position.towards(target_unit.position, 0.1)

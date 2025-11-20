@@ -492,7 +492,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         return new_units
     
     def calculate_army_ratio(self) -> float:
-        seconds_since_killed = min(60, 60 - (self.bot.time - 360) // 2)
+        seconds_since_killed = min(60, 60 - (self.bot.time - 300) // 2)
         enemies = self.enemy.get_army(seconds_since_killed=seconds_since_killed)
         friendlies = self.main_army.units
         if not enemies:
