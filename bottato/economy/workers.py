@@ -142,10 +142,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if worker.type_id == UnitTypeId.MULE:
                 self.minerals.update_references()
                 self.aged_mules.append(worker)
-                closest_minerals: Unit | None = self.closest_unit_to_unit(worker, self.minerals.nodes_with_mule_capacity())
-                if closest_minerals is None:
+                minerals_with_capacity = self.minerals.nodes_with_mule_capacity()
+                if not minerals_with_capacity:
                     self.update_assigment(worker, WorkerJobType.IDLE, None)
                 else:
+                    closest_minerals: Unit = self.closest_unit_to_unit(worker, minerals_with_capacity)
                     self.update_assigment(worker, WorkerJobType.MINERALS, closest_minerals)
                     self.minerals.add_mule(worker, closest_minerals)
                     logger.debug(f"added mule {worker.tag}({worker.position}) to minerals {closest_minerals}({closest_minerals.position})")
