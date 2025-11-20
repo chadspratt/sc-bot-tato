@@ -21,8 +21,8 @@ class Vespene(Resources, TimerMixin):
                     worker = units_by_tag[worker_tag]
                 except KeyError:
                     continue
-                self.bot.client.debug_box2_out(worker, color="(128, 0, 128)")
-                self.bot.client.debug_line_out(worker, resource_node.node, color="(128, 0, 128)")
+                self.bot.client.debug_box2_out(worker, color=(128, 0, 128))
+                self.bot.client.debug_line_out(worker, resource_node.node, color=(128, 0, 128))
             self.bot.client.debug_text_world(f"{len(resource_node.worker_tags)} assigned", resource_node.node)
             if resource_node.node.assigned_harvesters != len(resource_node.worker_tags):
                 logger.debug(f"{resource_node} has the wrong number of workers expected {len(resource_node.worker_tags)} actual {resource_node.node.assigned_harvesters}")

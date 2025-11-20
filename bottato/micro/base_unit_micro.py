@@ -6,7 +6,7 @@ from sc2.units import Units
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.position import Point2
-from sc2.constants import UnitTypeId, TARGET_AIR, TARGET_GROUND
+from sc2.constants import UnitTypeId
 from sc2.ids.effect_id import EffectId
 from sc2.ids.ability_id import AbilityId
 
@@ -142,14 +142,14 @@ class BaseUnitMicro(GeometryMixin):
                     new_position = unit.position.towards(self.bot.start_location, 2)
                 else:
                     new_position = unit.position.towards(effects_to_avoid[0], -2)
-                unit.move(new_position)
+                unit.move(new_position) # type: ignore
                 return True
             average_x = sum(p.x for p in effects_to_avoid) / number_of_effects
             average_y = sum(p.y for p in effects_to_avoid) / number_of_effects
             average_position = Point2((average_x, average_y))
             # move out of effect radius
             new_position = unit.position.towards(average_position, -2)
-            unit.move(new_position)
+            unit.move(new_position) # type: ignore
             return True
         return False
 
@@ -216,7 +216,7 @@ class BaseUnitMicro(GeometryMixin):
                 return False
             else:
                 if unit.is_mechanical:
-                    repairers = self.bot.workers.filter(lambda unit: hasattr(unit, 'is_repairer')) or self.bot.workers
+                    repairers: Units = self.bot.workers.filter(lambda w: w.is_repairing) or self.bot.workers
                     # if repairers:
                     #     repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
                     if repairers:
@@ -258,23 +258,15 @@ class BaseUnitMicro(GeometryMixin):
                 return True
             retreat_position = unit.position.towards(avg_threat_position, -5)
             # .towards(self.bot.start_location, 2)
-            if self._move_to_pathable_position(unit, retreat_position):
+            if self._move_to_pathable_position(unit, retreat_position): # type: ignore
                 return True
 
             if unit.position == avg_threat_position:
                 # avoid divide by zero
                 unit.move(self.bot.start_location)
             else:
-                threat_to_unit_vector = (unit.position - avg_threat_position).normalized
-                tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
-                away_from_enemy_position = unit.position.towards(avg_threat_position, -1)
-                circle_around_positions = [away_from_enemy_position + tangent_vector, away_from_enemy_position - tangent_vector]
-                path_to_start = self.map.get_path_points(unit.position, self.bot.start_location)
-                next_waypoint = self.bot.start_location
-                if len(path_to_start) > 1:
-                    next_waypoint = path_to_start[1]
-                circle_around_positions.sort(key=lambda pos: pos.distance_to(next_waypoint))
-                unit.move(circle_around_positions[0].towards(self.bot.start_location, 2))
+                circle_around_position = self.get_circle_around_position(unit, avg_threat_position, self.bot.start_location)
+                unit.move(circle_around_position.towards(self.bot.start_location, 2)) # type: ignore
             return True
         return False
 
@@ -304,18 +296,18 @@ class BaseUnitMicro(GeometryMixin):
                     # dive on sieged tanks
                     attack_range = 0
                     target_position = nearest_sieged_tank.position.towards(unit, attack_range)
-                    return self._move_to_pathable_position(unit, target_position)
+                    return self._move_to_pathable_position(unit, target_position) # type: ignore
                 if distance_to_tank < 15:
                     attack_range = 14
                     target_position = nearest_sieged_tank.position.towards(unit, attack_range)
-                    return self._move_to_pathable_position(unit, target_position)
+                    return self._move_to_pathable_position(unit, target_position) # type: ignore
 
         attack_range = UnitTypes.range_vs_target(unit, nearest_target)
         future_enemy_position = nearest_target.position
         if nearest_target.distance_to(unit) > attack_range / 2:
             future_enemy_position = self.enemy.get_predicted_position(nearest_target, unit.weapon_cooldown / 22.4)
         target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius)
-        return self._move_to_pathable_position(unit, target_position)
+        return self._move_to_pathable_position(unit, target_position) # type: ignore
 
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
 
@@ -385,10 +377,24 @@ class BaseUnitMicro(GeometryMixin):
         tank_to_enemy_distance = self.distance(nearest_tank, closest_enemy)
         if tank_to_enemy_distance > 13.5 + nearest_tank.radius + closest_enemy.radius and tank_to_enemy_distance < 40:
             optimal_distance = 13.5 - UnitTypes.ground_range(closest_enemy) - unit.radius + nearest_tank.radius - 0.5
-            unit.move(nearest_tank.position.towards(unit.position, optimal_distance))
+            unit.move(nearest_tank.position.towards(unit.position, optimal_distance)) # type: ignore
             return True
         elif not can_attack and tank_to_enemy_distance < unit.distance_to(closest_enemy) + 3:
             # defend tank if it's closer to enemy than unit
-            unit.move(nearest_tank.position.towards(closest_enemy.position, 3))
+            unit.move(nearest_tank.position.towards(closest_enemy.position, 3)) # type: ignore
             return True
         return False
+    
+    def get_circle_around_position(self, unit: Unit, threat_position: Point2, destination: Point2) -> Point2:
+        threat_to_unit_vector = (unit.position - threat_position).normalized
+        tangent_vector1 = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
+        tangent_vector2 = Point2((-tangent_vector1.x, -tangent_vector1.y))
+        away_from_enemy_position = unit.position.towards(threat_position, -1)
+        circle_around_positions = [Point2(away_from_enemy_position + tangent_vector1),
+                                    Point2(away_from_enemy_position + tangent_vector2)]
+        if unit.distance_to_squared(destination) > 225:
+            path_to_destination = self.map.get_path_points(unit.position, destination)
+            if len(path_to_destination) > 1:
+                destination = path_to_destination[1]
+        circle_around_positions.sort(key=lambda pos: pos.distance_to(destination))
+        return circle_around_positions[0]

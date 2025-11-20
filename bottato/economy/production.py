@@ -1,4 +1,4 @@
-from typing import List, Union
+from typing import List
 from loguru import logger
 
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
@@ -24,7 +24,7 @@ class Facility(UnitReferenceMixin):
         self.unit = unit
         self.add_on_type = UnitTypeId.NOTAUNIT
         self.addon_blocked = False
-        self.addon_destroyed_time = 0
+        self.addon_destroyed_time: float = 0
         self.in_progress_unit: Unit | None = None
         self.capacity = 1
         self.queued_unit_ids = []
@@ -36,7 +36,7 @@ class Facility(UnitReferenceMixin):
     async def update_references(self, units_by_tag: dict[int, Unit]) -> None:
         logger.debug(f"updating reference for facility {self}")
         try:
-            updated_unit: Unit = self.get_updated_unit_reference(self.unit, units_by_tag)
+            updated_unit: Unit = self.get_updated_unit_reference(self.unit, self.bot, units_by_tag)
         except UnitReferenceMixin.UnitNotFound:
             raise UnitReferenceMixin.UnitNotFound
             # addon_type.remove(facility)
@@ -89,7 +89,7 @@ class Facility(UnitReferenceMixin):
                 if self.new_position is None:
                     unit_type = updated_unit.unit_alias if updated_unit.unit_alias else updated_unit.type_id
                     self.new_position = await self.bot.find_placement(unit_type, updated_unit.position, placement_step=1, addon_place=True)
-                if updated_unit.position != self.new_position:
+                if self.new_position and updated_unit.position != self.new_position:
                     updated_unit.move(self.new_position)
                 else:
                     updated_unit(AbilityId.LAND, self.new_position)
@@ -130,7 +130,7 @@ class Facility(UnitReferenceMixin):
 class Production(UnitReferenceMixin, TimerMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
-        self.facilities = {
+        self.facilities: dict[UnitTypeId, dict[UnitTypeId, List[Facility]]] = {
             UnitTypeId.BARRACKS: {
                 UnitTypeId.TECHLAB: [],
                 UnitTypeId.REACTOR: [],
@@ -164,7 +164,7 @@ class Production(UnitReferenceMixin, TimerMixin):
             UnitTypeId.STARPORTTECHLAB,
             UnitTypeId.STARPORTREACTOR
         ]
-        self.add_on_type_lookup: dict[UnitTypeId, UnitTypeId] = {
+        self.add_on_type_lookup: dict[UnitTypeId, dict[UnitTypeId, UnitTypeId]] = {
             UnitTypeId.BARRACKS: {
                 UnitTypeId.TECHLAB: UnitTypeId.BARRACKSTECHLAB,
                 UnitTypeId.REACTOR: UnitTypeId.BARRACKSREACTOR,
@@ -192,7 +192,7 @@ class Production(UnitReferenceMixin, TimerMixin):
                     # check if add-on was destroyed
                     if not facility.unit.has_add_on and facility.add_on_type != UnitTypeId.NOTAUNIT:
                         facility.addon_destroyed_time = self.bot.time
-                        type_id = facility.unit.type_id if not facility.unit.is_flying else facility.unit.unit_alias
+                        type_id = facility.unit.unit_alias if facility.unit.unit_alias else facility.unit.type_id
                         self.facilities[type_id][facility.add_on_type].remove(facility)
                         self.facilities[type_id][UnitTypeId.NOTAUNIT].append(facility)
                         logger.debug(f"add-on {facility.add_on_type} destroyed for {facility.unit}")
@@ -240,7 +240,7 @@ class Production(UnitReferenceMixin, TimerMixin):
 
         return None
 
-    def get_research_facility(self, upgrade_id: UpgradeId) -> Unit:
+    def get_research_facility(self, upgrade_id: UpgradeId) -> Unit | None:
         research_structure_type: UnitTypeId = UPGRADE_RESEARCHED_FROM[upgrade_id]
 
         structure: Unit
@@ -257,7 +257,7 @@ class Production(UnitReferenceMixin, TimerMixin):
                 return structure
         return None
 
-    def get_builder_type(self, unit_type_id: Union[UnitTypeId, UpgradeId]):
+    def get_builder_type(self, unit_type_id: UnitTypeId | UpgradeId):
         if isinstance(unit_type_id, UpgradeId):
             return {UPGRADE_RESEARCHED_FROM[unit_type_id]}
         if unit_type_id in {
@@ -278,7 +278,7 @@ class Production(UnitReferenceMixin, TimerMixin):
             return {UnitTypeId.SCV}
         return UNIT_TRAINED_FROM[unit_type_id]
 
-    def get_cheapest_builder_type(self, unit_type_id: Union[UnitTypeId, UpgradeId]) -> UnitTypeId:
+    def get_cheapest_builder_type(self, unit_type_id: UnitTypeId | UpgradeId) -> UnitTypeId:
         # XXX add hardcoded answers for sets with more than one entry
         return list(self.get_builder_type(unit_type_id))[0]
 
@@ -293,7 +293,7 @@ class Production(UnitReferenceMixin, TimerMixin):
                     capacity += facility.get_available_capacity()
         return capacity
 
-    def additional_needed_production(self, unit_types: List[Union[UnitTypeId, UpgradeId]]):
+    def additional_needed_production(self, unit_types: List[UnitTypeId]):
         production_capacity = {
             UnitTypeId.BARRACKS: {
                 "tech": {
@@ -416,7 +416,7 @@ class Production(UnitReferenceMixin, TimerMixin):
         return additional_production
 
     def add_builder(self, unit: Unit) -> None:
-        facility_type: UnitTypeId = None
+        facility_type: UnitTypeId | None = None
         if unit.type_id in [UnitTypeId.BARRACKS, UnitTypeId.BARRACKSREACTOR, UnitTypeId.BARRACKSTECHLAB]:
             facility_type = UnitTypeId.BARRACKS
         elif unit.type_id in [UnitTypeId.FACTORY, UnitTypeId.FACTORYREACTOR, UnitTypeId.FACTORYTECHLAB]:
@@ -435,25 +435,25 @@ class Production(UnitReferenceMixin, TimerMixin):
                 logger.debug(f"checking facilities with no addon {self.facilities[facility_type][UnitTypeId.NOTAUNIT]}")
                 for facility in self.facilities[facility_type][UnitTypeId.NOTAUNIT]:
                     try:
-                        facility.unit = self.get_updated_unit_reference(facility.unit, None)
+                        facility.unit = self.get_updated_unit_reference(facility.unit, self.bot)
                     except UnitReferenceMixin.UnitNotFound:
                         continue
                     if facility.unit.add_on_tag:
-                        add_on = self.get_updated_unit_reference_by_tag(facility.unit.add_on_tag, None)
+                        add_on = self.get_updated_unit_reference_by_tag(facility.unit.add_on_tag, self.bot)
                         generic_type = list(UNIT_TECH_ALIAS[add_on.type_id])[0]
                         self.facilities[facility_type][generic_type].append(facility)
                         self.facilities[facility_type][UnitTypeId.NOTAUNIT].remove(facility)
                         facility.set_add_on_type(generic_type)
                         logger.debug(f"adding to {facility_type}-{generic_type}")
 
-    def build_order_with_prereqs(self, unit_type: Union[UnitTypeId, UpgradeId]) -> List[Union[UnitTypeId, UpgradeId]]:
+    def build_order_with_prereqs(self, unit_type: UnitTypeId) -> List[UnitTypeId]:
         build_order = self.build_order_with_prereqs_recurse(unit_type)
         build_order.reverse()
         return build_order
 
     def build_order_with_prereqs_recurse(self,
-                                         unit_type: Union[UnitTypeId, UpgradeId],
-                                         previous_types: List[Union[UnitTypeId, UpgradeId]] = None) -> List[Union[UnitTypeId, UpgradeId]]:
+                                         unit_type: UnitTypeId | None,
+                                         previous_types: List[UnitTypeId] | None= None) -> List[UnitTypeId]:
         if unit_type is None:
             return []
         if previous_types is None:
@@ -475,7 +475,7 @@ class Production(UnitReferenceMixin, TimerMixin):
             research_structure_type: UnitTypeId = UPGRADE_RESEARCHED_FROM[unit_type]
             required_tech_building: UnitTypeId | None = RESEARCH_INFO[research_structure_type][unit_type].get(
                 "required_building", None
-            )
+            ) # type: ignore
             build_order += self.build_order_with_prereqs_recurse(required_tech_building, previous_types)
         else:
             if unit_type in TECH_TREE:
@@ -504,7 +504,7 @@ class Production(UnitReferenceMixin, TimerMixin):
 
         return build_order
 
-    async def set_addon_blocked(self, blocked_facility: Unit, interrupted_count: int) -> None:
+    async def set_addon_blocked(self, blocked_facility: Unit, interrupted_count: int) -> bool:
         facility: Facility
         for facility in self.facilities[blocked_facility.type_id][UnitTypeId.NOTAUNIT]:
             if facility.unit.tag == blocked_facility.tag:

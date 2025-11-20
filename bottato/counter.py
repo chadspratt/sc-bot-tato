@@ -1,4 +1,5 @@
 import math
+from typing import List
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
@@ -163,7 +164,7 @@ class Counter(UnitReferenceMixin):
             UnitTypeId.BANSHEE: 0.5
         },
         UnitTypeId.ROACH: {
-            UnitTypeId.MARAUDER: 0.5,
+            UnitTypeId.MARAUDER: 0.75,
             UnitTypeId.BANSHEE: 0.5,
             UnitTypeId.SIEGETANK: 0.25
         },
@@ -182,7 +183,7 @@ class Counter(UnitReferenceMixin):
         },
     }
 
-    def get_counters(self, enemy_units: Units) -> dict[UnitTypeId, int]:
+    def get_counters(self, enemy_units: Units) -> dict[UnitTypeId, float]:
         """Count the number of each unit type in the given units."""
         enemy_counts = self.count_units_by_type(enemy_units)
 
@@ -198,6 +199,6 @@ class Counter(UnitReferenceMixin):
                         counter_units[counter_type] = needed
         return counter_units
 
-    def get_counter_list(self, enemy_units: Units) -> list[UnitTypeId]:
+    def get_counter_list(self, enemy_units: Units) -> List[UnitTypeId]:
         counter_units = self.get_counters(enemy_units)
         return [unit for unit, count in counter_units.items() for _ in range(math.ceil(count))]

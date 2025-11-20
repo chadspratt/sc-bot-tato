@@ -1,6 +1,6 @@
 from __future__ import annotations
 import math
-from typing import List, Dict, Tuple
+from typing import List, Dict, Set, Tuple
 
 from loguru import logger
 import numpy as np
@@ -22,20 +22,20 @@ class Map(TimerMixin, GeometryMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
         self.influence_maps = InfluenceMaps(self.bot)
-        self.zone_lookup_by_coord: Dict[tuple, Zone] = {}
-        self.cached_neighbors8: Dict[tuple, set[tuple]] = {}
-        self.cached_neighbors4: Dict[tuple, set[tuple]] = {}
-        self.coords_by_distance: Dict[int, List[tuple]] = {}
+        self.zone_lookup_by_coord: Dict[Tuple, Zone] = {}
+        self.cached_neighbors8: Dict[Tuple, Set[Tuple]] = {}
+        self.cached_neighbors4: Dict[Tuple, Set[Tuple]] = {}
+        self.coords_by_distance: Dict[int, List[Tuple]] = {}
         self.start_timer("init_distance_from_edge")
         self.init_distance_from_edge(self.influence_maps.get_long_range_grid())
         self.stop_timer("init_distance_from_edge")
-        self.zones: Dict[int, Zone] = None
+        self.zones: Dict[int, Zone] = {}
         logger.debug(f"zones {self.zones}")
         self.first_draw = True
         self.last_refresh_time = 0
-        self.natural_position: Point2 = None
-        self.enemy_natural_position: Point2 = None
-        self.all_damage_by_position: dict[Point2, list[tuple[float, float]]] = {}
+        self.natural_position: Point2 = self.bot.start_location
+        self.enemy_natural_position: Point2 = self.bot.enemy_start_locations[0]
+        self.all_damage_by_position: dict[Point2, List[Tuple[float, float]]] = {}
 
     async def init(self):
         self.start_timer("init_zones")
@@ -58,7 +58,7 @@ class Map(TimerMixin, GeometryMixin):
         self.stop_timer("refresh_map")
 
     def init_distance_from_edge(self, pathing_grid: np.ndarray):
-        self.distance_from_edge: Dict[tuple, int] = {}
+        self.distance_from_edge: Dict[Tuple, int] = {}
         self.coords_by_distance.clear()
         # init array with unpathable and put 9999 placeholder for other spots
         previous_layer = []
@@ -106,11 +106,11 @@ class Map(TimerMixin, GeometryMixin):
 
     # used for expanding inward from edge. if starting coords are unpathable, all neighbors are included
     # otherwise only neighbors of similar height are included
-    def neighbors4(self, coords) -> list:
+    def neighbors4(self, coords) -> Set[Tuple]:
         if coords not in self.cached_neighbors4:
             max_x = self.bot.game_info.pathing_grid.width - 1
             max_y = self.bot.game_info.pathing_grid.height - 1
-            neighbors: list[tuple] = []
+            neighbors: Set[Tuple] = set()
             self.cached_neighbors4[coords] = neighbors
 
             candidates = []
@@ -124,7 +124,7 @@ class Map(TimerMixin, GeometryMixin):
                 candidates.append((coords[0] + 1, coords[1]))
 
             if coords in self.distance_from_edge and self.distance_from_edge[coords] == 0:
-                neighbors.extend(candidates)
+                neighbors.update(candidates)
             else:
                 coord_height = self.bot.get_terrain_z_height(Point2(coords))
                 for candidate in candidates:
@@ -134,11 +134,11 @@ class Map(TimerMixin, GeometryMixin):
     # used for expanding outward from furthest points from edge
     # if starting coords are unpathable, only unpathable neighbors are included
     # otherwise only neighbors of similar height are included
-    def neighbors8(self, coords: tuple) -> list:
+    def neighbors8(self, coords: Tuple) -> Set[Tuple]:
         if coords not in self.cached_neighbors8:
             max_x = self.bot.game_info.pathing_grid.width - 1
             max_y = self.bot.game_info.pathing_grid.height - 1
-            neighbors: list[tuple] = []
+            neighbors: Set[Tuple] = set()
             self.cached_neighbors8[coords] = neighbors
 
             candidates = []
@@ -163,27 +163,27 @@ class Map(TimerMixin, GeometryMixin):
                 # only add neighbors that are also unpathable
                 for candidate in candidates:
                     if candidate in self.distance_from_edge and self.distance_from_edge[candidate] == 0:
-                        neighbors.append(candidate)
+                        neighbors.add(candidate)
             else:
                 coord_height = self.bot.get_terrain_z_height(Point2(coords))
                 for candidate in candidates:
                     self.add_if_similar_height(candidate, coord_height, neighbors)
         return self.cached_neighbors8[coords]
 
-    def add_if_similar_height(self, coords, height, neighbors: list[tuple]):
+    def add_if_similar_height(self, coords, height, neighbors: Set[Tuple]):
         neighbor_height = self.bot.get_terrain_z_height(Point2(coords))
         if abs(height - neighbor_height) < 0.5:
-            neighbors.append(coords)
+            neighbors.add(coords)
 
-    # def has_higher_neighbor(self, coords: tuple, distance_from_edge) -> bool:
+    # def has_higher_neighbor(self, coords: Tuple, distance_from_edge) -> bool:
     #     distance = distance_from_edge[coords]
     #     for neighbor in self.neighbors8(coords):
     #         if neighbor in distance_from_edge and distance_from_edge[neighbor] > distance:
     #             return True
     #     return False
 
-    async def init_zones(self, distance_from_edge: Dict[tuple, int]) -> Dict[int, Zone]:
-        coords: tuple
+    async def init_zones(self, distance_from_edge: Dict[Tuple, int]) -> Dict[int, Zone]:
+        coords: Tuple
         zone_index = 0
         zones: Dict[int, Zone] = {}
         distances: List[int] = sorted(self.coords_by_distance, reverse=True)
@@ -193,13 +193,13 @@ class Map(TimerMixin, GeometryMixin):
         for distance in distances:
             zone: Zone
             for zone in zones.values():
-                points_to_check: List[tuple] = zone.unchecked_points
+                points_to_check: List[Tuple] = zone.unchecked_points
                 zone.unchecked_points = []
                 while points_to_check:
                     next_point = points_to_check.pop()
                     current_distance_to_edge = distance_from_edge[next_point]
                     neighbors = self.neighbors8(next_point)
-                    neighbor: tuple
+                    neighbor: Tuple
                     # expand to any neighbors that are closer to the edge (won't push in to next zone)
                     for neighbor in neighbors:
                         try:
@@ -256,7 +256,7 @@ class Map(TimerMixin, GeometryMixin):
         while remaining_unchecked:
             remaining_unchecked = False
             for zone in zones.values():
-                points_to_check: List[tuple] = zone.unchecked_points
+                points_to_check: List[Tuple] = zone.unchecked_points
                 zone.unchecked_points = []
                 if points_to_check:
                     remaining_unchecked = True
@@ -264,7 +264,7 @@ class Map(TimerMixin, GeometryMixin):
                         next_point = points_to_check.pop()
                         # current_distance_to_edge = distance_from_edge[next_point]
                         neighbors = self.neighbors8(next_point)
-                        neighbor: tuple
+                        neighbor: Tuple
                         for neighbor in neighbors:
                             if neighbor not in self.zone_lookup_by_coord:
                                 self.zone_lookup_by_coord[neighbor] = zone
@@ -286,13 +286,13 @@ class Map(TimerMixin, GeometryMixin):
         logger.debug(f"all zones ({len(zones)}){zones}")
         return zones
 
-    def get_shortest_path(self, units: Units, end: Point2) -> Tuple[Unit, List[Point2]]:
+    def get_shortest_path(self, units: Units, end: Point2) -> List[Point2]:
         shortest_distance = 9999
         shortest_path: List[Point2] = []
         for unit in units:
             path_points = self.get_path_points(unit.position, end)
             distance = 0
-            previous_point: Point2 = None
+            previous_point: Point2 | None = None
             for path_point in path_points:
                 if previous_point is None:
                     previous_point = path_point
@@ -307,7 +307,7 @@ class Map(TimerMixin, GeometryMixin):
     
     def get_closest_unit_by_path(self, units: Units, end: Point2) -> Unit:
         shortest_distance = 9999
-        closest_unit: Unit = None
+        closest_unit: Unit | None = None
         for unit in units:
             path = self.get_path(unit.position, end)
             if path.distance < shortest_distance:
@@ -320,8 +320,9 @@ class Map(TimerMixin, GeometryMixin):
         return closest_unit
 
     def get_closest_position_by_path(self, positions: List[Point2], end: Point2) -> Point2:
+        assert len(positions) > 0
         shortest_distance = 9999
-        closest_position: Point2 = None
+        closest_position: Point2 = positions[0]
         for position in positions:
             path = self.get_path(position, end)
             if path.distance < shortest_distance:
@@ -358,7 +359,7 @@ class Map(TimerMixin, GeometryMixin):
             return Path([], math.inf)
         return start_zone.path_to(end_zone)
 
-    def get_pathable_position(self, position: Point2, unit: Unit = None) -> Point2:
+    def get_pathable_position(self, position: Point2, unit: Unit) -> Point2:
         candidates = self.influence_maps.find_lowest_cost_points(position, 3, self.ground_grid)
         if candidates is None:
             pathable_position = position
@@ -384,9 +385,9 @@ class Map(TimerMixin, GeometryMixin):
         self.ground_grid = self.influence_maps.get_pyastar_grid()
         self.stop_timer("update_influence_maps")
     
-    async def get_natural_position(self, start_position: Point2) -> Point2 | None:
+    async def get_natural_position(self, start_position: Point2) -> Point2:
         """Find natural location, given friendly or enemy start position"""
-        closest = None
+        closest = start_position
         distance = math.inf
         for el in self.bot.expansion_locations_list:
             d = await self.bot.client.query_pathing(start_position, el)
@@ -400,21 +401,24 @@ class Map(TimerMixin, GeometryMixin):
         return closest
 
     checked_zones = set()
-    zones_to_check: list[Zone] = []
+    zones_to_check: List[Zone] = []
     async def get_non_visible_position_in_main(self) -> Point2 | None:
         if not self.zones_to_check:
             start_location = self.bot.start_location.rounded
             main_zone = self.zone_lookup_by_coord.get((start_location.x, start_location.y))
-            self.zones_to_check.append(main_zone)
-        while True:
+            if main_zone:
+                self.zones_to_check.append(main_zone)
+        while self.zones_to_check:
             current_zone = self.zones_to_check.pop(0)
             for coord in current_zone.coords:
                 point = Point2(coord)
                 if not self.bot.is_visible(point):
                     # can_place not reliable, also check terrain height
                     terrain_height = self.bot.get_terrain_z_height(point)
-                    # also avoid blocking natural with depot
-                    if terrain_height > 0 and point.distance_to(self.natural_position) > 4:
+                    if terrain_height > 0:
+                        # also avoid blocking natural with depot
+                        if self.natural_position and point.distance_to(self.natural_position) <= 4:
+                            continue
                         can_place = await self.bot.can_place(UnitTypeId.SUPPLYDEPOT, [point])
                         if can_place[0]:
                             self.zones_to_check.insert(0, current_zone)
@@ -423,8 +427,6 @@ class Map(TimerMixin, GeometryMixin):
             for adjacent_zone in current_zone.adjacent_zones:
                 if adjacent_zone not in self.checked_zones:
                     self.zones_to_check.append(adjacent_zone)
-            if not self.zones_to_check:
-                break
         return None
 
     def draw_influence(self) -> None:
@@ -437,10 +439,10 @@ class Map(TimerMixin, GeometryMixin):
                 continue
             for coord in zone.coords:
                 if self.distance_from_edge[coord] > 0:
-                    zone.points_for_drawing[coord] = self.convert_point2_to_3(Point2(coord))
-            zone.midpoint3 = self.convert_point2_to_3(zone.midpoint)
+                    zone.points_for_drawing[coord] = self.convert_point2_to_3(Point2(coord), self.bot)
+            zone.midpoint3 = self.convert_point2_to_3(zone.midpoint, self.bot)
             for midpoint in zone.all_midpoints:
-                zone.all_midpoints3.append(self.convert_point2_to_3(midpoint))
+                zone.all_midpoints3.append(self.convert_point2_to_3(midpoint, self.bot))
 
 
         for zone_id in self.zones:
@@ -451,22 +453,24 @@ class Map(TimerMixin, GeometryMixin):
             #         self.bot.client.debug_text_3d(f"{self.distance_from_edge[coord]}\n{coord}", self.convert_point2_to_3(Point2(coord)), color)
             #     else:
             #         self.bot.client.debug_text_3d(f"{self.distance_from_edge[coord]}\n{coord}", self.convert_point2_to_3(Point2(coord)), color, size=6)
-            self.bot.client.debug_box2_out(zone.midpoint3, 0.25, color)
-            self.bot.client.debug_text_3d(f"{zone.midpoint}:{zone_id}", zone.midpoint3)
+            if zone.midpoint3:
+                self.bot.client.debug_box2_out(zone.midpoint3, 0.25, color)
+                self.bot.client.debug_text_3d(f"{zone.midpoint}:{zone_id}", zone.midpoint3)
 
-            for a_midpoint3 in zone.all_midpoints3:
-                self.bot.client.debug_box2_out(a_midpoint3, 0.15, color)
+                for a_midpoint3 in zone.all_midpoints3:
+                    self.bot.client.debug_box2_out(a_midpoint3, 0.15, color)
 
-            # for point3 in zone.points_for_drawing.values():
-            #     self.bot.client.debug_line_out(zone.midpoint3, point3, color)
-            for adjacent_zone in zone.adjacent_zones:
-                self.bot.client.debug_line_out(zone.midpoint3, adjacent_zone.midpoint3, color)
+                # for point3 in zone.points_for_drawing.values():
+                #     self.bot.client.debug_line_out(zone.midpoint3, point3, color)
+                for adjacent_zone in zone.adjacent_zones:
+                    if adjacent_zone.midpoint3:
+                        self.bot.client.debug_line_out(zone.midpoint3, adjacent_zone.midpoint3, color)
 
-            # path: Path
-            # for zone_id in zone.shortest_paths:
-            #     path = zone.shortest_paths[zone_id]
-            #     if len(path.zones) == 2:
-            #         path_point3: Point3 = self.convert_point2_to_3(path.zones[1].midpoint)
-            #         color = (255, 255, 0) if path.is_shortest else (255, 255, 255)
-            #         self.bot.client.debug_line_out(zone.midpoint3, path_point3, color)
-            #         self.bot.client.debug_text_3d(f"{zone_id}", path_point3)
+                # path: Path
+                # for zone_id in zone.shortest_paths:
+                #     path = zone.shortest_paths[zone_id]
+                #     if len(path.zones) == 2:
+                #         path_point3: Point3 = self.convert_point2_to_3(path.zones[1].midpoint)
+                #         color = (255, 255, 0) if path.is_shortest else (255, 255, 255)
+                #         self.bot.client.debug_line_out(zone.midpoint3, path_point3, color)
+                #         self.bot.client.debug_text_3d(f"{zone_id}", path_point3)

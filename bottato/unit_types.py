@@ -323,7 +323,7 @@ class UnitTypes():
         UnitTypeId.CREEPTUMORQUEEN,
     }
 
-    def get_unit_info(self, unit_type_id: UnitTypeId) -> dict | None:
+    def get_unit_info(self, unit_type_id: UnitTypeId) -> dict:
         """
         Get the unit info for a given unit type ID.
         """
@@ -335,7 +335,10 @@ class UnitTypes():
         elif common_id in self.ZERG:
             return self.ZERG[common_id]
         else:
-            return None
+            return {
+                "supply": 0,
+                "attributes": (UnitAttribute.STRUCTURE,),
+            }
         
     @staticmethod
     def can_attack_air(unit: Unit) -> bool:

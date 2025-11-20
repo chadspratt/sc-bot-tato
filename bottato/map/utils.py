@@ -138,7 +138,7 @@ def fix_map_ramps(bot: BotAI):
             and map_area.y <= b < map_area.y + map_area.height
             and bot.game_info.placement_grid[(a, b)] == 0)
     ]
-    ramp_points = [point for point in points if not equal_height_around(point)]
+    ramp_points: frozenset[Point2] = frozenset(point for point in points if not equal_height_around(point))
     vision_blockers = set(point for point in points if equal_height_around(point))
     ramps = [Ramp(group, bot.game_info) for group in bot.game_info._find_groups(ramp_points)]
     return ramps, vision_blockers

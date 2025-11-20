@@ -31,11 +31,11 @@ class SpecialLocations:
         for corner_position in ramp.corner_depots:
             ramp_blockers.append(SpecialLocation(UnitTypeId.SUPPLYDEPOT, corner_position))
         ramp_blockers.append(
-            SpecialLocation(UnitTypeId.BARRACKS, ramp.barracks_correct_placement)
+            SpecialLocation(UnitTypeId.BARRACKS, ramp.barracks_correct_placement) # type: ignore
         )
         self.ramp_blockers.extend(ramp_blockers)
 
-    def find_placement(self, unit_type_id: UnitTypeId) -> Point2:
+    def find_placement(self, unit_type_id: UnitTypeId) -> Point2 | None:
         for ramp_blocker in self.ramp_blockers:
             if ramp_blocker.is_started:
                 continue

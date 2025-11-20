@@ -1,7 +1,7 @@
 from __future__ import annotations
 from loguru import logger
 
-from sc2.position import Point2
+from sc2.position import Point2, Pointlike
 from sc2.unit import Unit
 from sc2.ids.ability_id import AbilityId
 from sc2.constants import UnitTypeId
@@ -27,7 +27,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     last_force_move_time: dict[int, float] = {}
     last_siege_attack_time: dict[int, float] = {}
     previous_positions: dict[int, Point2] = {}
-    early_game_siege_positions: dict[int, Point2] = {}
+    early_game_siege_positions: dict[int, Point2 | Pointlike] = {}
 
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag not in self.known_tags:
@@ -57,13 +57,14 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if self.bot.time < 300 or self.bot.time < 420 and not natural_in_place:
             enemies_near_ramp = self.bot.all_enemy_units.closer_than(20, self.bot.main_base_ramp.bottom_center)
             closest_enemy_to_ramp = enemies_near_ramp.closest_to(unit) if enemies_near_ramp else None
-            LogHelper.add_log(f"Early game siege tank micro for {unit}, closest enemy to ramp: {closest_enemy_to_ramp}")
-            # bonus_distance = 0 if is_sieged else 6
-            in_range_distance = 11 if closest_enemy_to_ramp and closest_enemy_to_ramp.is_structure else 13
-            enemy_out_of_range = closest_enemy_to_ramp and unit.distance_to(closest_enemy_to_ramp) >= in_range_distance
-            if is_sieged and enemy_out_of_range and closest_enemy_to_ramp.is_structure:
-                self.unsiege(unit)
-                return True
+            if closest_enemy_to_ramp:
+                LogHelper.add_log(f"Early game siege tank micro for {unit}, closest enemy to ramp: {closest_enemy_to_ramp}")
+                # bonus_distance = 0 if is_sieged else 6
+                in_range_distance = 11 if closest_enemy_to_ramp.is_structure else 13
+                enemy_out_of_range = unit.distance_to(closest_enemy_to_ramp) >= in_range_distance
+                if is_sieged and enemy_out_of_range and closest_enemy_to_ramp.is_structure:
+                    self.unsiege(unit)
+                    return True
             if unit.tag not in self.previous_positions:
                 self.previous_positions[unit.tag] = unit.position
             if not is_sieged:
@@ -81,7 +82,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 else:
                     tank_position = None
                     bunkers = self.bot.structures(UnitTypeId.BUNKER)
-                    bunker: Unit = bunkers.furthest_to(self.bot.main_base_ramp.top_center) if bunkers else None
+                    bunker: Unit | None = bunkers.furthest_to(self.bot.main_base_ramp.top_center) if bunkers else None
                     if bunker and bunker.distance_to(self.bot.main_base_ramp.top_center) > 6:
                         # bunker on low ground, position tank to cover it, a bit away from top of ramp
                         tank_positions = self.get_triangle_point_c(bunker.position, self.bot.main_base_ramp.top_center, 10.5, 5)
@@ -95,15 +96,15 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                             tank_position = bunker.position.towards(unit, 10.5)
 
                 if tank_position:
-                    current_distance = unit.distance_to(tank_position)
-                    previous_distance = self.previous_positions[unit.tag].distance_to(tank_position)
+                    current_distance = unit.distance_to(tank_position) # type: ignore
+                    previous_distance = self.previous_positions[unit.tag].distance_to(tank_position) # type: ignore
                     if current_distance <= 0.5:
                         # don't block barracks addon from building
                         barracks_addon_position = self.bot.structures(UnitTypeId.BARRACKS).ready.closest_to(unit).add_on_position
                         addon_distance = barracks_addon_position.distance_to(unit)
                         if addon_distance < 2:
                             tank_position = barracks_addon_position.towards(unit.position, 1)
-                            unit.move(tank_position)
+                            unit.move(tank_position) # type: ignore
                         else:
                             self.siege(unit)
                             LogHelper.add_log(f"Early game siege tank sieging to cover ramp at desired position")
@@ -113,12 +114,12 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                         depot_distance = closest_depot.distance_to(unit)
                         if depot_distance < 2.2:
                             tank_position = closest_depot.position.towards(unit.position, 4)
-                            unit.move(tank_position)
+                            unit.move(tank_position) # type: ignore
                         else:
                             self.siege(unit)
                             LogHelper.add_log(f"Early game siege tank sieging to cover ramp at closest possible position")
                     else:
-                        unit.move(tank_position)
+                        unit.move(tank_position) # type: ignore
                     self.early_game_siege_positions[unit.tag] = tank_position
                 elif unit.distance_to(self.bot.main_base_ramp.bottom_center) > 9:
                     unit.move(self.bot.main_base_ramp.bottom_center)
@@ -146,20 +147,16 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         time_since_last_siege_attack = self.bot.time - last_siege_attack
 
         excluded_enemy_types = [UnitTypeId.LARVA, UnitTypeId.EGG] if is_sieged else [UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.DRONEBURROWED, UnitTypeId.MULE, UnitTypeId.LARVA, UnitTypeId.EGG]
-        closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types)
-        closest_enemy_after_siege, closest_distance_after_siege = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time/2)
+        closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
+                                                                        excluded_types=excluded_enemy_types)
+        closest_distance_after_siege = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
+                                                                     excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time/2)[1]
         closest_structure, closest_structure_distance = self.enemy.get_target_closer_than(unit, max_distance=self.sight_range - 1,include_units=False)
 
         if transform_cooldown > 0 and not is_sieged:
             # try to actually get in range during cooldown
             closest_distance_after_siege = closest_distance
 
-        # reached_destination = unit.position.distance_to(target) < 2
-        # if reached_destination:
-        #     if not is_sieged:
-        #         self.siege(unit)
-        #         return True
-        #     return False
         # fix miscategorizations
         if is_sieged != (unit.tag in self.sieged_tags):
             # probably transforming, just return?
@@ -170,14 +167,16 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
         has_friendly_buffer = False
         structures_under_threat = False
+        closest_enemy_is_visible = False
         if closest_enemy:
             friendlies_nearest_to_enemy = self.bot.units.closest_n_units(closest_enemy.position, 5)
             has_friendly_buffer = unit not in friendlies_nearest_to_enemy
             if closest_enemy.age == 0:
+                closest_enemy_is_visible = True
                 structures_under_threat = UnitTypes.in_attack_range_of(closest_enemy, self.bot.structures)
 
         if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
-            if is_sieged and (closest_distance > self.sieged_range - 2 or closest_enemy.age != 0) and not has_friendly_buffer:
+            if is_sieged and (closest_distance > self.sieged_range - 2 or not closest_enemy_is_visible) and not has_friendly_buffer:
                 self.unsiege(unit)
                 return True
             else:
@@ -196,9 +195,9 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             unsiege_range = self.sieged_range
             if has_friendly_buffer:
                 unsiege_range = max(25 - min(time_since_last_transform, time_since_last_siege_attack), self.sieged_range)
-            if has_high_ground_advantage:
+            if has_high_ground_advantage and closest_enemy:
                 closer_position = unit.position.towards(closest_enemy.position, 1)
-                if self.bot.get_terrain_height(closer_position) < tank_height:
+                if self.bot.get_terrain_height(closer_position) < tank_height: # type: ignore
                     # be reluctant to leave high ground
                     unsiege_range += 5
             if closest_distance > unsiege_range and closest_structure_distance > self.sight_range - 1:
@@ -212,9 +211,9 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 if structures_under_threat:
                     # enemy might be immobile while attacking structures, so only siege if in range now
                     close_siege_range = closest_distance
-                elif has_high_ground_advantage:
+                elif has_high_ground_advantage and closest_enemy:
                     closer_position = unit.position.towards(closest_enemy.position, 1)
-                    if self.bot.get_terrain_height(closer_position) == tank_height:
+                    if self.bot.get_terrain_height(closer_position) == tank_height: # type: ignore
                         close_siege_range = closest_distance
                 enemy_will_be_close_enough = close_siege_range <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
             else:

@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -17,7 +17,7 @@ from bottato.economy.workers import Workers
 from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
 from bottato.squad.base_squad import BaseSquad
 from bottato.squad.formation_squad import FormationSquad
-from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.squad.harass_squad import HarassSquad
 from bottato.micro.micro_factory import MicroFactory
 from bottato.enemy import Enemy
 from bottato.map.map import Map
@@ -45,37 +45,35 @@ class Bunker(BaseSquad):
 
     def salvage(self):
         # command to salvage the bunker
-        self.structure(AbilityId.SALVAGEBUNKER_SALVAGE)
-
-    def is_built(self):
-        return self.structure is not None
+        if self.structure:
+            self.structure(AbilityId.SALVAGEBUNKER_SALVAGE)
 
     def has_space(self):
-        return self.is_built() and len(self.units) < 4
+        return self.structure and len(self.units) < 4
     
     def update_references(self, units_by_tag):
-        if self.is_built():
+        if self.structure:
             try:
-                self.structure = self.get_updated_unit_reference(self.structure, units_by_tag)
+                self.structure = self.get_updated_unit_reference(self.structure, self.bot, units_by_tag)
             except self.UnitNotFound:
                 self.structure = None
 
 class StuckRescue(BaseSquad, UnitReferenceMixin):
-    def __init__(self, bot: BotAI, main_army: FormationSquad, squads_by_unit_tag: dict[int, BaseSquad]):
+    def __init__(self, bot: BotAI, main_army: FormationSquad, squads_by_unit_tag: Dict[int, BaseSquad | None]):
         super().__init__(bot=bot, name="stuck rescue", color=(255, 0, 255))
         self.main_army = main_army
-        self.squads_by_unit_tag: dict[int, BaseSquad] = {}
+        self.squads_by_unit_tag = squads_by_unit_tag
 
-        self.transport: Unit = None
+        self.transport: Unit | None = None
         self.is_loaded: bool = False
-        self.dropoff: Point2 = None
+        self.dropoff: Point2 | None = None
 
         self.pending_unload: set[int] = set()
 
-    def update_references(self, units_by_tag: dict[int, Unit]):
+    def update_references(self, units_by_tag: Dict[int, Unit]):
         if self.transport:
             try:
-                self.transport = self.get_updated_unit_reference(self.transport, units_by_tag)
+                self.transport = self.get_updated_unit_reference(self.transport, self.bot, units_by_tag)
             except self.UnitNotFound:
                 self.transport = None
                 self.is_loaded = False
@@ -86,20 +84,20 @@ class StuckRescue(BaseSquad, UnitReferenceMixin):
             tags_to_check = list(self.pending_unload)
             for tag in tags_to_check:
                 try:
-                    unit = self.get_updated_unit_reference_by_tag(tag, None)
+                    unit = self.get_updated_unit_reference_by_tag(tag, self.bot, None)
                     self.main_army.recruit(unit)
                     self.squads_by_unit_tag[unit.tag] = self.main_army
                     self.pending_unload.remove(tag)
                 except self.UnitNotFound:
                     pass
-        if self.is_loaded:
+        if self.transport and self.is_loaded:
             if not self.transport.passengers_tags:
                 self.is_loaded = False
                 self.dropoff = None
             else:
-                self.dropoff = self.main_army.position.towards(self.bot.start_location, 8)
-                self.transport.move(self.dropoff)
-                if self.transport.distance_to(self.dropoff) < 5:
+                self.dropoff = self.main_army.position.towards(self.bot.start_location, 8) # type: ignore
+                self.transport.move(self.dropoff) # type: ignore
+                if self.transport.distance_to(self.dropoff) < 5: # type: ignore
                     self.transport(AbilityId.UNLOADALLAT, self.transport)
                     for tag in self.transport.passengers_tags:
                         self.pending_unload.add(tag)
@@ -127,7 +125,7 @@ class StuckRescue(BaseSquad, UnitReferenceMixin):
                     self.squads_by_unit_tag[self.transport.tag] = self.main_army
                 self.transport = closest_medivac
                 if self.transport.tag in self.squads_by_unit_tag and self.squads_by_unit_tag[self.transport.tag] is not None:
-                    self.squads_by_unit_tag[self.transport.tag].remove(self.transport)
+                    self.squads_by_unit_tag[self.transport.tag].remove(self.transport) # type: ignore
                     self.squads_by_unit_tag[self.transport.tag] = None
 
         cargo_left = self.transport.cargo_left
@@ -157,28 +155,27 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         )
         self.bunker = Bunker(self.bot)
         self.bunker2 = Bunker(self.bot)
-        self.squads_by_unit_tag: dict[int, BaseSquad] = {}
+        self.squads_by_unit_tag: Dict[int, BaseSquad | None] = {}
         self.squads: List[BaseSquad] = []
-        self.created_squad_type_counts: dict[int, int] = {}
+        self.created_squad_type_counts: Dict[int, int] = {}
         self.offense_start_supply = 200
         # one squad per enemy in base
         self.counters = Counter()
-        self.countered_enemies: dict[int, FormationSquad] = {}
+        self.countered_enemies: Dict[int, FormationSquad] = {}
         self.army_ratio: float = 1.0
         self.status_message = ""
         self.stuck_rescue = StuckRescue(self.bot, self.main_army, self.squads_by_unit_tag)
-        self.harass_squad = BaseSquad(bot=self.bot, name="harass", color=(0, 255, 255))
-        self.units_by_tag: dict[int, Unit] = {}
+        self.harass_squad = HarassSquad(bot=self.bot, name="harass", color=(0, 255, 255))
+        self.units_by_tag: Dict[int, Unit] = {}
 
     def add_to_main(self, unit: Unit) -> None:
         self.main_army.recruit(unit)
         self.squads_by_unit_tag[unit.tag] = self.main_army
 
-    def transfer(self, unit: Unit, from_squad: BaseSquad, to_squad: BaseSquad) -> bool:
-        if from_squad == to_squad:
-            return True
-        from_squad.transfer(unit, to_squad)
-        self.squads_by_unit_tag[unit.tag] = to_squad
+    def transfer(self, unit: Unit, from_squad: BaseSquad, to_squad: BaseSquad) -> None:
+        if from_squad != to_squad:
+            from_squad.transfer(unit, to_squad)
+            self.squads_by_unit_tag[unit.tag] = to_squad
 
     def transfer_all(self, from_squad: BaseSquad, to_squad: BaseSquad) -> None:
         for unit in [unit for unit in from_squad.units]:
@@ -190,14 +187,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stop_timer("rescue_stuck_units")
 
     async def manage_squads(self, iteration: int, blueprints: List[BuildStep],
-                            newest_enemy_base: Point2, rush_detected_type: RushType):
+                            newest_enemy_base: Point2 | None, rush_detected_type: RushType):
         self.start_timer("manage_squads")
         self.main_army.draw_debug_box()
 
         self.start_timer("military enemies_in_base")
         self.start_timer("military enemies_in_base detection")
         base_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET)
-        if self.bot.enemy_race in (Race.Zerg, Race.Random):
+        if self.bot.enemy_race in (Race.Zerg, Race.Random): # type: ignore
             nydus_canals = self.bot.enemy_structures.of_type(UnitTypeId.NYDUSCANAL)
             if nydus_canals and base_structures.closest_distance_to(nydus_canals.first) < 25 and self.main_army.units:
                 # put massive priority on killing nydus canals near base
@@ -330,14 +327,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 else:
                     if newest_enemy_base:
                         target = newest_enemy_base
-                        target_position = target.position
+                        target_position = newest_enemy_base
                     else:
                         target = self.bot.enemy_start_locations[0]
                         target_position = target
                 if not army_is_grouped:
                     self.start_timer("military move squads regroup")
                     sieged_tanks = self.bot.units.of_type(UnitTypeId.SIEGETANKSIEGED)
-                    army_center: Point2 = None
+                    army_center: Point2
                     if sieged_tanks:
                         # regroup on sieged tanks so as not to abandon them
                         army_center = sieged_tanks.closest_to(target_position).position
@@ -369,7 +366,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 logger.debug(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
                 if rush_detected_type != RushType.NONE and len(self.main_army.units) < 16 and len(self.bot.townhalls) < 3:
-                    self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 10)
+                    self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 10) # type: ignore
                 elif len(self.bot.townhalls) > 1:
                     closest_base = self.map.get_closest_unit_by_path(self.bot.townhalls, enemy_position)
                     if closest_base is None:
@@ -382,21 +379,20 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     while backtrack_distance > 0 and i + 1 < len(path):
                         next_node_distance = path[i].distance_to(path[i + 1])
                         if backtrack_distance <= next_node_distance:
-                            self.main_army.staging_location = path[i].towards(path[i + 1], backtrack_distance)
+                            self.main_army.staging_location = path[i].towards(path[i + 1], backtrack_distance) # type: ignore
                             break
                         backtrack_distance -= next_node_distance
                         i += 1
                 else:
-                    self.main_army.staging_location = self.bot.start_location.towards(enemy_position, 5)
+                    self.main_army.staging_location = self.bot.start_location.towards(enemy_position, 5) # type: ignore
                 await self.main_army.move(self.main_army.staging_location, enemy_position, force_move=True, blueprints=blueprints)
                 self.stop_timer("military move squads stage")
         self.stop_timer("military move squads")
 
-        self.report()
         self.stop_timer("manage_squads")
 
-    async def manage_bunker(self, bunker: Bunker, enemies_in_base: Units = None, mount_offense: bool = False):
-        if mount_offense or not bunker.is_built():
+    async def manage_bunker(self, bunker: Bunker, enemies_in_base: Units, mount_offense: bool):
+        if mount_offense or not bunker.structure:
             self.empty_bunker(bunker)
             return
         
@@ -414,7 +410,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
         for unit in bunker.units:
             try:
-                unit = self.get_updated_unit_reference(unit, self.units_by_tag)
+                unit = self.get_updated_unit_reference(unit, self.bot, self.units_by_tag)
                 # unit didn't enter bunker, maybe got stuck behind wall
                 if unit.distance_to(bunker.structure) <= 2.5:
                     unit.smart(bunker.structure)
@@ -435,13 +431,13 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     self.transfer(unit, self.main_army, bunker)
                     unit.smart(bunker.structure)
 
-    def empty_bunker(self, bunker: Bunker = None):
+    def empty_bunker(self, bunker: Bunker):
         for unit in bunker.units:
             self.squads_by_unit_tag[unit.tag] = self.main_army
         # self.bunker.transfer_all(self.main_army)
         bunker.empty()
 
-    async def harass(self, newest_enemy_base: Point2 = None):
+    async def harass(self, newest_enemy_base: Point2 | None = None):
         if not self.harass_squad.units:
             # transfer a reaper from main army to harass squad
             reapers = self.main_army.units(UnitTypeId.REAPER)
@@ -449,78 +445,13 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.transfer(reapers[0], self.main_army, self.harass_squad)
             else:
                 return
-
-        if not hasattr(self.harass_squad, 'arrived'):
-            self.harass_squad.arrived = False
-        if not hasattr(self.harass_squad, 'harass_location'):
-            self.harass_squad.harass_location = self.bot.enemy_start_locations[0]
-        distance_to_harass_location = self.harass_squad.units.closest_distance_to(self.harass_squad.harass_location)
-        if not self.harass_squad.arrived:
-            self.harass_squad.arrived = distance_to_harass_location < 15
-        elif distance_to_harass_location > 15:
-            self.harass_squad.arrived = False
-            if self.harass_squad.harass_location == self.bot.enemy_start_locations[0] and newest_enemy_base:
-                self.harass_squad.harass_location = newest_enemy_base
-            else:
-                self.harass_squad.harass_location = self.bot.enemy_start_locations[0]
-
-        harass_location = self.harass_squad.harass_location
-
-        for unit in self.harass_squad.units:
-            micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
-            nearby_enemies = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_ground(u) and u.distance_to(unit) < 15)
-            threatening_structures = self.bot.enemy_structures.filter(
-                lambda structure: structure.is_ready and structure.can_attack_ground
-                    and structure.distance_to(unit) < structure.ground_range + 3)
-
-            if not nearby_enemies and not threatening_structures:
-                await micro.move(unit, harass_location)
-                continue
-
-            nearest_threat = None
-            nearest_distance = 99999
-            for threat in nearby_enemies + threatening_structures:
-                distance = threat.distance_to_squared(unit) - UnitTypes.ground_range(threat) ** 2
-                if distance < nearest_distance:
-                    nearest_distance = distance
-                    nearest_threat = threat
-
-            if UnitTypes.ground_range(nearest_threat) < UnitTypes.ground_range(unit):
-                # kite enemies that we outrange
-                # predicted_position = self.predict_future_unit_position(nearest_threat, 1, False)
-                move_position = nearest_threat.position
-                # if unit.weapon_cooldown != 0:
-                #     move_position = nearest_threat.position.towards(unit, UnitTypes.ground_range(unit) - 0.5)
-                self.bot.client.debug_line_out(nearest_threat, self.convert_point2_to_3(move_position), (255, 0, 0))
-                self.bot.client.debug_sphere_out(self.convert_point2_to_3(move_position), 0.2, (255, 0, 0))
-                await micro.move(unit, move_position)
-                continue
-            else:
-            # elif nearest_threat.distance_to_squared(harass_location) < unit.distance_to_squared(harass_location):
-                # try to circle around threats that outrange us
-                threat_to_unit_vector = (unit.position - nearest_threat.position).normalized
-                tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
-                circle_around_positions = [unit.position + tangent_vector, unit.position - tangent_vector]
-                circle_around_positions.sort(key=lambda pos: pos.distance_to(harass_location))
-                await micro.move(unit, circle_around_positions[0])
-                continue
             
-            # nearby_workers = nearby_enemies.filter(
-            #     lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
-            # if nearby_workers:
-            #     nearby_workers.sort(key=lambda worker: worker.shield_health_percentage)
-            #     most_injured: Unit = nearby_workers[0]
-            #     move_position = most_injured.position
-            #     if unit.weapon_cooldown != 0:
-            #         move_position = most_injured.position.towards(unit, UnitTypes.ground_range(unit) - 0.5)
-            #     await micro.move(unit, move_position)
-            # else:
-            #     await micro.move(unit, harass_location)
+        await self.harass_squad.harass(newest_enemy_base)        
 
-    def get_squad_request(self, remaining_cap: int) -> list[UnitTypeId]:
+    def get_squad_request(self, remaining_cap: int) -> List[UnitTypeId]:
         self.start_timer("get_squad_request")
         new_supply = 0
-        new_units: list[UnitTypeId] = []
+        new_units: List[UnitTypeId] = []
         for unit_type in new_units:
             new_supply += self.bot.calculate_supply_cost(unit_type)
 
@@ -569,7 +500,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         if not friendlies:
             return 0.1
 
-        passengers: list[Unit] = []
+        passengers: Units = Units([], bot_object=self.bot)
         for medivac in self.bot.units(UnitTypeId.MEDIVAC):
             for passenger in medivac.passengers:
                 passengers.append(passenger)
@@ -586,8 +517,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
         return friendly_strength / max(enemy_strength, 0.0001)
 
-    damage_by_type: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
-    def calculate_total_damage(self, attackers: Units, targets: Units, passengers: list[Unit] = None) -> float:
+    damage_by_type: Dict[UnitTypeId, Dict[UnitTypeId, float]] = {}
+    def calculate_total_damage(self, attackers: Units, targets: Units, passengers: Units | None = None) -> float:
         total_damage: float = 0.0
         attacker_type_counts = self.count_units_by_type(attackers, use_common_type=False)
         target_type_counts = self.count_units_by_type(targets, use_common_type=False)
@@ -622,8 +553,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
     def simulate_battle(self):
         self.start_timer("simulate_battle")
-        remaining_dps: dict[int, float] = {}
-        remaining_health: dict[int, float] = {}
+        remaining_dps: Dict[int, float] = {}
+        remaining_health: Dict[int, float] = {}
 
         unmatched_enemies: Units = self.enemy.get_enemies().filter(lambda unit: not unit.is_structure)
         unmatched_friendlies: Units = self.bot.units.copy()
@@ -706,21 +637,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stop_timer("simulate_battle")
         return (unmatched_friendlies, unmatched_enemies)
 
-    def report(self):
-        _report = "[==MILITARY==] "
-        for squad in self.squads:
-            _report += squad.get_report() + ", "
-        _report += self.main_army.get_report()
-        logger.debug(_report)
-
-    def update_references(self, units_by_tag: dict[int, Unit]):
+    def update_references(self, units_by_tag: Dict[int, Unit]):
         self.start_timer("update_references")
         self.units_by_tag = units_by_tag
         for unit in self.bot.units:
             if unit.tag in self.squads_by_unit_tag:
                 squad = self.squads_by_unit_tag[unit.tag]
                 # keep in sync
-                if unit not in squad.units:
+                if squad and unit not in squad.units:
                     squad.recruit(unit)
                 continue
             if unit.tag in self.bunker.units.tags:

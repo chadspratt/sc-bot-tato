@@ -24,7 +24,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         # probably need to refresh this
         self.enemies_in_view: Units = Units([], bot)
         self.enemies_out_of_view: Units = Units([], bot)
-        self.enemies_killed: list[tuple[Unit, float]] = []
+        self.enemies_killed: List[tuple[Unit, float]] = []
         self.new_units: Units = Units([], bot)
         self.first_seen: dict[int, float] = {}
         self.last_seen: dict[int, float] = {}
@@ -68,7 +68,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
                 if time_since_last_seen <= self.unit_probably_moved_seconds:
                     self.bot.client.debug_box2_out(
-                        self.convert_point2_to_3(self.predicted_position[enemy_unit.tag]),
+                        self.convert_point2_to_3(self.predicted_position[enemy_unit.tag], self.bot),
                         half_vertex_length=enemy_unit.radius,
                         color=(255, 0, 0)
                     )
@@ -115,10 +115,10 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         if unit.type_id in (UnitTypeId.COLLAPSIBLEROCKTOWERDEBRIS,):
             return unit.position
         if unit.age > 0 and unit not in self.enemies_out_of_view:
-            return None
+            return unit.position
         time_since_last_seen = self.bot.time - self.last_seen[unit.tag]
         frame_vector = self.predicted_frame_vector[unit.tag]
-        return self.predict_future_unit_position(unit, time_since_last_seen + seconds_ahead, frame_vector=frame_vector)
+        return self.predict_future_unit_position(unit, time_since_last_seen + seconds_ahead, self.bot, frame_vector=frame_vector)
 
     def get_average_movement_per_step(self, recent_positions: deque):
         sum: Point2 = Point2((0, 0))
@@ -199,7 +199,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 threats.append(enemy_unit)
         return threats
 
-    def threats_to_repairer(self, friendly_unit: Unit, attack_range_buffer=2) -> Units:
+    def threats_to_repairer(self, friendly_unit: Unit, attack_range_buffer: float=2) -> Units:
         threats = Units([enemy_unit for enemy_unit in self.enemies_in_view
                          if UnitTypes.target_in_range(enemy_unit, friendly_unit, attack_range_buffer)],
                         self.bot)
@@ -255,11 +255,14 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             enemies += killed_units
         return enemies.filter(lambda unit: not unit.is_structure and unit.type_id not in excluded_types)
 
-    def get_closest_target(self, friendly_unit: Unit, distance_limit=999999, include_structures=True, include_units=True, include_destructables=False, include_out_of_view=True, excluded_types=[], seconds_ahead=0) -> tuple[Unit, float]:
-        nearest_enemy: Unit = None
+    def get_closest_target(self, friendly_unit: Unit, distance_limit=999999,
+                           include_structures=True, include_units=True, include_destructables=False,
+                           include_out_of_view=True, excluded_types=[], seconds_ahead: float=0) -> tuple[Unit | None, float]:
+        nearest_enemy: Unit | None = None
         nearest_distance = distance_limit
 
-        candidates: Units = self.get_candidates(include_structures, include_units, include_destructables, include_out_of_view, excluded_types)
+        candidates: Units = self.get_candidates(include_structures, include_units, include_destructables,
+                                                include_out_of_view, excluded_types)
 
         # ravens technically can't attack
         if friendly_unit.type_id != UnitTypeId.RAVEN:
@@ -281,8 +284,11 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             nearest_distance = nearest_distance ** 0.5 - nearest_enemy.radius - friendly_unit.radius
         return (nearest_enemy, nearest_distance)
     
-    def get_target_closer_than(self, friendly_unit: Unit, max_distance: float, include_structures=True, include_units=True, include_destructables=False, excluded_types=[], seconds_ahead=0) -> tuple[Unit, float]:
-        candidates: Units = self.get_candidates(include_structures, include_units, include_destructables, True, excluded_types)
+    def get_target_closer_than(self, friendly_unit: Unit, max_distance: float,
+                               include_structures=True, include_units=True, include_destructables=False,
+                               excluded_types=[], seconds_ahead: float=0) -> tuple[Unit | None, float]:
+        candidates: Units = self.get_candidates(include_structures, include_units, include_destructables,
+                                                True, excluded_types)
         distance_limit = max_distance ** 2
         for enemy in candidates:
             if seconds_ahead > 0:
@@ -306,18 +312,19 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 enemies_in_range.append(candidate)
         return enemies_in_range
 
-    def get_candidates(self, include_structures=True, include_units=True, include_destructables=False, include_out_of_view=True, excluded_types=[]):
-        candidates: Units = None
+    def get_candidates(self, include_structures=True, include_units=True, include_destructables=False,
+                       include_out_of_view=True, excluded_types=[]):
+        candidates: Units = Units([], self.bot)
         if include_structures and include_units:
             candidates = self.bot.enemy_units + self.bot.enemy_structures
             if include_out_of_view:
                 candidates += self.recent_out_of_view()
         elif include_units:
-            candidates = self.bot.enemy_units + []
+            candidates = self.bot.enemy_units.copy()
             if include_out_of_view:
                 candidates += self.recent_out_of_view().filter(lambda unit: not unit.is_structure or unit.type_id == UnitTypeId.CREEPTUMOR)
         elif include_structures:
-            candidates = self.bot.enemy_structures + []
+            candidates = self.bot.enemy_structures.copy()
             if include_out_of_view:
                 candidates += self.recent_out_of_view().filter(lambda unit: unit.is_structure)
         if include_destructables:

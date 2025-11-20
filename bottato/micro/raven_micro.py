@@ -21,7 +21,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     attack_health = 0.7 # detection
     turret_drop_time = 1.5
     missing_hidden_units: set[int] = set()
-    last_missile_launch: dict[int, tuple[float, int]] = {}
+    last_missile_launch: dict[int, tuple[float, float]] = {}
 
     excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.SCV, UnitTypeId.MULE,
                         UnitTypeId.DRONE, UnitTypeId.PROBE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.EGG, UnitTypeId.LARVA]
@@ -41,10 +41,11 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         
         if unit.energy >= self.missile_energy_cost and nearby_friendly_units.amount > 5:
             nearby_enemies = self.bot.enemy_units.filter(lambda enemy: enemy.type_id not in self.excluded_types and enemy.distance_to_squared(unit) < 225)
-            most_grouped_enemy, grouped_enemies = self.get_most_grouped_unit(nearby_enemies, 3.5)
-            if grouped_enemies.amount >= 5:
-                if self.fire_missile(unit, most_grouped_enemy):
-                    return True
+            if nearby_enemies:
+                most_grouped_enemy, grouped_enemies = self.get_most_grouped_unit(nearby_enemies, self.bot, 3.5)
+                if grouped_enemies.amount >= 5:
+                    if self.fire_missile(unit, most_grouped_enemy):
+                        return True
 
         enemy_unit, enemy_distance = self.enemy.get_closest_target(unit, distance_limit=20, include_structures=False, include_destructables=False,
                                                                    include_out_of_view=False, excluded_types=self.excluded_types)
@@ -57,7 +58,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             return False
 
         if enemy_unit.type_id == UnitTypeId.SIEGETANKSIEGED:
-            return await self.drop_turret(unit, enemy_unit.position.towards(unit, enemy_unit.radius + 1))
+            return await self.drop_turret(unit, enemy_unit.position.towards(unit, enemy_unit.radius + 1)) # type: ignore
         
         return await self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
         
@@ -75,7 +76,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             nearest_threat = threats.closest_to(unit)
             if nearest_threat.distance_to(unit) < unit.sight_range:
                 target_position = nearest_threat.position.towards(unit, unit.sight_range - 1)
-                unit.move(target_position)
+                unit.move(target_position) # type: ignore
                 return True
         # provide detection
         need_detection = self.enemy.enemies_needing_detection()
@@ -88,17 +89,17 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             closest_distance = self.distance(closest_unit, unit)
             if closest_distance < 30 and closest_distance > unit.sight_range:
                 target_position = closest_unit.position.towards(unit, unit.sight_range - 1)
-                unit.move(target_position)
+                unit.move(target_position) # type: ignore
                 return True
             elif self.bot.is_visible(closest_unit.position) and closest_unit.age > 0:
                 self.missing_hidden_units.add(closest_unit.tag)
         return False
 
     async def attack_with_turret(self, unit: Unit, target: Point2) -> bool:
-        self.bot.client.debug_line_out(unit, self.convert_point2_to_3(target), (100, 255, 50))
+        self.bot.client.debug_line_out(unit, self.convert_point2_to_3(target, self.bot), (100, 255, 50))
         turret_position = target.towards(unit, self.turret_attack_range - 1, limit=True)
         logger.debug(f"{unit} trying to drop turret at {turret_position} to attack {target} at {target.position}")
-        return await self.drop_turret(unit, turret_position)
+        return await self.drop_turret(unit, turret_position) # type: ignore
 
     async def drop_turret(self, unit: Unit, target: Point2) -> bool:
         position = await self.bot.find_placement(UnitTypeId.AUTOTURRET, target, placement_step=1, max_distance=2)

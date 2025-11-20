@@ -56,9 +56,9 @@ class Zone:
         # longer paths should be sorted by distance and not have dupes
         self.longer_paths: Dict[int, List[Path]] = {}
         self.points_for_drawing: Dict[tuple, Point3] = {}
-        self.midpoint3: Point3 = None
+        self.midpoint3: Point3 | None = None
         self.all_midpoints3: List[Point3] = []
-        self.damage_received: list[tuple[float, float]] = []  # (amount, time)
+        self.damage_received: List[tuple[float, float]] = []  # (amount, time)
         logger.debug(f"creating zone {id} from {midpoint}")
 
     def __repr__(self) -> str:

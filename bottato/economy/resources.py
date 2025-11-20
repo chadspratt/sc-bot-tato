@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import List
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -16,7 +17,7 @@ class ResourceNode(UnitReferenceMixin):
         self.max_workers = max_workers
         self.is_long_distance = is_long_distance
         # workers sometimes disappear (gas) so this is more permanent
-        self.worker_tags: list[int] = []
+        self.worker_tags: List[int] = []
         self.mule_tag: int | None = None
         self.mining_position: Point2 | None = None
 
@@ -31,11 +32,11 @@ class ResourceNode(UnitReferenceMixin):
 class Resources(UnitReferenceMixin, GeometryMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
-        self.nodes: list[ResourceNode] = []
+        self.nodes: List[ResourceNode] = []
         self.nodes_by_tag: dict[int, ResourceNode] = {}
         self.max_workers_per_node = 0
         self.max_mules_per_node = 0
-        self.depleted_resource_worker_tags: list[int] = []
+        self.depleted_resource_worker_tags: List[int] = []
 
     @property
     def has_unused_capacity(self):
@@ -65,7 +66,7 @@ class Resources(UnitReferenceMixin, GeometryMixin):
         self.nodes_by_tag[node.tag] = new_node
         return True
 
-    def nodes_with_capacity(self) -> list[ResourceNode]:
+    def nodes_with_capacity(self) -> List[ResourceNode]:
         candidates = [node for node in self.nodes if not node.is_long_distance and node.needed_workers() > 0]
         if not candidates:
             candidates = [node for node in self.nodes if node.needed_workers() > 0]
@@ -145,12 +146,12 @@ class Resources(UnitReferenceMixin, GeometryMixin):
                 return True
         return False
 
-    def update_references(self, units_by_tag: dict[int, Unit]):
+    def update_references(self, units_by_tag: dict[int, Unit] | None = None):
         nodes_to_remove = []
         
         for resource_node in self.nodes:
             try:
-                resource_node.node = self.get_updated_unit_reference(resource_node.node, units_by_tag)
+                resource_node.node = self.get_updated_unit_reference(resource_node.node, self.bot, units_by_tag)
             except Exception as e:
                 logger.debug(f"Node {resource_node.node.tag} failed to update reference: {e}")
                 if not resource_node.node.is_mineral_field:

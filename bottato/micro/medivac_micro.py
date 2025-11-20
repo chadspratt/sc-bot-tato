@@ -1,5 +1,4 @@
 from __future__ import annotations
-from loguru import logger
 
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -21,10 +20,10 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     health_threshold_for_healing = 0.75
 
     stopped_for_healing: set[int] = set()
-    injured_bio: Units = []
+    injured_bio: Units
     injured_bio_last_update: int = -1
     last_afterburner_time: dict[int, float] = {}
-    units_to_pick_up: Units = []
+    units_to_pick_up: Units
     units_to_pick_up_last_update: int = -1
     units_to_pick_up_potential_damage: dict[int, float] = {}
     threat_damage: dict[UnitTypeId, float] = {}

@@ -43,7 +43,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.scouting = Scouting(self.bot, self.enemy, self.map, self.my_workers, self.military)
         self.new_damage_by_unit: dict[int, float] = {}
         self.new_damage_by_position: dict[Point2, float] = {}
-        self.pathable_position: Point2 = None
+        self.pathable_position: Point2 | None = None
         self.stuck_units: Units = Units([], bot_object=self.bot)
         self.rush_detected_type: RushType = RushType.NONE
         self.units_by_tag: dict[int, Unit] = {}
@@ -80,7 +80,9 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         # XXX extremely slow
         blueprints = self.build_order.get_blueprints()
         for blueprint in blueprints:
-            self.create_fake_grenade(blueprint.position)
+            position = blueprint.get_position()
+            if position:
+                self.create_fake_grenade(position)
         await self.military.manage_squads(iteration,
                                           self.build_order.get_blueprints(),
                                           self.scouting.get_newest_enemy_base(),
@@ -152,7 +154,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.enemy.update_references(units_by_tag)
         await self.build_order.update_references(units_by_tag)
         await self.production.update_references(units_by_tag)
-        self.stuck_units = self.get_updated_unit_references(self.stuck_units, units_by_tag)
+        self.stuck_units = self.get_updated_unit_references(self.stuck_units, self.bot, units_by_tag)
 
     def update_started_structure(self, unit: Unit):
         self.build_order.update_started_structure(unit)
@@ -162,13 +164,13 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.production.add_builder(unit)
         if unit.type_id == UnitTypeId.BARRACKS and len(self.bot.structures(UnitTypeId.BARRACKS)) == 1:
             # set rally point for first barracks away from ramp
-            unit(AbilityId.RALLY_UNITS, unit.position.towards(self.bot.main_base_ramp.top_center, -2))
+            unit(AbilityId.RALLY_UNITS, unit.position.towards(self.bot.main_base_ramp.top_center, -2)) # type: ignore
         elif unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT):
             unit(AbilityId.RALLY_UNITS, self.bot.game_info.map_center)
         elif unit.type_id == UnitTypeId.BUNKER:
-            if not self.military.bunker.is_built():
+            if not self.military.bunker.structure:
                 self.military.bunker.structure = unit
-            elif not self.military.bunker2.is_built():
+            elif not self.military.bunker2.structure:
                 self.military.bunker2.structure = unit
 
     def add_unit(self, unit: Unit):

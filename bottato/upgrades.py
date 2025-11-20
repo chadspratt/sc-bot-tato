@@ -13,7 +13,7 @@ RESEARCH_ABILITIES: dict[UpgradeId, AbilityId] = {}
 
 for builder_type, upgrades in RESEARCH_INFO.items():
     for upgrade_id, details in upgrades.items():
-        RESEARCH_ABILITIES[upgrade_id] = details["ability"]
+        RESEARCH_ABILITIES[upgrade_id] = details["ability"] # type: ignore
 
 
 class Upgrades:
@@ -22,7 +22,7 @@ class Upgrades:
     vehicle_types = [UnitTypeId.HELLION, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.CYCLONE, UnitTypeId.HELLIONTANK, UnitTypeId.THOR]
     ship_types = [UnitTypeId.VIKINGFIGHTER, UnitTypeId.BANSHEE, UnitTypeId.LIBERATOR, UnitTypeId.BATTLECRUISER]
 
-    affected_unit_types: dict[UpgradeId, list[UnitTypeId]] = {
+    affected_unit_types: dict[UpgradeId, List[UnitTypeId]] = {
         # ==barracks techlab==
         # concussive shells
         UpgradeId.PUNISHERGRENADES: [UnitTypeId.MARAUDER],
@@ -65,7 +65,7 @@ class Upgrades:
         UpgradeId.PERSONALCLOAKING: [UnitTypeId.GHOST],
     }
     
-    upgrades_by_facility: dict[UnitTypeId, list[UpgradeId]] = {
+    upgrades_by_facility: dict[UnitTypeId, List[UpgradeId]] = {
         UnitTypeId.BARRACKSTECHLAB: [
             UpgradeId.STIMPACK,
             UpgradeId.SHIELDWALL,
@@ -113,7 +113,7 @@ class Upgrades:
         ],
     }
 
-    prereqs: dict[UpgradeId, UpgradeId | None] = {
+    prereqs: dict[UpgradeId, UpgradeId] = {
         UpgradeId.TERRANINFANTRYWEAPONSLEVEL2: UpgradeId.TERRANINFANTRYWEAPONSLEVEL1,
         UpgradeId.TERRANINFANTRYWEAPONSLEVEL3: UpgradeId.TERRANINFANTRYWEAPONSLEVEL2,
         UpgradeId.TERRANINFANTRYARMORSLEVEL2: UpgradeId.TERRANINFANTRYARMORSLEVEL1,
@@ -148,7 +148,7 @@ class Upgrades:
         assert isinstance(upgrade_type, UpgradeId), f"{upgrade_type} is no UpgradeId"
         if upgrade_type in self.bot.state.upgrades:
             return 1
-        creationAbilityID = self.bot.game_data.upgrades[upgrade_type.value].research_ability.exact_id
+        creationAbilityID = self.bot.game_data.upgrades[upgrade_type.value].research_ability.exact_id # type: ignore
         if upgrade_type == UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1:
             creationAbilityID = AbilityId.ARMORYRESEARCH_TERRANVEHICLEANDSHIPPLATINGLEVEL1
         elif upgrade_type == UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL2:

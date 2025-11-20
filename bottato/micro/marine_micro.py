@@ -1,5 +1,4 @@
 from __future__ import annotations
-from loguru import logger
 
 from sc2.position import Point2
 from sc2.unit import Unit

@@ -1,7 +1,6 @@
 from __future__ import annotations
-import enum
 import math
-from typing import List
+from typing import List, Set
 
 from loguru import logger
 from sc2.bot_ai import BotAI
@@ -23,7 +22,7 @@ class UnitDemographics:
 
 class Formation:
     def __init__(
-        self, bot: BotAI, formation_type: SquadFormationType, unit_tags: List[int], offset: Point2, spacing: float = 0
+        self, bot: BotAI, formation_type: SquadFormationType, unit_tags: Set[int], offset: Point2, spacing: float = 0
     ):
         self.bot = bot
         # generate specific formation positions
@@ -179,7 +178,7 @@ class Formation:
 
     def get_unit_offsets_from_reference_point(
         self, reference_point: Point2
-    ) -> list[Point2]:
+    ) -> List[Point2]:
         """positions for all formation members by tag"""
         unit_positions = []
         for position in self.positions:
@@ -195,9 +194,9 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
         self.bot = bot
         self.map = map
         self.formations: List[Formation] = []
-        self.front_center: Point2 = None
+        self.front_center: Point2 | None = None
         self.path: List[Point2] = []
-        self.destination: Point2 = None
+        self.destination: Point2 = self.bot.start_location
 
     def __repr__(self):
         return ", ".join([str(formation) for formation in self.formations])
@@ -208,7 +207,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
     def add_formation(
         self,
         formation_type: SquadFormationType,
-        unit_tags: List[int],
+        unit_tags: Set[int],
         offset: Point2 = Point2((0, 0)),
         spacing: float = 0,
     ):
@@ -218,7 +217,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
         self.formations.append(Formation(self.bot, formation_type, unit_tags, offset, spacing))
 
     def get_unit_destinations(
-        self, formation_destination: Point2, units: Units, grouped_units: Units, destination_facing: float = None, units_by_tag: dict[int, Unit] = None
+        self, formation_destination: Point2, units: Units, grouped_units: Units, destination_facing: float | None = None, units_by_tag: dict[int, Unit] | None = None
     ) -> dict[int, Point2]:
         unit_destinations = {}
         reference_point: Point2 = Point2((0, 0))
@@ -257,7 +256,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
 
             if self.path and len(self.path) > 1:
                 logger.debug(f"following path {self.path} to {self.destination}")
-                self.destination = self.front_center.towards(self.path[1], distance=2, limit=True)
+                self.destination = self.front_center.towards(self.path[1], distance=2, limit=True) # type: ignore
             else:
                 logger.debug(f"heading directly to {self.destination}")
                 # if no path, tell all units to go to the destination. happens if already in destination zone or if reference point passes over non-pathable area
@@ -275,11 +274,12 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
             self.start_timer("formation get offsets from reference point")
             formation_offsets = formation.get_unit_offsets_from_reference_point(reference_point)
             self.stop_timer("formation get offsets from reference point")
-            rotated_offsets = self.apply_rotations(facing, formation_offsets)
-            positions = [self.destination + offset for offset in rotated_offsets]
+            if facing:
+                formation_offsets = self.apply_rotations(facing, formation_offsets)
+            positions = [self.destination + offset for offset in formation_offsets]
 
             # match positions to closest units
-            formation_units = self.get_updated_unit_references_by_tags(formation.unit_tags, units_by_tag)
+            formation_units = self.get_updated_unit_references_by_tags(list(formation.unit_tags), self.bot, units_by_tag)
             self.start_timer("formation assign positions")
             for position in positions:
                 if not formation_units:
@@ -337,18 +337,14 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
             y_intersect = x_intersect * dest_center_slope + dest_center_b
             intersect_point = Point2((x_intersect, y_intersect))
         new_front_center = intersect_point.towards(next_waypoint, 1, limit=True)
-        self.clamp_position_to_map_bounds(new_front_center)
-        while abs(self.bot.get_terrain_z_height(new_front_center) - closest_elevation) > 0.8 and new_front_center.distance_to(closest_position) > 1:
+        self.clamp_position_to_map_bounds(new_front_center) # type: ignore
+        while abs(self.bot.get_terrain_z_height(new_front_center) - closest_elevation) > 0.8 and new_front_center.distance_to(closest_position) > 1: # type: ignore
             new_front_center = new_front_center.towards(closest_position, 1, limit=True)
-        return new_front_center
+        return new_front_center # type: ignore
 
     def clamp_position_to_map_bounds(self, position: Point2) -> Point2:
-        if position.x < 0:
-            position[0] = 0
-        if position.y < 0:
-            position[1] = 0
-        if position.x > self.bot.game_info.terrain_height.width:
-            position[0] = self.bot.game_info.terrain_height.width
-        if position.y > self.bot.game_info.terrain_height.height:
-            position[1] = self.bot.game_info.terrain_height.height
-        return position
+        clamped_position = Point2((
+            max(0, min(position.x, self.bot.game_info.terrain_height.width)),
+            max(0, min(position.y, self.bot.game_info.terrain_height.height))
+        ))
+        return clamped_position

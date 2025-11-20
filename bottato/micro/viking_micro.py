@@ -1,5 +1,5 @@
 from __future__ import annotations
-from loguru import logger
+from typing import List, Dict
 
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -38,7 +38,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                         if nearest_distance > 1.8:
                             unit.move(nearest_enemy.position)
                         elif nearest_distance < 1.1:
-                            unit.move(nearest_enemy.position.towards(unit, 1.5))
+                            unit.move(nearest_enemy.position.towards(unit, 1.5)) # type: ignore
                         else:
                             unit(AbilityId.MORPH_VIKINGASSAULTMODE)
                         return True
@@ -98,13 +98,13 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
         if self.last_enemies_in_range_update != self.bot.time:
             # update targets once per frame
             self.last_enemies_in_range_update = self.bot.time
-            enemies_in_range: dict[int, list[Unit]] = {}
+            enemies_in_range: dict[int, List[Unit]] = {}
             self.target_assignments.clear()
             vikings = self.bot.units.filter(lambda unit: unit.type_id == UnitTypeId.VIKINGFIGHTER
                                             and unit.is_flying and unit.health_percentage >= health_threshold)
-            other_type_friendlies: dict[int, Units] = {}
+            other_type_friendlies: Dict[int, Units] = {}
             # make lists of vikings that can attack each enemy
-            damage_vs_type: dict[int, float] = {}
+            damage_vs_type: dict[UnitTypeId, float] = {}
             for viking in vikings:
                 if not viking.is_flying:
                     continue
@@ -122,6 +122,8 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             # also compare number of other allies to number of threats of other types
             for enemy_tag, vikings in enemies_in_range.items():
                 enemy_unit = self.bot.enemy_units.find_by_tag(enemy_tag)
+                if not enemy_unit:
+                    continue
                 other_nearby_threats = self.bot.enemy_units.closer_than(4, enemy_unit).filter(
                     lambda unit: UnitTypes.can_attack_air(unit) and unit.tag != enemy_tag)
                 same_type_threats = other_nearby_threats.of_type(enemy_unit.type_id)

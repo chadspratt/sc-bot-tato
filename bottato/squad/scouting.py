@@ -1,11 +1,9 @@
-import enum
 from typing import List
 from loguru import logger
 
 from sc2.bot_ai import BotAI
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2.units import Units
 from sc2.constants import UnitTypeId
 from sc2.data import race_townhalls
 from sc2.data import Race
@@ -23,7 +21,7 @@ from bottato.enums import RushType
 class ScoutingLocation:
     def __init__(self, position: Point2):
         self.position: Point2 = position
-        self.last_seen: int = None
+        self.last_seen: float = 0
         self.is_occupied_by_enemy: bool = False
 
     def __repr__(self) -> str:
@@ -35,7 +33,7 @@ class Scout(BaseSquad, UnitReferenceMixin):
         self.name: str = name
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
-        self.unit: Unit = None
+        self.unit: Unit | None = None
         self.scouting_locations: List[ScoutingLocation] = list()
         self.scouting_locations_index: int = 0
         self.closest_distance_to_next_location = 9999
@@ -62,7 +60,7 @@ class Scout(BaseSquad, UnitReferenceMixin):
         """Update unit reference for this scout"""
         if self.unit:
             try:
-                self.unit = self.get_updated_unit_reference(self.unit, units_by_tag)
+                self.unit = self.get_updated_unit_reference(self.unit, self.bot, units_by_tag)
                 logger.debug(f"{self.name} scout {self.unit}")
             except self.UnitNotFound:
                 self.unit = None
@@ -132,13 +130,13 @@ class Scout(BaseSquad, UnitReferenceMixin):
 class EnemyIntel:
     def __init__(self, bot: BotAI):
         self.bot = bot
-        self.buildings_seen: dict[UnitTypeId, list[int]] = {}
+        self.buildings_seen: dict[UnitTypeId, List[Point2]] = {}
         self.worker_count: int = 0
         self.military_count: int = 0
-        self.natural_expansion_time: float = None
-        self.pool_start_time: float = None  # zerg specific
-        self.first_building_time: dict[UnitTypeId, float] = {}
-        self.enemy_race_confirmed: Race = None
+        self.natural_expansion_time: float | None = None
+        self.pool_start_time: float | None = None  # zerg specific
+        self.first_building_time: dict[UnitTypeId, float | None] = {}
+        self.enemy_race_confirmed: Race | None = None
 
     def add_building(self, building: Unit, time: float):
         if building.type_id not in self.buildings_seen:
@@ -147,13 +145,13 @@ class EnemyIntel:
             self.buildings_seen[building.type_id].append(building.position)
         
         if building.type_id not in self.first_building_time:
-            start_time = time - building.build_progress * building._type_data.cost.time / 22.4
+            start_time = time - building.build_progress * building._type_data.cost.time / 22.4 # type: ignore
             self.first_building_time[building.type_id] = start_time
         
     def get_summary(self) -> str:
         return (f"Intel: Race={self.enemy_race_confirmed}, "
                 f"Buildings={dict(self.buildings_seen)}, "
-                f"Units={dict(self.units_seen)}, "
+                # f"Units={dict(self.units_seen)}, "
                 f"Workers={self.worker_count}, Military={self.military_count}, ")
     
     def number_seen(self, unit_type: UnitTypeId) -> int:
@@ -167,7 +165,7 @@ class EnemyIntel:
         
         # Detect race if not already confirmed
         if not self.enemy_race_confirmed and self.bot.enemy_structures:
-            if self.bot.enemy_race != Race.Random:
+            if self.bot.enemy_race != Race.Random: # type: ignore
                 self.enemy_race_confirmed = self.bot.enemy_race
             else:
                 first_building: Unit = self.bot.enemy_structures[0]
@@ -180,7 +178,7 @@ class InitialScout(BaseSquad, GeometryMixin):
         self.map = map
         self.enemy = enemy
         self.intel = intel
-        self.unit: Unit = None
+        self.unit: Unit | None = None
         self.completed: bool = False
         self.enemy_natural_delayed: bool = False
         self.extra_production_detected: bool = False
@@ -219,11 +217,11 @@ class InitialScout(BaseSquad, GeometryMixin):
                 y_offset = radius * math.sin(angle_radians)
                 waypoint = Point2((enemy_start.x + x_offset, enemy_start.y + y_offset))
                 retries = 0
-                while not self.bot.in_pathing_grid(waypoint) and retries < 5:
+                while not self.bot.in_pathing_grid(waypoint) and retries < 5: # type: ignore
                     waypoint = waypoint.towards(enemy_start, 1)
                     retries += 1
                 if retries != 5:
-                    self.waypoints.append(waypoint)
+                    self.waypoints.append(waypoint) # type: ignore
 
         self.original_waypoints = list(self.waypoints)
         
@@ -239,7 +237,7 @@ class InitialScout(BaseSquad, GeometryMixin):
             
         if self.unit:
             try:
-                self.unit = self.get_updated_unit_reference(self.unit, units_by_tag)
+                self.unit = self.get_updated_unit_reference(self.unit, self.bot, units_by_tag)
             except self.UnitNotFound:
                 self.unit = None
                 # scout lost, don't send another
@@ -316,7 +314,7 @@ class Scouting(BaseSquad, DebugMixin):
         self.newest_enemy_base = self.bot.enemy_start_locations[0]
 
         # positions to scout
-        self.empty_enemy_expansion_locations: list[Point2] = []
+        self.empty_enemy_expansion_locations: List[Point2] = []
         # used to identify newest bases to attack
         self.enemy_base_built_times: dict[Point2, float] = {self.bot.enemy_start_locations[0]: 0.0}
 
@@ -373,8 +371,8 @@ class Scouting(BaseSquad, DebugMixin):
             return RushType.PROXY
         if self.intel.enemy_race_confirmed is None:
             return RushType.NONE
-        if self.intel.enemy_race_confirmed == Race.Zerg:
-            early_pool = self.intel.first_building_time.get(UnitTypeId.SPAWNINGPOOL, float('inf')) < 40
+        if self.intel.enemy_race_confirmed == Race.Zerg: # type: ignore
+            early_pool = self.intel.first_building_time.get(UnitTypeId.SPAWNINGPOOL, 9999) < 40 # type: ignore
             no_gas = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.EXTRACTOR) == 0
             no_expansion = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.HATCHERY) == 1
             zergling_rush = self.enemy.get_total_count_of_type_seen(UnitTypeId.ZERGLING) >= 8 and self.bot.time < 180
@@ -388,7 +386,7 @@ class Scouting(BaseSquad, DebugMixin):
                 await self.bot.client.chat_send("zergling rush detected", False)
             if early_pool or no_gas or no_expansion or zergling_rush:
                 return RushType.STANDARD
-        if self.intel.enemy_race_confirmed == Race.Terran:
+        if self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
             multiple_barracks = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.BARRACKS) > 1
             # no_expansion = self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
             if not self.initial_scout.completed and multiple_barracks > 2:
@@ -415,10 +413,10 @@ class Scouting(BaseSquad, DebugMixin):
     def proxy_detected(self) -> bool:
         if self.intel.enemy_race_confirmed is None:
             return False
-        if self.intel.enemy_race_confirmed == Race.Zerg:
+        if self.intel.enemy_race_confirmed == Race.Zerg: # type: ignore
             # are zerg proxy a thing?
             return False
-        if self.intel.enemy_race_confirmed == Race.Terran:
+        if self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
             return self.initial_scout.main_scouted and self.intel.number_seen(UnitTypeId.BARRACKS) == 0
         return self.initial_scout.main_scouted and self.intel.number_seen(UnitTypeId.GATEWAY) == 0
 
@@ -443,7 +441,7 @@ class Scouting(BaseSquad, DebugMixin):
         """Get the gathered intelligence about the enemy"""
         return self.intel
 
-    def get_newest_enemy_base(self) -> Point2:
+    def get_newest_enemy_base(self) -> Point2 | None:
         return self.newest_enemy_base
 
     async def scout(self, new_damage_taken: dict[int, float], units_by_tag: dict[int, Unit]):

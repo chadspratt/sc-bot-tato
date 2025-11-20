@@ -30,11 +30,11 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
         self.enemy = enemy
         self.map = map
         self.orders = []
-        self._destination: Point2 = None
-        self.previous_position: Point2 = None
+        self._destination: Point2 | None = None
+        self.previous_position: Point2 | None = None
         # self.targets: Units = Units([], bot_object=self.bot)
         self.parent_formation: ParentFormation = ParentFormation(self.bot, self.map)
-        self.destination_facing: float = None
+        self.destination_facing: float | None = None
         self.last_ungrouped_time: float = -5
         self.executed_positions: dict[int, Point2] = {}
 
@@ -43,23 +43,25 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
 
     def draw_debug_box(self):
         if self.parent_formation.front_center:
-            self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.parent_formation.front_center), 1.5, (0, 255, 255))
-            self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.parent_formation.destination), 1.5, (255, 0, 255))
+            self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.parent_formation.front_center, self.bot), 1.5, (0, 255, 255))
+            if self.parent_formation.destination:
+                self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.parent_formation.destination, self.bot), 1.5, (255, 0, 255))
 
-            previous_point3: Point3 = self.convert_point2_to_3(self.parent_formation.front_center)
+            previous_point3: Point3 = self.convert_point2_to_3(self.parent_formation.front_center, self.bot)
             if self.parent_formation.path:
                 i = 0
                 self.bot.client.debug_text_3d(f"{i};{previous_point3}", previous_point3, (255, 255, 255), size=9)
                 for point in self.parent_formation.path:
                     i += 1
-                    next_point3: Point3 = self.convert_point2_to_3(point)
+                    next_point3: Point3 = self.convert_point2_to_3(point, self.bot)
                     self.bot.client.debug_line_out(previous_point3, next_point3, (255, 50, 50))
                     self.bot.client.debug_sphere_out(next_point3, 0.7, (255, 50, 50))
                     self.bot.client.debug_text_3d(f"{i};{next_point3}", next_point3, (255, 255, 255), size=9)
                     previous_point3 = next_point3
-            destination3: Point3 = self.convert_point2_to_3(self._destination)
-            self.bot.client.debug_line_out(previous_point3, destination3, (255, 50, 50))
-            self.bot.client.debug_sphere_out(destination3, 0.5, (255, 50, 50))
+            if self._destination:
+                destination3: Point3 = self.convert_point2_to_3(self._destination, self.bot)
+                self.bot.client.debug_line_out(previous_point3, destination3, (255, 50, 50))
+                self.bot.client.debug_sphere_out(destination3, 0.5, (255, 50, 50))
 
         super().draw_debug_box()
 
@@ -69,7 +71,7 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
             return self.parent_formation.front_center
         elif self.units:
             return self.units.center
-        return None
+        return self.bot.start_location
 
     def transfer(self, unit: Unit, to_squad: BaseSquad):
         super().transfer(unit, to_squad)
@@ -87,16 +89,29 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
         has = len(self.units)
         return f"{self.name}({has})"
 
-    def update_references(self, units_by_tag: dict[int, Unit]):
-        super().update_references(units_by_tag)
-        # self.targets = self.get_updated_unit_references(self.targets, units_by_tag)
-
     def update_formation(self, reset=False):
         # decide formation(s)
         if reset:
             self.parent_formation.clear()
         if not self.parent_formation.formations:
-            unit_type_order = [UnitTypeId.MARINE, UnitTypeId.VIKINGASSAULT, UnitTypeId.MARAUDER, UnitTypeId.HELLION, UnitTypeId.REAPER, UnitTypeId.BANSHEE, UnitTypeId.CYCLONE, UnitTypeId.VIKINGFIGHTER, UnitTypeId.BATTLECRUISER, UnitTypeId.THOR, UnitTypeId.GHOST, UnitTypeId.RAVEN, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.MEDIVAC]
+            unit_type_order = [
+                UnitTypeId.MARINE,
+                UnitTypeId.VIKINGASSAULT,
+                UnitTypeId.MARAUDER,
+                UnitTypeId.HELLION,
+                UnitTypeId.REAPER,
+                UnitTypeId.BANSHEE,
+                UnitTypeId.CYCLONE,
+                UnitTypeId.VIKINGFIGHTER,
+                UnitTypeId.BATTLECRUISER,
+                UnitTypeId.THOR,
+                UnitTypeId.GHOST,
+                UnitTypeId.RAVEN,
+                UnitTypeId.LIBERATOR,
+                UnitTypeId.SIEGETANK,
+                UnitTypeId.SIEGETANKSIEGED,
+                UnitTypeId.MEDIVAC
+            ]
             y_offset = 0
             for unit_type in unit_type_order:
                 if self.add_unit_formation(unit_type, y_offset):
@@ -112,11 +127,11 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
             return True
         return False
 
-    async def move(self, destination: Point2, facing_position: Point2 = None, force_move: bool = False, blueprints: List[BuildStep] = []):
+    async def move(self, destination: Point2, facing_position: Point2 | None = None, force_move: bool = False, blueprints: List[BuildStep] = []):
         if not self.units:
             return
         self._destination = destination
-        most_grouped_unit, grouped_units = self.get_most_grouped_unit(self.units, 10)
+        most_grouped_unit, grouped_units = self.get_most_grouped_unit(self.units, self.bot, 10)
         if facing_position is None:
             if destination == self.position:
                 facing_position = destination + (destination - most_grouped_unit.position)
@@ -138,8 +153,10 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
                     continue
                 # don't block new construction
                 for blueprint in blueprints:
-                    if self.bot.distance_math_hypot_squared(blueprint.position, formation_positions[unit.tag]) < 9:
-                        formation_positions[unit.tag] = blueprint.position.towards(formation_positions[unit.tag], 3)
+                    position = blueprint.get_position()
+                    if position:
+                        if self.bot.distance_math_hypot_squared(position, formation_positions[unit.tag]) < 9:
+                            formation_positions[unit.tag] = position.towards(formation_positions[unit.tag], 3) # type: ignore
                 if formation_positions[unit.tag] is None:
                     logger.debug(f"unit {unit} has no formation position")
                     continue
@@ -162,7 +179,7 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
             # give it a couple seconds to regroup before checking again
             return False
         if self.units:
-            most_grouped_unit, grouped_units = self.get_most_grouped_unit(self.units, 10)
+            most_grouped_unit, grouped_units = self.get_most_grouped_unit(self.units, self.bot, 10)
             if most_grouped_unit:
                 distance_limit = 18 ** 2
                 units_out_of_formation = self.units.filter(lambda u: u.tag not in grouped_units.tags and u.distance_to_squared(most_grouped_unit) > distance_limit)

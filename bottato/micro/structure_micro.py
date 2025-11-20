@@ -74,7 +74,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                             if bunker:
                                 cc.move(bunker.first.position)
                             else:
-                                cc.move(self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 5))
+                                cc.move(self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 5)) # type: ignore
                         elif threats:
                             cc.move(self.bot.main_base_ramp.top_center)
                         else:
@@ -132,11 +132,11 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                 attackers = ground_attackers
             if not attackers:
                 continue
-            if self.units_closer_than(enemy, attackers, 10).amount > 2:
+            if self.units_closer_than(enemy, attackers, 10, self.bot).amount > 2:
                 enemies_to_scan.append(enemy)
 
         # find unit that has most hidden enemies nearby then scan center of the group
         if enemies_to_scan:
-            most_grouped_enemy, grouped_enemies = self.get_most_grouped_unit(enemies_to_scan, 13)
+            most_grouped_enemy, grouped_enemies = self.get_most_grouped_unit(enemies_to_scan, self.bot, 13)
             orbital_with_energy(AbilityId.SCANNERSWEEP_SCAN, grouped_enemies.center)
             self.last_scan_time = self.bot.time

@@ -16,14 +16,14 @@ class BaseSquad(UnitReferenceMixin):
         *,
         type: SquadType = SquadTypeDefinitions['none'],
         bot: BotAI,
-        color: tuple[int] = (0, 255, 0),
-        name: str = None,
+        color: tuple[int, int, int] = (0, 255, 0),
+        name: str = "",
     ):
         self.bot = bot
         self.color = color
         self.name = name
         self.units: Units = Units([], bot_object=bot)
-        self.staging_location: Point2 = None
+        self.staging_location: Point2 = self.bot.start_location
         self.units_by_tag: dict[int, Unit] = {}
 
     def draw_debug_box(self):
@@ -34,7 +34,7 @@ class BaseSquad(UnitReferenceMixin):
 
     def update_references(self, units_by_tag: dict[int, Unit]):
         self.units_by_tag = units_by_tag
-        self.units = self.get_updated_unit_references(self.units, units_by_tag)
+        self.units = self.get_updated_unit_references(self.units, self.bot, units_by_tag)
 
     @property
     def is_empty(self) -> bool:

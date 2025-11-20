@@ -32,7 +32,7 @@ class Minerals(Resources, TimerMixin):
         # self.mule_tags_by_node_tag = {}
         # self.mining_positions: dict[int, Point2] = {}
 
-    def update_references(self, units_by_tag: dict[int, Unit]):
+    def update_references(self, units_by_tag: dict[int, Unit] | None = None):
         self.start_timer("minerals.update_references")
         super().update_references(units_by_tag)
         # remove missing tags
@@ -95,15 +95,15 @@ class Minerals(Resources, TimerMixin):
             if townhall:
                 townhall_pos = townhall.position
             else:
-                townhall_pos = mineral_node.position.closest(self.bot.expansion_locations_list)
+                townhall_pos = mineral_node.position.closest(self.bot.expansion_locations_list) # type: ignore
             target = mineral_node.position.towards(townhall_pos, self.MINING_RADIUS)
-            close_minerals = self.bot.mineral_field.closer_than(self.MINING_RADIUS, target)
+            close_minerals = self.bot.mineral_field.closer_than(self.MINING_RADIUS, target) # type: ignore
             for close_mineral in close_minerals:
                 if close_mineral.tag != mineral_node.tag:
                     candidates = mineral_node.position.circle_intersection(close_mineral.position, self.MINING_RADIUS)
                     if len(candidates) == 2:
                         target = townhall_pos.closest(candidates)
-            resource_node.mining_position = target
+            resource_node.mining_position = target # type: ignore
 
     def add_long_distance_minerals(self, idle_worker_count: int) -> int:
         added = 0

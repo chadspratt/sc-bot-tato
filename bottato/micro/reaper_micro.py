@@ -1,9 +1,10 @@
 from __future__ import annotations
+from typing import List
 from loguru import logger
 
 from sc2.unit import Unit
 from sc2.units import Units
-from sc2.position import Point2
+from sc2.position import Point2, Pointlike
 from sc2.protocol import ProtocolError
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
@@ -19,8 +20,8 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     attack_health = 0.65
     retreat_health = 0.8
 
-    grenade_cooldowns: dict[int, int] = {}
-    unconfirmed_grenade_throwers: list[int] = []
+    grenade_cooldowns: dict[int, float] = {}
+    unconfirmed_grenade_throwers: List[int] = []
 
     excluded_types = [UnitTypeId.EGG, UnitTypeId.LARVA]
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
@@ -28,7 +29,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             # too much risk of grenading self
             return False
         targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False, excluded_types=self.excluded_types)
-        grenade_targets: list[Point2] = []
+        grenade_targets: List[Point2] = []
         if targets and await self.grenade_available(unit):
             for target_unit in targets:
                 if target_unit.is_flying:
@@ -45,7 +46,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             # choose furthest to reduce chance of grenading self
             grenade_target = unit.position.furthest(grenade_targets)
             logger.debug(f"{unit} grenading {grenade_target}")
-            self.throw_grenade(unit, grenade_target)
+            self.throw_grenade(unit, grenade_target) # type: ignore
             return True
 
         return False
@@ -112,35 +113,27 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 return True
             retreat_position = unit.position.towards(avg_threat_position, -5)
             # .towards(self.bot.start_location, 2)
-            if self.bot.in_pathing_grid(retreat_position):
-                unit.move(retreat_position)
+            if self.bot.in_pathing_grid(retreat_position): # type: ignore
+                unit.move(retreat_position) # type: ignore
             else:
                 if unit.position == avg_threat_position:
                     # avoid divide by zero
                     unit.move(self.bot.start_location)
                 else:
-                    threat_to_unit_vector = (unit.position - avg_threat_position).normalized
-                    tangent_vector = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
-                    away_from_enemy_position = unit.position.towards(avg_threat_position, -1)
-                    circle_around_positions = [away_from_enemy_position + tangent_vector, away_from_enemy_position - tangent_vector]
-                    path_to_start = self.map.get_path_points(unit.position, self.bot.start_location)
-                    next_waypoint = self.bot.start_location
-                    if len(path_to_start) > 1:
-                        next_waypoint = path_to_start[1]
-                    circle_around_positions.sort(key=lambda pos: pos.distance_to(next_waypoint))
-                    unit.move(circle_around_positions[0].towards(self.bot.start_location, 2))
+                    circle_around_position = self.get_circle_around_position(unit, avg_threat_position, self.bot.start_location)
+                    unit.move(circle_around_position.towards(self.bot.start_location, 2)) # type: ignore
             return True
         return False
 
     async def grenade_jump(self, unit: Unit, target: Unit) -> bool:
         if await self.grenade_available(unit):
             logger.debug(f"{unit} grenading {target}")
-            self.throw_grenade(unit, self.predict_future_unit_position(target, self.grenade_timer - 1))
+            self.throw_grenade(unit, self.predict_future_unit_position(target, self.grenade_timer - 1, self.bot))
             return True
         return False
 
-    def throw_grenade(self, unit: Unit, target: Point2):
-        unit(AbilityId.KD8CHARGE_KD8CHARGE, target)
+    def throw_grenade(self, unit: Unit, target: Point2 | Pointlike):
+        unit(AbilityId.KD8CHARGE_KD8CHARGE, target) # type: ignore
         self.unconfirmed_grenade_throwers.append(unit.tag)
 
     async def grenade_available(self, unit: Unit) -> bool:

@@ -1,7 +1,6 @@
 import math
-import enum
+from typing import List
 from loguru import logger
-from typing import Union
 
 from sc2.bot_ai import BotAI
 from sc2.units import Units
@@ -18,7 +17,7 @@ from bottato.enemy import Enemy
 from bottato.mixins import GeometryMixin, UnitReferenceMixin, TimerMixin
 from bottato.economy.minerals import Minerals
 from bottato.economy.vespene import Vespene
-from bottato.economy.resources import Resources
+from bottato.economy.resources import ResourceNode, Resources
 from bottato.enums import WorkerJobType
 
 
@@ -26,15 +25,15 @@ class WorkerAssignment():
     def __init__(self, unit: Unit) -> None:
         self.unit = unit
         self.job_type: WorkerJobType = WorkerJobType.IDLE
-        self.target: Unit = None
+        self.target: Unit | None = None
         self.unit_available: bool = True
-        self.gather_position: Point2 = None
-        self.dropoff_target: Unit = None
-        self.dropoff_position: Point2 = None
+        self.gather_position: Point2 | None = None
+        self.dropoff_target: Unit | None = None
+        self.dropoff_position: Point2 | None = None
         self.initial_gather_complete: bool = False
         self.is_returning = False
         self.on_attack_break = False
-        self.attack_target_tag: int = None
+        self.attack_target_tag: int | None = None
 
     def __repr__(self) -> str:
         return f"WorkerAssignment({self.unit}({self.unit_available}), {self.job_type.name}, {self.target})"
@@ -47,7 +46,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.map = map
         self.last_worker_stop = -1000
         self.assignments_by_worker: dict[int, WorkerAssignment] = {}
-        self.assignments_by_job: dict[WorkerJobType, list[WorkerAssignment]] = {
+        self.assignments_by_job: dict[WorkerJobType, List[WorkerAssignment]] = {
             WorkerJobType.IDLE: [],
             WorkerJobType.MINERALS: [],
             WorkerJobType.VESPENE: [],
@@ -68,7 +67,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.worker_micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first)
         self.units_to_attack = set()
 
-    def update_references(self, units_by_tag: dict[int, Unit], builder_tags: list[int]):
+    def update_references(self, units_by_tag: dict[int, Unit], builder_tags: List[int]):
         self.start_timer("update_references")
         self.minerals.update_references(units_by_tag)
         self.vespene.update_references(units_by_tag)
@@ -84,19 +83,19 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.assignments_by_job[WorkerJobType.SCOUT].clear()
         for assignment in self.assignments_by_worker.values():
             try:
-                assignment.unit = self.get_updated_unit_reference(assignment.unit, units_by_tag)
+                assignment.unit = self.get_updated_unit_reference(assignment.unit, self.bot, units_by_tag)
                 assignment.unit_available = True
             except UnitReferenceMixin.UnitNotFound:
                 # unit is inside a structure
                 assignment.unit_available = False
 
             try:
-                assignment.target = self.get_updated_unit_reference(assignment.target, units_by_tag)
+                assignment.target = self.get_updated_unit_reference(assignment.target, self.bot, units_by_tag)
             except UnitReferenceMixin.UnitNotFound:
                 assignment.target = None
 
             try:
-                assignment.dropoff_target = self.get_updated_unit_reference(assignment.dropoff_target, units_by_tag)
+                assignment.dropoff_target = self.get_updated_unit_reference(assignment.dropoff_target, self.bot, units_by_tag)
             except UnitReferenceMixin.UnitNotFound:
                 assignment.dropoff_target = None
                 assignment.dropoff_position = None
@@ -141,9 +140,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.assignments_by_worker[worker.tag] = new_assignment
             self.assignments_by_job[WorkerJobType.IDLE].append(new_assignment)
             if worker.type_id == UnitTypeId.MULE:
-                self.minerals.update_references(None)
+                self.minerals.update_references()
                 self.aged_mules.append(worker)
-                closest_minerals: Unit = self.closest_unit_to_unit(worker, self.minerals.nodes_with_mule_capacity())
+                closest_minerals: Unit | None = self.closest_unit_to_unit(worker, self.minerals.nodes_with_mule_capacity())
                 if closest_minerals is None:
                     self.update_assigment(worker, WorkerJobType.IDLE, None)
                 else:
@@ -174,7 +173,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if mineral_fields:
                 fullest_mineral_field: Unit = max(mineral_fields, key=lambda x: x.mineral_contents)
                 nearest_townhall: Unit = self.bot.townhalls.closest_to(fullest_mineral_field)
-                orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE, target=fullest_mineral_field.position.towards(nearest_townhall), queue=True)
+                orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE,
+                        target=fullest_mineral_field.position.towards(nearest_townhall), # type: ignore
+                        queue=True)
         self.stop_timer("my_workers.drop_mules")
 
     def remove_mule(self, mule):
@@ -214,10 +215,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         townhall = self.bot.townhalls.closest_to(worker)
 
         if worker.is_returning and len(worker.orders) == 1:
-            target: Point2 = townhall.position
-            target = target.towards(worker, townhall.radius + worker.radius)
-            if 0.75 < worker.distance_to(target) < 2:
-                worker.move(target)
+            return_target: Point2 = townhall.position
+            return_target = return_target.towards(worker, townhall.radius + worker.radius) # type: ignore
+            if 0.75 < worker.distance_to(return_target) < 2:
+                worker.move(return_target)
                 worker(AbilityId.SMART, townhall, True)
                 return
 
@@ -230,15 +231,17 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             mf = assignment.target
             if mf is not None and mf.is_mineral_field:
                 # target = self.mineral_target_dict.get(mf.position)
-                target = assignment.gather_position
-                worker_distance = worker.distance_to(target)
-                if target and 0.75 < worker_distance < 2:
-                    worker.move(target)
-                    worker(AbilityId.SMART, mf, True)
-                elif worker_distance <= 0.75:
-                    first_order = worker.orders[0]
-                    if first_order.ability.id != AbilityId.HARVEST_GATHER or first_order.target != assignment.target.tag:
-                        worker(AbilityId.SMART, assignment.target)
+                target: Point2 | None = assignment.gather_position
+                if target:
+                    worker_distance = worker.distance_to(target)
+                    if 0.75 < worker_distance < 2:
+                        worker.move(target)
+                        worker(AbilityId.SMART, mf, True)
+                    elif worker_distance <= 0.75:
+                        first_order = worker.orders[0]
+                        if first_order.ability.id != AbilityId.HARVEST_GATHER \
+                                or first_order.target != mf.tag:
+                            worker(AbilityId.SMART, mf)
 
     TOWNHALL_RADIUS: float = 2.75
     DISTANCE_TO_TOWNHALL_FACTOR: float = 1.08
@@ -258,8 +261,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 assignment.dropoff_position = None
             if assignment.dropoff_target is None:
                 non_flying = self.bot.townhalls.ready.filter(lambda th: not th.is_flying)
-                if non_flying:
-                    closest_townhall: Unit = self.closest_unit_to_unit(worker, non_flying)
+                closest_townhall: Unit | None = self.closest_unit_to_unit(worker, non_flying)
+                if closest_townhall:
                     if closest_townhall.distance_to(worker) < 15:
                         assignment.dropoff_target = closest_townhall
                 if assignment.dropoff_target is None:
@@ -281,7 +284,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 worker(AbilityId.SMART, assignment.dropoff_target)
                 return True
 
-        elif not worker.is_returning and len_orders < 2:
+        elif not worker.is_returning and len_orders < 2 and assignment.target and assignment.gather_position:
             min_distance: float = 0.5625 if assignment.target.is_mineral_field else 0.01
             max_distance: float = 4.0 if assignment.target.is_mineral_field else 0.25
             worker_distance: float = worker.distance_to_squared(assignment.gather_position) if assignment.gather_position else math.inf
@@ -304,7 +307,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         elif worker.is_idle or not worker.is_moving:
             if worker.is_carrying_resource:
                 worker.return_resource()
-            else:
+            elif assignment.target:
                 worker.gather(assignment.target)
             return True
 
@@ -324,7 +327,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         assignment.dropoff_target = dropoff_candidates.closest_to(worker)
                         min_distance = assignment.dropoff_target.radius + worker.radius
                         position = assignment.dropoff_target.position.towards(worker, min_distance, limit=True)
-                        assignment.dropoff_position = position
+                        assignment.dropoff_position = position # type: ignore
                 self.speed_smart(worker, assignment.dropoff_target, assignment.dropoff_position)
             self.stop_timer("my_workers.speed_mine returning")
         elif assignment.target:
@@ -332,19 +335,20 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if assignment.initial_gather_complete:
                 if assignment.gather_position is None:
                     assignment.gather_position = self.minerals.nodes_by_tag[assignment.target.tag].mining_position
-                if assignment.is_returning:
-                    assignment.is_returning = False
-                    worker.move(assignment.gather_position)
-                elif len(worker.orders) == 1 and assignment.target:
-                    self.speed_smart(worker, assignment.target, assignment.gather_position)
+                if assignment.gather_position:
+                    if assignment.is_returning:
+                        assignment.is_returning = False
+                        worker.move(assignment.gather_position)
+                    elif len(worker.orders) == 1 and assignment.target:
+                        self.speed_smart(worker, assignment.target, assignment.gather_position)
             else:
                 # first time gathering, just gather
                 worker.gather(assignment.target)
             self.stop_timer("my_workers.speed_mine gathering")
 
-    def speed_smart(self, worker: Unit, target: Unit, position: Union[Point2, None] = None) -> None:
+    def speed_smart(self, worker: Unit, target: Unit | None, position: Point2 | None = None) -> None:
         self.start_timer("my_workers.speed_smart")
-        if position is None:
+        if position is None or target is None:
             return
         remaining_distance = worker.distance_to(position)
         if 0.75 < remaining_distance < 1.75:
@@ -451,7 +455,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         LogHelper.add_log(f"added enemy to attack {enemy}")
         self.units_to_attack.add(enemy)
 
-    def update_assigment(self, worker: Unit, job_type: WorkerJobType, target: Union[Unit, None]):
+    def update_assigment(self, worker: Unit, job_type: WorkerJobType, target: Unit | None):
         self.update_job(worker, job_type)
         if not self.update_target(worker, target):
             self.update_job(worker, WorkerJobType.REPAIR)
@@ -473,9 +477,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         assignment.job_type = new_job
         self.assignments_by_job[new_job].append(assignment)
 
-    def update_target(self, worker: Unit, new_target: Union[Unit, None] = None) -> bool:
+    def update_target(self, worker: Unit, new_target: Unit | None = None) -> bool:
         if worker.tag not in self.assignments_by_worker:
-            return
+            return True
         assignment = self.assignments_by_worker[worker.tag]
         logger.debug(f"worker {worker} changing from {assignment.target} to {new_target}")
         if new_target:
@@ -581,8 +585,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
         return builder
 
-    def get_scout(self, position: Point2) -> Union[Unit, None]:
-        scout: Unit = None
+    def get_scout(self, position: Point2) -> Unit | None:
+        scout: Unit | None = None
         candidates: Units = (
             self.availiable_workers_on_job(WorkerJobType.IDLE)
             or self.availiable_workers_on_job(WorkerJobType.VESPENE)
@@ -616,7 +620,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if worker.tag in self.assignments_by_worker:
             self.update_assigment(worker, WorkerJobType.IDLE, None)
 
-    builder_idle_time: dict[int, int] = {}
+    builder_idle_time: dict[int, float] = {}
     def distribute_idle(self):
         self.start_timer("my_workers.distribute_idle")
         if self.bot.workers.idle:
@@ -716,7 +720,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     for worker in injured_units:
                         missing_health += worker.health_max - worker.health
                         logger.debug(f"{worker} missing health {worker.health_max - worker.health}")
-                    needed_repairers = missing_health / self.health_per_repairer
+                    needed_repairers = math.ceil(missing_health / self.health_per_repairer)
                     if needed_repairers > max_repairers:
                         needed_repairers = max_repairers
                     elif needed_repairers < len(injured_units):
@@ -744,7 +748,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 current_repairers.remove(retiring_repairer)
 
         # tell existing to repair closest that isn't themself
-        units_with_no_repairer: list[Unit] = []
+        units_with_no_repairer: List[Unit] = []
         if self.bot.time < 300:
             units_with_no_repairer = [unit for unit in injured_units]
             if len(units_with_no_repairer) > 5:
@@ -753,7 +757,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
             self.update_assigment(repairer, WorkerJobType.REPAIR, repair_target)
             if repair_target:
-                repairer.is_repairer = True
                 await self.worker_micro.repair(repairer, repair_target)
                 current_repairer_tag = current_repair_targets.get(repair_target.tag, repairer.tag)
                 if current_repairer_tag == repairer.tag:
@@ -762,8 +765,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
         # add more repairers
         if repairer_shortage > 0:
-            candidates: Units = None
-            candidates = Units([
+            candidates: Units = Units([
                     worker for worker in self.bot.workers
                     if self.assignments_by_worker[worker.tag].job_type not in (WorkerJobType.BUILD, WorkerJobType.REPAIR)
                 ], bot_object=self.bot)
@@ -772,7 +774,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             for i in range(repairer_shortage):
                 if not candidates:
                     break
-                unit_to_repair: Unit = None
+                unit_to_repair: Unit | None = None
                 if units_with_no_repairer:
                     unit_to_repair = units_with_no_repairer[0]
                 else:
@@ -781,7 +783,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 candidates.remove(repairer)
 
                 if repairer:
-                    repairer.is_repairer = True
                     repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
                     self.update_assigment(repairer, WorkerJobType.REPAIR, repair_target)
                     if repair_target:
@@ -793,11 +794,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 else:
                     break
 
-    def get_repair_target(self, repairer: Unit, injured_units: Units, units_needing_repair: list) -> Unit:
+    def get_repair_target(self, repairer: Unit, injured_units: Units, units_needing_repair: list) -> Unit | None:
         other_units = injured_units.filter(lambda unit: unit.tag != repairer.tag)
         if other_units and len(units_needing_repair) > 0:
             other_units = other_units.filter(lambda unit: unit in units_needing_repair)
-        new_target: Unit = None
+        new_target: Unit | None = None
         if other_units:
             new_target = other_units.closest_to(repairer)
             if new_target in units_needing_repair:
@@ -833,7 +834,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if not resource_nodes:
             return 0
 
-        candidates: Units = None
+        candidates: Units | None = None
         if target_job == WorkerJobType.VESPENE:
             candidates = self.availiable_workers_on_job(WorkerJobType.MINERALS)
         else:
@@ -842,7 +843,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         while moved_count < number_to_move and candidates and resource_nodes:
             # prefer emptier nodes to limit congestion
             resource_nodes.sort(key=lambda r: r.needed_workers(), reverse=True)
-            next_node: Unit = resource_nodes[0]
+            next_node: ResourceNode = resource_nodes[0]
             worker = candidates.closest_to(next_node.node)
             candidates.remove(worker)
             self.update_assigment(worker, target_job, next_node.node)

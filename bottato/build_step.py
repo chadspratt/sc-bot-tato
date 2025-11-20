@@ -1,54 +1,32 @@
-from loguru import logger
-from typing import Optional, Union
-
-from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
-from sc2.units import Units
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.ability_id import AbilityId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.position import Point2, Point3
-from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
-from sc2.protocol import ConnectionAlreadyClosedError, ProtocolError
+from sc2.position import Point2
 
-from bottato.log_helper import LogHelper
-from bottato.unit_types import UnitTypes
 from bottato.map.map import Map
 from bottato.mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
 from bottato.special_locations import SpecialLocations
-from bottato.upgrades import RESEARCH_ABILITIES
-from bottato.tech_tree import TECH_TREE
-from bottato.enums import BuildResponseCode, WorkerJobType, RushType
+from bottato.enums import BuildResponseCode, RushType
 
 
 class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
-    unit_type_id: UnitTypeId | None = None
-    upgrade_id: UpgradeId | None = None
-    unit_in_charge: Optional[Unit] = None
-    unit_being_built: Optional[Unit] = None
-    position: Union[Unit, Point2, None] = None
-    geysir: Unit | None = None
+    unit_in_charge: Unit | None = None
     check_idle: bool = False
     last_cancel_time: float = -10
-    start_time: int | None = None
-    completed_time: int | None = None
-    worker_in_position_time: int | None = None
+    start_time: float | None = None
+    completed_time: float | None = None
     is_in_progress: bool = False
     interrupted_count: int = 0
 
-    def __init__(self, unit_type: Union[UnitTypeId, UpgradeId], bot: BotAI, workers: Workers, production: Production, map: Map):
+    def __init__(self, unit_type: UnitTypeId | UpgradeId, bot: BotAI, workers: Workers, production: Production, map: Map):
         self.bot: BotAI = bot
         self.workers: Workers = workers
         self.production: Production = production
         self.map: Map = map
 
-        if isinstance(unit_type, UnitTypeId):
-            self.unit_type_id = unit_type
-        else:
-            self.upgrade_id = unit_type
         self.friendly_name = unit_type.name
         self.builder_type: set[UnitTypeId] = self.production.get_builder_type(unit_type)
         if unit_type == UnitTypeId.REFINERYRICH:
@@ -61,505 +39,51 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
             else:
                 self.supply_cost = bot.calculate_supply_cost(unit_type)
 
-    def __repr__(self) -> str:
-        builder = self.unit_in_charge if self.unit_in_charge else self.builder_type
-        # orders = self.unit_in_charge.orders if self.unit_in_charge else '[]'
-        target = ""
-        if self.unit_being_built and self.unit_being_built is not True:
-            target = f"{self.unit_being_built} {self.unit_being_built.build_progress}"
-        elif self.unit_type_id:
-            target = self.unit_type_id.name
-        elif self.upgrade_id:
-            target = self.upgrade_id.name
-
-        return f"{target}-built by {builder}"
-
-    @property
-    def is_unit(self) -> bool:
-        return self.builder_type in {UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}
+    # def __repr__(self) -> str:
+    #     return ""
 
     def update_references(self, units_by_tag: dict[int, Unit]):
-        logger.debug(f"unit in charge: {self.unit_in_charge}")
-        if self.unit_in_charge:
-            try:
-                self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge, units_by_tag)
-            except self.UnitNotFound:
-                self.unit_in_charge = None
-        if self.geysir:
-            try:
-                self.geysir = self.get_updated_unit_reference(self.geysir, units_by_tag)
-            except self.UnitNotFound:
-                self.geysir = None
-        if isinstance(self.unit_being_built, Unit):
-            try:
-                self.unit_being_built = self.get_updated_unit_reference(self.unit_being_built, units_by_tag)
-            except self.UnitNotFound:
-                self.unit_being_built = None
+        pass
 
     def draw_debug_box(self):
-        if self.unit_in_charge is not None:
-            self.bot.client.debug_sphere_out(self.unit_in_charge, 1, (255, 130, 0))
-            if self.position:
-                self.bot.client.debug_line_out(self.unit_in_charge, self.convert_point2_to_3(self.position), (255, 130, 0))
-            if self.unit_type_id:
-                self.bot.client.debug_text_world(
-                    self.unit_type_id.name, self.unit_in_charge.position3d)
-            elif self.upgrade_id:
-                self.bot.client.debug_text_world(
-                    self.upgrade_id.name, self.unit_in_charge.position3d)
-        if self.position:
-            self.bot.client.debug_box2_out(self.convert_point2_to_3(self.position), 0.5)
-            if self.unit_type_id is not None:
-                self.bot.client.debug_text_world(
-                    self.unit_type_id.name, Point3((*self.position, 10))
-                )
-        if self.unit_being_built is not None and self.unit_being_built is not True:
-            logger.debug(f"unit being built {self.unit_being_built}")
-            self.bot.client.debug_box2_out(self.unit_being_built, 0.75)
+        pass
 
-    async def execute(self, special_locations: SpecialLocations, rush_detected_type: RushType) -> BuildResponseCode:
-        self.start_timer("build_step.execute inner")
-        response = None
-        if self.upgrade_id:
-            self.start_timer(f"build_step.execute_upgrade {self.upgrade_id}")
-            response = self.execute_upgrade()
-            self.stop_timer(f"build_step.execute_upgrade {self.upgrade_id}")
-        elif UnitTypeId.SCV in self.builder_type:
-            self.start_timer(f"build_step.execute_scv_build {self.unit_type_id}")
-            response = await self.execute_scv_build(special_locations, rush_detected_type)
-            self.stop_timer(f"build_step.execute_scv_build {self.unit_type_id}")
-        else:
-            self.start_timer(f"build_step.execute_facility_build {self.unit_type_id}")
-            response = await self.execute_facility_build()
-            self.stop_timer(f"build_step.execute_facility_build {self.unit_type_id}")
-        if response == BuildResponseCode.SUCCESS:
-            self.is_in_progress = True
-        self.stop_timer("build_step.execute inner")
-        return response
-
-    def execute_upgrade(self) -> BuildResponseCode:
-        response = None
-        logger.debug(f"researching upgrade {self.upgrade_id}")
-        if self.unit_in_charge is None:
-            self.unit_in_charge = self.production.get_research_facility(self.upgrade_id)
-            logger.debug(f"research facility: {self.unit_in_charge}")
-        if self.unit_in_charge is None or self.unit_in_charge.type_id == UnitTypeId.TECHLAB:
-            response = BuildResponseCode.NO_FACILITY
-        else:
-            # successful_action: bool = self.unit_in_charge.research(self.upgrade_id)
-            ability = RESEARCH_ABILITIES[self.upgrade_id]
-
-            required_tech_building: UnitTypeId | None = RESEARCH_INFO[self.unit_in_charge.type_id][self.upgrade_id].get(
-                "required_building", None
-            )
-            requirement_met = (
-                required_tech_building is None or self.bot.structure_type_build_progress(required_tech_building) == 1
-            )
-            if not requirement_met:
-                return BuildResponseCode.NO_TECH
-            logger.debug(f"{self.unit_in_charge} researching upgrade with ability {ability}")
-            successful_action: bool = self.unit_in_charge(ability)
-            if successful_action:
-                response = BuildResponseCode.SUCCESS
-        if response is None:
-            logger.debug("upgrade failed to start")
-            response = BuildResponseCode.FAILED
-
-        return response
-
-    async def execute_scv_build(self, special_locations: SpecialLocations, rush_detected_type: RushType) -> BuildResponseCode:
-        if self.unit_type_id in TECH_TREE:
-            # check that all tech requirements are met
-            for requirement in TECH_TREE[self.unit_type_id]:
-                if self.bot.structure_type_build_progress(requirement) != 1:
-                    return BuildResponseCode.NO_TECH
-
-        if self.unit_being_built:
-            self.position = self.unit_being_built.position
-            if self.start_time is None:
-                self.start_time = self.bot.time
-        else:
-            if self.unit_type_id == UnitTypeId.REFINERY:
-                # Vespene targets unit to build instead of position
-                self.geysir: Union[Unit, None] = self.get_geysir()
-                if self.geysir is None:
-                    return BuildResponseCode.NO_FACILITY
-                self.position = self.geysir.position
-            else:
-                if self.position is None or (self.start_time is not None and self.start_time - self.bot.time > 5):
-                    self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected_type)
-                if self.position is None:
-                    return BuildResponseCode.NO_LOCATION
-
-        threats = None
-        if self.bot.enemy_units:
-            threats = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_ground(u))
-        if threats and threats.closest_distance_to(self.position) < 15:
-            return BuildResponseCode.TOO_CLOSE_TO_ENEMY
-
-        if self.unit_in_charge is None:
-            self.unit_in_charge = self.workers.get_builder(self.position)
-        if self.unit_in_charge is None:
-            return BuildResponseCode.NO_BUILDER
-
-        build_response: bool = None
-        if self.unit_being_built:
-            build_response = self.unit_in_charge.smart(self.unit_being_built)
-        else:
-            if self.unit_type_id == UnitTypeId.REFINERY:
-                build_response = self.unit_in_charge.build_gas(self.geysir)
-            else:
-                # self.unit_in_charge.move(self.position)
-                build_response = self.unit_in_charge.build(
-                    self.unit_type_id, self.position
-                )
-
-        return BuildResponseCode.SUCCESS if build_response else BuildResponseCode.FAILED
-    
-    async def position_worker(self, special_locations: SpecialLocations, rush_detected_type: RushType):
-        if UnitTypeId.SCV in self.builder_type:
-            if self.unit_type_id == UnitTypeId.REFINERYRICH:
-                self.unit_type_id = UnitTypeId.REFINERY
-            if self.position is None:
-                if self.unit_type_id == UnitTypeId.REFINERY:
-                    # Vespene targets unit to build instead of position
-                    self.geysir: Union[Unit, None] = self.get_geysir()
-                    if self.geysir is None:
-                        return
-                    self.position = self.geysir.position
-                else:
-                    self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected_type)
-            if self.position is not None:
-                if self.unit_in_charge is None:
-                    self.unit_in_charge = self.workers.get_builder(self.position)
-                if self.unit_in_charge is not None:
-                    self.unit_in_charge.move(self.position)
-
-    async def execute_facility_build(self) -> BuildResponseCode:
-        response = None
-        # not built by scv
-        logger.debug(
-            f"Trying to train unit {self.unit_type_id} with {self.builder_type}"
-        )
-
-        if self.unit_type_id in TECH_TREE:
-            # check that all tech requirements are met
-            for requirement in TECH_TREE[self.unit_type_id]:
-                if self.bot.structure_type_build_progress(requirement) != 1:
-                    return BuildResponseCode.NO_TECH
-        if self.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
-            self.unit_in_charge = self.production.get_builder(self.unit_type_id)
-            if self.unit_type_id in self.production.add_on_types and self.unit_in_charge:
-                if self.interrupted_count > 5:
-                    LogHelper.add_log(f"addon {self.unit_type_id} interrupted too many times ({self.interrupted_count}), setting addon blocked")
-                    if await self.production.set_addon_blocked(self.unit_in_charge, self.interrupted_count):
-                        self.interrupted_count = 0
-                        self.unit_in_charge = None
-                else:
-                    self.position = self.unit_in_charge.add_on_position
-        elif self.unit_type_id == UnitTypeId.SCV:
-            # scv
-            facility_candidates = self.bot.townhalls.filter(lambda x: x.is_ready and x.is_idle and not x.is_flying)
-            facility_candidates.sort(key=lambda x: x.type_id == UnitTypeId.COMMANDCENTER)
-            self.unit_in_charge = facility_candidates[0] if facility_candidates else None
-        else:
-            facility_candidates = self.bot.structures.filter(lambda x: x.type_id in self.builder_type and x.is_ready and x.is_idle and not x.is_flying)
-            self.unit_in_charge = facility_candidates[0] if facility_candidates else None
-
-        if self.unit_in_charge is None:
-            logger.debug("no idle training facility")
-            response = BuildResponseCode.NO_FACILITY
-        else:
-            if self.unit_type_id in {UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}:
-                self.unit_being_built = self.unit_in_charge
-            else:
-                self.unit_being_built = True
-            # self.pos = self.unit_in_charge.position
-            logger.debug(f"Found training facility {self.unit_in_charge}")
-            build_response = self.unit_in_charge(self.get_build_ability())
-            response = BuildResponseCode.SUCCESS if build_response else BuildResponseCode.FAILED
-        return response
-
-    def get_build_ability(self) -> AbilityId:
-        if self.unit_type_id in {
-            UnitTypeId.BARRACKSREACTOR,
-            UnitTypeId.FACTORYREACTOR,
-            UnitTypeId.STARPORTREACTOR,
-        }:
-            return AbilityId.BUILD_REACTOR
-        if self.unit_type_id in {
-            UnitTypeId.BARRACKSTECHLAB,
-            UnitTypeId.FACTORYTECHLAB,
-            UnitTypeId.STARPORTTECHLAB,
-        }:
-            return AbilityId.BUILD_TECHLAB
-        return TRAIN_INFO[self.unit_in_charge.type_id][self.unit_type_id]["ability"]
-
-    attempted_expansion_positions = {}
-    async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, rush_detected_type: RushType) -> Union[Point2, None]:
-        new_build_position = None
-        if unit_type_id == UnitTypeId.COMMANDCENTER and (rush_detected_type == RushType.NONE or self.bot.townhalls.amount >= 2):
-            # modified from bot_ai get_next_expansion
-            expansions_to_check = []
-            for el in self.bot.expansion_locations_list:
-                def is_near_to_expansion(t):
-                    return t.distance_to(el) < self.bot.EXPANSION_GAP_THRESHOLD
-
-                if any(map(is_near_to_expansion, self.bot.townhalls)):
-                    # already taken
-                    continue
-                
-                # check that position hasn't already been attempted too many times
-                if el not in self.attempted_expansion_positions:
-                    self.attempted_expansion_positions[el] = 0
-                elif self.attempted_expansion_positions[el] > 3:
-                    continue
-
-                expansions_to_check.append(el)
-
-            if not expansions_to_check:
-                LogHelper.add_log("No valid expansions found. attempted_expansion_positions: {self.attempted_expansion_positions}")
-                self.attempted_expansion_positions.clear()
-                return None
-
-            new_build_position = self.map.get_closest_position_by_path(expansions_to_check, self.bot.game_info.player_start_location)
-
-            # run it through find placement in case it's blocked by some weird map feature
-            if self.bot.game_info.map_name == 'Magannatha AIE':
-                new_build_position = await self.bot.find_placement(
-                    unit_type_id,
-                    near=new_build_position,
-                    max_distance=4,
-                    placement_step=2,
-                )
-
-        elif unit_type_id == UnitTypeId.BUNKER:
-            candidate: Point2 = None
-            if rush_detected_type != RushType.NONE and self.bot.structures.of_type(UnitTypeId.BARRACKS) and not self.bot.structures.of_type(UnitTypeId.BUNKER):
-                # try to build near edge of high ground towards natural
-                # high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
-                ramp_barracks = self.bot.structures.of_type(UnitTypeId.BARRACKS).closest_to(self.bot.main_base_ramp.barracks_correct_placement)
-                candidates = [(depot_position + ramp_barracks.position) / 2 for depot_position in self.bot.main_base_ramp.corner_depots]
-                candidate = max(candidates, key=lambda p: ramp_barracks.add_on_position.distance_to(p))
-                candidate = candidate.towards(self.bot.main_base_ramp.top_center.towards(ramp_barracks.position, distance=2), distance=-1)
-            else:
-                ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
-                # enemy_start: Point2 = self.bot.enemy_start_locations[0]
-                ramp_to_natural_vector = (self.map.natural_position - ramp_position).normalized
-                ramp_to_natural_perp_vector = Point2((-ramp_to_natural_vector.x, ramp_to_natural_vector.y))
-                toward_natural = ramp_position + ramp_to_natural_vector * 3
-                candidates = [toward_natural + ramp_to_natural_perp_vector * 3, toward_natural - ramp_to_natural_perp_vector * 3]
-                candidates.sort(key=lambda p: p.distance_to(self.bot.game_info.map_center))
-                candidate = candidates[0]
-                # candidate = ramp_position.towards(self.map.natural_position, 2).towards(enemy_start, distance=1)
-            retry_count = 0
-            while not new_build_position or self.bot.distance_math_hypot_squared(new_build_position, self.map.natural_position) < 16:
-                new_build_position = await self.bot.find_placement(
-                                    unit_type_id,
-                                    near=candidate,
-                                    placement_step=1)
-                retry_count += 1
-                if retry_count > 5:
-                    break
-        elif unit_type_id == UnitTypeId.MISSILETURRET:
-            bases = self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS})
-            turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
-            for base in bases:
-                if not turrets or self.closest_distance_squared(base, turrets) > 100: # 10 squared
-                    new_build_position = await self.bot.find_placement(
-                        unit_type_id,
-                        near=base.position.towards(self.bot.game_info.map_center, distance=4),
-                        placement_step=2,
-                    )
-                    break
-        elif unit_type_id == UnitTypeId.SUPPLYDEPOT and self.bot.supply_cap < 45:
-            if not special_locations.is_blocked:
-                new_build_position = special_locations.find_placement(unit_type_id)
-            if new_build_position is None:
-                new_build_position = await self.map.get_non_visible_position_in_main()
-        else:
-            logger.debug(f"finding placement for {unit_type_id}")
-            if not special_locations.is_blocked:
-                new_build_position = special_locations.find_placement(unit_type_id)
-            if new_build_position is None:
-                addon_place = unit_type_id in (
-                    UnitTypeId.BARRACKS,
-                    UnitTypeId.FACTORY,
-                    UnitTypeId.STARPORT,
-                )
-                prefer_earlier_bases = unit_type_id in (
-                    UnitTypeId.SUPPLYDEPOT,
-                    UnitTypeId.BARRACKS,
-                    UnitTypeId.FACTORY,
-                    UnitTypeId.STARPORT,
-                    UnitTypeId.ENGINEERINGBAY,
-                    UnitTypeId.GHOSTACADEMY,
-                    UnitTypeId.FUSIONCORE,
-                    UnitTypeId.ARMORY,
-                )
-                map_center = self.bot.game_info.map_center
-                max_distance = 20
-                retry_count = 0
-                while new_build_position is None:
-                    try:
-                        if self.bot.townhalls:
-                            preferred_townhalls = self.bot.townhalls
-                            if prefer_earlier_bases and retry_count == 0:
-                                ready_townhalls = self.bot.townhalls.ready
-                                if len(ready_townhalls) == 1:
-                                    preferred_townhalls = ready_townhalls
-                                elif ready_townhalls:
-                                    non_flying_townhalls = ready_townhalls.filter(lambda th: not th.is_flying)
-                                    if len(non_flying_townhalls) == 1:
-                                        preferred_townhalls = non_flying_townhalls
-                                    elif non_flying_townhalls:
-                                        closest_townhall_to_enemy: Unit = self.map.get_closest_unit_by_path(non_flying_townhalls, self.bot.enemy_start_locations[0])
-                                        preferred_townhalls = non_flying_townhalls.filter(lambda th: th.tag != closest_townhall_to_enemy.tag)
-                                    else:
-                                        preferred_townhalls = ready_townhalls
-                            for townhall in preferred_townhalls:
-                                new_build_position = await self.bot.find_placement(
-                                    unit_type_id,
-                                    near=townhall.position.towards_with_random_angle(map_center, distance=8, max_difference=1.6),
-                                    placement_step=2,
-                                    addon_place=addon_place,
-                                    max_distance=max_distance,
-                                )
-                                if new_build_position is not None:
-                                    break
-                        else:
-                            new_build_position = await self.bot.find_placement(
-                                unit_type_id,
-                                near=self.bot.start_location,
-                                placement_step=2,
-                                addon_place=addon_place,
-                                max_distance=max_distance,
-                            )
-                    except (ConnectionAlreadyClosedError, ConnectionResetError, ProtocolError):
-                        return None
-                    if new_build_position:
-                        # don't build near edge to avoid trapping units
-                        edge_distance = self.map.get_distance_from_edge(new_build_position.rounded)
-                        if edge_distance <= 3:
-                            max_distance += 1
-                            logger.debug(f"{new_build_position} is {edge_distance} from edge")
-                            # accept defeat, is ok to do it sometimes
-                            if max_distance > 25:
-                                break
-                            retry_count += 1
-                            new_build_position = None
-        if new_build_position:
-            if self.bot.all_enemy_units:
-                threats = self.bot.all_enemy_units.filter(lambda u: UnitTypes.can_attack_ground(u) and u.type_id not in (UnitTypeId.DRONE, UnitTypeId.SCV, UnitTypeId.PROBE))
-                if threats and threats.closer_than(10, new_build_position):
-                    logger.debug(f"found enemy near proposed build position {new_build_position}, rejecting")
-                    return None
-                
-            if unit_type_id == UnitTypeId.COMMANDCENTER and rush_detected_type == RushType.NONE:
-                if new_build_position in self.attempted_expansion_positions:
-                    self.attempted_expansion_positions[new_build_position] += 1
-                else:
-                    # build position isn't at the exact expansion location, may have been blocked
-                    for build_pos in list(self.attempted_expansion_positions.keys()):
-                        if new_build_position.distance_to(build_pos) < 10:
-                            self.attempted_expansion_positions[build_pos] += 1
-                            break
-        return new_build_position
-
-    def get_geysir(self) -> Union[Unit, None]:
-        if self.bot.townhalls:
-            vespene_geysirs = Units([], self.bot)
-            if self.bot.townhalls.ready:
-                vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
-                    distance=10, other_units=self.bot.townhalls.ready
-                )
-            if len(self.bot.gas_buildings) == len(vespene_geysirs):
-                # no empty near ready townhalls, include in-progress townhalls
-                vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
-                    distance=10, other_units=self.bot.townhalls
-                )
-            if len(self.bot.gas_buildings) == len(vespene_geysirs):
-                return None
-            if self.bot.gas_buildings and vespene_geysirs:
-                vespene_geysirs = vespene_geysirs.filter(
-                    lambda geysir: self.bot.gas_buildings.closest_distance_to(geysir) > 1)
-            if vespene_geysirs:
-                return vespene_geysirs.closest_to(self.bot.start_location)
-        return None
-
-    async def is_interrupted(self) -> bool:
-        if self.unit_in_charge is None:
-            return True
-
-        if self.unit_being_built == self.unit_in_charge:
-            return self.unit_in_charge.is_idle
-
-        self.check_idle: bool = (
-            self.check_idle
-            or self.upgrade_id is not None
-            or self.unit_in_charge.type_id in self.production.facilities.keys()
-            or (
-                self.unit_in_charge.is_active and not self.unit_in_charge.is_gathering
-            )
-        )
-
-        if self.check_idle:
-            if self.unit_in_charge.is_idle and self.unit_in_charge.type_id != UnitTypeId.SCV:
-                self.production.remove_type_from_facilty_queue(self.unit_in_charge, self.unit_type_id)
-                logger.debug(f"unit_in_charge {self.unit_in_charge}")
-                return True
-            if self.unit_in_charge.type_id == UnitTypeId.SCV:
-                if not self.unit_in_charge.is_constructing_scv:
-                    if self.unit_being_built:
-                        self.unit_in_charge.smart(self.unit_being_built)
-                    else:
-                        if self.unit_type_id == UnitTypeId.REFINERY and self.geysir:
-                            if self.bot.gas_buildings and self.bot.gas_buildings.closest_distance_to(self.geysir) > 1:
-                                self.unit_in_charge(
-                                    self.bot.game_data.units[self.unit_type_id.value].creation_ability.id,
-                                    target=self.geysir,
-                                    queue=False,
-                                    subtract_cost=False,
-                                    can_afford_check=False,
-                                )
-                            else:
-                                self.position = None
-                                self.geysir = None
-                                return True
-                        else:
-                            # position might not be buildable, can't trust can_place_single
-                            self.position = None
-                            self.worker_in_position_time = None
-                            self.workers.set_as_idle(self.unit_in_charge)
-                            self.unit_in_charge = None
-                            return True
-                if self.unit_being_built is None:
-                    if self.unit_in_charge.distance_to_squared(self.position) < 9 and self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
-                        self.worker_in_position_time = self.bot.time
-                    elif self.worker_in_position_time is not None and self.bot.time - self.worker_in_position_time > 5 and self.cost.minerals <= self.bot.minerals and self.cost.vespene <= self.bot.vespene:
-                        # position may be blocked
-                        self.position = None
-                        self.geysir = None
-                        self.worker_in_position_time = None
-                        self.workers.set_as_idle(self.unit_in_charge)
-                        self.unit_in_charge = None
-                        return True
-                elif self.unit_in_charge.is_idle:
-                    self.unit_in_charge.smart(self.unit_being_built)
+    def is_unit_type(self, unit_type_id: UnitTypeId) -> bool:
         return False
 
+    def is_upgrade_type(self, upgrade_id: UpgradeId) -> bool:
+        return False
+
+    def is_unit(self) -> bool:
+        return False
+    
+    def get_unit_type_id(self) -> UnitTypeId | None:
+        return None
+    
+    def get_structure_being_built(self) -> Unit | None:
+        return None
+    
+    def is_same_structure(self, structure: Unit) -> bool:
+        return False
+    
+    def set_unit_being_built(self, unit: Unit):
+        pass
+    
+    def manhattan_distance(self, point: Point2) -> float:
+        return 9999
+    
+    def has_position_reserved(self) -> bool:
+        return False
+
+    def get_position(self) -> Point2 | None:
+        return None
+
+    async def execute(self, special_locations: SpecialLocations, rush_detected_type: RushType) -> BuildResponseCode:
+        # override in subclasses
+        return BuildResponseCode.FAILED
+
     def cancel_construction(self):
-        logger.debug(f"canceling build of {self.unit_being_built}")
-        self.unit_being_built(AbilityId.CANCEL_BUILDINPROGRESS)
-        self.last_cancel_time = self.bot.time
-        self.unit_being_built = None
-        if self.unit_in_charge and self.unit_in_charge.type_id == UnitTypeId.SCV:
-            self.workers.update_assigment(self.unit_in_charge, WorkerJobType.IDLE, None)
-            self.unit_in_charge = None
-        self.position = None
-        self.geysir = None
-        self.worker_in_position_time = None
-        self.is_in_progress = False
-        self.check_idle = False
-        self.start_time = None
-        self.completed_time = None
+        pass
+
+    async def is_interrupted(self) -> bool:
+        return False

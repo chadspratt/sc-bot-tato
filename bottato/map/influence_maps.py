@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import List, Optional, Tuple, Union
+from typing import List, Optional, Tuple
 
 from sc2.unit import Unit
 from sc2.position import Point2, Point3
@@ -53,7 +53,7 @@ class InfluenceMaps():
 
         # set each geyser as non pathable, these don't update during the game
         for geyser in self.bot.vespene_geyser:
-            left_bottom = geyser.position.offset((-1.5, -1.5))
+            left_bottom = geyser.position.offset(Point2((-1.5, -1.5)))
             x_start = int(left_bottom[0])
             y_start = int(left_bottom[1])
             x_end = int(x_start + 3)
@@ -77,7 +77,7 @@ class InfluenceMaps():
 
         for watchtower in self.bot.watchtowers:
             self.watchtowers_included[watchtower.position] = watchtower
-            left_bottom = watchtower.position.offset((-1, -1))
+            left_bottom = watchtower.position.offset(Point2((-1, -1)))
             x_start = int(left_bottom[0])
             y_start = int(left_bottom[1])
             x_end = int(x_start + 2)
@@ -112,7 +112,7 @@ class InfluenceMaps():
             size = 3
         elif type_id in BUILDINGS["5x5"]:
             size = 5
-        left_bottom = position.offset((-size / 2, -size / 2))
+        left_bottom = position.offset(Point2((-size / 2, -size / 2)))
         x_start = int(left_bottom[0])
         y_start = int(left_bottom[1])
         x_end = int(x_start + size)
@@ -257,7 +257,7 @@ class InfluenceMaps():
 
     @staticmethod
     def closest_node_idx(
-            node: Union[Point2, np.ndarray], nodes: Union[List[Tuple[int, int]], np.ndarray]
+            node: Point2 | np.ndarray, nodes: List[tuple[int, int]] | np.ndarray | List[Point2]
     ) -> int:
         """
         :rtype: int
@@ -272,10 +272,10 @@ class InfluenceMaps():
             nodes = np.fromiter(iter, dtype=type(nodes[0][0]), count=len(nodes) * 2).reshape((-1, 2))
 
         closest_index = distance.cdist([node], nodes, "sqeuclidean").argmin()
-        return closest_index
+        return int(closest_index)
 
     def closest_towards_point(
-            self, points: List[Point2], target: Union[Point2, tuple]
+            self, points: List[Point2], target: Point2 | np.ndarray
     ) -> Point2:
         """
         :rtype: :class:`sc2.position.Point2`

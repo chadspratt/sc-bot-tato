@@ -4,6 +4,7 @@ from loguru import logger
 from typing import List
 from time import perf_counter
 
+from sc2.bot_ai import BotAI
 from sc2.game_data import Cost
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
@@ -17,38 +18,38 @@ class UnitReferenceMixin:
     class UnitNotFound(Exception):
         pass
 
-    def get_updated_unit_reference(self, unit: Unit, units_by_tag: dict[int, Unit] = None) -> Unit:
+    def get_updated_unit_reference(self, unit: Unit | None, bot: BotAI, units_by_tag: dict[int, Unit] | None = None) -> Unit:
         if unit is None:
             raise self.UnitNotFound(
                 "unit is None"
             )
-        return self.get_updated_unit_reference_by_tag(unit.tag, units_by_tag)
+        return self.get_updated_unit_reference_by_tag(unit.tag, bot, units_by_tag)
 
-    def get_updated_unit_reference_by_tag(self, tag: int, units_by_tag: dict[int, Unit]) -> Unit:
+    def get_updated_unit_reference_by_tag(self, tag: int, bot: BotAI, units_by_tag: dict[int, Unit] | None = None) -> Unit:
         try:
             if units_by_tag is None:
                 # used for events outside of on_step
-                return self.bot.all_units.by_tag(tag)
+                return bot.all_units.by_tag(tag)
             return units_by_tag[tag]
         except KeyError:
             raise self.UnitNotFound(
                 f"Cannot find unit with tag {tag}; maybe they died"
             )
 
-    def get_updated_unit_references(self, units: Units, units_by_tag: dict[int, Unit] = None) -> Units:
-        _units = Units([], bot_object=self.bot)
+    def get_updated_unit_references(self, units: Units, bot: BotAI, units_by_tag: dict[int, Unit] | None = None) -> Units:
+        _units = Units([], bot_object=bot)
         for unit in units:
             try:
-                _units.append(self.get_updated_unit_reference(unit, units_by_tag))
+                _units.append(self.get_updated_unit_reference(unit, bot, units_by_tag))
             except self.UnitNotFound:
                 logger.debug(f"Couldn't find unit {unit}!")
         return _units
 
-    def get_updated_unit_references_by_tags(self, tags: List[int], units_by_tag: dict[int, Unit] = None) -> Units:
-        _units = Units([], bot_object=self.bot)
+    def get_updated_unit_references_by_tags(self, tags: List[int], bot: BotAI, units_by_tag: dict[int, Unit] | None = None) -> Units:
+        _units = Units([], bot_object=bot)
         for tag in tags:
             try:
-                _units.append(self.get_updated_unit_reference_by_tag(tag, units_by_tag))
+                _units.append(self.get_updated_unit_reference_by_tag(tag, bot, units_by_tag))
             except self.UnitNotFound:
                 logger.debug(f"Couldn't find unit {tag}!")
         return _units
@@ -68,8 +69,8 @@ class UnitReferenceMixin:
 
         return counts
 
-    def count_units_by_property(self, units: Units) -> dict[UnitTypeId, int]:
-        counts: dict[UnitTypeId, int] = {
+    def count_units_by_property(self, units: Units) -> dict[str, int]:
+        counts: dict[str, int] = {
             'flying': 0,
             'ground': 0,
             'armored': 0,
@@ -109,7 +110,7 @@ class UnitReferenceMixin:
 
         return counts
 
-    def get_army_value(self, units: Units) -> float:
+    def get_army_value(self, units: Units, bot: BotAI) -> float:
         army_value = 0
         type_costs = {}
         for unit in units:
@@ -117,25 +118,27 @@ class UnitReferenceMixin:
                 continue
             if unit.type_id not in type_costs:
                 try:
-                    cost: Cost = self.bot.calculate_cost(unit.type_id)
+                    cost: Cost = bot.calculate_cost(unit.type_id)
                 except AttributeError:
                     continue
-                supply = self.bot.calculate_supply_cost(unit.type_id)
+                supply = bot.calculate_supply_cost(unit.type_id)
                 type_costs[unit.type_id] = ((cost.minerals * 0.9) + cost.vespene) * supply
             army_value += type_costs[unit.type_id]
         return army_value
 
 
 class GeometryMixin:
-    def convert_point2_to_3(self, point2: Point2 | Unit) -> Point3:
+    def convert_point2_to_3(self, point2: Point2 | Unit, bot: BotAI) -> Point3:
         if isinstance(point2, Unit):
             point2 = point2.position
-        height: float = max(0, self.bot.get_terrain_z_height(point2) + 1)
+        height: float = max(0, bot.get_terrain_z_height(point2) + 1)
         return Point3((point2.x, point2.y, height))
 
     def get_facing(self, start_position: Unit | Point2, end_position: Unit | Point2):
-        start_position = start_position.position
-        end_position = end_position.position
+        if isinstance(start_position, Unit):
+            start_position = start_position.position
+        if isinstance(end_position, Unit):
+            end_position = end_position.position
         angle = math.atan2(
             end_position.y - start_position.y, end_position.x - start_position.x
         )
@@ -160,8 +163,10 @@ class GeometryMixin:
         new_y = point.x * s_theta + point.y * c_theta
         return Point2((new_x, new_y))
 
-    def apply_rotations(self, angle: float, points: list[Point2] = None):
+    def apply_rotations(self, angle: float, points: List[Point2] | None=None) -> List[Point2]:
         # rotations default to facing along the y-axis, with a facing of pi/2
+        if points is None:
+            return []
         rotation_needed = angle - math.pi / 2
         s_theta = math.sin(rotation_needed)
         c_theta = math.cos(rotation_needed)
@@ -172,8 +177,9 @@ class GeometryMixin:
     def predict_future_unit_position(self,
                                      unit: Unit,
                                      seconds_ahead: float,
+                                     bot: BotAI,
                                      check_pathable: bool = True,
-                                     frame_vector: Point2 = None
+                                     frame_vector: Point2 | None = None
                                      ) -> Point2:
         if unit.is_structure:
             return unit.position
@@ -199,7 +205,7 @@ class GeometryMixin:
             if remaining_distance < 1:
                 forward_unit_vector *= remaining_distance
             potential_position = future_position + forward_unit_vector
-            if not self.bot.in_pathing_grid(potential_position):
+            if not bot.in_pathing_grid(potential_position):
                 return future_position
 
             future_position = potential_position
@@ -234,17 +240,18 @@ class GeometryMixin:
             closest_distance_sq = min(closest_distance_sq, self.distance_squared(unit1, unit))
         return closest_distance_sq
     
-    def units_closer_than(self, unit1: Unit, units: Units, distance: float) -> Units:
-        close_units = Units([], bot_object=self.bot)
+    def units_closer_than(self, unit1: Unit, units: Units, distance: float, bot: BotAI) -> Units:
+        close_units = Units([], bot_object=bot)
         distance_sq = distance * distance
         for unit in units:
             if self.distance_squared(unit1, unit) < distance_sq:
                 close_units.append(unit)
         return close_units
 
-    def closest_unit_to_unit(self, unit1: Unit, units: Units) -> float:
+    def closest_unit_to_unit(self, unit1: Unit, units: Units) -> Unit:
+        assert units, "units list is empty"
         closest_distance = 9999
-        closest_unit = None
+        closest_unit = units[0]
         for unit in units:
             new_distance = self.distance(unit1, unit)
             if new_distance < closest_distance:
@@ -252,7 +259,7 @@ class GeometryMixin:
                 closest_unit = unit
         return closest_unit
 
-    def get_triangle_point_c(self, point_a: Point2, point_b: Point2, a_c_distance: float, b_c_distance: float) -> tuple[Point2, Point2]:
+    def get_triangle_point_c(self, point_a: Point2, point_b: Point2, a_c_distance: float, b_c_distance: float) -> tuple[Point2, Point2] | None:
         a_b_distance = point_a.distance_to(point_b)
         if a_b_distance > a_c_distance + b_c_distance or a_c_distance > a_b_distance + b_c_distance or b_c_distance > a_b_distance + a_c_distance:
             return None
@@ -267,9 +274,10 @@ class GeometryMixin:
         point_c_2 = point_a + Point2((math.cos(angle_2), math.sin(angle_2))) * a_c_distance
         return point_c_1, point_c_2
     
-    def get_most_grouped_unit(self, units: Units, range=10) -> tuple[Unit, Units]:
-        most_nearby_unit = None
-        most_nearby_units = Units([], bot_object=self.bot)
+    def get_most_grouped_unit(self, units: Units, bot: BotAI, range: float = 10) -> tuple[Unit, Units]:
+        assert units, "units list is empty"
+        most_nearby_unit = units[0]
+        most_nearby_units = Units([], bot_object=bot)
         for unit in units:
             nearby_units = units.filter(lambda u: u.position.manhattan_distance(unit.position) < range)
             if nearby_units.amount > most_nearby_units.amount:
@@ -307,4 +315,4 @@ class DebugMixin:
                 rgb[i] = 255 if high_or_low else 0
             else:
                 rgb[i] = random.randint(0, 255)
-        return tuple(rgb)
+        return (rgb[0], rgb[1], rgb[2])
