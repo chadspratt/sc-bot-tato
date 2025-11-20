@@ -262,8 +262,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 assignment.dropoff_position = None
             if assignment.dropoff_target is None:
                 non_flying = self.bot.townhalls.ready.filter(lambda th: not th.is_flying)
-                closest_townhall: Unit | None = self.closest_unit_to_unit(worker, non_flying)
-                if closest_townhall:
+                if non_flying:
+                    closest_townhall: Unit = self.closest_unit_to_unit(worker, non_flying)
                     if closest_townhall.distance_to(worker) < 15:
                         assignment.dropoff_target = closest_townhall
                 if assignment.dropoff_target is None:
