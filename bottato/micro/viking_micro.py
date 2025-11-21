@@ -24,7 +24,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             return False
         if unit.is_flying:
             nearby_enemies = self.bot.enemy_units.closer_than(25, unit) \
-                + self.bot.enemy_structures.of_type(self.offensive_structure_types).closer_than(25, unit)
+                + self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES).closer_than(25, unit)
             if unit.health_percentage >= health_threshold:
                 # don't land if there are air targets nearby
                 if not nearby_enemies:
@@ -59,7 +59,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                     return True
         else:
             nearby_enemies = self.bot.enemy_units.closer_than(27, unit) \
-                + self.bot.enemy_structures.of_type(self.offensive_structure_types).closer_than(27, unit)
+                + self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES).closer_than(27, unit)
             if unit.health_percentage < health_threshold:
                 aerial_threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_air(u)
                                                        and not UnitTypes.can_attack_ground(u))
@@ -159,7 +159,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
         bonus_distance = 2 if unit.is_flying else 4
         enemies = self.bot.enemy_units.filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
         if not unit.is_flying:
-            enemies += self.bot.enemy_structures.of_type(self.offensive_structure_types)
+            enemies += self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES)
         candidates = UnitTypes.in_attack_range_of(unit, enemies, bonus_distance)
         if not candidates and not unit.is_flying:
             candidates = UnitTypes.in_attack_range_of(unit, self.bot.enemy_structures, bonus_distance)

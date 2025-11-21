@@ -27,33 +27,38 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
     target_structure_types = [
         UnitTypeId.SPINECRAWLER,
     ]
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
-        if unit.health_percentage < health_threshold:
-            return False
-        nearby_enemies = self.bot.enemy_units.closer_than(15, unit) + self.bot.enemy_structures.of_type(self.offensive_structure_types).closer_than(15, unit)
-        nearby_structures = self.bot.enemy_structures.closer_than(15, unit)
-        targets = nearby_enemies.filter(lambda u: not u.is_flying and u.type_id not in self.excluded_enemy_types)
-        tanks: Units = targets.filter(lambda u: u.type_id in (UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK))
-        if not targets:
-            targets = nearby_structures
-        threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_air(u))
-        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
-        if targets:
-            if not threats:
-                if tanks:
-                    unit.attack(tanks.closest_to(unit))
-                else:
-                    unit.attack(targets.closest_to(unit))
-                return True
-            elif can_attack and len(threats) < 4:
-                attackable_threats = threats.filter(lambda u: not u.is_flying) + tanks
-                if attackable_threats:
-                    unit.attack(attackable_threats.closest_to(unit))
-                else:
-                    unit.attack(targets.closest_to(unit))
-                return True
-            if self._retreat_to_tank(unit, can_attack):
-                return True
-            if self._stay_at_max_range(unit, threats):
-                return True
-        return False
+    # def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+    #     relevant_enemies = self.bot.enemy_units.filter(lambda u: u.armor < 10) + self.bot.enemy_structures.of_type(self.offensive_structure_types)
+    #     nearby_enemies = relevant_enemies.closer_than(15, unit)
+    #     nearby_structures = self.bot.enemy_structures.closer_than(15, unit)
+    #     targets = nearby_enemies.filter(lambda u: not u.is_flying and u.type_id not in self.excluded_enemy_types)
+    #     tanks: Units = targets.filter(lambda u: u.type_id in (UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK))
+    #     if not targets:
+    #         targets = nearby_structures
+    #     threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_air(u))
+    #     can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+    #     if targets:
+    #         if not threats:
+    #             if tanks:
+    #                 unit.attack(tanks.closest_to(unit))
+    #             else:
+    #                 unit.attack(targets.closest_to(unit))
+    #             return True
+    #         elif can_attack:
+    #             max_threats = 0 if unit.health_percentage < health_threshold else 4
+    #             attackable_threats = threats.filter(lambda u: not u.is_flying) + tanks
+    #             closest_target = attackable_threats.closest_to(unit)
+    #             if closest_target:
+    #                 if len(threats) < max_threats or closest_target.distance_to(unit) < unit.ground_range - 0.5:
+    #                     unit.attack(closest_target)
+    #                     return True
+    #             else:
+    #                 closest_target = targets.closest_to(unit)
+    #                 if len(threats) < max_threats or closest_target.distance_to(unit) < unit.ground_range - 0.5:
+    #                     unit.attack(closest_target)
+    #                     return True
+    #         if self._retreat_to_tank(unit, can_attack):
+    #             return True
+    #         if self._stay_at_max_range(unit, threats):
+    #             return True
+    #     return False

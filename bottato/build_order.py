@@ -96,6 +96,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.queue_supply()
         self.queue_command_center()
         self.queue_upgrade()
+        self.queue_marines(rush_detected_type)
         if len(self.static_queue) < 5 or self.bot.time > 300:
             self.queue_turret()
 
@@ -108,7 +109,6 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
 
             only_build_units = self.bot.supply_left > 5 and army_ratio > 0.0 and army_ratio < 0.8
             more_production_needed = self.queue_production(only_build_units)
-            self.queue_marines()
             self.queue_medivacs()
             only_build_units = only_build_units and not more_production_needed
 
@@ -174,20 +174,6 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         if self.bot.time > 300 or self.bot.townhalls.amount > 2:
             # not a rush
             return
-        if self.bot.structure_type_build_progress(UnitTypeId.BARRACKSREACTOR) == 1:
-            training_marine_count = self.get_in_progress_count(UnitTypeId.MARINE)
-            if training_marine_count < 2:
-                # move marines from static to priority queue
-                for _ in range(2 - training_marine_count):
-                # for i = 0; i < 2 - training_marine_count; i++:
-                    for step in self.static_queue:
-                        if step.is_unit_type(UnitTypeId.MARINE):
-                            self.static_queue.remove(step)
-                            break
-                    self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue)
-        elif self.bot.enemy_units and self.bot.enemy_units.closest_distance_to(self.bot.main_base_ramp.top_center) < 15:
-            # rush detected near ramp, prioritize marines, don't build reactor yet
-            self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue)
         if self.rush_defense_enacted:
             return
         self.rush_defense_enacted = True
@@ -444,10 +430,18 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.stop_timer("queue_production")
         return is_extra_production_needed
 
-    def queue_marines(self) -> None:
+    def queue_marines(self, rush_detected_type: RushType) -> None:
         self.start_timer("queue_marines")
         # use excess minerals and idle barracks
-        if self.bot.minerals > 500 and self.bot.supply_left > 15:
+        need_early_marines: bool = self.bot.time < 300 and \
+            (rush_detected_type != RushType.NONE or self.bot.enemy_units.closer_than(20, self.map.natural_position).amount > 2)
+        if need_early_marines and self.bot.minerals >= 50:
+            idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
+            priority_queue_count = self.get_queued_count(UnitTypeId.MARINE, self.priority_queue)
+            if idle_capacity > 0 and priority_queue_count == 0:
+                if not self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue):
+                    self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue)
+        elif self.bot.minerals > 500 and self.bot.supply_left > 15:
             idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
             if idle_capacity > 0:
                 self.add_to_build_queue([UnitTypeId.MARINE] * idle_capacity, queue=self.static_queue)

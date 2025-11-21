@@ -324,6 +324,23 @@ class UnitTypes():
         UnitTypeId.CREEPTUMORQUEEN,
     }
 
+    HIGH_PRIORITY_TARGETS = {
+        UnitTypeId.SIEGETANK,
+        UnitTypeId.SIEGETANKSIEGED,
+        UnitTypeId.INFESTOR,
+        UnitTypeId.HIGHTEMPLAR,
+        UnitTypeId.LURKERMP,
+    }
+
+    OFFENSIVE_STRUCTURE_TYPES = (
+        UnitTypeId.BUNKER,
+        UnitTypeId.PHOTONCANNON,
+        UnitTypeId.MISSILETURRET,
+        UnitTypeId.SPINECRAWLER,
+        UnitTypeId.SPORECRAWLER,
+        UnitTypeId.PLANETARYFORTRESS,
+    )
+
     def get_unit_info(self, unit_type_id: UnitTypeId) -> Dict[str, Any]:
         """
         Get the unit info for a given unit type ID.
@@ -346,14 +363,14 @@ class UnitTypes():
         """
         Check if a unit type can attack air units.
         """
-        return unit.can_attack_air or unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY}
+        return unit.can_attack_air or unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BUNKER}
     
     @staticmethod
     def can_attack_ground(unit: Unit) -> bool:
         """
         Check if a unit type can attack air units.
         """
-        return unit.can_attack_ground or unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BANELING}
+        return unit.can_attack_ground or unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BANELING, UnitTypeId.BUNKER}
 
     @staticmethod
     def can_attack(unit: Unit) -> bool:

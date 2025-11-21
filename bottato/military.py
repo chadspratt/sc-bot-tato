@@ -224,6 +224,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.squads.remove(defense_squad)
             del self.countered_enemies[enemy_tag]
 
+        self.army_ratio = self.calculate_army_ratio()
+
         # assign squads to counter enemies that are alone or in small groups
         for enemy in enemies_in_base:
             if not self.main_army.units and enemy.type_id == UnitTypeId.PROBE:
@@ -271,14 +273,13 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         # main_army_value = self.get_army_value(self.main_army.units)
         # army_is_big_enough = main_army_value > enemy_value * 1.1 or self.bot.supply_used > 160
         # self.army_ratio = main_army_value / max(enemy_value, 1)
-        self.army_ratio = self.calculate_army_ratio()
         army_is_big_enough = self.army_ratio > 1.3 or self.bot.supply_used > 160
         army_is_grouped = self.main_army.is_grouped()
         mount_offense = army_is_big_enough
 
         if defend_with_main_army:
             mount_offense = False
-        elif self.bot.time < 300: # previously 600
+        elif self.bot.time < 360: # previously 600
             if rush_detected_type != RushType.NONE:
                 mount_offense = False
             elif self.bot.supply_used < 45: # previously 110
@@ -491,6 +492,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stop_timer("get_squad_request")
         return new_units
     
+    # XXX why does this fluctuate
     def calculate_army_ratio(self) -> float:
         seconds_since_killed = min(60, 60 - (self.bot.time - 300) // 2)
         enemies = self.enemy.get_army(seconds_since_killed=seconds_since_killed)

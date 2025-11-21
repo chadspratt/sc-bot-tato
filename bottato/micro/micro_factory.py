@@ -70,4 +70,5 @@ class MicroFactory:
     @staticmethod
     def print_timers():
         for unit_type, micro in micro_instances.items():
-            micro.print_timers(unit_type.name + "-")
+            if unit_type != UnitTypeId.NOTAUNIT:
+                micro.print_timers(unit_type.name + "-")

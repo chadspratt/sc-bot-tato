@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Dict
 # import math
 from loguru import logger
 
@@ -49,7 +50,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     ###########################################################################
     async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
         attack_health = self.attack_health
-        if force_move and unit.distance_to_squared(target) < 225:
+        if force_move and unit.distance_to_squared(target) < 144:
             # force move is used for retreating. allow attacking and other micro when near staging location
             attack_health = 0.0
             force_move = False
@@ -77,9 +78,10 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             action_taken = await self._retreat(unit, health_threshold=self.retreat_health)
             self.stop_timer("base_unit_micro.move._retreat")
         
-        position_to_compare = target if unit.is_moving else unit.position
-        if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-            unit.move(target)
+        if not action_taken:
+            position_to_compare = target if unit.is_moving else unit.position
+            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
+                unit.move(target)
         return True
 
     async def scout(self, unit: Unit, scouting_location: Point2):
@@ -159,55 +161,56 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             return True
         return False
 
+    last_targets_update_time: float = 0.0
+    valid_targets: Units | None = None
+    threats: Dict[int, Units] = {}
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         return False
 
-    offensive_structure_types = (
-        UnitTypeId.BUNKER,
-        UnitTypeId.PHOTONCANNON,
-        UnitTypeId.MISSILETURRET,
-        UnitTypeId.SPINECRAWLER,
-        UnitTypeId.SPORECRAWLER,
-        UnitTypeId.PLANETARYFORTRESS,
-    )
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
-        if force_move:
-            return False
         if unit.tag in self.bot.unit_tags_received_action:
             return False
-        if unit.health_percentage < health_threshold:
+        if force_move:
             return False
-        candidates = []
 
-        attackable_enemies = self.bot.enemy_units.filter(lambda u: u.can_be_attacked and u.armor < 10) + self.bot.enemy_structures.of_type(self.offensive_structure_types)
-        candidates = UnitTypes.in_attack_range_of(unit, attackable_enemies, bonus_distance=3)
-        if len(candidates) == 0:
-            candidates = UnitTypes.in_attack_range_of(unit, self.bot.enemy_structures)
+        if self.last_targets_update_time != self.bot.time:
+            self.last_targets_update_time = self.bot.time
+            self.valid_targets = self.bot.enemy_units.filter(
+                lambda u: u.can_be_attacked and u.armor < 10
+                ).sorted(key=lambda u: u.health + u.shield) + self.bot.enemy_structures
+            self.threats.clear()
 
+        if not self.valid_targets:
+            return False
+        nearby_enemies = self.valid_targets.closer_than(20, unit)
+        if not nearby_enemies:
+            return False
+        
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
-        if unit.is_flying and can_attack and candidates:
-            threats = candidates.filter(lambda u: UnitTypes.can_attack_air(u))
-            if len(threats) < 4:
-                if threats:
-                    lowest_target = threats.sorted(key=lambda enemy_unit: enemy_unit.health + enemy_unit.shield).first
-                    unit.attack(lowest_target)
-                else:
-                    lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health + enemy_unit.shield).first
-                    unit.attack(lowest_target)
+        if can_attack:
+            attack_target = self._get_attack_target(unit, nearby_enemies)
+            if attack_target:
+                unit.attack(attack_target)
                 return True
-
+            
         if self._retreat_to_tank(unit, can_attack):
             return True
 
-        if not candidates:
-            return False
+        # don't attack if low health and there are threats
+        if unit.health_percentage < health_threshold:
+            if unit.tag not in self.threats:
+                self.threats[unit.tag] = UnitTypes.threats(unit, nearby_enemies)
+            if self.threats[unit.tag]:
+                return False
+    
+        if self.valid_targets:
+            return self._stay_at_max_range(unit, self.valid_targets)
 
-        if can_attack:
-            lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health + enemy_unit.shield).first
-            unit.attack(lowest_target)
-            return True
-        
-        return self._stay_at_max_range(unit, candidates)
+        # attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance=15)
+        # if attack_target:
+        #     unit.attack(attack_target)
+        #     return True
+        return False
 
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
@@ -226,7 +229,11 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                     # if repairers:
                     #     repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
                     if repairers:
-                        unit.move(repairers.closest_to(unit))
+                        closest_repairer = repairers.closest_to(unit)
+                        if unit.distance_to(closest_repairer) > 1:
+                            unit.move(closest_repairer)
+                            return True
+                        return self._attack_something(unit, health_threshold=0.0)
                     else:
                         return False
                 else:
@@ -279,7 +286,33 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     ###########################################################################
     # utility behaviors - used by main actions
     ###########################################################################
+    def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0) -> Unit | None:
+        priority_targets = nearby_enemies.filter(lambda u: u.type_id in UnitTypes.HIGH_PRIORITY_TARGETS)
+        if priority_targets:
+            in_range = priority_targets.in_attack_range_of(unit, bonus_distance=bonus_distance)
+            if in_range:
+                return in_range.first
+        offensive_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack(u))
+        if offensive_targets:
+            if unit.tag not in self.threats:
+                self.threats[unit.tag] = UnitTypes.threats(unit, offensive_targets)
+            threats = self.threats[unit.tag]
+            if threats:
+                in_range = threats.in_attack_range_of(unit, bonus_distance=bonus_distance)
+                if in_range:
+                    return in_range.first
+            in_range = offensive_targets.in_attack_range_of(unit, bonus_distance=bonus_distance)
+            if in_range:
+                return in_range.first
+        passive_targets = nearby_enemies.filter(lambda u: not UnitTypes.can_attack(u))
+        if passive_targets:
+            in_range = passive_targets.in_attack_range_of(unit, bonus_distance=bonus_distance)
+            if in_range:
+                return in_range.first
+            
     def _stay_at_max_range(self, unit: Unit, targets: Units) -> bool:
+        if not targets:
+            return False
         nearest_target = targets.closest_to(unit)
         # don't keep distance from structures since it prevents units in back from attacking
         # except for zerg structures that spawn broodlings when they die

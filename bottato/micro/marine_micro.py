@@ -56,27 +56,27 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     def is_stimmed(self, unit: Unit) -> bool:
         return unit.tag in self.last_stim_time and self.bot.time - self.last_stim_time[unit.tag] < 11
     
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
-        attackable_enemies = self.bot.enemy_units.filter(lambda u: u.can_be_attacked and u.armor < 10) \
-            + self.bot.enemy_structures.of_type(self.offensive_structure_types)
-        candidates = UnitTypes.in_attack_range_of(unit, attackable_enemies)
-        if len(candidates) == 0:
-            candidates = UnitTypes.in_attack_range_of(unit, self.bot.enemy_structures)
+    # def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+    #     attackable_enemies = self.bot.enemy_units.filter(lambda u: u.can_be_attacked and u.armor < 10) \
+    #         + self.bot.enemy_structures.of_type(self.offensive_structure_types)
+    #     candidates = UnitTypes.in_attack_range_of(unit, attackable_enemies)
+    #     if len(candidates) == 0:
+    #         candidates = UnitTypes.in_attack_range_of(unit, self.bot.enemy_structures)
 
-        if not candidates:
-            return False
+    #     if not candidates:
+    #         return False
 
-        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
-        if self._retreat_to_tank(unit, can_attack):
-            return True
+    #     can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+    #     if self._retreat_to_tank(unit, can_attack):
+    #         return True
 
-        if can_attack:
-            lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first
-            unit.attack(lowest_target)
-            return True
-        elif unit.health_percentage >= health_threshold:
-            return self._stay_at_max_range(unit, candidates)
-        return False
+    #     if can_attack:
+    #         lowest_target = candidates.sorted(key=lambda enemy_unit: enemy_unit.health).first
+    #         unit.attack(lowest_target)
+    #         return True
+    #     elif unit.health_percentage >= health_threshold:
+    #         return self._stay_at_max_range(unit, candidates)
+    #     return False
 
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.health_percentage < 0.7:

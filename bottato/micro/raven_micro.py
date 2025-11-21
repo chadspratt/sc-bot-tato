@@ -70,8 +70,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             return False
         # stay safe
         threats = self.bot.enemy_units.filter(lambda enemy: UnitTypes.can_attack_air(enemy)) \
-            + self.bot.enemy_structures.filter(lambda enemy: enemy.type_id in self.offensive_structure_types
-                                               and UnitTypes.can_attack_air(enemy))
+            + self.bot.enemy_structures.filter(lambda enemy: UnitTypes.can_attack_air(enemy))
         if threats:
             nearest_threat = threats.closest_to(unit)
             if nearest_threat.distance_to(unit) < unit.sight_range:
