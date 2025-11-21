@@ -13,6 +13,7 @@ from sc2.game_data import AbilityData
 from bottato.log_helper import LogHelper
 from bottato.commander import Commander
 from bottato.mixins import TimerMixin
+from bottato.micro.micro_factory import MicroFactory
 
 
 class BotTato(BotAI, TimerMixin):
@@ -72,6 +73,7 @@ class BotTato(BotAI, TimerMixin):
             self.last_timer_print = self.time
             self.print_timers("main-")
             self.commander.print_all_timers()
+            MicroFactory.print_timers()
             LogHelper.add_log(self.commander.build_order.get_build_queue_string())
             LogHelper.add_log(f"upgrades: {self.state.upgrades}")
 

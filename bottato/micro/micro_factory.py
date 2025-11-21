@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Any
+from typing import Any, Dict
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -20,7 +20,7 @@ from bottato.micro.siege_tank_micro import SiegeTankMicro
 from bottato.micro.viking_micro import VikingMicro
 
 
-micro_instances = {}
+micro_instances: Dict[UnitTypeId, BaseUnitMicro] = {}
 micro_lookup = {
     UnitTypeId.BANSHEE: BansheeMicro,
     UnitTypeId.HELLION: HellionMicro,
@@ -66,3 +66,8 @@ class MicroFactory:
                 micro_instances[type_id] = micro_instances[UnitTypeId.NOTAUNIT]
 
         return micro_instances[type_id]
+    
+    @staticmethod
+    def print_timers():
+        for unit_type, micro in micro_instances.items():
+            micro.print_timers(unit_type.name + "-")

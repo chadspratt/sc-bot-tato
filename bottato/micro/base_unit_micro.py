@@ -12,11 +12,11 @@ from sc2.ids.ability_id import AbilityId
 
 from bottato.unit_types import UnitTypes
 from bottato.map.map import Map
-from bottato.mixins import GeometryMixin
+from bottato.mixins import GeometryMixin, TimerMixin
 from bottato.enemy import Enemy
 
 
-class BaseUnitMicro(GeometryMixin):
+class BaseUnitMicro(GeometryMixin, TimerMixin):
     ability_health: float = 0.1
     attack_health: float = 0.1
     retreat_health: float = 0.75
@@ -56,25 +56,31 @@ class BaseUnitMicro(GeometryMixin):
             
         if unit.tag in self.bot.unit_tags_received_action:
             return True
-        if self._avoid_effects(unit, force_move):
-            pass
-        elif await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
-            pass
-        elif self._attack_something(unit, health_threshold=attack_health, force_move=force_move):
-            pass
-        elif force_move:
+        self.start_timer("base_unit_micro.move._avoid_effects")
+        action_taken = self._avoid_effects(unit, force_move)
+        self.stop_timer("base_unit_micro.move._avoid_effects")
+        if not action_taken:
+            self.start_timer("base_unit_micro.move._use_ability")
+            action_taken = await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move)
+            self.stop_timer("base_unit_micro.move._use_ability")
+        if not action_taken:
+            self.start_timer("base_unit_micro.move._attack_something")
+            action_taken = self._attack_something(unit, health_threshold=attack_health, force_move=force_move)
+            self.stop_timer("base_unit_micro.move._attack_something")
+        if not action_taken and force_move:
             position_to_compare = target if unit.is_moving else unit.position
             if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
                 unit.move(target)
-            return True
-        elif await self._retreat(unit, health_threshold=self.retreat_health):
-            pass
-        else:
-            position_to_compare = target if unit.is_moving else unit.position
-            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-                unit.move(target)
-            return True
-        return False
+            action_taken = True
+        if not action_taken:
+            self.start_timer("base_unit_micro.move._retreat")
+            action_taken = await self._retreat(unit, health_threshold=self.retreat_health)
+            self.stop_timer("base_unit_micro.move._retreat")
+        
+        position_to_compare = target if unit.is_moving else unit.position
+        if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
+            unit.move(target)
+        return True
 
     async def scout(self, unit: Unit, scouting_location: Point2):
         self.scout_tags.add(unit.tag)
