@@ -105,7 +105,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                             cc(AbilityId.LIFT)
 
     def scan(self):
-        if self.bot.time - self.last_scan_time < 90:
+        if self.bot.time - self.last_scan_time < 9:
             return
         orbital_with_energy = None
         for orbital in self.bot.structures(UnitTypeId.ORBITALCOMMAND).ready:
