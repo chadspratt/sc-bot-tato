@@ -345,7 +345,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         future_enemy_position = nearest_target.position
         # if nearest_target.distance_to(unit) > attack_range / 2:
         #     future_enemy_position = self.enemy.get_predicted_position(nearest_target, unit.weapon_cooldown / 22.4)
-        target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius)
+        target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius - 1)
         return self._move_to_pathable_position(unit, target_position) # type: ignore
 
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}

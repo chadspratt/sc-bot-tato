@@ -108,9 +108,12 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             self.add_to_build_queue(military_queue, queue=self.build_queue)
 
             only_build_units = self.bot.supply_left > 5 and army_ratio > 0.0 and army_ratio < 0.8
-            more_production_needed = self.queue_production(only_build_units)
+            if only_build_units:
+                capacity_available = self.production.can_build_any(military_queue)
+                if not capacity_available:
+                    only_build_units = False
+            self.queue_production(only_build_units)
             self.queue_medivacs()
-            only_build_units = only_build_units and not more_production_needed
 
 
         needed_resources: Cost = self.get_first_resource_shortage(only_build_units)
@@ -409,7 +412,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         # should also build a new one if current bases run out of resources
         self.stop_timer("queue_refinery")
 
-    def queue_production(self, only_build_units: bool) -> bool:
+    def queue_production(self, only_build_units: bool):
         self.start_timer("queue_production")
         # add more barracks/factories/starports to handle backlog of pending affordable units
         self.start_timer("queue_production-get_affordable_build_list")
@@ -422,13 +425,11 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         extra_production: List[UnitTypeId] = self.production.additional_needed_production(affordable_units)
         # only add if not already in progress
         extra_production = self.remove_in_progress_from_list(extra_production)
-        is_extra_production_needed = len(extra_production) > 0
         self.stop_timer("queue_production-additional_needed_production")
         self.start_timer("queue_production-add_to_build_order")
         self.add_to_build_queue(extra_production, position=0, queue=self.static_queue)
         self.stop_timer("queue_production-add_to_build_order")
         self.stop_timer("queue_production")
-        return is_extra_production_needed
 
     def queue_marines(self, rush_detected_type: RushType) -> None:
         self.start_timer("queue_marines")
@@ -760,7 +761,10 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 if build_response != BuildResponseCode.NO_FACILITY:
                     LogHelper.add_log(f"failed to start {build_step}: {build_response}")
                 if not allow_skip:
+                    remaining_resources.minerals = 0
                     break
+                if self.bot.time > 60:
+                    remaining_resources = remaining_resources + build_step.cost
                 if build_response == BuildResponseCode.NO_LOCATION:
                     continue
                 unit_type = build_step.get_unit_type_id()
@@ -777,12 +781,6 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                             build_queue.pop(execution_index)
                             remaining_resources.minerals = 0
                             return remaining_resources
-                    # don't reserve resources for things that don't have an available facility, but don't skip ahead in early build order
-                    if self.bot.time > 60:
-                        remaining_resources = remaining_resources + build_step.cost
-                elif build_response == BuildResponseCode.NO_TECH:
-                    if self.bot.time > 60:
-                        remaining_resources = remaining_resources + build_step.cost
             self.stop_timer(f"handle response {build_response}")
         self.stop_timer("execute_pending_builds")
         return remaining_resources

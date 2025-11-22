@@ -292,6 +292,16 @@ class Production(UnitReferenceMixin, TimerMixin):
                 for facility in addon_type:
                     capacity += facility.get_available_capacity()
         return capacity
+    
+    def can_build_any(self, unit_types: List[UnitTypeId]) -> bool:
+        for unit_type in unit_types:
+            builder_type: UnitTypeId = self.get_cheapest_builder_type(unit_type)
+            tech_lab_required: bool = False
+            if unit_type in self.needs_tech_lab:
+                tech_lab_required = True
+            if self.get_build_capacity(builder_type, tech_lab_required) > 0:
+                return True
+        return False
 
     def additional_needed_production(self, unit_types: List[UnitTypeId]):
         production_capacity = {
