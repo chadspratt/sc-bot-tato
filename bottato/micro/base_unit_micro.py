@@ -50,10 +50,10 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     ###########################################################################
     async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
         attack_health = self.attack_health
-        if force_move and unit.distance_to_squared(target) < 144:
-            # force move is used for retreating. allow attacking and other micro when near staging location
-            attack_health = 0.0
-            force_move = False
+        # if force_move and unit.distance_to_squared(target) < 144:
+        #     # force move is used for retreating. allow attacking and other micro when near staging location
+        #     attack_health = 0.0
+        #     force_move = False
             
         if unit.tag in self.bot.unit_tags_received_action:
             return True
@@ -170,8 +170,6 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
-        if force_move:
-            return False
 
         if self.last_targets_update_time != self.bot.time:
             self.last_targets_update_time = self.bot.time
@@ -192,6 +190,8 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             if attack_target:
                 unit.attack(attack_target)
                 return True
+        if force_move:
+            return False
             
         if self._retreat_to_tank(unit, can_attack):
             return True
@@ -343,8 +343,8 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
 
         attack_range = UnitTypes.range_vs_target(unit, nearest_target)
         future_enemy_position = nearest_target.position
-        if nearest_target.distance_to(unit) > attack_range / 2:
-            future_enemy_position = self.enemy.get_predicted_position(nearest_target, unit.weapon_cooldown / 22.4)
+        # if nearest_target.distance_to(unit) > attack_range / 2:
+        #     future_enemy_position = self.enemy.get_predicted_position(nearest_target, unit.weapon_cooldown / 22.4)
         target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius)
         return self._move_to_pathable_position(unit, target_position) # type: ignore
 

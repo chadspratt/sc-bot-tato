@@ -250,3 +250,16 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             old_list.remove(unit.tag)
         else:
             logger.debug(f"{unit.tag} not in sieged_tags")
+
+    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+        if unit.type_id == UnitTypeId.SIEGETANK:
+            return super()._attack_something(unit, health_threshold, force_move)
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+        if not can_attack:
+            return False
+        targets = self.bot.enemy_units.in_attack_range_of(unit)
+        if not targets:
+            return False
+        target = self.get_most_grouped_unit(targets, self.bot, range=1.25)[0]
+        unit.attack(target)
+        return True

@@ -417,14 +417,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     unit.smart(bunker.structure)
                 else:
                     micro = MicroFactory.get_unit_micro(unit)
-                    await micro.move(unit, bunker.structure.position)
+                    await micro.move(unit, bunker.structure.position, force_move=True)
             except Exception:
                 pass
 
-        for unit in self.main_army.units:
-            if len(bunker.units) >= 4:
-                break
-            if unit.type_id == UnitTypeId.MARINE:
+        if len(bunker.units) < 4:
+            valid_units = self.main_army.units.of_type({UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.GHOST})
+            closest_units = valid_units.closest_n_units(bunker.structure, 4 - len(bunker.units))
+            for unit in closest_units:
                 enemy_distance_to_unit = current_enemies.closest_distance_to(unit) if current_enemies else 100
                 marine_distance_to_bunker = unit.distance_to(bunker.structure)
                 if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
