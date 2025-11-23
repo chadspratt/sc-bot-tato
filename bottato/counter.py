@@ -4,9 +4,9 @@ from typing import List
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
 
-from bottato.mixins import UnitReferenceMixin
+from bottato.unit_types import UnitTypes
 
-class Counter(UnitReferenceMixin):
+class Counter():
     counters: dict[UnitTypeId, dict[UnitTypeId, float]] = {
         # Protoss units
         UnitTypeId.ADEPT: { # 2
@@ -185,7 +185,7 @@ class Counter(UnitReferenceMixin):
 
     def get_counters(self, enemy_units: Units) -> dict[UnitTypeId, float]:
         """Count the number of each unit type in the given units."""
-        enemy_counts = self.count_units_by_type(enemy_units)
+        enemy_counts = UnitTypes.count_units_by_type(enemy_units)
 
         counter_units: dict[UnitTypeId, float] = {}
         for enemy_type, enemy_count in enemy_counts.items():

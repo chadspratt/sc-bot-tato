@@ -4,9 +4,10 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
 
+from bottato.mixins import GeometryMixin
 from bottato.enums import UnitAttribute
 
-class UnitTypes():
+class UnitTypes(GeometryMixin):
     PROTOSS: Dict[UnitTypeId, Dict[str, Any]] = {
         UnitTypeId.ADEPT: {
             "supply": 2,
@@ -410,37 +411,37 @@ class UnitTypes():
             return 0.0
         
     @staticmethod
-    def target_in_range(unit: Unit, target: Unit, bonus_distance: float = 0.0) -> bool:
+    def target_in_range(attacker: Unit, target: Unit, bonus_distance: float = 0.0) -> bool:
         """
         Check if a target unit is in range of the given unit, considering both air and ground attacks.
         """
-        if not unit.is_ready:
+        if not attacker.is_ready:
             return False
-        attack_range = UnitTypes.range_vs_target(unit, target)
+        attack_range = UnitTypes.range_vs_target(attacker, target)
         if attack_range == 0.0:
             return False
-        distance = unit.distance_to_squared(target)
-        return distance <= (unit.radius + target.radius + attack_range + bonus_distance) ** 2
+        distance = UnitTypes.distance_squared(attacker, target)
+        return distance <= (attacker.radius + target.radius + attack_range + bonus_distance) ** 2
     
     @staticmethod
-    def in_attack_range_of(attacker: Unit, units: Units, bonus_distance: float = 0.0) -> Units:
+    def in_attack_range_of(attacker: Unit, targets: Units, bonus_distance: float = 0.0) -> Units:
         """
         Filter a set of units to those that are in attack range of the given attacker unit.
         """
-        in_range_units = Units([], units._bot_object)
-        for unit in units:
-            if UnitTypes.target_in_range(attacker, unit, bonus_distance):
-                in_range_units.append(unit)
+        in_range_units = Units([], targets._bot_object)
+        for target in targets:
+            if UnitTypes.target_in_range(attacker, target, bonus_distance):
+                in_range_units.append(target)
         return in_range_units
     
     @staticmethod
-    def threats(unit: Unit, attackers: Units, bonus_distance: float = 0.0) -> Units:
+    def threats(target: Unit, attackers: Units, bonus_distance: float = 0.0) -> Units:
         """
         Get enemy units that can attack the given unit.
         """
         threats = Units([], attackers._bot_object)
         for attacker in attackers:
-            if UnitTypes.target_in_range(attacker, unit, bonus_distance):
+            if UnitTypes.target_in_range(attacker, target, bonus_distance):
                 threats.append(attacker)
         return threats
     
@@ -462,3 +463,61 @@ class UnitTypes():
         Check if the attacker unit can attack the target unit.
         """
         return UnitTypes.range_vs_target(attacker, target) > 0
+
+    @staticmethod
+    def count_units_by_type(units: Units, use_common_type: bool = True) -> dict[UnitTypeId, int]:
+        counts: dict[UnitTypeId, int] = {}
+
+        for unit in units:
+            type_id = unit.unit_alias if use_common_type and unit.unit_alias else unit.type_id
+            # passenger units don't have this attribute
+            if hasattr(unit, "is_hallucination") and unit.is_hallucination:
+                continue
+            if type_id not in counts:
+                counts[type_id] = 1
+            else:
+                counts[type_id] += 1
+
+        return counts
+
+    @staticmethod
+    def count_units_by_property(units: Units) -> dict[str, int]:
+        counts: dict[str, int] = {
+            'flying': 0,
+            'ground': 0,
+            'armored': 0,
+            'biological': 0,
+            'hidden': 0,
+            'light': 0,
+            'mechanical': 0,
+            'psionic': 0,
+            'attacks ground': 0,
+            'attacks air': 0,
+        }
+
+        unit: Unit
+        for unit in units:
+            if unit.is_hallucination:
+                continue
+            if unit.is_flying:
+                counts['flying'] += 1
+            else:
+                counts['ground'] += 1
+            if unit.is_armored:
+                counts['armored'] += 1
+            if unit.is_biological:
+                counts['biological'] += 1
+            if unit.is_burrowed or unit.is_cloaked or not unit.is_visible:
+                counts['hidden'] += 1
+            if unit.is_light:
+                counts['light'] += 1
+            if unit.is_mechanical:
+                counts['mechanical'] += 1
+            if unit.is_psionic:
+                counts['psionic'] += 1
+            if UnitTypes.can_attack_ground(unit):
+                counts['attacks ground'] += 1
+            if UnitTypes.can_attack_air(unit):
+                counts['attacks air'] += 1
+
+        return counts

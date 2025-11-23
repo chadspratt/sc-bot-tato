@@ -204,6 +204,7 @@ class SCVBuildStep(BuildStep):
                 if el not in self.attempted_expansion_positions:
                     self.attempted_expansion_positions[el] = 0
                 elif self.attempted_expansion_positions[el] > 3:
+                    LogHelper.add_log(f"Skipping expansion at {el}, attempted too many times")
                     continue
 
                 expansions_to_check.append(el)
@@ -213,7 +214,8 @@ class SCVBuildStep(BuildStep):
                 self.attempted_expansion_positions.clear()
                 return None
 
-            new_build_position = self.map.get_closest_position_by_path(expansions_to_check, self.bot.game_info.player_start_location)
+            LogHelper.add_log(f"Expansions to check: {expansions_to_check}")
+            new_build_position = self.map.get_closest_position_by_path(expansions_to_check, self.bot.start_location)
 
             # run it through find placement in case it's blocked by some weird map feature
             if self.bot.game_info.map_name == 'Magannatha AIE':

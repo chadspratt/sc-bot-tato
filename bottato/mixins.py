@@ -11,8 +11,6 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2, Point3
 
-from bottato.unit_types import UnitTypes
-
 
 class UnitReferenceMixin:
     class UnitNotFound(Exception):
@@ -54,62 +52,6 @@ class UnitReferenceMixin:
                 logger.debug(f"Couldn't find unit {tag}!")
         return _units
 
-    def count_units_by_type(self, units: Units, use_common_type: bool = True) -> dict[UnitTypeId, int]:
-        counts: dict[UnitTypeId, int] = {}
-
-        for unit in units:
-            type_id = unit.unit_alias if use_common_type and unit.unit_alias else unit.type_id
-            # passenger units don't have this attribute
-            if hasattr(unit, "is_hallucination") and unit.is_hallucination:
-                continue
-            if type_id not in counts:
-                counts[type_id] = 1
-            else:
-                counts[type_id] += 1
-
-        return counts
-
-    def count_units_by_property(self, units: Units) -> dict[str, int]:
-        counts: dict[str, int] = {
-            'flying': 0,
-            'ground': 0,
-            'armored': 0,
-            'biological': 0,
-            'hidden': 0,
-            'light': 0,
-            'mechanical': 0,
-            'psionic': 0,
-            'attacks ground': 0,
-            'attacks air': 0,
-        }
-
-        unit: Unit
-        for unit in units:
-            if unit.is_hallucination:
-                continue
-            if unit.is_flying:
-                counts['flying'] += 1
-            else:
-                counts['ground'] += 1
-            if unit.is_armored:
-                counts['armored'] += 1
-            if unit.is_biological:
-                counts['biological'] += 1
-            if unit.is_burrowed or unit.is_cloaked or not unit.is_visible:
-                counts['hidden'] += 1
-            if unit.is_light:
-                counts['light'] += 1
-            if unit.is_mechanical:
-                counts['mechanical'] += 1
-            if unit.is_psionic:
-                counts['psionic'] += 1
-            if UnitTypes.can_attack_ground(unit):
-                counts['attacks ground'] += 1
-            if UnitTypes.can_attack_air(unit):
-                counts['attacks air'] += 1
-
-        return counts
-
     def get_army_value(self, units: Units, bot: BotAI) -> float:
         army_value: float = 0
         type_costs: Dict[UnitTypeId, float] = {}
@@ -128,13 +70,15 @@ class UnitReferenceMixin:
 
 
 class GeometryMixin:
-    def convert_point2_to_3(self, point2: Point2 | Unit, bot: BotAI) -> Point3:
+    @staticmethod
+    def convert_point2_to_3(point2: Point2 | Unit, bot: BotAI) -> Point3:
         if isinstance(point2, Unit):
             point2 = point2.position
         height: float = max(0, bot.get_terrain_z_height(point2) + 1)
         return Point3((point2.x, point2.y, height))
 
-    def get_facing(self, start_position: Unit | Point2, end_position: Unit | Point2):
+    @staticmethod
+    def get_facing(start_position: Unit | Point2, end_position: Unit | Point2):
         if isinstance(start_position, Unit):
             start_position = start_position.position
         if isinstance(end_position, Unit):
@@ -146,7 +90,8 @@ class GeometryMixin:
             angle += math.pi * 2
         return angle
 
-    def apply_rotation(self, angle: float, point: Point2, reverse_direction: bool = False) -> Point2:
+    @staticmethod
+    def apply_rotation(angle: float, point: Point2, reverse_direction: bool = False) -> Point2:
         # rotations default to facing along the y-axis, with a facing of pi/2
         logger.debug(f"apply_rotation at angle {angle}")
         rotation_needed = math.pi / 2 - angle if reverse_direction else angle - math.pi / 2
@@ -154,16 +99,18 @@ class GeometryMixin:
         logger.debug(f">> adjusted to {rotation_needed}")
         s_theta = math.sin(rotation_needed)
         c_theta = math.cos(rotation_needed)
-        rotated = self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
+        rotated = GeometryMixin._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point)
         logger.debug(f"rotation calculated from {point} to {rotated}")
         return rotated
 
-    def _apply_rotation(self, *, s_theta: float, c_theta: float, point: Point2) -> Point2:
+    @staticmethod
+    def _apply_rotation(*, s_theta: float, c_theta: float, point: Point2) -> Point2:
         new_x = point.x * c_theta - point.y * s_theta
         new_y = point.x * s_theta + point.y * c_theta
         return Point2((new_x, new_y))
 
-    def apply_rotations(self, angle: float, points: List[Point2] | None=None) -> List[Point2]:
+    @staticmethod
+    def apply_rotations(angle: float, points: List[Point2] | None=None) -> List[Point2]:
         # rotations default to facing along the y-axis, with a facing of pi/2
         if points is None:
             return []
@@ -171,11 +118,11 @@ class GeometryMixin:
         s_theta = math.sin(rotation_needed)
         c_theta = math.cos(rotation_needed)
         return [
-            self._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point) for point in points
+            GeometryMixin._apply_rotation(s_theta=s_theta, c_theta=c_theta, point=point) for point in points
         ]
 
-    def predict_future_unit_position(self,
-                                     unit: Unit,
+    @staticmethod
+    def predict_future_unit_position(unit: Unit,
                                      seconds_ahead: float,
                                      bot: BotAI,
                                      check_pathable: bool = True,
@@ -194,7 +141,7 @@ class GeometryMixin:
             forward_unit_vector = frame_vector.normalized
         else:
             unit_speed = max_speed
-            forward_unit_vector = self.apply_rotation(unit.facing, Point2([0, 1]))
+            forward_unit_vector = GeometryMixin.apply_rotation(unit.facing, Point2([0, 1]))
 
         remaining_distance = unit_speed * seconds_ahead
         if not check_pathable:
@@ -214,48 +161,55 @@ class GeometryMixin:
             if remaining_distance <= 0:
                 return future_position
 
-    def distance(self, unit1: Unit, unit2: Unit) -> float:
+    @staticmethod
+    def distance(unit1: Unit, unit2: Unit) -> float:
         if unit1.age == 0 and unit2.age == 0:
             return unit1.distance_to(unit2)
         return unit1.distance_to(unit2.position)
         
-    def distance_squared(self, unit1: Unit, unit2: Unit) -> float:
+    @staticmethod
+    def distance_squared(unit1: Unit, unit2: Unit) -> float:
         if unit1.age == 0 and unit2.age == 0:
             return unit1.distance_to_squared(unit2)        
         return unit1.distance_to_squared(unit2.position)
 
-    def closest_distance(self, unit1: Unit, units: Units) -> float:
+    @staticmethod
+    def closest_distance(unit1: Unit, units: Units) -> float:
         distance = 9999
         for unit in units:
-            distance = min(distance, self.distance(unit1, unit))
+            distance = min(distance, GeometryMixin.distance(unit1, unit))
         return distance
     
-    def closest_distance_squared(self, unit1: Unit, units: Units) -> float:
+    @staticmethod
+    def closest_distance_squared(unit1: Unit, units: Units) -> float:
         closest_distance_sq = 9999
         for unit in units:
-            closest_distance_sq = min(closest_distance_sq, self.distance_squared(unit1, unit))
+            closest_distance_sq = min(closest_distance_sq, GeometryMixin.distance_squared(unit1, unit))
         return closest_distance_sq
     
-    def units_closer_than(self, unit1: Unit, units: Units, distance: float, bot: BotAI) -> Units:
+    @staticmethod
+    def units_closer_than(unit1: Unit, units: Units, distance: float, bot: BotAI) -> Units:
         close_units: Units = Units([], bot_object=bot)
         distance_sq = distance * distance
         for unit in units:
-            if self.distance_squared(unit1, unit) < distance_sq:
+            if GeometryMixin.distance_squared(unit1, unit) < distance_sq:
                 close_units.append(unit)
         return close_units
 
-    def closest_unit_to_unit(self, unit1: Unit, units: Units) -> Unit:
+    @staticmethod
+    def closest_unit_to_unit(unit1: Unit, units: Units) -> Unit:
         assert units, "units list is empty"
         closest_distance = 9999
         closest_unit: Unit = units[0]
         for unit in units:
-            new_distance = self.distance(unit1, unit)
+            new_distance = GeometryMixin.distance(unit1, unit)
             if new_distance < closest_distance:
                 closest_distance = new_distance
                 closest_unit = unit
         return closest_unit
 
-    def get_triangle_point_c(self, point_a: Point2, point_b: Point2, a_c_distance: float, b_c_distance: float) -> tuple[Point2, Point2] | None:
+    @staticmethod
+    def get_triangle_point_c(point_a: Point2, point_b: Point2, a_c_distance: float, b_c_distance: float) -> tuple[Point2, Point2] | None:
         a_b_distance = point_a.distance_to(point_b)
         if a_b_distance > a_c_distance + b_c_distance or a_c_distance > a_b_distance + b_c_distance or b_c_distance > a_b_distance + a_c_distance:
             return None
@@ -263,14 +217,15 @@ class GeometryMixin:
         a_c_distance_sq = a_c_distance ** 2
         b_c_distance_sq = b_c_distance ** 2
         angle_a = math.acos((a_c_distance_sq + a_b_distance_sq - b_c_distance_sq) / (2 * a_b_distance * a_c_distance))
-        a_b_facing = self.get_facing(point_a, point_b)
+        a_b_facing = GeometryMixin.get_facing(point_a, point_b)
         angle_1 = a_b_facing + angle_a
         angle_2 = a_b_facing - angle_a
         point_c_1 = point_a + Point2((math.cos(angle_1), math.sin(angle_1))) * a_c_distance
         point_c_2 = point_a + Point2((math.cos(angle_2), math.sin(angle_2))) * a_c_distance
         return point_c_1, point_c_2
     
-    def get_most_grouped_unit(self, units: Units, bot: BotAI, range: float = 10) -> tuple[Unit, Units]:
+    @staticmethod
+    def get_most_grouped_unit(units: Units, bot: BotAI, range: float = 10) -> tuple[Unit, Units]:
         assert units, "units list is empty"
         most_nearby_unit: Unit = units[0]
         most_nearby_units: Units = Units([], bot_object=bot)
@@ -302,7 +257,8 @@ class TimerMixin:
 
 
 class DebugMixin:
-    def random_color(self) -> tuple[int, int, int]:
+    @staticmethod
+    def random_color() -> tuple[int, int, int]:
         rgb = [0, 0, 0]
         highlow_index = random.randint(0, 2)
         high_or_low = random.randint(0, 1) > 0

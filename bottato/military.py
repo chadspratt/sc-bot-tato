@@ -366,8 +366,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 # generally a retreat due to being outnumbered
                 logger.debug(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
-                if rush_detected_type != RushType.NONE and len(self.main_army.units) < 16 and len(self.bot.townhalls) < 3:
+                if rush_detected_type != RushType.NONE and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
                     self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 10) # type: ignore
+                elif rush_detected_type != RushType.NONE and len(self.bot.townhalls) <= 3 and self.army_ratio < 0.5:
+                    self.main_army.staging_location = self.map.natural_position.towards(self.bot.main_base_ramp.bottom_center, 5) # type: ignore
                 elif len(self.bot.townhalls) > 1:
                     closest_base = self.map.get_closest_unit_by_path(self.bot.townhalls, enemy_position)
                     if closest_base is None:
@@ -456,7 +458,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         for unit_type in new_units:
             new_supply += self.bot.calculate_supply_cost(unit_type)
 
-        army_summary = self.count_units_by_type(self.bot.units)
+        army_summary = UnitTypes.count_units_by_type(self.bot.units)
 
         # unmatched_friendlies, unmatched_enemies = self.simulate_battle()
         unmatched_enemies = self.bot.enemy_units
@@ -464,7 +466,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             squad_type: SquadType = SquadTypeDefinitions['full army']
             if unmatched_enemies:
                 # type_summary = self.count_units_by_type(unmatched_enemies)
-                property_summary = self.count_units_by_property(unmatched_enemies)
+                property_summary = UnitTypes.count_units_by_property(unmatched_enemies)
                 # pick a squad type
                 if property_summary['flying'] >= property_summary['ground']:
                     squad_type = SquadTypeDefinitions['anti air']
@@ -522,9 +524,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
     damage_by_type: Dict[UnitTypeId, Dict[UnitTypeId, float]] = {}
     def calculate_total_damage(self, attackers: Units, targets: Units, passengers: Units | None = None) -> float:
         total_damage: float = 0.0
-        attacker_type_counts = self.count_units_by_type(attackers, use_common_type=False)
-        target_type_counts = self.count_units_by_type(targets, use_common_type=False)
-        passenger_type_counts = self.count_units_by_type(passengers) if passengers else {}
+        attacker_type_counts = UnitTypes.count_units_by_type(attackers, use_common_type=False)
+        target_type_counts = UnitTypes.count_units_by_type(targets, use_common_type=False)
+        passenger_type_counts = UnitTypes.count_units_by_type(passengers) if passengers else {}
         # calculate dps vs each target type if not already cached
         for attacker in attackers:
             if attacker.type_id not in self.damage_by_type:

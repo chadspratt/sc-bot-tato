@@ -136,7 +136,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                 attackers = ground_attackers
             if not attackers:
                 continue
-            if self.units_closer_than(enemy, attackers, 10, self.bot).amount > 2:
+            attackers = UnitTypes.threats(enemy, attackers)
+            if attackers.amount > 1:
                 enemies_to_scan.append(enemy)
 
         # find unit that has most hidden enemies nearby then scan center of the group
