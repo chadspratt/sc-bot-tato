@@ -191,7 +191,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if assignment.on_attack_break \
                     or not assignment.unit_available \
                     or assignment.job_type not in [WorkerJobType.MINERALS, WorkerJobType.VESPENE] \
-                    or await self.worker_micro._retreat(assignment.unit, 1.0):
+                    or await self.worker_micro._retreat(assignment.unit, 0.7):
                 continue
             
             if not self.bot.townhalls.ready:
@@ -812,7 +812,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if self.bot.time > 300:
             injured_mechanical_units = self.bot.units.filter(lambda unit: unit.is_mechanical
                                                             and unit.health < unit.health_max
-                                                            and len(self.enemy.threats_to_repairer(unit)) == 0)
+                                                            and len(self.enemy.threats_to_repairer(unit, attack_range_buffer=0)) == 0)
         logger.debug(f"injured mechanical units {injured_mechanical_units}")
 
         # can only repair fully built structures

@@ -313,7 +313,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 await self.main_army.move(enemies_in_base.closest_to(self.main_army.position).position)
                 self.stop_timer("military move squads defend")
             elif mount_offense:
-                logger.debug(f"squad {self.main_army.name} mounting offense")
+                LogHelper.add_log(f"squad {self.main_army.name} mounting offense")
                 army_position = self.main_army.position
                 target = None
                 target_position = None
@@ -334,6 +334,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                         target_position = target
                 if not army_is_grouped:
                     self.start_timer("military move squads regroup")
+                    LogHelper.add_log(f"squad {self.main_army} regrouping")
                     sieged_tanks = self.bot.units.of_type(UnitTypeId.SIEGETANKSIEGED)
                     army_center: Point2
                     if sieged_tanks:
@@ -364,7 +365,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             else:
                 self.start_timer("military move squads stage")
                 # generally a retreat due to being outnumbered
-                logger.debug(f"squad {self.main_army} staging at {self.main_army.staging_location}")
+                LogHelper.add_log(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
                 if rush_detected_type != RushType.NONE and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
                     self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 10) # type: ignore

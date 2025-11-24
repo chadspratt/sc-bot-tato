@@ -257,7 +257,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
 
             if self.path and len(self.path) > 1:
                 logger.debug(f"following path {self.path} to {self.destination}")
-                self.destination = self.front_center.towards(self.path[1], distance=2, limit=True) # type: ignore
+                self.destination = self.front_center.towards(self.path[1], distance=3, limit=True) # type: ignore
             else:
                 logger.debug(f"heading directly to {self.destination}")
                 # if no path, tell all units to go to the destination. happens if already in destination zone or if reference point passes over non-pathable area
