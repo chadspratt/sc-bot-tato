@@ -62,31 +62,20 @@ class HarassSquad(BaseSquad, GeometryMixin, TimerMixin):
 
             if not nearest_threat:
                 await micro.move(unit, self.harass_location)
-            elif UnitTypes.ground_range(nearest_threat) < UnitTypes.ground_range(unit):
-                # kite enemies that we outrange
-                # preDicted_position = self.preDict_future_unit_position(nearest_threat, 1, False)
-                move_position = nearest_threat.position
-                # if unit.weapon_cooldown != 0:
-                #     move_position = nearest_threat.position.towards(unit, UnitTypes.ground_range(unit) - 0.5)
-                self.bot.client.debug_line_out(nearest_threat, self.convert_point2_to_3(move_position, self.bot), (255, 0, 0))
-                self.bot.client.debug_sphere_out(self.convert_point2_to_3(move_position, self.bot), 0.2, (255, 0, 0))
-                await micro.move(unit, move_position)
-                continue
             else:
-            # elif nearest_threat.distance_to_squared(harass_location) < unit.distance_to_squared(harass_location):
-                # try to circle around threats that outrange us
-                circle_around_position = micro.get_circle_around_position(unit, nearest_threat.position, self.harass_location)
-                await micro.move(unit, circle_around_position)
-                continue
-            
-            # nearby_workers = nearby_enemies.filter(
-            #     lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
-            # if nearby_workers:
-            #     nearby_workers.sort(key=lambda worker: worker.shield_health_percentage)
-            #     most_injured: Unit = nearby_workers[0]
-            #     move_position = most_injured.position
-            #     if unit.weapon_cooldown != 0:
-            #         move_position = most_injured.position.towards(unit, UnitTypes.ground_range(unit) - 0.5)
-            #     await micro.move(unit, move_position)
-            # else:
-            #     await micro.move(unit, harass_location)
+                enemy_range = UnitTypes.ground_range(nearest_threat)
+                if UnitTypes.ground_range(unit) > enemy_range:
+                    # kite enemies that we outrange
+                    move_position = nearest_threat.position
+                    if unit.weapon_cooldown != 0:
+                        move_position = nearest_threat.position.towards(unit, enemy_range + 1)
+                    self.bot.client.debug_line_out(nearest_threat, self.convert_point2_to_3(move_position, self.bot), (255, 0, 0)) # type: ignore
+                    self.bot.client.debug_sphere_out(self.convert_point2_to_3(move_position, self.bot), 0.2, (255, 0, 0)) # type: ignore
+                    await micro.move(unit, move_position) # type: ignore
+                    continue
+                else:
+                    destination = self.harass_location if unit.health_percentage > 0.65 else self.bot.start_location
+                    # try to circle around threats that outrange us
+                    circle_around_position = micro.get_circle_around_position(unit, nearest_threat.position, destination)
+                    await micro.move(unit, circle_around_position)
+                    continue
