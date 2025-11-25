@@ -239,6 +239,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 continue
             if rush_detected_type != RushType.NONE and len(self.main_army.units) < 10:
                 # don't send out units if getting rushed and army is small
+                defend_with_main_army = True
                 break
             elif defend_with_main_army:
                 break
