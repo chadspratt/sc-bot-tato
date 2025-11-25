@@ -24,7 +24,9 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     time_in_frames_to_attack: float = 0.25 * 22.4
     scout_tags: set[int] = set()
     healing_unit_tags: set[int] = set()
-    
+    tanks_being_retreated_to: Dict[int, float] = {}
+    tanks_being_retreated_to_prev_frame: Dict[int, float] = {}
+
     damaging_effects = [
         EffectId.PSISTORMPERSISTENT,
         # EffectId.GUARDIANSHIELDPERSISTENT,
@@ -44,6 +46,10 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
         self.map: Map = map
+
+    def reset_tanks_being_retreated_to(self):
+        BaseUnitMicro.tanks_being_retreated_to_prev_frame = BaseUnitMicro.tanks_being_retreated_to
+        BaseUnitMicro.tanks_being_retreated_to = {}
 
     ###########################################################################
     # meta actions - used by non-micro classes to order units
@@ -244,9 +250,9 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                         unit.move(self.bot.game_info.player_start_location)
             return True
 
-        # retreat if there is nothing this unit can attack
+        # retreat if there is nothing this unit can attack and it's not an SCV which might be repairing
         do_retreat = False
-        if UnitTypes.can_attack(unit):
+        if UnitTypes.can_attack(unit) and unit.type_id != UnitTypeId.SCV:
             visible_threats = threats.filter(lambda t: t.age == 0)
             targets = UnitTypes.in_attack_range_of(unit, visible_threats, bonus_distance=3)
             if not targets:
@@ -417,10 +423,14 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if tank_to_enemy_distance > 13.5 + nearest_tank.radius + closest_enemy.radius and tank_to_enemy_distance < 40:
             optimal_distance = 13.5 - UnitTypes.ground_range(closest_enemy) - unit.radius + nearest_tank.radius - 0.5
             unit.move(nearest_tank.position.towards(unit.position, optimal_distance)) # type: ignore
+            if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
+                BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance
             return True
         elif not can_attack and tank_to_enemy_distance < unit.distance_to(closest_enemy) + 3:
             # defend tank if it's closer to enemy than unit
             unit.move(nearest_tank.position.towards(closest_enemy.position, 3)) # type: ignore
+            if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
+                BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance
             return True
         return False
     

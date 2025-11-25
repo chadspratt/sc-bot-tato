@@ -49,6 +49,18 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             else:
                 self.siege(unit, update_last_transform_time=False)
             return True
+        
+        enemy_distance = None
+        if unit.tag in BaseUnitMicro.tanks_being_retreated_to:
+            enemy_distance = BaseUnitMicro.tanks_being_retreated_to[unit.tag]
+        elif unit.tag in BaseUnitMicro.tanks_being_retreated_to_prev_frame:
+            enemy_distance = BaseUnitMicro.tanks_being_retreated_to_prev_frame[unit.tag]
+        if enemy_distance:
+            if is_sieged:
+                return False
+            if enemy_distance < 20:
+                self.siege(unit)
+                return True
 
         # siege tanks near main base early game
         natural_in_place = len(self.bot.townhalls) > 2
@@ -169,6 +181,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         has_friendly_buffer = False
         structures_under_threat = False
         closest_enemy_is_visible = False
+        if closest_distance > 25:
+            closest_enemy = None
         if closest_enemy:
             friendlies_nearest_to_enemy = self.bot.units.closest_n_units(closest_enemy.position, 5)
             has_friendly_buffer = unit not in friendlies_nearest_to_enemy

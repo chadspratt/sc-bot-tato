@@ -729,8 +729,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         current_repairers: Units = self.availiable_workers_on_job(WorkerJobType.REPAIR)
         current_repair_targets = {}
         for worker in self.bot.workers:
-            if worker.is_repairing:
+            if worker.health_percentage < 0.5:
+                self.set_as_idle(worker)
+            elif worker.is_repairing:
                 current_repair_targets[worker.orders[0].target] = worker.tag
+        current_repairers: Units = self.availiable_workers_on_job(WorkerJobType.REPAIR)
         repairer_shortage: int = round(needed_repairers) - len(current_repairers)
         logger.debug(f"missing health {missing_health} need repairers {needed_repairers} have {len(current_repairers)} shortage {repairer_shortage}")
 
@@ -769,6 +772,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             candidates: Units = Units([
                     worker for worker in self.bot.workers
                     if self.assignments_by_worker[worker.tag].job_type not in (WorkerJobType.BUILD, WorkerJobType.REPAIR)
+                    and worker.health_percentage > 0.5
                 ], bot_object=self.bot)
             if len(injured_units) == 1:
                 candidates = candidates.filter(lambda unit: unit.tag not in injured_units.tags)

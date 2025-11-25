@@ -25,8 +25,8 @@ from bottato.mixins import GeometryMixin, DebugMixin, UnitReferenceMixin, TimerM
 from bottato.enums import RushType
 
 class Bunker(BaseSquad):
-    def __init__(self, bot: BotAI):
-        super().__init__(bot=bot, name="bunker", color=(255, 255, 0))
+    def __init__(self, bot: BotAI, number: int):
+        super().__init__(bot=bot, name=f"bunker{number}", color=(255, 255, 0))
         self.structure = None
     
     def empty(self):
@@ -145,6 +145,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.enemy = enemy
         self.map = map
         self.workers = workers
+        self.squads: List[BaseSquad] = []
+        self.squads_by_unit_tag: Dict[int, BaseSquad | None] = {}
+        self.created_squad_type_counts: Dict[int, int] = {}
+        self.offense_start_supply = 200
+        self.army_ratio: float = 1.0
+        self.status_message = ""
+        self.units_by_tag: Dict[int, Unit] = {}
+        # special squads
         self.main_army = FormationSquad(
             bot=bot,
             enemy=enemy,
@@ -153,20 +161,15 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             color=self.random_color(),
             name='main'
         )
-        self.bunker = Bunker(self.bot)
-        self.bunker2 = Bunker(self.bot)
-        self.squads_by_unit_tag: Dict[int, BaseSquad | None] = {}
-        self.squads: List[BaseSquad] = []
-        self.created_squad_type_counts: Dict[int, int] = {}
-        self.offense_start_supply = 200
-        # one squad per enemy in base
-        self.counters = Counter()
-        self.countered_enemies: Dict[int, FormationSquad] = {}
-        self.army_ratio: float = 1.0
-        self.status_message = ""
+        self.bunker = Bunker(self.bot, 1)
+        self.bunker2 = Bunker(self.bot, 2)
         self.stuck_rescue = StuckRescue(self.bot, self.main_army, self.squads_by_unit_tag)
         self.harass_squad = HarassSquad(bot=self.bot, name="harass", color=(0, 255, 255))
-        self.units_by_tag: Dict[int, Unit] = {}
+        self.squads.append(self.main_army)
+        self.squads.append(self.bunker)
+        self.squads.append(self.bunker2)
+        self.squads.append(self.stuck_rescue)
+        self.squads.append(self.harass_squad)
 
     def add_to_main(self, unit: Unit) -> None:
         self.main_army.recruit(unit)
@@ -176,6 +179,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         if from_squad != to_squad:
             from_squad.transfer(unit, to_squad)
             self.squads_by_unit_tag[unit.tag] = to_squad
+            if to_squad not in self.squads:
+                self.squads.append(to_squad)
 
     def transfer_all(self, from_squad: BaseSquad, to_squad: BaseSquad) -> None:
         for unit in [unit for unit in from_squad.units]:
@@ -216,17 +221,17 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stop_timer("military enemies_in_base detection")
 
         self.start_timer("military enemies_in_base counter")
-        # clear existing squads
-        for enemy_tag in [tag for tag in self.countered_enemies.keys()]:
-            defense_squad: FormationSquad = self.countered_enemies[enemy_tag]
-            if defense_squad.units:
-                self.transfer_all(defense_squad, self.main_army)
-                self.squads.remove(defense_squad)
-            del self.countered_enemies[enemy_tag]
+        
+        # clear existing defense squads
+        for squad in list(self.squads):
+            if squad.name.startswith("defense"):
+                self.transfer_all(squad, self.main_army)
+                self.squads.remove(squad)
 
         self.army_ratio = self.calculate_army_ratio()
 
         # assign squads to counter enemies that are alone or in small groups
+        countered_enemies: Dict[int, FormationSquad] = {}
         for enemy in enemies_in_base:
             if not self.main_army.units and enemy.type_id == UnitTypeId.PROBE:
                 # cannon rush response
@@ -238,16 +243,18 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             elif defend_with_main_army:
                 break
             
-            if enemy.tag in self.countered_enemies:
+            if enemy.tag in countered_enemies:
                 continue
 
             enemy_group = [e for e in enemies_in_base
-                            if e.tag not in self.countered_enemies
+                            if e.tag not in countered_enemies
                             and (enemy.tag == e.tag or self.distance(enemy, e) < 8)]
 
-            defense_squad = FormationSquad(self.enemy, self.map, bot=self.bot, name=f"defense{len(self.countered_enemies.keys())}")
+            defense_squad = FormationSquad(self.enemy, self.map, bot=self.bot, name=f"defense{len(countered_enemies.keys())}")
 
-            desired_counters = self.counters.get_counter_list(Units(enemy_group, self.bot))
+            desired_counters = Counter.get_counter_list(Units(enemy_group, self.bot))
+            if not desired_counters:
+                continue
             for unit_type in desired_counters:
                 available_units = self.main_army.units.of_type(unit_type)
                 if available_units:
@@ -261,7 +268,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 # a full composition was assigned
                 self.squads.append(defense_squad)
                 for e in enemy_group:
-                    self.countered_enemies[e.tag] = defense_squad
+                    countered_enemies[e.tag] = defense_squad
                 await defense_squad.move(self.enemy.predicted_position[enemy.tag])
                 LogHelper.add_log(f"defending against {enemy_group} at {enemy.position} with {defense_squad}")
                 break
@@ -318,7 +325,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 target = None
                 target_position = None
                 attackable_enemies = self.enemy.enemies_in_view.filter(
-                    lambda unit: unit.can_be_attacked and unit.armor < 10 and unit.tag not in self.countered_enemies)
+                    lambda unit: unit.can_be_attacked and unit.armor < 10 and unit.tag not in countered_enemies)
                 
                 ignored_enemy_tags = set()
                 for enemy in attackable_enemies:
@@ -660,9 +667,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             if unit.tag in self.squads_by_unit_tag:
                 squad = self.squads_by_unit_tag[unit.tag]
                 # keep in sync
-                if squad and unit not in squad.units:
-                    squad.recruit(unit)
-                continue
+                if squad is None:
+                    continue
+                if squad in self.squads:
+                    if unit not in squad.units:
+                        squad.recruit(unit)
+                    continue
             if unit.tag in self.bunker.units.tags:
                 continue
             if unit.type_id in (UnitTypeId.SCV, UnitTypeId.MULE):

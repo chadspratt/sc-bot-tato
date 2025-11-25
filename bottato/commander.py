@@ -70,6 +70,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.map.update_influence_maps(self.new_damage_by_position)
 
         await self.structure_micro.execute(self.rush_detected_type)
+        self.structure_micro.reset_tanks_being_retreated_to()
 
         # XXX slow
         await self.build_order.execute(self.military.army_ratio, self.rush_detected_type, self.enemy)

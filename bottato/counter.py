@@ -42,7 +42,7 @@ class Counter():
             UnitTypeId.VIKINGFIGHTER: 4,
         },
         UnitTypeId.OBSERVER: { # 1
-            UnitTypeId.RAVEN: 0.2
+            UnitTypeId.MARINE: 3
         },
         UnitTypeId.ORACLE: { # 3
             UnitTypeId.VIKINGFIGHTER: 1.5, # 3
@@ -187,7 +187,8 @@ class Counter():
         },
     }
 
-    def get_counters(self, enemy_units: Units) -> dict[UnitTypeId, float]:
+    @staticmethod
+    def get_counters(enemy_units: Units) -> dict[UnitTypeId, float]:
         """Count the number of each unit type in the given units."""
         enemy_counts = UnitTypes.count_units_by_type(enemy_units)
 
@@ -209,6 +210,7 @@ class Counter():
     #         return Counter.counters[enemy_unit.type_id]
     #     return {}
 
-    def get_counter_list(self, enemy_units: Units) -> List[UnitTypeId]:
-        counter_units = self.get_counters(enemy_units)
+    @staticmethod
+    def get_counter_list(enemy_units: Units) -> List[UnitTypeId]:
+        counter_units = Counter.get_counters(enemy_units)
         return [unit for unit, count in counter_units.items() for _ in range(math.ceil(count))]
