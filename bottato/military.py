@@ -319,14 +319,25 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 target_position = None
                 attackable_enemies = self.enemy.enemies_in_view.filter(
                     lambda unit: unit.can_be_attacked and unit.armor < 10 and unit.tag not in self.countered_enemies)
-                if attackable_enemies:
-                    target = attackable_enemies
-                    target_position = target.closest_to(army_position).position
-                elif self.bot.enemy_structures:
-                    target = self.bot.enemy_structures
-                    target_position = target.closest_to(army_position).position
+                
+                ignored_enemy_tags = set()
+                for enemy in attackable_enemies:
+                    if enemy.tag in ignored_enemy_tags:
+                        continue
+                    enemy_group = [e for e in attackable_enemies
+                                    if e.tag not in ignored_enemy_tags
+                                    and (enemy.tag == e.tag or self.distance(enemy, e) < 8)]
+                    if len(enemy_group) >= 3:
+                        target = Units(enemy_group, self.bot)
+                        target_position = target.center
+                        break
+                    for e in enemy_group:
+                        ignored_enemy_tags.add(e.tag)
                 else:
-                    if newest_enemy_base:
+                    if self.bot.enemy_structures:
+                        target = self.bot.enemy_structures
+                        target_position = target.closest_to(army_position).position
+                    elif newest_enemy_base:
                         target = newest_enemy_base
                         target_position = newest_enemy_base
                     else:

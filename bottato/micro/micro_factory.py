@@ -10,6 +10,7 @@ from bottato.map.map import Map
 from bottato.enemy import Enemy
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.banshee_micro import BansheeMicro
+from bottato.micro.ghost_micro import GhostMicro
 from bottato.micro.hellion_micro import HellionMicro
 from bottato.micro.marauder_micro import MarauderMicro
 from bottato.micro.marine_micro import MarineMicro
@@ -23,6 +24,7 @@ from bottato.micro.viking_micro import VikingMicro
 micro_instances: Dict[UnitTypeId, BaseUnitMicro] = {}
 micro_lookup = {
     UnitTypeId.BANSHEE: BansheeMicro,
+    UnitTypeId.GHOST: GhostMicro,
     UnitTypeId.HELLION: HellionMicro,
     UnitTypeId.MARAUDER: MarauderMicro,
     UnitTypeId.MARINE: MarineMicro,

@@ -3,6 +3,7 @@ from typing import List
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
+from sc2.unit import Unit
 
 from bottato.unit_types import UnitTypes
 
@@ -13,7 +14,8 @@ class Counter():
             UnitTypeId.MARAUDER: 1
         },
         UnitTypeId.ARCHON: { # 4
-            UnitTypeId.THOR: 0.6
+            UnitTypeId.THOR: 0.6,
+            UnitTypeId.GHOST: 0.4
         },
         UnitTypeId.CARRIER: { # 6
             UnitTypeId.VIKINGFIGHTER: 3
@@ -33,7 +35,8 @@ class Counter():
             UnitTypeId.GHOST: 0.7 # 2.1
         },
         UnitTypeId.IMMORTAL: { # 4
-            UnitTypeId.MARINE: 4
+            UnitTypeId.MARINE: 3,
+            UnitTypeId.GHOST: 0.5
         },
         UnitTypeId.MOTHERSHIP: { # 8
             UnitTypeId.VIKINGFIGHTER: 4,
@@ -51,8 +54,8 @@ class Counter():
             UnitTypeId.MARINE: 2
         },
         UnitTypeId.STALKER: { # 2
-            UnitTypeId.MARAUDER: 0.25,
-            UnitTypeId.MARINE: 1.5,
+            UnitTypeId.MARAUDER: 0.7,
+            # UnitTypeId.MARINE: 1.5,
             UnitTypeId.SIEGETANK: 0.2
         },
         UnitTypeId.TEMPEST: { # 4
@@ -141,8 +144,9 @@ class Counter():
         },
         UnitTypeId.LURKERMP: { # 3
             UnitTypeId.RAVEN: 0.2,
-            UnitTypeId.SIEGETANK: 0.5,
-            UnitTypeId.BANSHEE: 0.4
+            UnitTypeId.GHOST: 0.2,
+            UnitTypeId.SIEGETANK: 0.2,
+            UnitTypeId.BANSHEE: 0.5
         },
         UnitTypeId.MUTALISK: { # 2
             UnitTypeId.LIBERATOR: 0.4,
@@ -198,6 +202,12 @@ class Counter():
                     else:
                         counter_units[counter_type] = needed
         return counter_units
+
+    # def get_counter(self, enemy_unit: Unit) -> dict[UnitTypeId, float]:
+    #     """Count the number of each unit type in the given units."""
+    #     if enemy_unit.type_id in Counter.counters:
+    #         return Counter.counters[enemy_unit.type_id]
+    #     return {}
 
     def get_counter_list(self, enemy_units: Units) -> List[UnitTypeId]:
         counter_units = self.get_counters(enemy_units)
