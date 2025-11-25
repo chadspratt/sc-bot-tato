@@ -115,6 +115,9 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             return
         if self._avoid_effects(unit, force_move=False):
             logger.debug(f"unit {unit} avoiding effects")
+        elif target.type_id in (UnitTypeId.BUNKER, UnitTypeId.PLANETARYFORTRESS):
+            # repair defensive structures regardless of risk
+            unit.repair(target)
         elif self.bot.time < 360 and target.distance_to_squared(self.bot.main_base_ramp.top_center) < 9:
             # keep ramp wall repaired early game
             unit.repair(target)
