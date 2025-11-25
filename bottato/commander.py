@@ -11,6 +11,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.game_state import EffectData
 
+from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import TimerMixin, GeometryMixin, UnitReferenceMixin
 from bottato.build_order import BuildOrder
@@ -62,39 +63,41 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(candidates[1]), 1, (255, 255, 0))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(toward_natural.towards(self.bot.game_info.map_center, 3)), 1, (0, 0, 255))
 
-        await self.map.refresh_map()
+        await self.map.refresh_map() # fast
         # check for stuck units
-        await self.detect_stuck_units(iteration)
+        await self.detect_stuck_units(iteration) # fast
 
-        # XXX very slow
-        self.map.update_influence_maps(self.new_damage_by_position)
+        self.map.update_influence_maps(self.new_damage_by_position) # fast
+        BaseUnitMicro.reset_tanks_being_retreated_to()
 
-        await self.structure_micro.execute(self.rush_detected_type)
-        self.structure_micro.reset_tanks_being_retreated_to()
+        await self.structure_micro.execute(self.rush_detected_type) # unknown speed
 
-        # XXX slow
+        # XXX slow, 17% of command time
         await self.build_order.execute(self.military.army_ratio, self.rush_detected_type, self.enemy)
 
-        await self.scout()
+        await self.scout() # unknown speed
         # self.rush_detected_type = RushType.STANDARAD if self.bot.time > 70 else RushType.NONE
 
         # XXX extremely slow
+        self.start_timer("avoid blueprints")
         blueprints = self.build_order.get_blueprints()
         for blueprint in blueprints:
             position = blueprint.get_position()
             if position:
                 self.create_fake_grenade(position)
+        self.stop_timer("avoid blueprints")
+        # very slow, 53% of command time
         await self.military.manage_squads(iteration,
                                           self.build_order.get_blueprints(),
                                           self.scouting.get_newest_enemy_base(),
                                           self.rush_detected_type)
 
-        await self.my_workers.attack_nearby_enemies()
-        self.my_workers.distribute_idle()
-        await self.my_workers.speed_mine()
+        await self.my_workers.attack_nearby_enemies() # ultra fast
+        self.my_workers.distribute_idle() # fast
+        await self.my_workers.speed_mine() # slow, 20% of command time
         # if self.bot.time > 240:
         #     logger.debug(f"minerals gathered: {self.bot.state.score.collected_minerals}")
-        self.my_workers.drop_mules()
+        self.my_workers.drop_mules() # fast
 
         self.new_damage_by_unit.clear()
         self.new_damage_by_position.clear()
@@ -146,9 +149,10 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.scouting.update_visibility()
         await self.scouting.scout(self.new_damage_by_unit, self.units_by_tag)
         self.rush_detected_type = await self.scouting.rush_detected_type
-        self.start_timer("scout")
+        self.stop_timer("scout")
 
     async def update_references(self, units_by_tag: dict[int, Unit]):
+        self.start_timer("update_references")
         self.units_by_tag = units_by_tag
         self.my_workers.update_references(units_by_tag, self.build_order.get_assigned_worker_tags())
         self.military.update_references(units_by_tag)
@@ -156,6 +160,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         await self.build_order.update_references(units_by_tag)
         await self.production.update_references(units_by_tag)
         self.stuck_units = self.get_updated_unit_references(self.stuck_units, self.bot, units_by_tag)
+        self.stop_timer("update_references")
 
     def update_started_structure(self, unit: Unit):
         self.build_order.update_started_structure(unit)
@@ -223,3 +228,4 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.military.main_army.parent_formation.print_timers("main_formation-")
         self.enemy.print_timers("enemy-")
         self.production.print_timers("production-")
+        self.structure_micro.print_timers("structure_micro-")

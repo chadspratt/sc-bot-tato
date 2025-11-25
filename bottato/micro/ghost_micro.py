@@ -150,7 +150,6 @@ class GhostMicro(BaseUnitMicro, GeometryMixin):
                 best_target = enemy
         
         if best_target:
-            # XXX not sure this works
             unit(AbilityId.EFFECT_GHOSTSNIPE, best_target)
             return True
         

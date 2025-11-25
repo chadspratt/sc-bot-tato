@@ -47,7 +47,8 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         self.enemy: Enemy = enemy
         self.map: Map = map
 
-    def reset_tanks_being_retreated_to(self):
+    @staticmethod
+    def reset_tanks_being_retreated_to():
         BaseUnitMicro.tanks_being_retreated_to_prev_frame = BaseUnitMicro.tanks_being_retreated_to
         BaseUnitMicro.tanks_being_retreated_to = {}
 
@@ -403,22 +404,28 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             UnitTypeId.EGG
     ))
     def _retreat_to_tank(self, unit: Unit, can_attack: bool) -> bool:
+        self.start_timer("_retreat_to_tank")
         if unit.health_percentage >= 0.9:
             # poke out at full health otherwise enemy might never be engaged
+            self.stop_timer("_retreat_to_tank")
             return False
         if unit.type_id in {UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED}:
+            self.stop_timer("_retreat_to_tank")
             return False
         tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))
         if not tanks:
+            self.stop_timer("_retreat_to_tank")
             return False
 
         close_enemies = self.bot.enemy_units.closer_than(15, unit).filter(
             lambda u: u.type_id not in self.retreat_to_tank_excluded_types and not u.is_flying and UnitTypes.can_attack_ground(u) and u.unit_alias != UnitTypeId.CHANGELING)
         if len(close_enemies) == 0:
+            self.stop_timer("_retreat_to_tank")
             return False
         
         closest_enemy = close_enemies.closest_to(unit)
         if closest_enemy.is_flying:
+            self.stop_timer("_retreat_to_tank")
             return False
 
         nearest_tank = tanks.closest_to(unit)
@@ -428,13 +435,16 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             unit.move(nearest_tank.position.towards(unit.position, optimal_distance)) # type: ignore
             if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
                 BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance
+            self.stop_timer("_retreat_to_tank")
             return True
         elif not can_attack and tank_to_enemy_distance < unit.distance_to(closest_enemy) + 3:
             # defend tank if it's closer to enemy than unit
             unit.move(nearest_tank.position.towards(closest_enemy.position, 3)) # type: ignore
             if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
                 BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance
+            self.stop_timer("_retreat_to_tank")
             return True
+        self.stop_timer("_retreat_to_tank")
         return False
     
     def get_circle_around_position(self, unit: Unit, threat_position: Point2, destination: Point2) -> Point2:

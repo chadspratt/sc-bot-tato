@@ -298,8 +298,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
         self.stop_timer("military army value")
 
+        self.start_timer("military manage bunkers")
         await self.manage_bunker(self.bunker, enemies_in_base, mount_offense)
         await self.manage_bunker(self.bunker2, enemies_in_base, mount_offense)
+        self.stop_timer("military manage bunkers")
 
         if mount_offense:
             if self.offense_start_supply == 200:
@@ -307,9 +309,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         else:
             self.offense_start_supply = 200
 
-        self.start_timer("military move squads")
         await self.harass(newest_enemy_base)
 
+        self.start_timer("military move squads")
         if self.main_army.units:
             self.main_army.draw_debug_box()
             self.start_timer("military move squads update formation")
@@ -321,6 +323,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 await self.main_army.move(enemies_in_base.closest_to(self.main_army.position).position)
                 self.stop_timer("military move squads defend")
             elif mount_offense:
+                self.start_timer("military move squads mount offense")
+                self.start_timer("military move squads choose attack target")
                 LogHelper.add_log(f"squad {self.main_army.name} mounting offense")
                 army_position = self.main_army.position
                 target = None
@@ -351,6 +355,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     else:
                         target = self.bot.enemy_start_locations[0]
                         target_position = target
+                self.stop_timer("military move squads choose attack target")
                 if not army_is_grouped:
                     self.start_timer("military move squads regroup")
                     LogHelper.add_log(f"squad {self.main_army} regrouping")
@@ -381,6 +386,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     if target:
                         await self.main_army.move(target_position)
                     self.stop_timer("military move squads attack")
+                self.stop_timer("military move squads mount offense")
             else:
                 self.start_timer("military move squads stage")
                 # generally a retreat due to being outnumbered
@@ -461,15 +467,18 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         bunker.empty()
 
     async def harass(self, newest_enemy_base: Point2 | None = None):
+        self.start_timer("military harass")
         if not self.harass_squad.units:
             # transfer a reaper from main army to harass squad
             reapers = self.main_army.units(UnitTypeId.REAPER)
             if reapers:
                 self.transfer(reapers[0], self.main_army, self.harass_squad)
             else:
+                self.stop_timer("military harass")
                 return
             
         await self.harass_squad.harass(newest_enemy_base)        
+        self.stop_timer("military harass")
 
     def get_squad_request(self, remaining_cap: int) -> List[UnitTypeId]:
         self.start_timer("get_squad_request")

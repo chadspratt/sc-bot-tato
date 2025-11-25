@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict, List
 from loguru import logger
 from collections import deque
 
@@ -190,12 +190,18 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         threats = Units([enemy_unit for enemy_unit in self.enemies_in_view
                          if UnitTypes.target_in_range(enemy_unit, friendly_unit, attack_range_buffer)],
                         self.bot)
+        range_limits: Dict[UnitTypeId, float] = {}
         for enemy_unit in self.recent_out_of_view():
-            enemy_attack_range = UnitTypes.range_vs_target(enemy_unit, friendly_unit)
-            if enemy_attack_range == 0.0:
+            if enemy_unit.type_id not in range_limits:
+                enemy_attack_range = UnitTypes.range_vs_target(enemy_unit, friendly_unit)
+                if enemy_attack_range == 0.0:
+                    range_limits[enemy_unit.type_id] = 0
+                else:
+                    range_limits[enemy_unit.type_id] = (enemy_attack_range + attack_range_buffer) ** 2
+            range_limit = range_limits[enemy_unit.type_id]
+            if range_limit == 0:
                 continue
-            enemy_attack_range = (enemy_attack_range + attack_range_buffer) ** 2
-            if friendly_unit.distance_to_squared(self.predicted_position[enemy_unit.tag]) <= enemy_attack_range:
+            if friendly_unit.distance_to_squared(self.predicted_position[enemy_unit.tag]) <= range_limit:
                 threats.append(enemy_unit)
         return threats
 
@@ -203,12 +209,18 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         threats = Units([enemy_unit for enemy_unit in self.enemies_in_view
                          if UnitTypes.target_in_range(enemy_unit, friendly_unit, attack_range_buffer)],
                         self.bot)
+        range_limits: Dict[UnitTypeId, float] = {}
         for enemy_unit in self.recent_out_of_view():
-            enemy_attack_range = UnitTypes.ground_range(enemy_unit)
-            if enemy_attack_range == 0.0:
+            if enemy_unit.type_id not in range_limits:
+                enemy_attack_range = UnitTypes.ground_range(enemy_unit)
+                if enemy_attack_range == 0.0:
+                    range_limits[enemy_unit.type_id] = 0
+                else:
+                    range_limits[enemy_unit.type_id] = (enemy_attack_range + attack_range_buffer) ** 2
+            range_limit = range_limits[enemy_unit.type_id]
+            if range_limit == 0.0:
                 continue
-            enemy_attack_range = (enemy_attack_range + attack_range_buffer) ** 2
-            if friendly_unit.distance_to_squared(self.predicted_position[enemy_unit.tag]) < enemy_attack_range:
+            if friendly_unit.distance_to_squared(self.predicted_position[enemy_unit.tag]) < range_limit:
                 threats.append(enemy_unit)
         return threats
 
@@ -266,9 +278,13 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
         # ravens technically can't attack
         if friendly_unit.type_id != UnitTypeId.RAVEN:
-            candidates = candidates.filter(lambda enemy: self.can_attack(friendly_unit, enemy))
+            candidates = candidates.filter(lambda enemy: UnitTypes.can_attack_target(friendly_unit, enemy))
         for enemy in candidates:
-            enemy_distance = friendly_unit.distance_to_squared(self.get_predicted_position(enemy, seconds_ahead))
+            enemy_distance: float
+            if seconds_ahead > 0:
+                enemy_distance = friendly_unit.distance_to_squared(self.get_predicted_position(enemy, seconds_ahead))
+            else:
+                enemy_distance = self.distance_squared(friendly_unit, enemy)
             if (enemy_distance < nearest_distance):
                 nearest_enemy = enemy
                 nearest_distance = enemy_distance
@@ -291,13 +307,11 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                                                 True, excluded_types)
         distance_limit = max_distance ** 2
         for enemy in candidates:
+            enemy_distance: float
             if seconds_ahead > 0:
                 enemy_distance = friendly_unit.distance_to_squared(self.get_predicted_position(enemy, seconds_ahead))
             else:
-                if enemy.age == 0:
-                    enemy_distance = friendly_unit.distance_to_squared(enemy)
-                else:
-                    enemy_distance = friendly_unit.distance_to_squared(enemy.position)
+                enemy_distance = self.distance_squared(friendly_unit, enemy)
             if enemy_distance < distance_limit:
                 return (enemy, enemy_distance ** 0.5 - enemy.radius - friendly_unit.radius)
         return (None, 9999)
@@ -350,9 +364,6 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
     def recent_out_of_view(self) -> Units:
         return self.enemies_out_of_view.filter(
             lambda enemy_unit: self.bot.time - self.last_seen[enemy_unit.tag] < Enemy.unit_probably_moved_seconds)
-
-    def can_attack(self, attacker: Unit, target: Unit) -> bool:
-        return UnitTypes.range_vs_target(attacker, target) > 0.0
     
     def get_total_count_of_type_seen(self, unit_type: UnitTypeId) -> int:
         return len(self.all_seen.get(unit_type, set()))
