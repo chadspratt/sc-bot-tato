@@ -148,7 +148,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                 if unit.type_id == UnitTypeId.SIEGETANKSIEGED and force_move:
                     unit(AbilityId.UNSIEGE_UNSIEGE)
                     return True
-            safe_distance = (effect.radius + unit.radius + 1) ** 2
+            safe_distance = (effect.radius + unit.radius + 1.5) ** 2
             for position in effect.positions:
                 if unit.position._distance_squared(position) < safe_distance:
                     effects_to_avoid.append(position)
@@ -212,8 +212,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                 self.threats[unit.tag] = UnitTypes.threats(unit, nearby_enemies)
             if self.threats[unit.tag]:
                 return False
-    
-        if self.valid_targets:
+        elif self.valid_targets:
             return self._stay_at_max_range(unit, self.valid_targets)
 
         # attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance=15)

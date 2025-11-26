@@ -164,10 +164,10 @@ class EnemyIntel:
             self.add_building(building, self.bot.time)
         
         # Detect race if not already confirmed
-        if not self.enemy_race_confirmed and self.bot.enemy_structures:
+        if not self.enemy_race_confirmed:
             if self.bot.enemy_race != Race.Random: # type: ignore
                 self.enemy_race_confirmed = self.bot.enemy_race
-            else:
+            elif self.bot.enemy_structures:
                 first_building: Unit = self.bot.enemy_structures[0]
                 self.enemy_race_confirmed = first_building.race
 
@@ -253,6 +253,9 @@ class InitialScout(BaseSquad, GeometryMixin):
             # Get the first waypoint as initial target
             target = self.waypoints[0] if self.waypoints else self.map.enemy_natural_position
             self.unit = workers.get_scout(target)
+
+        if self.intel.enemy_race_confirmed == Race.Zerg: # type: ignore
+            self.initial_scout_complete_time = 100
     
     async def move_scout(self):
         if self.bot.time > self.initial_scout_complete_time + 20:
@@ -263,7 +266,7 @@ class InitialScout(BaseSquad, GeometryMixin):
         if self.unit.health_percentage < 0.7 or self.bot.time > self.initial_scout_complete_time:
             self.waypoints = [self.map.enemy_natural_position]  # check natural before leaving
             if self.unit.distance_to(self.map.enemy_natural_position) < 9:
-                if self.intel.enemy_race_confirmed == "Terran":
+                if self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
                     # terran takes longer to start natural?
                     self.completed = self.bot.time > 150
                 else:
@@ -389,7 +392,7 @@ class Scouting(BaseSquad, DebugMixin):
         if self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
             multiple_barracks = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.BARRACKS) > 1
             # no_expansion = self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
-            if not self.initial_scout.completed and multiple_barracks > 2:
+            if multiple_barracks:
                 await self.bot.client.chat_send("multiple early barracks detected", False)
             # if no_expansion:
             #     await self.bot.client.chat_send("no expansion detected", False)
