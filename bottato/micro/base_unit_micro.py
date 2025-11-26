@@ -212,7 +212,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                 self.threats[unit.tag] = UnitTypes.threats(unit, nearby_enemies)
             if self.threats[unit.tag]:
                 return False
-        elif self.valid_targets:
+        elif not can_attack and self.valid_targets:
             return self._stay_at_max_range(unit, self.valid_targets)
 
         # attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance=15)

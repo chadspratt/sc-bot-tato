@@ -24,7 +24,7 @@ class BaseSquad(UnitReferenceMixin):
         self.name = name
         self.units: Units = Units([], bot_object=bot)
         self.staging_location: Point2 = self.bot.start_location
-        self.units_by_tag: dict[int, Unit] = {}
+        self.units_by_tag: dict[int, Unit] | None = None
 
     def draw_debug_box(self):
         return

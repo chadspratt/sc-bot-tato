@@ -242,9 +242,9 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
             new_path = self.map.get_path_points(self.front_center, formation_destination)
             
             if len(new_path) > 1 or len(self.path) <= 2:
-                # keep old path if new path not found
                 self.path = new_path
             else:
+                # keep old path if new path not found
                 self.path = new_path + self.path[1:]
             self.stop_timer("formation get path points")
             # destination should be next waypoint, but need to

@@ -267,7 +267,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     break
             else:
                 # a full composition was assigned
-                self.squads.append(defense_squad)
+
                 for e in enemy_group:
                     countered_enemies[e.tag] = defense_squad
                 await defense_squad.move(self.enemy.predicted_position[enemy.tag])

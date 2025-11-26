@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Dict, Tuple
 from loguru import logger
 
 from sc2.position import Point2, Pointlike
@@ -23,24 +24,36 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     unsieged_tags = set()
     known_tags = set()
     min_seconds_between_transform = max_siege_time + 1
-    last_transform_time: dict[int, float] = {}
-    last_force_move_time: dict[int, float] = {}
-    last_siege_attack_time: dict[int, float] = {}
-    previous_positions: dict[int, Point2] = {}
-    early_game_siege_positions: dict[int, Point2 | Pointlike] = {}
+    last_transform_time: Dict[int, float] = {}
+    last_force_move_time: Dict[int, float] = {}
+    last_siege_attack_time: Dict[int, float] = {}
+    previous_positions: Dict[int, Point2] = {}
+    early_game_siege_positions: Dict[int, Point2 | Pointlike] = {}
+    stationary_positions: Dict[int, Tuple[Point2, float]] = {}
 
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag not in self.known_tags:
             self.known_tags.add(unit.tag)
             self.unsieged_tags.add(unit.tag)
 
+        is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
+
+        # siege if stationary for 4s
+        if unit.tag not in self.stationary_positions:
+            self.stationary_positions[unit.tag] = (unit.position, self.bot.time)
+        elif unit.position.manhattan_distance(self.stationary_positions[unit.tag][0]) > 0.5:
+            self.stationary_positions[unit.tag] = (unit.position, self.bot.time)
+        elif self.bot.time - self.stationary_positions[unit.tag][1] > 2 \
+                and target.manhattan_distance(self.stationary_positions[unit.tag][0]) < 4:
+            if not is_sieged:
+                self.siege(unit)
+            return False
+
         # skip currently or recently transformed
         if unit.is_transforming:
             return False
         last_transform = self.last_transform_time.get(unit.tag, -999)
         time_since_last_transform = self.bot.time - last_transform
-
-        is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
 
         # fix miscategorizations, though it's probably just transforming
         if is_sieged != (unit.tag in self.sieged_tags):
