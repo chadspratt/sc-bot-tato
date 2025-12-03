@@ -30,10 +30,11 @@ class ScoutingLocation:
         return f"ScoutingLocation({self.position}, {self.last_seen})"
 
     def needs_fresh_scouting(self, current_time: float, skip_occupied: bool) -> bool:
-        if self.is_occupied_by_enemy and skip_occupied:
-            return False
-            # return (current_time - self.last_seen) > 10
-        return (current_time - self.last_visited) > 10
+        if self.is_occupied_by_enemy:
+            if skip_occupied:
+                return False
+            return (current_time - self.last_seen) > 20
+        return (current_time - self.last_visited) > 20
 
 class Scout(Squad, UnitReferenceMixin):
     def __init__(self, name, bot: BotAI, enemy: Enemy):
@@ -357,6 +358,7 @@ class Scouting(Squad, DebugMixin):
             self.scouting_locations.append(ScoutingLocation(expansion_location))
         nearest_locations_temp = sorted(self.scouting_locations, key=lambda location: (location.position - self.bot.start_location).length)
         enemy_nearest_locations_temp = sorted(self.scouting_locations, key=lambda location: (location.position - self.bot.enemy_start_locations[0]).length)
+        self.enemy_main = enemy_nearest_locations_temp[0]
         for i in range(len(nearest_locations_temp)):
             if not self.enemy_territory.contains_location(nearest_locations_temp[i]):
                 self.friendly_territory.add_location(nearest_locations_temp[i])
@@ -508,7 +510,7 @@ class Scouting(Squad, DebugMixin):
 
     @property
     async def rush_detected_type(self) -> RushType:
-        if not self.initial_scan_done and self.bot.time > 150:
+        if not self.initial_scan_done and 165 < self.bot.time < 210 and self.enemy_main.needs_fresh_scouting(self.bot.time, skip_occupied=False):
             for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND).ready:
                 if orbital.energy >= 50:
                     orbital(AbilityId.SCANNERSWEEP_SCAN, self.bot.enemy_start_locations[0].towards(self.bot.game_info.map_center, 10)) # type: ignore

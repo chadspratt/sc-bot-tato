@@ -231,22 +231,22 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             if closest_distance > unsiege_range and closest_structure_distance > self.sight_range - 1:
                 self.unsiege(unit)
                 return True
-        else:
-            enemy_will_be_far_enough = enemy_will_be_close_enough = False
-            if has_friendly_buffer:
-                enemy_will_be_far_enough = closest_distance > self.sieged_minimum_range + 2
-                close_siege_range = closest_distance_after_siege
-                if structures_under_threat:
-                    # enemy might be immobile while attacking structures, so only siege if in range now
+        elif closest_enemy and has_friendly_buffer or closest_structure_distance < closest_distance:
+            # enemy_will_be_far_enough = enemy_will_be_close_enough = False
+            # if has_friendly_buffer:
+            enemy_will_be_far_enough = closest_distance > self.sieged_minimum_range + 2
+            close_siege_range = closest_distance_after_siege
+            if structures_under_threat:
+                # enemy might be immobile while attacking structures, so only siege if in range now
+                close_siege_range = closest_distance
+            elif has_high_ground_advantage and closest_enemy:
+                closer_position = unit.position.towards(closest_enemy.position, 1)
+                if self.bot.get_terrain_height(closer_position) == tank_height: # type: ignore
                     close_siege_range = closest_distance
-                elif has_high_ground_advantage and closest_enemy:
-                    closer_position = unit.position.towards(closest_enemy.position, 1)
-                    if self.bot.get_terrain_height(closer_position) == tank_height: # type: ignore
-                        close_siege_range = closest_distance
-                enemy_will_be_close_enough = close_siege_range <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
-            else:
-                enemy_will_be_far_enough = closest_distance_after_siege > self.sieged_minimum_range + 0.5
-                enemy_will_be_close_enough = closest_distance_after_siege <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
+            enemy_will_be_close_enough = close_siege_range <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
+            # else:
+            #     enemy_will_be_far_enough = closest_distance_after_siege > self.sieged_minimum_range + 0.5
+            #     enemy_will_be_close_enough = closest_distance_after_siege <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
             if enemy_will_be_far_enough and enemy_will_be_close_enough:
                 self.siege(unit)
                 return True
