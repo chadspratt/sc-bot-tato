@@ -199,7 +199,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if can_attack:
             attack_target = self._get_attack_target(unit, nearby_enemies)
             if attack_target:
-                unit.attack(attack_target)
+                self._attack(unit, attack_target)
                 return True
         if force_move:
             return False
@@ -216,10 +216,6 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         elif not can_attack and self.valid_targets:
             return self._stay_at_max_range(unit, self.valid_targets)
 
-        # attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance=15)
-        # if attack_target:
-        #     unit.attack(attack_target)
-        #     return True
         return False
 
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
@@ -370,7 +366,15 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             if target_distance < target_range + 0.8:
                 if self._stay_at_max_range(unit, Units([target], bot_object=self.bot)):
                     return True
-        unit.attack(target)
+        self._attack(unit, target)
+        return True
+    
+    def _attack(self, unit: Unit, target: Unit) -> bool:
+        if target.type_id == UnitTypeId.INTERCEPTOR:
+            # interceptors can't be targeted directly
+            unit.attack(target.position)
+        else:
+            unit.attack(target)
         return True
     
     def _move_to_pathable_position(self, unit: Unit, position: Point2) -> bool:

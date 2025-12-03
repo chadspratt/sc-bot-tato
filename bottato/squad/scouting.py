@@ -508,10 +508,10 @@ class Scouting(Squad, DebugMixin):
 
     @property
     async def rush_detected_type(self) -> RushType:
-        if not self.initial_scan_done:
+        if not self.initial_scan_done and self.bot.time > 150:
             for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND).ready:
                 if orbital.energy >= 50:
-                    orbital(AbilityId.SCANNERSWEEP_SCAN, self.bot.enemy_start_locations[0].towards(self.bot.game_info.map_center, 5)) # type: ignore
+                    orbital(AbilityId.SCANNERSWEEP_SCAN, self.bot.enemy_start_locations[0].towards(self.bot.game_info.map_center, 10)) # type: ignore
                     self.initial_scan_done = True
                     break
         if self.rush_type != RushType.NONE:

@@ -311,7 +311,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         else:
             self.offense_start_supply = 200
 
-        await self.harass(newest_enemy_base)
+        await self.harass(newest_enemy_base, rush_detected_type)
 
         self.start_timer("military move squads")
         if self.main_army.units:
@@ -468,8 +468,13 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         # self.bunker.transfer_all(self.main_army)
         bunker.empty()
 
-    async def harass(self, newest_enemy_base: Point2 | None = None):
+    async def harass(self, newest_enemy_base: Point2 | None, rush_detected_type: RushType):
         self.start_timer("military harass")
+        if rush_detected_type == RushType.PROXY and self.bot.enemy_units(UnitTypeId.REAPER) and self.bot.time < 300:
+            # stop harass during proxy reaper rush
+            self.transfer_all(self.harass_squad, self.main_army)
+            self.stop_timer("military harass")
+            return
         if not self.harass_squad.units:
             # transfer a reaper from main army to harass squad
             reapers = self.main_army.units(UnitTypeId.REAPER)

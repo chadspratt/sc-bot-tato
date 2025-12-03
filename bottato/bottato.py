@@ -25,6 +25,11 @@ class BotTato(BotAI, TimerMixin):
         await self.commander.map.init()
         # await self.client.debug_fast_build()
         # await self.client.debug_minerals()
+        # await self.client.debug_create_unit(
+        #     [
+        #         [UnitTypeId.CARRIER, 1, self.game_info.map_center, 2],
+        #     ]
+        # )
         self.last_replay_save_time = 0
         logger.debug(os.getcwd())
         logger.debug(f"vision blockers: {self.game_info.vision_blockers}")

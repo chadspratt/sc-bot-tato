@@ -35,8 +35,9 @@ class Counter():
             UnitTypeId.GHOST: 0.7 # 2.1
         },
         UnitTypeId.IMMORTAL: { # 4
-            UnitTypeId.MARINE: 3,
-            UnitTypeId.GHOST: 0.5
+            UnitTypeId.BANSHEE: 0.5, # 1.5
+            UnitTypeId.MARINE: 1.5,
+            UnitTypeId.GHOST: 0.3 # 1
         },
         UnitTypeId.MOTHERSHIP: { # 8
             UnitTypeId.VIKINGFIGHTER: 4,
