@@ -6,20 +6,20 @@ from loguru import logger
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2, Point3
-from sc2.constants import UnitTypeId
+from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.build_step import BuildStep
 from bottato.mixins import GeometryMixin, TimerMixin
 from bottato.squad.formation import ParentFormation
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
-from bottato.squad.base_squad import BaseSquad
+from bottato.squad.squad import Squad
 from bottato.enemy import Enemy
 from bottato.map.map import Map
 from bottato.enums import SquadFormationType
 
 
-class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
+class FormationSquad(Squad, GeometryMixin, TimerMixin):
     def __init__(
         self,
         enemy: Enemy,
@@ -73,11 +73,11 @@ class FormationSquad(BaseSquad, GeometryMixin, TimerMixin):
             return self.units.center
         return self.bot.start_location
 
-    def transfer(self, unit: Unit, to_squad: BaseSquad):
+    def transfer(self, unit: Unit, to_squad: Squad):
         super().transfer(unit, to_squad)
         self.update_formation(reset=True)
 
-    def transfer_all(self, to_squad: BaseSquad):
+    def transfer_all(self, to_squad: Squad):
         super().transfer_all(to_squad)
         self.update_formation(reset=True)
 

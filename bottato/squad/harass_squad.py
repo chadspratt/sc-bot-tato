@@ -8,10 +8,10 @@ from bottato.unit_types import UnitTypes
 from bottato.mixins import GeometryMixin, TimerMixin
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
-from bottato.squad.base_squad import BaseSquad
+from bottato.squad.squad import Squad
 
 
-class HarassSquad(BaseSquad, GeometryMixin, TimerMixin):
+class HarassSquad(Squad, GeometryMixin, TimerMixin):
     def __init__(
         self,
         **kwargs,

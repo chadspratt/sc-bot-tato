@@ -2,11 +2,10 @@ from __future__ import annotations
 
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.ability_id import AbilityId
-from sc2.constants import UnitTypeId
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 
-from bottato.unit_types import UnitTypes
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin
 

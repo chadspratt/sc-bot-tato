@@ -15,7 +15,7 @@ from bottato.unit_types import UnitTypes
 from bottato.build_step import BuildStep
 from bottato.economy.workers import Workers
 from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
-from bottato.squad.base_squad import BaseSquad
+from bottato.squad.squad import Squad
 from bottato.squad.formation_squad import FormationSquad
 from bottato.squad.harass_squad import HarassSquad
 from bottato.micro.micro_factory import MicroFactory
@@ -24,7 +24,7 @@ from bottato.map.map import Map
 from bottato.mixins import GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin
 from bottato.enums import RushType
 
-class Bunker(BaseSquad):
+class Bunker(Squad):
     def __init__(self, bot: BotAI, number: int):
         super().__init__(bot=bot, name=f"bunker{number}", color=(255, 255, 0))
         self.structure = None
@@ -58,8 +58,8 @@ class Bunker(BaseSquad):
             except self.UnitNotFound:
                 self.structure = None
 
-class StuckRescue(BaseSquad, UnitReferenceMixin):
-    def __init__(self, bot: BotAI, main_army: FormationSquad, squads_by_unit_tag: Dict[int, BaseSquad | None]):
+class StuckRescue(Squad, UnitReferenceMixin):
+    def __init__(self, bot: BotAI, main_army: FormationSquad, squads_by_unit_tag: Dict[int, Squad | None]):
         super().__init__(bot=bot, name="stuck rescue", color=(255, 0, 255))
         self.main_army = main_army
         self.squads_by_unit_tag = squads_by_unit_tag
@@ -145,8 +145,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.enemy = enemy
         self.map = map
         self.workers = workers
-        self.squads: List[BaseSquad] = []
-        self.squads_by_unit_tag: Dict[int, BaseSquad | None] = {}
+        self.squads: List[Squad] = []
+        self.squads_by_unit_tag: Dict[int, Squad | None] = {}
         self.created_squad_type_counts: Dict[int, int] = {}
         self.offense_start_supply = 200
         self.army_ratio: float = 1.0
@@ -175,14 +175,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.main_army.recruit(unit)
         self.squads_by_unit_tag[unit.tag] = self.main_army
 
-    def transfer(self, unit: Unit, from_squad: BaseSquad, to_squad: BaseSquad) -> None:
+    def transfer(self, unit: Unit, from_squad: Squad, to_squad: Squad) -> None:
         if from_squad != to_squad:
             from_squad.transfer(unit, to_squad)
             self.squads_by_unit_tag[unit.tag] = to_squad
             if to_squad not in self.squads:
                 self.squads.append(to_squad)
 
-    def transfer_all(self, from_squad: BaseSquad, to_squad: BaseSquad) -> None:
+    def transfer_all(self, from_squad: Squad, to_squad: Squad) -> None:
         for unit in [unit for unit in from_squad.units]:
             self.transfer(unit, from_squad, to_squad)
 
@@ -191,8 +191,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stuck_rescue.rescue(stuck_units)
         self.stop_timer("rescue_stuck_units")
 
-    async def manage_squads(self, iteration: int, blueprints: List[BuildStep],
-                            newest_enemy_base: Point2 | None, rush_detected_type: RushType):
+    async def manage_squads(self, iteration: int,
+                            blueprints: List[BuildStep],
+                            newest_enemy_base: Point2 | None,
+                            rush_detected_type: RushType):
         self.start_timer("manage_squads")
         self.main_army.draw_debug_box()
 

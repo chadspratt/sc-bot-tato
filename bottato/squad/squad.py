@@ -10,7 +10,7 @@ from bottato.mixins import UnitReferenceMixin
 from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
 
 
-class BaseSquad(UnitReferenceMixin):
+class Squad(UnitReferenceMixin):
     def __init__(
         self,
         *,
@@ -61,11 +61,11 @@ class BaseSquad(UnitReferenceMixin):
                 return
         self.units.append(new_unit)
 
-    def transfer(self, unit: Unit, to_squad: BaseSquad):
+    def transfer(self, unit: Unit, to_squad: Squad):
         self.remove(unit)
         to_squad.recruit(unit)
 
-    def transfer_all(self, to_squad: BaseSquad):
+    def transfer_all(self, to_squad: Squad):
         for unit in [u for u in self.units]:
             self.transfer(unit, to_squad)
 

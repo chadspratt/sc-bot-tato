@@ -5,13 +5,13 @@ from loguru import logger
 from sc2.unit import Unit
 from sc2.position import Point2
 
-from bottato.squad.base_squad import BaseSquad
+from bottato.squad.squad import Squad
 
 
 NEARBY_THRESHOLD = 5
 
 
-class EnemySquad(BaseSquad):
+class EnemySquad(Squad):
     def __init__(
         self,
         number: int = 0,

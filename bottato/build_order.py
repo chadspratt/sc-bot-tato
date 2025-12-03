@@ -180,6 +180,8 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         if self.rush_defense_enacted:
             return
         self.rush_defense_enacted = True
+        if rush_detected_type == RushType.BATTLECRUISER:
+            self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 2, position=0, queue=self.priority_queue)
         if self.bot.enemy_race == Race.Terran: # type: ignore
             # queue one hellion in case of reaper rush
             if self.bot.enemy_units(UnitTypeId.REAPER).amount > 0:

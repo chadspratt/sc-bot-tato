@@ -5,7 +5,8 @@ from loguru import logger
 from sc2.bot_ai import BotAI
 from sc2.units import Units
 from sc2.unit import Unit
-from sc2.constants import UnitTypeId, AbilityId
+from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
 from sc2.game_data import Cost
 
@@ -711,6 +712,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         # limit to percentage of total workers
         max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 5))
         if injured_units:
+            # XXX also prioritize repairing missile turrets and PFs
             bunker = injured_units(UnitTypeId.BUNKER)
             if bunker:
                 needed_repairers = self.bot.workers.closest_n_units(bunker.first, 7).amount

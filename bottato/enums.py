@@ -49,3 +49,10 @@ class RushType(enum.Enum):
     NONE = 0
     PROXY = 1
     STANDARD = 2
+    BATTLECRUISER = 3
+
+class ScoutType(enum.Enum):
+    NONE = 0
+    VIKING = 1
+    GROUND = 2
+    ANY = 3

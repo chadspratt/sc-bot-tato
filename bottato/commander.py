@@ -76,7 +76,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         await self.build_order.execute(self.military.army_ratio, self.rush_detected_type, self.enemy)
 
         await self.scout() # unknown speed
-        # self.rush_detected_type = RushType.STANDARAD if self.bot.time > 70 else RushType.NONE
+        # self.rush_detected_type = RushType.STANDARD if self.bot.time > 70 else RushType.NONE
 
         # XXX extremely slow
         self.start_timer("avoid blueprints")

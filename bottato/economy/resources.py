@@ -5,7 +5,7 @@ from loguru import logger
 from sc2.bot_ai import BotAI
 from sc2.units import Units
 from sc2.unit import Unit
-from sc2.constants import UnitTypeId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
 

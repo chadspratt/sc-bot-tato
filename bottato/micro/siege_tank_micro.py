@@ -5,7 +5,7 @@ from loguru import logger
 from sc2.position import Point2, Pointlike
 from sc2.unit import Unit
 from sc2.ids.ability_id import AbilityId
-from sc2.constants import UnitTypeId
+from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.unit_types import UnitTypes
 from bottato.mixins import GeometryMixin

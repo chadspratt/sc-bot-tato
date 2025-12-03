@@ -3,9 +3,10 @@ from typing import List, Dict
 
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.ability_id import AbilityId
 from sc2.units import Units
+from sc2.ids.ability_id import AbilityId
+from sc2.ids.buff_id import BuffId
+from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.unit_types import UnitTypes
 from bottato.mixins import GeometryMixin
@@ -108,7 +109,8 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             for viking in vikings:
                 if not viking.is_flying:
                     continue
-                enemies = UnitTypes.in_attack_range_of(viking, self.bot.enemy_units, bonus_distance=5).filter(
+                enemy_units = self.bot.enemy_units.filter(lambda u: BuffId.NEURALPARASITE not in u.buffs)
+                enemies = UnitTypes.in_attack_range_of(viking, enemy_units, bonus_distance=5).filter(
                     lambda unit: unit.can_be_attacked)
                 for enemy in enemies:
                     if enemy.type_id not in damage_vs_type:

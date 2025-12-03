@@ -7,9 +7,10 @@ from sc2.units import Units
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.position import Point2
-from sc2.constants import UnitTypeId
-from sc2.ids.effect_id import EffectId
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.buff_id import BuffId
+from sc2.ids.effect_id import EffectId
+from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.unit_types import UnitTypes
 from bottato.map.map import Map
@@ -99,8 +100,8 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
 
         if self._avoid_effects(unit, False):
             logger.debug(f"unit {unit} avoiding effects")
-        elif await self._use_ability(unit, scouting_location, health_threshold=1.0):
-            pass
+        # elif await self._use_ability(unit, scouting_location, health_threshold=1.0):
+        #     pass
         elif await self._retreat(unit, health_threshold=0.95):
             pass
         elif unit.type_id == UnitTypeId.VIKINGFIGHTER and self._attack_something(unit, health_threshold=1.0):
@@ -184,7 +185,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if self.last_targets_update_time != self.bot.time:
             self.last_targets_update_time = self.bot.time
             self.valid_targets = self.bot.enemy_units.filter(
-                lambda u: u.can_be_attacked and u.armor < 10
+                lambda u: u.can_be_attacked and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
                 ).sorted(key=lambda u: u.health + u.shield) + self.bot.enemy_structures
             self.threats.clear()
 
@@ -430,7 +431,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         nearest_tank = tanks.closest_to(unit)
         tank_to_enemy_distance = self.distance(nearest_tank, closest_enemy)
         if tank_to_enemy_distance > 13.5 + nearest_tank.radius + closest_enemy.radius and tank_to_enemy_distance < 40:
-            optimal_distance = 13.5 - UnitTypes.ground_range(closest_enemy) - unit.radius + nearest_tank.radius - 0.5
+            optimal_distance = 13.5 - UnitTypes.ground_range(closest_enemy) - unit.radius + nearest_tank.radius - 1.0
             unit.move(nearest_tank.position.towards(unit.position, optimal_distance)) # type: ignore
             if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
                 BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance

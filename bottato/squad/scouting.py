@@ -4,31 +4,38 @@ from loguru import logger
 from sc2.bot_ai import BotAI
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2.constants import UnitTypeId
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.ability_id import AbilityId
 from sc2.data import race_townhalls
 from sc2.data import Race
 
 from bottato.map.map import Map
 from bottato.military import Military
-from bottato.squad.base_squad import BaseSquad
+from bottato.squad.squad import Squad
 from bottato.enemy import Enemy
 from bottato.mixins import DebugMixin, GeometryMixin, UnitReferenceMixin
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.economy.workers import Workers
-from bottato.enums import RushType
+from bottato.enums import RushType, ScoutType
 
 class ScoutingLocation:
     def __init__(self, position: Point2):
         self.position: Point2 = position
         self.last_seen: float = 0
+        self.last_visited: float = 0
         self.is_occupied_by_enemy: bool = False
 
     def __repr__(self) -> str:
         return f"ScoutingLocation({self.position}, {self.last_seen})"
 
+    def needs_fresh_scouting(self, current_time: float, skip_occupied: bool) -> bool:
+        if self.is_occupied_by_enemy and skip_occupied:
+            return False
+            # return (current_time - self.last_seen) > 10
+        return (current_time - self.last_visited) > 10
 
-class Scout(BaseSquad, UnitReferenceMixin):
+class Scout(Squad, UnitReferenceMixin):
     def __init__(self, name, bot: BotAI, enemy: Enemy):
         self.name: str = name
         self.bot: BotAI = bot
@@ -56,7 +63,7 @@ class Scout(BaseSquad, UnitReferenceMixin):
     def needs(self, unit: Unit) -> bool:
         return unit.type_id in (UnitTypeId.SCV, UnitTypeId.MARINE, UnitTypeId.REAPER)
 
-    def update_scout(self, military: Military, units_by_tag: dict[int, Unit], use_early_air_scout: bool = False):
+    def update_scout(self, military: Military, units_by_tag: dict[int, Unit], scout_type: ScoutType = ScoutType.NONE):
         """Update unit reference for this scout"""
         if self.unit:
             try:
@@ -65,14 +72,16 @@ class Scout(BaseSquad, UnitReferenceMixin):
             except self.UnitNotFound:
                 self.unit = None
                 pass
-        elif self.bot.time < 500 and use_early_air_scout:
+        elif self.bot.time < 500 and scout_type == ScoutType.VIKING:
             # use initial viking to scout enemy army composition
             for unit in military.main_army.units:
                 if unit.type_id == UnitTypeId.VIKINGFIGHTER:
                     military.transfer(unit, military.main_army, self)
                     self.unit = unit
                     break
-        elif self.bot.is_visible(self.bot.enemy_start_locations[0]) and not self.bot.enemy_structures.closer_than(10, self.bot.enemy_start_locations[0]):
+        elif scout_type == ScoutType.ANY or (
+                self.bot.is_visible(self.bot.enemy_start_locations[0]) and \
+                not self.bot.enemy_structures.closer_than(10, self.bot.enemy_start_locations[0])):
             # start territory scouting if enemy main is empty
             for unit in military.main_army.units:
                 if self.needs(unit):
@@ -94,7 +103,27 @@ class Scout(BaseSquad, UnitReferenceMixin):
         if not self.unit:
             return
         assignment: ScoutingLocation = self.scouting_locations[self.scouting_locations_index]
+
+        micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit)
+
         logger.debug(f"scout {self.unit} previous assignment: {assignment}")
+        if self.unit.type_id == UnitTypeId.VIKINGFIGHTER:
+            enemy_bcs = self.bot.enemy_units.of_type(UnitTypeId.BATTLECRUISER)
+            if enemy_bcs:
+                await micro.scout(self.unit, enemy_bcs.closest_to(self.unit).position)
+                return
+            # land to attack workers, but too high risk
+            # nearby_enemies = self.enemy.threats_to(self.unit, 9)
+            # if nearby_enemies:
+            #     if not self.unit.is_flying:
+            #         self.unit(AbilityId.MORPH_VIKINGFIGHTERMODE)
+            # else:
+            #     nearby_workers = self.bot.enemy_units.filter(
+            #         lambda u: u.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE)
+            #         and u.distance_to(self.unit) < 15) # type: ignore
+            #     if nearby_workers:
+            #         await micro.move(self.unit, nearby_workers.closest_to(self.unit).position)
+            #         return
 
         distance_to_next_location = self.unit.distance_to(assignment.position)
         if distance_to_next_location < self.closest_distance_to_next_location:
@@ -103,8 +132,7 @@ class Scout(BaseSquad, UnitReferenceMixin):
         # mark location as visited if can't get closer for 5 seconds
         if self.closest_distance_to_next_location < 30 and self.bot.time - self.time_of_closest_distance > 5:
             assignment.last_seen = self.bot.time
-
-        micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit)
+            assignment.last_visited = self.bot.time
 
         # move to next location if taking damage
         next_index = self.scouting_locations_index
@@ -115,7 +143,8 @@ class Scout(BaseSquad, UnitReferenceMixin):
 
         # goal of viking scout is to see the army, not find unknown bases
         skip_occupied = self.unit.type_id != UnitTypeId.VIKINGFIGHTER
-        while assignment.last_seen and self.bot.time - assignment.last_seen < 10 or assignment.is_occupied_by_enemy and skip_occupied:
+        while not assignment.needs_fresh_scouting(self.bot.time, skip_occupied):
+        # while assignment.last_seen and self.bot.time - assignment.last_seen < 10 or assignment.is_occupied_by_enemy and skip_occupied:
             next_index = (next_index + 1) % len(self.scouting_locations)
             if next_index == self.scouting_locations_index:
                 # full cycle, none need scouting
@@ -171,7 +200,7 @@ class EnemyIntel:
                 first_building: Unit = self.bot.enemy_structures[0]
                 self.enemy_race_confirmed = first_building.race
 
-class InitialScout(BaseSquad, GeometryMixin):
+class InitialScout(Squad, GeometryMixin):
     def __init__(self, bot: BotAI, map: Map, enemy: Enemy, intel: EnemyIntel):
         super().__init__(bot=bot, name="initial_scout")
         self.bot = bot
@@ -300,7 +329,7 @@ class InitialScout(BaseSquad, GeometryMixin):
             # micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit)
             # await micro.scout(self.unit, self.waypoints[0])
 
-class Scouting(BaseSquad, DebugMixin):
+class Scouting(Squad, DebugMixin):
     def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers, military: Military):
         super().__init__(bot=bot, color=self.random_color(), name="scouting")
         self.bot = bot
@@ -309,6 +338,7 @@ class Scouting(BaseSquad, DebugMixin):
         self.workers = workers
         self.military = military
         self.rush_type: RushType = RushType.NONE
+        self.initial_scan_done: bool = False
 
         self.intel = EnemyIntel(self.bot)
         self.friendly_territory = Scout("friendly territory", self.bot, enemy)
@@ -367,6 +397,12 @@ class Scouting(BaseSquad, DebugMixin):
                             if build_time > max_time:
                                 max_time = build_time
                                 self.newest_enemy_base = position
+            # actually visit the spot to get vision on surroundings
+            
+            if self.friendly_territory.unit and self.friendly_territory.unit.position.manhattan_distance(location.position) < 1:
+                location.last_visited = self.bot.time
+            elif self.enemy_territory.unit and self.enemy_territory.unit.position.manhattan_distance(location.position) < 1:
+                location.last_visited = self.bot.time
 
     async def detect_rush(self) -> RushType:
         if self.proxy_detected():
@@ -390,8 +426,12 @@ class Scouting(BaseSquad, DebugMixin):
             if early_pool or no_gas or no_expansion or zergling_rush:
                 return RushType.STANDARD
         if self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
-            multiple_barracks = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.BARRACKS) > 1
             # no_expansion = self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
+            battlecruiser = self.intel.number_seen(UnitTypeId.FUSIONCORE) > 0 and self.bot.time < 300
+            if battlecruiser:
+                await self.bot.client.chat_send("battlecruiser rush detected", False)
+                return RushType.BATTLECRUISER
+            multiple_barracks = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.BARRACKS) > 1
             if multiple_barracks:
                 await self.bot.client.chat_send("multiple early barracks detected", False)
             # if no_expansion:
@@ -420,6 +460,8 @@ class Scouting(BaseSquad, DebugMixin):
             # are zerg proxy a thing?
             return False
         if self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
+            if self.bot.enemy_units(UnitTypeId.BATTLECRUISER) and self.intel.number_seen(UnitTypeId.STARPORT) == 0:
+                return True
             return self.initial_scout.main_scouted and self.intel.number_seen(UnitTypeId.BARRACKS) == 0
         return self.initial_scout.main_scouted and self.intel.number_seen(UnitTypeId.GATEWAY) == 0
 
@@ -449,8 +491,9 @@ class Scouting(BaseSquad, DebugMixin):
 
     async def scout(self, new_damage_taken: dict[int, float], units_by_tag: dict[int, Unit]):
         # Update scout unit references
-        self.friendly_territory.update_scout(self.military, units_by_tag)
-        self.enemy_territory.update_scout(self.military, units_by_tag, use_early_air_scout=True)
+        friendly_scout_type = ScoutType.ANY if self.rush_detected_type == RushType.PROXY else ScoutType.NONE
+        self.friendly_territory.update_scout(self.military, units_by_tag, friendly_scout_type)
+        self.enemy_territory.update_scout(self.military, units_by_tag, ScoutType.VIKING)
         if self.rush_type != RushType.NONE:
             self.initial_scout.completed = True
         self.initial_scout.update_scout(self.workers, units_by_tag)
@@ -465,6 +508,12 @@ class Scouting(BaseSquad, DebugMixin):
 
     @property
     async def rush_detected_type(self) -> RushType:
+        if not self.initial_scan_done:
+            for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND).ready:
+                if orbital.energy >= 50:
+                    orbital(AbilityId.SCANNERSWEEP_SCAN, self.bot.enemy_start_locations[0].towards(self.bot.game_info.map_center, 5)) # type: ignore
+                    self.initial_scan_done = True
+                    break
         if self.rush_type != RushType.NONE:
             return self.rush_type
         self.rush_type = await self.detect_rush()
