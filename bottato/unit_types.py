@@ -411,6 +411,21 @@ class UnitTypes(GeometryMixin):
             return 0.0
         
     @staticmethod
+    def dps(attacker: Unit, target: Unit) -> float:
+        """
+        Get the DPS of the attacker unit against the target unit.
+        """
+        if attacker.type_id == UnitTypeId.VOIDRAY:
+            return 16.8
+        if attacker.type_id == UnitTypeId.ORACLE:
+            return 24.4
+        if attacker.type_id == UnitTypeId.BATTLECRUISER:
+            return 49.8
+        if attacker.type_id == UnitTypeId.SENTRY:
+            return 8.4
+        return attacker.calculate_dps_vs_target(target)
+        
+    @staticmethod
     def target_in_range(attacker: Unit, target: Unit, bonus_distance: float = 0.0) -> bool:
         """
         Check if a target unit is in range of the given unit, considering both air and ground attacks.

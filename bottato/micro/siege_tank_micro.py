@@ -191,20 +191,22 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             # try to actually get in range during cooldown
             closest_distance_after_siege = closest_distance
 
-        has_friendly_buffer = False
+        # has_friendly_buffer = False
+        friendly_buffer_count = 0
         structures_under_threat = False
         closest_enemy_is_visible = False
         if closest_distance > 25:
             closest_enemy = None
         if closest_enemy:
-            friendlies_nearest_to_enemy = self.bot.units.closest_n_units(closest_enemy.position, 5)
-            has_friendly_buffer = unit not in friendlies_nearest_to_enemy
+            friendlies_nearer_to_enemy = self.units_closer_than(unit, self.bot.units, closest_distance, self.bot)
+            friendly_buffer_count = len(friendlies_nearer_to_enemy)
+            # has_friendly_buffer = len(friendlies_nearer_to_enemy) >= 5
             if closest_enemy.age == 0:
                 closest_enemy_is_visible = True
                 structures_under_threat = UnitTypes.in_attack_range_of(closest_enemy, self.bot.structures)
 
         if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
-            if is_sieged and (closest_distance > self.sieged_range - 2 or not closest_enemy_is_visible) and not has_friendly_buffer:
+            if is_sieged and (closest_distance > self.sieged_range - 2 or not closest_enemy_is_visible) and friendly_buffer_count < 5:
                 self.unsiege(unit)
                 return True
             else:
@@ -215,13 +217,16 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         tank_height = self.bot.get_terrain_height(unit.position)
         enemy_height = self.bot.get_terrain_height(closest_enemy.position) if closest_enemy else tank_height
         has_high_ground_advantage = tank_height > enemy_height
+        siege_aggressively = friendly_buffer_count >= 15 and len(self.unsieged_tags) < len(self.sieged_tags) - 2
         if is_sieged:
             # all_sieged = len(self.unsieged_tags) == 0
             # keep sieged if enemy might get lured closer, decrease extra buffer over time
             # if reached_destination:
             #     return False
             unsiege_range = self.sieged_range
-            if has_friendly_buffer:
+            if siege_aggressively:
+                unsiege_range = self.sieged_range
+            elif friendly_buffer_count >= 5:
                 unsiege_range = max(25 - min(time_since_last_transform, time_since_last_siege_attack), self.sieged_range)
             if has_high_ground_advantage and closest_enemy:
                 closer_position = unit.position.towards(closest_enemy.position, 1)
@@ -231,12 +236,12 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             if closest_distance > unsiege_range and closest_structure_distance > self.sight_range - 1:
                 self.unsiege(unit)
                 return True
-        elif closest_enemy and has_friendly_buffer or closest_structure_distance < closest_distance:
+        elif closest_enemy and friendly_buffer_count >= 5 or closest_structure_distance < closest_distance:
             # enemy_will_be_far_enough = enemy_will_be_close_enough = False
             # if has_friendly_buffer:
             enemy_will_be_far_enough = closest_distance > self.sieged_minimum_range + 2
             close_siege_range = closest_distance_after_siege
-            if structures_under_threat:
+            if structures_under_threat or siege_aggressively:
                 # enemy might be immobile while attacking structures, so only siege if in range now
                 close_siege_range = closest_distance
             elif has_high_ground_advantage and closest_enemy:

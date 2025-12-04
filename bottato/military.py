@@ -149,6 +149,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.squads_by_unit_tag: Dict[int, Squad | None] = {}
         self.created_squad_type_counts: Dict[int, int] = {}
         self.offense_start_supply = 200
+        self.offense_started = False
         self.army_ratio: float = 1.0
         self.status_message = ""
         self.units_by_tag: Dict[int, Unit] = {}
@@ -283,7 +284,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         # main_army_value = self.get_army_value(self.main_army.units)
         # army_is_big_enough = main_army_value > enemy_value * 1.1 or self.bot.supply_used > 160
         # self.army_ratio = main_army_value / max(enemy_value, 1)
-        army_is_big_enough = self.army_ratio > 1.3 or self.bot.supply_used > 160
+        army_is_big_enough = self.army_ratio > 1.3 or self.bot.supply_used > 160 or self.offense_started == True and self.army_ratio > 1.0
         army_is_grouped = self.main_army.is_grouped()
         mount_offense = army_is_big_enough and not defend_with_main_army
 
@@ -297,6 +298,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 mount_offense = False
         if not mount_offense and enemies_in_base and self.army_ratio > 1.0:
             defend_with_main_army = True
+
+        self.offense_started = mount_offense
+
         self.status_message = f"army ratio {self.army_ratio:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
         self.stop_timer("military army value")
@@ -305,12 +309,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         await self.manage_bunker(self.bunker, enemies_in_base, mount_offense)
         await self.manage_bunker(self.bunker2, enemies_in_base, mount_offense)
         self.stop_timer("military manage bunkers")
-
-        if mount_offense:
-            if self.offense_start_supply == 200:
-                self.offense_start_supply = self.bot.supply_army
-        else:
-            self.offense_start_supply = 200
 
         await self.harass(newest_enemy_base, rush_detected_type)
 
@@ -571,7 +569,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             for target in targets:
                 if target.type_id not in self.damage_by_type[attacker.type_id]:
                     if UnitTypes.can_attack_target(attacker, target):
-                        dps = attacker.calculate_dps_vs_target(target)
+                        dps = UnitTypes.dps(attacker, target)
                     else:
                         dps = 0.0
                     self.damage_by_type[attacker.type_id][target.type_id] = dps
