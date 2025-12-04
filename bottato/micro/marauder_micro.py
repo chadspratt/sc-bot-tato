@@ -41,6 +41,8 @@ class MarauderMicro(BaseUnitMicro, GeometryMixin):
         if closest_distance <= self.attack_range:
             if self._retreat_to_tank(unit, can_attack):
                 return True
+            if closest_enemy and closest_enemy.age > 0:
+                return False
             unit(AbilityId.EFFECT_STIM_MARINE)
             self.last_stim_time[unit.tag] = self.bot.time
             return True
