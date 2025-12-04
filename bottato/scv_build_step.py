@@ -261,7 +261,7 @@ class SCVBuildStep(BuildStep):
                 if not turrets or self.closest_distance_squared(base, turrets) > 100: # 10 squared
                     new_build_position = await self.bot.find_placement(
                         unit_type_id,
-                        near=base.position.towards(self.bot.game_info.map_center, distance=4), # type: ignore
+                        near=base.position.towards(self.bot.game_info.map_center, distance=-4), # type: ignore
                         placement_step=2,
                     )
                     break

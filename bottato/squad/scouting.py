@@ -46,6 +46,7 @@ class Scout(Squad, UnitReferenceMixin):
         self.scouting_locations_index: int = 0
         self.closest_distance_to_next_location = 9999
         self.time_of_closest_distance = 9999
+        self.complete = False
         super().__init__(bot=bot, name="scout")
 
     def __repr__(self):
@@ -64,9 +65,19 @@ class Scout(Squad, UnitReferenceMixin):
     def needs(self, unit: Unit) -> bool:
         return unit.type_id in (UnitTypeId.SCV, UnitTypeId.MARINE, UnitTypeId.REAPER)
 
-    def update_scout(self, military: Military, units_by_tag: dict[int, Unit], scout_type: ScoutType = ScoutType.NONE):
+    def update_scout(self, military: Military, workers: Workers, units_by_tag: dict[int, Unit], scout_type: ScoutType = ScoutType.NONE):
         """Update unit reference for this scout"""
         if self.unit:
+            if scout_type == ScoutType.ANY:
+                for location in self.scouting_locations:
+                    if location.last_seen == 0:
+                        break
+                else:
+                    # all locations have been seen, release scout
+                    workers.set_as_idle(self.unit)
+                    self.unit = None
+                    self.complete = True
+                    return
             try:
                 self.unit = self.get_updated_unit_reference(self.unit, self.bot, units_by_tag)
                 logger.debug(f"{self.name} scout {self.unit}")
@@ -80,9 +91,10 @@ class Scout(Squad, UnitReferenceMixin):
                     military.transfer(unit, military.main_army, self)
                     self.unit = unit
                     break
-        elif scout_type == ScoutType.ANY or (
-                self.bot.is_visible(self.bot.enemy_start_locations[0]) and \
-                not self.bot.enemy_structures.closer_than(10, self.bot.enemy_start_locations[0])):
+        elif scout_type == ScoutType.ANY and not self.complete:
+            self.unit = workers.get_scout(self.bot.game_info.map_center)
+        elif self.bot.is_visible(self.bot.enemy_start_locations[0]) and \
+                not self.bot.enemy_structures.closer_than(10, self.bot.enemy_start_locations[0]):
             # start territory scouting if enemy main is empty
             for unit in military.main_army.units:
                 if self.needs(unit):
@@ -355,7 +367,7 @@ class Scouting(Squad, DebugMixin):
         # assign all expansions locations to either friendly or enemy territory
         self.scouting_locations: List[ScoutingLocation] = list()
         for expansion_location in self.bot.expansion_locations_list:
-            self.scouting_locations.append(ScoutingLocation(expansion_location))
+            self.scouting_locations.append(ScoutingLocation(expansion_location.towards(self.bot.game_info.map_center, -5))) # type: ignore
         nearest_locations_temp = sorted(self.scouting_locations, key=lambda location: (location.position - self.bot.start_location).length)
         enemy_nearest_locations_temp = sorted(self.scouting_locations, key=lambda location: (location.position - self.bot.enemy_start_locations[0]).length)
         self.enemy_main = enemy_nearest_locations_temp[0]
@@ -493,9 +505,9 @@ class Scouting(Squad, DebugMixin):
 
     async def scout(self, new_damage_taken: dict[int, float], units_by_tag: dict[int, Unit]):
         # Update scout unit references
-        friendly_scout_type = ScoutType.ANY if self.rush_detected_type == RushType.PROXY else ScoutType.NONE
-        self.friendly_territory.update_scout(self.military, units_by_tag, friendly_scout_type)
-        self.enemy_territory.update_scout(self.military, units_by_tag, ScoutType.VIKING)
+        friendly_scout_type = ScoutType.ANY if self.rush_type == RushType.PROXY else ScoutType.NONE
+        self.friendly_territory.update_scout(self.military, self.workers, units_by_tag, friendly_scout_type)
+        self.enemy_territory.update_scout(self.military, self.workers, units_by_tag, ScoutType.VIKING)
         if self.rush_type != RushType.NONE:
             self.initial_scout.completed = True
         self.initial_scout.update_scout(self.workers, units_by_tag)
