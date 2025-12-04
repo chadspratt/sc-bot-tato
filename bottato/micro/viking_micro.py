@@ -24,6 +24,10 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             # scout mode, don't land
             return False
         if unit.is_flying:
+            viking_count = self.bot.units.of_type(UnitTypeId.VIKINGFIGHTER).amount
+            if viking_count < 4:
+                # don't land if we have few vikings
+                return False
             nearby_enemies = self.bot.enemy_units.closer_than(25, unit) \
                 + self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES).closer_than(25, unit)
             if unit.health_percentage >= health_threshold:

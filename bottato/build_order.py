@@ -24,7 +24,7 @@ from bottato.special_locations import SpecialLocations, SpecialLocation
 from bottato.map.map import Map
 from bottato.build_starts import BuildStarts
 from bottato.counter import Counter
-from bottato.enums import RushType, BuildResponseCode, WorkerJobType
+from bottato.enums import RushType, BuildResponseCode, WorkerJobType, BuildOrderChange
 
 
 class BuildOrder(TimerMixin, UnitReferenceMixin):
@@ -51,16 +51,18 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.workers: Workers = workers
         self.production: Production = production
         self.map: Map = map
+        self.counter = Counter()
+        self.unit_types = UnitTypes()
+        self.upgrades = Upgrades(bot)
+        self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
+        self.changes_enacted: List[BuildOrderChange] = []
+
         for unit_type in BuildStarts.get_build_start(build_name):
             step = self.create_build_step(unit_type, None)
             self.static_queue.append(step)
-        self.upgrades = Upgrades(bot)
-        self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
         # self.build_a_worker: BuildStep = None
         # self.supply_build_step: BuildStep = None
         # self.queue_unit_type(UnitTypeId.BATTLECRUISER)
-        self.counter = Counter()
-        self.unit_types = UnitTypes()
 
     async def update_references(self, units_by_tag: dict[int, Unit]) -> None:
         self.start_timer("update_references")
@@ -177,14 +179,13 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         if self.bot.time > 300 or self.bot.townhalls.amount > 2:
             # not a rush
             return
-        if self.rush_defense_enacted:
-            return
-        self.rush_defense_enacted = True
-        if rush_detected_type == RushType.BATTLECRUISER:
+        if BuildOrderChange.BATTLECRUISER not in self.changes_enacted and rush_detected_type == RushType.BATTLECRUISER:
+            self.changes_enacted.append(BuildOrderChange.BATTLECRUISER)
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 2, position=0, queue=self.priority_queue)
-        if self.bot.enemy_race == Race.Terran: # type: ignore
-            # queue one hellion in case of reaper rush
-            if self.bot.enemy_units(UnitTypeId.REAPER).amount > 0:
+        if BuildOrderChange.REAPER not in self.changes_enacted:
+            if self.bot.enemy_race == Race.Terran and self.bot.enemy_units(UnitTypeId.REAPER): # type: ignore
+                self.changes_enacted.append(BuildOrderChange.REAPER)
+                # queue one hellion in case of reaper rush
                 self.add_to_build_queue([UnitTypeId.HELLION], position=0, queue=self.priority_queue)
                 # swap reactor for techlab (faster, allows marauder)
                 for step in self.static_queue:
@@ -192,23 +193,30 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                         self.static_queue.remove(step)
                         self.add_to_build_queue([UnitTypeId.BARRACKSTECHLAB, UnitTypeId.MARAUDER], position=0, queue=self.priority_queue)
                         break
-        # prioritize bunker and first tank
-        self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
-        if rush_detected_type == RushType.PROXY:
-            # proxy will hit earlier, really need bunker
-            self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue)
-        self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue)
-        self.move_between_queues(UnitTypeId.BARRACKSREACTOR, self.static_queue, self.priority_queue)
-        self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
-        self.move_between_queues(UnitTypeId.FACTORYTECHLAB, self.static_queue, self.priority_queue)
-        self.move_between_queues(UnitTypeId.SIEGETANK, self.static_queue, self.priority_queue)
-        if self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount < 2:
-            # make sure to build second depot before bunker
-            self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
-        if rush_detected_type == RushType.STANDARD:
-            if self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue):
-                # add a second bunker for low ground
-                self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
+        if BuildOrderChange.RUSH not in self.changes_enacted and rush_detected_type != RushType.BATTLECRUISER:
+            self.changes_enacted.append(BuildOrderChange.RUSH)
+            # prioritize bunker and first tank
+            self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
+            if rush_detected_type == RushType.PROXY:
+                if self.bot.structures([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED]).amount < 2:
+                    # make sure to build second depot before bunker
+                    self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
+                # proxy will hit earlier, really need bunker
+                if self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue):
+                    # add a second bunker for low ground
+                    self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
+            self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.BARRACKSREACTOR, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.FACTORYTECHLAB, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.SIEGETANK, self.static_queue, self.priority_queue)
+            if rush_detected_type == RushType.STANDARD:
+                if self.bot.structures([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED]).amount < 2:
+                    # make sure to build second depot before bunker
+                    self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
+                if self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue):
+                    # add a second bunker for low ground
+                    self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
     
     def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep]) -> bool:
         for step in from_queue:

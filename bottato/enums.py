@@ -56,3 +56,8 @@ class ScoutType(enum.Enum):
     VIKING = 1
     GROUND = 2
     ANY = 3
+
+class BuildOrderChange(enum.Enum):
+    RUSH = 0
+    BATTLECRUISER = 1
+    REAPER = 2

@@ -18,6 +18,8 @@ from bottato.economy.workers import Workers
 from bottato.economy.production import Production
 from bottato.special_locations import SpecialLocations
 from bottato.tech_tree import TECH_TREE
+from bottato.micro.micro_factory import MicroFactory
+from bottato.micro.base_unit_micro import BaseUnitMicro
 
 class SCVBuildStep(BuildStep):
     unit_type_id: UnitTypeId
@@ -393,8 +395,12 @@ class SCVBuildStep(BuildStep):
             )
             if not self.check_idle:
                 return False
+            
+            micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
+            if await micro._retreat(self.unit_in_charge, 0.8):
+                interrupted = True
 
-            if not self.unit_in_charge.is_constructing_scv:
+            if not interrupted and not self.unit_in_charge.is_constructing_scv:
                 if self.unit_being_built:
                     self.unit_in_charge.smart(self.unit_being_built)
                 else:
