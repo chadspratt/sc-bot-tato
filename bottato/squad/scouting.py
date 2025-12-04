@@ -172,7 +172,7 @@ class Scout(Squad, UnitReferenceMixin):
 class EnemyIntel:
     def __init__(self, bot: BotAI):
         self.bot = bot
-        self.buildings_seen: dict[UnitTypeId, List[Point2]] = {}
+        self.types_seen: dict[UnitTypeId, List[Point2]] = {}
         self.worker_count: int = 0
         self.military_count: int = 0
         self.natural_expansion_time: float | None = None
@@ -180,30 +180,33 @@ class EnemyIntel:
         self.first_building_time: dict[UnitTypeId, float | None] = {}
         self.enemy_race_confirmed: Race | None = None
 
-    def add_building(self, building: Unit, time: float):
-        if building.type_id not in self.buildings_seen:
-            self.buildings_seen[building.type_id] = []
-        if building.position not in self.buildings_seen[building.type_id]:
-            self.buildings_seen[building.type_id].append(building.position)
+    def add_type(self, unit: Unit, time: float):
+        if unit.is_structure:
+            if unit.type_id not in self.types_seen:
+                self.types_seen[unit.type_id] = []
+            if unit.position not in self.types_seen[unit.type_id]:
+                self.types_seen[unit.type_id].append(unit.position)
+        elif unit.type_id not in self.types_seen:
+            self.types_seen[unit.type_id] = [unit.position]
         
-        if building.type_id not in self.first_building_time:
-            start_time = time - building.build_progress * building._type_data.cost.time / 22.4 # type: ignore
-            self.first_building_time[building.type_id] = start_time
+        if unit.type_id not in self.first_building_time:
+            start_time = time - unit.build_progress * unit._type_data.cost.time / 22.4 # type: ignore
+            self.first_building_time[unit.type_id] = start_time
         
     def get_summary(self) -> str:
         return (f"Intel: Race={self.enemy_race_confirmed}, "
-                f"Buildings={dict(self.buildings_seen)}, "
+                f"Buildings={dict(self.types_seen)}, "
                 # f"Units={dict(self.units_seen)}, "
                 f"Workers={self.worker_count}, Military={self.military_count}, ")
     
     def number_seen(self, unit_type: UnitTypeId) -> int:
-        return len(self.buildings_seen.get(unit_type, []))
+        return len(self.types_seen.get(unit_type, []))
 
     def catalog_visible_units(self):
         """Catalog all visible enemy units and buildings"""
         # Count buildings by type
-        for building in self.bot.enemy_structures:
-            self.add_building(building, self.bot.time)
+        for unit in self.bot.enemy_structures + self.bot.enemy_units:
+            self.add_type(unit, self.bot.time)
         
         # Detect race if not already confirmed
         if not self.enemy_race_confirmed:
@@ -441,7 +444,9 @@ class Scouting(Squad, DebugMixin):
                 return RushType.STANDARD
         if self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
             # no_expansion = self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
-            battlecruiser = self.intel.number_seen(UnitTypeId.FUSIONCORE) > 0 and self.bot.time < 300
+            battlecruiser = self.bot.time < 360 and \
+                (self.intel.number_seen(UnitTypeId.FUSIONCORE) > 0 or
+                 self.intel.number_seen(UnitTypeId.BATTLECRUISER) > 0)
             if battlecruiser:
                 await self.bot.client.chat_send("battlecruiser rush detected", False)
                 return RushType.BATTLECRUISER
@@ -505,7 +510,7 @@ class Scouting(Squad, DebugMixin):
 
     async def scout(self, new_damage_taken: dict[int, float], units_by_tag: dict[int, Unit]):
         # Update scout unit references
-        friendly_scout_type = ScoutType.ANY if self.rush_type == RushType.PROXY else ScoutType.NONE
+        friendly_scout_type = ScoutType.ANY if self.rush_type == RushType.PROXY or self.bot.time > 120 else ScoutType.NONE
         self.friendly_territory.update_scout(self.military, self.workers, units_by_tag, friendly_scout_type)
         self.enemy_territory.update_scout(self.military, self.workers, units_by_tag, ScoutType.VIKING)
         if self.rush_type != RushType.NONE:
@@ -528,7 +533,7 @@ class Scouting(Squad, DebugMixin):
                 if self.enemy_main.needs_fresh_scouting(self.bot.time, skip_occupied=False):
                     for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND).ready:
                         if orbital.energy >= 50:
-                            orbital(AbilityId.SCANNERSWEEP_SCAN, self.bot.enemy_start_locations[0].towards(self.bot.game_info.map_center, 10)) # type: ignore
+                            orbital(AbilityId.SCANNERSWEEP_SCAN, self.bot.enemy_start_locations[0])
                             self.initial_scan_done = True
                             break
                 
