@@ -61,7 +61,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.max_workers = 75
         self.health_per_repairer = 50
         self.max_repairers = 10
-        self.mule_energy_threshold = 50
         for worker in self.bot.workers:
             self.add_worker(worker)
         self.aged_mules: Units = Units([], bot)
@@ -72,8 +71,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.start_timer("update_references")
         self.minerals.update_references(units_by_tag)
         self.vespene.update_references(units_by_tag)
-
-        self.mule_energy_threshold = 50 if self.bot.units(UnitTypeId.RAVEN) else 100
 
         self.assignments_by_job[WorkerJobType.IDLE].clear()
         self.assignments_by_job[WorkerJobType.MINERALS].clear()
@@ -168,8 +165,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 except KeyError:
                     self.remove_mule(mule)
 
+        reserve_for_scan = 0 if self.bot.units(UnitTypeId.RAVEN) else 60
+        available_energy = 0
         for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND):
-            if orbital.energy < self.mule_energy_threshold:
+            available_energy += orbital.energy
+            if available_energy - reserve_for_scan < 50:
                 continue
             mineral_fields: Units = self.minerals.nodes_with_mule_capacity()
             if mineral_fields:

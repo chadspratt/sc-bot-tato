@@ -170,6 +170,9 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
 
         if can_attack:
             closest_target = candidates.closest_to(unit)
+            if closest_target.is_structure:
+                unit.attack(closest_target)
+                return True
             return self._kite(unit, closest_target)
 
         return self._stay_at_max_range(unit, candidates)

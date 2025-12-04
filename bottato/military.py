@@ -285,14 +285,15 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         # self.army_ratio = main_army_value / max(enemy_value, 1)
         army_is_big_enough = self.army_ratio > 1.3 or self.bot.supply_used > 160
         army_is_grouped = self.main_army.is_grouped()
-        mount_offense = army_is_big_enough
+        mount_offense = army_is_big_enough and not defend_with_main_army
 
-        if defend_with_main_army:
-            mount_offense = False
-        elif self.bot.time < 360: # previously 600
-            if rush_detected_type != RushType.NONE:
+        if mount_offense: # previously 600
+            if self.bot.units([UnitTypeId.REAPER, UnitTypeId.VIKINGFIGHTER]).amount == 0 and self.bot.time < 420:
+                # wait for a scout to attack
                 mount_offense = False
-            elif self.bot.supply_used < 45: # previously 110
+            elif rush_detected_type != RushType.NONE and self.bot.time < 360:
+                mount_offense = False
+            elif self.bot.supply_used < 50: # previously 110
                 mount_offense = False
         if not mount_offense and enemies_in_base and self.army_ratio > 1.0:
             defend_with_main_army = True
@@ -434,7 +435,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             enemy_distance_to_bunker = current_enemies.closest_distance_to(bunker.structure)
             enemy_distance_to_townhall = current_enemies.closest_distance_to(self.bot.start_location)
 
-        if self.bot.time > 300 or enemy_distance_to_townhall < 15:
+        if self.bot.time > 360 or enemy_distance_to_townhall < 15:
             if enemy_distance_to_bunker > 9:
                 self.empty_bunker(bunker)
                 return

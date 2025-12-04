@@ -324,7 +324,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         # except for zerg structures that spawn broodlings when they die
         if nearest_target.is_structure and (nearest_target.race != "Zerg" or nearest_target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS):
             unit.move(nearest_target.position)
-            return False
+            return True
         # move away if weapon on cooldown
         if not unit.is_flying:
             nearest_sieged_tank = None
