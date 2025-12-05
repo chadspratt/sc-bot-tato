@@ -206,7 +206,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         # don't attack if low health and there are threats
         if unit.health_percentage < health_threshold:
             if unit.tag not in self.threats:
-                self.threats[unit.tag] = UnitTypes.threats(unit, nearby_enemies, bonus_distance=3)
+                self.threats[unit.tag] = UnitTypes.threats(unit, nearby_enemies, bonus_distance=6)
             if self.threats[unit.tag]:
                 return False
             

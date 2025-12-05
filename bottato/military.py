@@ -456,15 +456,19 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 pass
 
         if len(bunker.units) < 4:
-            valid_units = self.main_army.units.of_type({UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.GHOST})
-            closest_units = valid_units.closest_n_units(bunker.structure, 4 - len(bunker.units))
-            for unit in closest_units:
-                enemy_distance_to_unit = current_enemies.closest_distance_to(unit) if current_enemies else 100
-                marine_distance_to_bunker = unit.distance_to(bunker.structure)
-                if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
-                    # send unit to bunker if they won't have to move past enemies
-                    self.transfer(unit, self.main_army, bunker)
-                    unit.smart(bunker.structure)
+            for squad in self.squads:
+                if squad == self.main_army or squad.name.startswith("defense"):
+                    valid_units = squad.units.of_type({UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.GHOST})
+                    closest_units = valid_units.closest_n_units(bunker.structure, 4 - len(bunker.units))
+                    for unit in closest_units:
+                        enemy_distance_to_unit = current_enemies.closest_distance_to(unit) if current_enemies else 100
+                        marine_distance_to_bunker = unit.distance_to(bunker.structure)
+                        if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
+                            # send unit to bunker if they won't have to move past enemies
+                            self.transfer(unit, self.main_army, bunker)
+                            unit.smart(bunker.structure)
+                            if len(bunker.units) >= 4:
+                                return
 
     def empty_bunker(self, bunker: Bunker):
         for unit in bunker.units:
