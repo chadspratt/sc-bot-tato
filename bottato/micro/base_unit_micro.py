@@ -419,10 +419,6 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     ))
     def _retreat_to_tank(self, unit: Unit, can_attack: bool) -> bool:
         self.start_timer("_retreat_to_tank")
-        if unit.health_percentage >= 0.9:
-            # poke out at full health otherwise enemy might never be engaged
-            self.stop_timer("_retreat_to_tank")
-            return False
         if unit.type_id in {UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED}:
             self.stop_timer("_retreat_to_tank")
             return False
@@ -430,6 +426,12 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if not tanks:
             self.stop_timer("_retreat_to_tank")
             return False
+        if unit.health_percentage >= 0.9:
+            nearby_injured_friendlies = self.bot.units.filter(lambda u: u.health_percentage < 0.9).closer_than(5, unit)
+            # poke out at full health otherwise enemy might never be engaged
+            if not nearby_injured_friendlies:
+                return False
+            #     tank_to_enemy_distance += 3.0
 
         close_enemies = self.bot.enemy_units.closer_than(15, unit).filter(
             lambda u: u.type_id not in self.retreat_to_tank_excluded_types and not u.is_flying and UnitTypes.can_attack_ground(u) and u.unit_alias != UnitTypeId.CHANGELING)
