@@ -425,6 +425,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         if mount_offense or not bunker.structure:
             self.empty_bunker(bunker)
             return
+        for passenger in bunker.structure.passengers:
+            if passenger.type_id == UnitTypeId.SCV:
+                # SCV accidentally entered bunker, remove them
+                self.empty_bunker(bunker)
+                break
         
         enemy_distance_to_bunker = 100
         enemy_distance_to_townhall = 100

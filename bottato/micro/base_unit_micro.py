@@ -197,24 +197,34 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if can_attack:
+            # attack enemy in range
             attack_target = self._get_attack_target(unit, nearby_enemies)
             if attack_target:
                 self._attack(unit, attack_target)
                 return True
-        if force_move:
-            return False
-            
-        if self._retreat_to_tank(unit, can_attack):
-            return True
-
+        
         # don't attack if low health and there are threats
         if unit.health_percentage < health_threshold:
             if unit.tag not in self.threats:
-                self.threats[unit.tag] = UnitTypes.threats(unit, nearby_enemies)
+                self.threats[unit.tag] = UnitTypes.threats(unit, nearby_enemies, bonus_distance=3)
             if self.threats[unit.tag]:
                 return False
-        elif not can_attack and self.valid_targets:
+            
+        # no enemy in range, stay near tanks
+        if self._retreat_to_tank(unit, can_attack):
+            return True
+            
+        # venture out to attack further enemy
+        if can_attack:
+            attack_target = self._get_attack_target(unit, nearby_enemies, 5)
+            if attack_target:
+                unit.attack(attack_target)
+                return True
+        elif self.valid_targets:
             return self._stay_at_max_range(unit, self.valid_targets)
+
+        # if force_move:
+        #     return False
 
         return False
 
