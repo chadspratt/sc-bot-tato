@@ -197,8 +197,9 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if can_attack:
+            bonus_distance = -1 if unit.health_percentage < health_threshold else 0
             # attack enemy in range
-            attack_target = self._get_attack_target(unit, nearby_enemies)
+            attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance)
             if attack_target:
                 self._attack(unit, attack_target)
                 return True
@@ -231,7 +232,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
-        threats = self.enemy.threats_to(unit, attack_range_buffer=3)
+        threats = self.enemy.threats_to(unit, attack_range_buffer=4)
 
         if not threats:
             if unit.type_id == UnitTypeId.SCV:
@@ -257,7 +258,11 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                     if medivacs:
                         unit.move(medivacs.closest_to(unit))
                     else:
-                        unit.move(self.bot.game_info.player_start_location)
+                        bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
+                        if bunkers:
+                            unit.move(bunkers.closest_to(unit))
+                        else:
+                            unit.move(self.bot.game_info.player_start_location)
             return True
 
         # retreat if there is nothing this unit can attack and it's not an SCV which might be repairing
