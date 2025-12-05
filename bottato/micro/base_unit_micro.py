@@ -427,7 +427,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             self.stop_timer("_retreat_to_tank")
             return False
         if unit.health_percentage >= 0.9:
-            nearby_injured_friendlies = self.bot.units.filter(lambda u: u.health_percentage < 0.9).closer_than(5, unit)
+            nearby_injured_friendlies = self.bot.units.filter(lambda u: u.health_percentage < 0.9 and u.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER)).closer_than(5, unit)
             # poke out at full health otherwise enemy might never be engaged
             if not nearby_injured_friendlies:
                 return False

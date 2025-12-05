@@ -260,7 +260,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             if not desired_counters:
                 continue
             for unit_type in desired_counters:
-                available_units = self.main_army.units.of_type(unit_type)
+                available_units = self.main_army.units.of_type(unit_type).filter(lambda u: u.health_percentage > 0.4)
                 if available_units:
                     self.transfer(self.closest_unit_to_unit(enemy, available_units), self.main_army, defense_squad)
                 else:
