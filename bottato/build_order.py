@@ -204,7 +204,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             self.move_between_queues(UnitTypeId.BARRACKSREACTOR, self.static_queue, self.priority_queue)
             self.move_between_queues(UnitTypeId.STARPORT, self.static_queue, self.priority_queue)
             self.add_to_build_queue([UnitTypeId.BANSHEE, UpgradeId.BANSHEECLOAK], queue=self.priority_queue)
-        if BuildOrderChange.RUSH not in self.changes_enacted and rush_detected_type != RushType.BATTLECRUISER:
+        if BuildOrderChange.RUSH not in self.changes_enacted and rush_detected_type not in (RushType.BATTLECRUISER, RushType.NONE):
             self.changes_enacted.append(BuildOrderChange.RUSH)
             # prioritize bunker and first tank
             self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
