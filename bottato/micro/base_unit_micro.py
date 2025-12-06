@@ -235,74 +235,34 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         threats = self.enemy.threats_to(unit, attack_range_buffer=4)
 
         if not threats:
-            if unit.type_id == UnitTypeId.SCV:
-                # needs to be doing the repairing
-                return False
             if unit.health_percentage >= health_threshold:
                 return False
-            else:
-                if unit.is_mechanical:
-                    repairers: Units = self.bot.workers.filter(lambda w: w.is_repairing) or self.bot.workers
-                    # if repairers:
-                    #     repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
-                    if repairers:
-                        closest_repairer = repairers.closest_to(unit)
-                        if unit.distance_to(closest_repairer) > 1:
-                            unit.move(closest_repairer)
-                            return True
-                        return self._attack_something(unit, health_threshold=0.0)
-                    else:
-                        return False
-                else:
-                    medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC)
-                    if medivacs:
-                        unit.move(medivacs.closest_to(unit))
-                    else:
-                        bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
-                        if bunkers:
-                            unit.move(bunkers.closest_to(unit))
-                        else:
-                            unit.move(self.bot.game_info.player_start_location)
-            return True
-
-        # retreat if there is nothing this unit can attack and it's not an SCV which might be repairing
-        do_retreat = False
-        if UnitTypes.can_attack(unit) and unit.type_id != UnitTypeId.SCV:
-            visible_threats = threats.filter(lambda t: t.age == 0)
-            targets = UnitTypes.in_attack_range_of(unit, visible_threats, bonus_distance=3)
-            if not targets:
-                if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
-                    unit(AbilityId.UNSIEGE_UNSIEGE)
-                    return True
-                do_retreat = True
-
-        # check if incoming damage will bring unit below health threshold
-        if not do_retreat:
-            total_potential_damage = sum([threat.calculate_damage_vs_target(unit)[0] for threat in threats])
+        else:
             if not unit.health_max:
                 # rare weirdness
                 return True
-            if (unit.health - total_potential_damage) / unit.health_max < health_threshold:
-                do_retreat = True
+            # check if incoming damage will bring unit below health threshold
+            total_potential_damage = sum([threat.calculate_damage_vs_target(unit)[0] for threat in threats])
+            if (unit.health - total_potential_damage) / unit.health_max >= health_threshold:
+                return False
 
-        if do_retreat:
-            avg_threat_position = threats.center
-            if unit.distance_to(self.bot.start_location) < avg_threat_position.distance_to(self.bot.start_location) - 2:
-                unit.move(self.bot.start_location)
-                return True
-            retreat_position = unit.position.towards(avg_threat_position, -5)
-            # .towards(self.bot.start_location, 2)
-            if self._move_to_pathable_position(unit, retreat_position): # type: ignore
+        if unit.type_id == UnitTypeId.SCV and not threats:
+            injured_scvs = self.bot.workers.filter(lambda w: w.health_percentage < 1.0 and w.tag != unit.tag)
+            if injured_scvs:
+                unit.repair(injured_scvs.closest_to(unit))
                 return True
 
-            if unit.position == avg_threat_position:
-                # avoid divide by zero
-                unit.move(self.bot.start_location)
-            else:
-                circle_around_position = self.get_circle_around_position(unit, avg_threat_position, self.bot.start_location)
-                unit.move(circle_around_position.towards(self.bot.start_location, 2)) # type: ignore
-            return True
-        return False
+        # retreat if there is nothing this unit can attack and it's not an SCV which might be repairing
+        if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
+            visible_threats = threats.filter(lambda t: t.age == 0)
+            targets = UnitTypes.in_attack_range_of(unit, visible_threats, bonus_distance=3)
+            if not targets:
+                unit(AbilityId.UNSIEGE_UNSIEGE)
+                return True
+
+        retreat_position = self._get_retreat_destination(unit, threats)
+        unit.move(retreat_position)
+        return True
 
     ###########################################################################
     # utility behaviors - used by main actions
@@ -330,6 +290,49 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             in_range = passive_targets.in_attack_range_of(unit, bonus_distance=bonus_distance)
             if in_range:
                 return in_range.first
+            
+    def _get_retreat_destination(self, unit: Unit, threats: Units) -> Point2:
+        ultimate_destination: Point2 | None = None
+        if unit.is_mechanical:
+            if not threats:
+                repairers: Units = self.bot.workers.filter(lambda w: w.is_repairing) or self.bot.workers
+                # if repairers:
+                #     repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
+                if repairers:
+                    closest_repairer = repairers.closest_to(unit)
+                    if unit.distance_to(closest_repairer) > 1:
+                        ultimate_destination = closest_repairer.position
+        else:
+            medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC)
+            if medivacs:
+                ultimate_destination = medivacs.closest_to(unit).position
+        if ultimate_destination is None:
+            bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
+            if bunkers:
+                ultimate_destination = bunkers.closest_to(unit).position.towards(unit, -2) # type: ignore
+            else:
+                ultimate_destination = self.bot.game_info.player_start_location
+        
+        if not ultimate_destination:
+            ultimate_destination = self.bot.game_info.player_start_location
+        
+        if not threats:
+            return ultimate_destination
+
+        avg_threat_position = threats.center
+        if unit.distance_to(ultimate_destination) < avg_threat_position.distance_to(ultimate_destination) - 2:
+            return ultimate_destination
+        retreat_position = unit.position.towards(avg_threat_position, -5)
+        # .towards(ultimate_destination, 2)
+        if self._position_is_pathable(unit, retreat_position): # type: ignore
+            return retreat_position # type: ignore
+
+        if unit.position == avg_threat_position:
+            # avoid divide by zero
+            return ultimate_destination
+        else:
+            circle_around_position = self.get_circle_around_position(unit, avg_threat_position, ultimate_destination)
+            return circle_around_position.towards(ultimate_destination, 2) # type: ignore
             
     def _stay_at_max_range(self, unit: Unit, targets: Units) -> bool:
         if not targets:
@@ -395,6 +398,11 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     def _move_to_pathable_position(self, unit: Unit, position: Point2) -> bool:
         if unit.is_flying and self.bot.in_map_bounds(position) or self.bot.in_pathing_grid(position):
             unit.move(position)
+            return True
+        return False
+    
+    def _position_is_pathable(self, unit: Unit, position: Point2) -> bool:
+        if unit.is_flying and self.bot.in_map_bounds(position) or self.bot.in_pathing_grid(position):
             return True
         return False
 

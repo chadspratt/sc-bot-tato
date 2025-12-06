@@ -11,11 +11,13 @@ class Counter():
     counters: dict[UnitTypeId, dict[UnitTypeId, float]] = {
         # Protoss units
         UnitTypeId.ADEPT: { # 2
-            UnitTypeId.MARAUDER: 1
+            UnitTypeId.MARAUDER: 0.5,
+            UnitTypeId.SIEGETANK: 0.1
         },
         UnitTypeId.ARCHON: { # 4
             UnitTypeId.THOR: 0.6,
-            UnitTypeId.GHOST: 0.4
+            UnitTypeId.GHOST: 0.4,
+            UnitTypeId.SIEGETANK: 0.2
         },
         UnitTypeId.CARRIER: { # 6
             UnitTypeId.VIKINGFIGHTER: 3
@@ -32,12 +34,13 @@ class Counter():
             UnitTypeId.THOR: 0.4 # 2.4
         },
         UnitTypeId.HIGHTEMPLAR: { # 2
-            UnitTypeId.GHOST: 0.7 # 2.1
+            UnitTypeId.GHOST: 0.7, # 2.1
+            UnitTypeId.SIEGETANK: 0.1
         },
         UnitTypeId.IMMORTAL: { # 4
             UnitTypeId.BANSHEE: 0.5, # 1.5
             UnitTypeId.MARINE: 1.5,
-            UnitTypeId.GHOST: 0.3 # 1
+            UnitTypeId.SIEGETANK: 0.3 # 1
         },
         UnitTypeId.MOTHERSHIP: { # 8
             UnitTypeId.VIKINGFIGHTER: 4,
@@ -57,7 +60,7 @@ class Counter():
         UnitTypeId.STALKER: { # 2
             UnitTypeId.MARAUDER: 0.7,
             # UnitTypeId.MARINE: 1.5,
-            UnitTypeId.SIEGETANK: 0.2
+            UnitTypeId.SIEGETANK: 0.3
         },
         UnitTypeId.TEMPEST: { # 4
             UnitTypeId.VIKINGFIGHTER: 2,
