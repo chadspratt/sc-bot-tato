@@ -174,25 +174,36 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.stop_timer("move_interupted_to_pending")
 
     def enact_rush_defense(self, rush_detected_type: RushType) -> None:
-        if rush_detected_type == RushType.NONE:
-            return
         if self.bot.time > 300 or self.bot.townhalls.amount > 2:
             # not a rush
             return
         if BuildOrderChange.BATTLECRUISER not in self.changes_enacted and rush_detected_type == RushType.BATTLECRUISER:
             self.changes_enacted.append(BuildOrderChange.BATTLECRUISER)
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 2, position=0, queue=self.priority_queue)
-        if BuildOrderChange.REAPER not in self.changes_enacted:
-            if self.bot.enemy_race == Race.Terran and self.bot.enemy_units(UnitTypeId.REAPER): # type: ignore
-                self.changes_enacted.append(BuildOrderChange.REAPER)
-                # queue one hellion in case of reaper rush
-                self.add_to_build_queue([UnitTypeId.HELLION], position=0, queue=self.priority_queue)
-                # swap reactor for techlab (faster, allows marauder)
-                for step in self.static_queue:
-                    if step.is_unit_type(UnitTypeId.BARRACKSREACTOR):
-                        self.static_queue.remove(step)
-                        self.add_to_build_queue([UnitTypeId.BARRACKSTECHLAB, UnitTypeId.MARAUDER], position=0, queue=self.priority_queue)
-                        break
+        if BuildOrderChange.REAPER not in self.changes_enacted and \
+                self.bot.enemy_race == Race.Terran and self.bot.enemy_units(UnitTypeId.REAPER): # type: ignore
+            self.changes_enacted.append(BuildOrderChange.REAPER)
+            # queue one hellion in case of reaper rush
+            self.add_to_build_queue([UnitTypeId.HELLION], position=0, queue=self.priority_queue)
+            # swap reactor for techlab (faster, allows marauder)
+            for step in self.static_queue:
+                if step.is_unit_type(UnitTypeId.BARRACKSREACTOR):
+                    self.static_queue.remove(step)
+                    self.add_to_build_queue([UnitTypeId.BARRACKSTECHLAB, UnitTypeId.MARAUDER], position=0, queue=self.priority_queue)
+                    break
+        if BuildOrderChange.PROTOSS not in self.changes_enacted and self.bot.enemy_race == Race.Protoss: # type: ignore
+            self.changes_enacted.append(BuildOrderChange.PROTOSS)
+            self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.REFINERY, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.REFINERY, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.COMMANDCENTER, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.BARRACKSREACTOR, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.STARPORT, self.static_queue, self.priority_queue)
+            self.add_to_build_queue([UnitTypeId.BANSHEE, UpgradeId.BANSHEECLOAK], queue=self.priority_queue)
         if BuildOrderChange.RUSH not in self.changes_enacted and rush_detected_type != RushType.BATTLECRUISER:
             self.changes_enacted.append(BuildOrderChange.RUSH)
             # prioritize bunker and first tank

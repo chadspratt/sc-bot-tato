@@ -439,7 +439,7 @@ class SCVBuildStep(BuildStep):
                         and u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
                 if threats:
                     closest_threat = threats.closest_to(self.unit_in_charge)
-                    enemy_is_close = closest_threat.distance_to_squared(self.unit_in_charge) < 225 # 15 squared
+                    enemy_is_close = closest_threat.distance_to_squared(self.unit_in_charge) < 144 # 12 squared
                     if not enemy_is_close:
                         return False
                     if self.unit_in_charge:

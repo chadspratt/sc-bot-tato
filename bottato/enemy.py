@@ -269,12 +269,12 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     def get_closest_target(self, friendly_unit: Unit, distance_limit=999999,
                            include_structures=True, include_units=True, include_destructables=False,
-                           include_out_of_view=True, excluded_types=[], seconds_ahead: float=0) -> tuple[Unit | None, float]:
+                           include_out_of_view=True, excluded_types=[], included_types=[], seconds_ahead: float=0) -> tuple[Unit | None, float]:
         nearest_enemy: Unit | None = None
         nearest_distance = distance_limit
 
         candidates: Units = self.get_candidates(include_structures, include_units, include_destructables,
-                                                include_out_of_view, excluded_types)
+                                                include_out_of_view, excluded_types, included_types)
 
         # ravens technically can't attack
         if friendly_unit.type_id != UnitTypeId.RAVEN:
@@ -327,7 +327,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         return enemies_in_range
 
     def get_candidates(self, include_structures=True, include_units=True, include_destructables=False,
-                       include_out_of_view=True, excluded_types=[]):
+                       include_out_of_view=True, excluded_types=[], included_types=[]):
         candidates: Units = Units([], self.bot)
         if include_structures and include_units:
             candidates = self.bot.enemy_units + self.bot.enemy_structures
@@ -347,6 +347,8 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             candidates += self.bot.destructables(UnitTypeId.COLLAPSIBLEROCKTOWERDEBRIS)
         if excluded_types:
             candidates = candidates.filter(lambda unit: unit.type_id not in excluded_types)
+        if included_types:
+            candidates = candidates.filter(lambda unit: unit.type_id in included_types)
         return candidates
     
     burrowing_unit_types = {

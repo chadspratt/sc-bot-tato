@@ -53,12 +53,13 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         return False
 
-    def _attack_something(self, unit, health_threshold, force_move: bool = False):
+    def _harass_attack_something(self, unit, health_threshold, force_move: bool = False):
         if unit.health_percentage < self.attack_health:
             threats = self.enemy.threats_to(unit)
             if threats:
                 return False
-        if unit.weapon_cooldown > self.time_in_frames_to_attack:
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+        if not can_attack:
             return False
 
         nearby_enemies = self.enemy.get_enemies_in_range(unit, include_structures=False, include_destructables=False)
@@ -73,13 +74,10 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 if UnitTypes.ground_range(threat) > unit.ground_range:
                     # don't attack enemies that outrange
                     return False
-        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
-        if can_attack:
-            weakest_enemy = nearby_enemies.sorted(key=lambda t: t.shield + t.health).first
-            return self._kite(unit, weakest_enemy)
-        return self._stay_at_max_range(unit, nearby_enemies)
+        weakest_enemy = nearby_enemies.sorted(key=lambda t: t.shield + t.health).first
+        return self._kite(unit, weakest_enemy)
 
-    async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
+    async def _harass_retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
         threats = self.enemy.threats_to(unit, attack_range_buffer=4)

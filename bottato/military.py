@@ -165,12 +165,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.bunker = Bunker(self.bot, 1)
         self.bunker2 = Bunker(self.bot, 2)
         self.stuck_rescue = StuckRescue(self.bot, self.main_army, self.squads_by_unit_tag)
-        self.harass_squad = HarassSquad(bot=self.bot, name="harass", color=(0, 255, 255))
+        self.reaper_harass = HarassSquad(bot=self.bot, name="reaper harass", color=(0, 255, 255))
+        self.banshee_harass = HarassSquad(bot=self.bot, name="banshee harass", color=(0, 255, 255))
         self.squads.append(self.main_army)
         self.squads.append(self.bunker)
         self.squads.append(self.bunker2)
         self.squads.append(self.stuck_rescue)
-        self.squads.append(self.harass_squad)
+        self.squads.append(self.reaper_harass)
+        self.squads.append(self.banshee_harass)
 
     def add_to_main(self, unit: Unit) -> None:
         self.main_army.recruit(unit)
@@ -481,19 +483,25 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.start_timer("military harass")
         if rush_detected_type == RushType.PROXY and self.bot.enemy_units(UnitTypeId.REAPER) and self.bot.time < 300:
             # stop harass during proxy reaper rush
-            self.transfer_all(self.harass_squad, self.main_army)
+            self.transfer_all(self.reaper_harass, self.main_army)
             self.stop_timer("military harass")
-            return
-        if not self.harass_squad.units:
+        elif not self.reaper_harass.units:
             # transfer a reaper from main army to harass squad
             reapers = self.main_army.units(UnitTypeId.REAPER)
             if reapers:
-                self.transfer(reapers[0], self.main_army, self.harass_squad)
+                self.transfer(reapers[0], self.main_army, self.reaper_harass)
             else:
                 self.stop_timer("military harass")
-                return
+        if not self.banshee_harass.units and self.bot.enemy_race == Race.Protoss: # type: ignore
+            # transfer a banshee from main army to harass squad
+            banshees = self.main_army.units(UnitTypeId.BANSHEE)
+            if banshees:
+                self.transfer(banshees[0], self.main_army, self.banshee_harass)
+            else:
+                self.stop_timer("military harass")
             
-        await self.harass_squad.harass(newest_enemy_base)        
+        await self.reaper_harass.harass(newest_enemy_base)
+        await self.banshee_harass.harass(newest_enemy_base)
         self.stop_timer("military harass")
 
     def get_squad_request(self, remaining_cap: int) -> List[UnitTypeId]:
@@ -708,7 +716,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             squad.update_references(units_by_tag)
         self.main_army.update_references(units_by_tag)
         self.stuck_rescue.update_references(units_by_tag)
-        self.harass_squad.update_references(units_by_tag)
+        self.reaper_harass.update_references(units_by_tag)
+        self.banshee_harass.update_references(units_by_tag)
         self.bunker.update_references(units_by_tag)
         self.bunker2.update_references(units_by_tag)
         self.stop_timer("update_references")

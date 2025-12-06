@@ -92,6 +92,42 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                 unit.move(target)
         return True
 
+    async def harass(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
+        attack_health = self.attack_health
+        # if force_move and unit.distance_to_squared(target) < 144:
+        #     # force move is used for retreating. allow attacking and other micro when near staging location
+        #     attack_health = 0.0
+        #     force_move = False
+            
+        if unit.tag in self.bot.unit_tags_received_action:
+            return True
+        self.start_timer("base_unit_micro.move._avoid_effects")
+        action_taken = self._avoid_effects(unit, force_move)
+        self.stop_timer("base_unit_micro.move._avoid_effects")
+        if not action_taken:
+            self.start_timer("base_unit_micro.move._use_ability")
+            action_taken = await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move)
+            self.stop_timer("base_unit_micro.move._use_ability")
+        if not action_taken:
+            self.start_timer("base_unit_micro.move._attack_something")
+            action_taken = self._harass_attack_something(unit, health_threshold=attack_health, force_move=force_move)
+            self.stop_timer("base_unit_micro.move._attack_something")
+        if not action_taken and force_move:
+            position_to_compare = target if unit.is_moving else unit.position
+            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
+                unit.move(target)
+            action_taken = True
+        if not action_taken:
+            self.start_timer("base_unit_micro.move._retreat")
+            action_taken = await self._harass_retreat(unit, health_threshold=self.retreat_health)
+            self.stop_timer("base_unit_micro.move._retreat")
+        
+        if not action_taken:
+            position_to_compare = target if unit.is_moving else unit.position
+            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
+                unit.move(target)
+        return True
+
     async def scout(self, unit: Unit, scouting_location: Point2):
         self.scout_tags.add(unit.tag)
         if unit.tag in self.bot.unit_tags_received_action:
@@ -197,7 +233,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if can_attack:
-            bonus_distance = -1 if unit.health_percentage < health_threshold else 0
+            bonus_distance = -2 if unit.health_percentage < health_threshold else 0
             # attack enemy in range
             attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance)
             if attack_target:
@@ -228,6 +264,9 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         #     return False
 
         return False
+    
+    def _harass_attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+        return self._attack_something(unit, health_threshold, force_move)
 
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
@@ -263,6 +302,9 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         retreat_position = self._get_retreat_destination(unit, threats)
         unit.move(retreat_position)
         return True
+    
+    async def _harass_retreat(self, unit: Unit, health_threshold: float) -> bool:
+        return await self._retreat(unit, health_threshold)
 
     ###########################################################################
     # utility behaviors - used by main actions
@@ -391,6 +433,8 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if target.type_id == UnitTypeId.INTERCEPTOR:
             # interceptors can't be targeted directly
             unit.attack(target.position)
+        elif target.age > 0:
+            unit.move(target.position)
         else:
             unit.attack(target)
         return True
