@@ -434,7 +434,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             # interceptors can't be targeted directly
             unit.attack(target.position)
         elif target.age > 0:
-            unit.move(target.position)
+            unit.move(self.enemy.predicted_position[target.tag])
         else:
             unit.attack(target)
         return True
