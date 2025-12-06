@@ -36,7 +36,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
     ]
 
     def _harass_attack_something(self, unit, health_threshold, force_move: bool = False):
-        if unit.health_percentage < self.harass_attack_health:
+        if unit.health_percentage < self.harass_attack_health and self.can_be_attacked(unit):
             threats = self.enemy.threats_to(unit, attack_range_buffer=5)
             if threats:
                 return False
