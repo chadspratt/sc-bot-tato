@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.units import Units
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -14,6 +15,7 @@ from bottato.unit_types import UnitTypes
 class BansheeMicro(BaseUnitMicro, GeometryMixin):
     attack_health: float = 0.58
     harass_attack_health: float = 0.9
+    harass_retreat_health: float = 0.5
     cloak_researched: bool = False
     cloak_energy_threshold: float = 25.0
 
@@ -36,19 +38,33 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
     ]
 
     def _harass_attack_something(self, unit, health_threshold, force_move: bool = False):
+        if unit.tag in BaseUnitMicro.repair_started_tags:
+            if unit.health_percentage == 1.0:
+                BaseUnitMicro.repair_started_tags.remove(unit.tag)
+            else:
+                return False
+        if unit.health_percentage <= self.harass_retreat_health:
+            return False
         if unit.health_percentage < self.harass_attack_health and self.can_be_attacked(unit):
             threats = self.enemy.threats_to(unit, attack_range_buffer=5)
             if threats:
                 return False
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
-        if not can_attack:
-            return False
+        nearby_enemies: Units
+        if can_attack:
+            nearby_enemies = self.enemy.get_enemies_in_range(unit, include_structures=False, include_destructables=False)
+        else:
+            nearby_enemies = self.enemy.threats_to(unit, attack_range_buffer=5)
 
-        nearby_enemies = self.enemy.get_enemies_in_range(unit, include_structures=False, include_destructables=False)
         if not nearby_enemies:
-            nearest_probe, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.PROBE])
-            if nearest_probe:
-                return self._kite(unit, nearest_probe)
+            if unit.tag in self.harass_location_reached_tags:
+                nearest_probe, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.PROBE])
+                if nearest_probe:
+                    if can_attack:
+                        return self._kite(unit, nearest_probe)
+                    else:
+                        unit.move(nearest_probe.position)
+                        return True
             return False
         if self.can_be_attacked(unit):
             # enemy_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
@@ -78,24 +94,29 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
 
     async def _harass_retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
-            return False
-        if not self.can_be_attacked(unit):
-            return False
-        threats = self.enemy.threats_to(unit, attack_range_buffer=5)
+            return False        
 
-        if not threats:
-            if unit.health_percentage >= self.harass_attack_health:
-                return False
-            # just stop and wait for regen
-            unit.stop()
-            return True
-
-        # retreat if there is nothing this unit can attack
         do_retreat = False
-        visible_threats = threats.filter(lambda t: t.age == 0)
-        targets = UnitTypes.in_attack_range_of(unit, visible_threats, bonus_distance=3)
-        if not targets:
+
+        if unit.health_percentage <= self.harass_retreat_health:
             do_retreat = True
+        elif not self.can_be_attacked(unit):
+            return False
+        
+        threats = self.enemy.threats_to(unit, attack_range_buffer=5)
+        if not do_retreat:
+            if not threats:
+                if unit.health_percentage >= self.harass_attack_health:
+                    return False
+                # just stop and wait for regen
+                unit.stop()
+                return True
+
+            # retreat if there is nothing this unit can attack
+            visible_threats = threats.filter(lambda t: t.age == 0)
+            targets = UnitTypes.in_attack_range_of(unit, visible_threats, bonus_distance=3)
+            if not targets:
+                do_retreat = True
 
         # check if incoming damage will bring unit below health threshold
         if not do_retreat:
@@ -107,22 +128,8 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 do_retreat = True
 
         if do_retreat:
-            avg_threat_position = threats.center
-            if unit.distance_to(self.bot.start_location) < avg_threat_position.distance_to(self.bot.start_location) - 2:
-                # if closer to start or already near enemy, move past them to go home
-                unit.move(self.bot.start_location)
-                return True
-            retreat_position = unit.position.towards(avg_threat_position, -5)
-            # .towards(self.bot.start_location, 2)
-            if self.bot.in_map_bounds(retreat_position): # type: ignore
-                unit.move(retreat_position) # type: ignore
-            else:
-                if unit.position == avg_threat_position:
-                    # avoid divide by zero
-                    unit.move(self.bot.start_location)
-                else:
-                    circle_around_position = self.get_circle_around_position(unit, avg_threat_position, self.bot.start_location)
-                    unit.move(circle_around_position.towards(self.bot.start_location, 2)) # type: ignore
+            retreat_position = self._get_retreat_destination(unit, threats)
+            unit.move(retreat_position)
             return True
         return False
     

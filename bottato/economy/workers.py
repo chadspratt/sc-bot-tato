@@ -767,7 +767,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     current_repairer_tag = current_repair_targets.get(repair_target.tag, repairer.tag)
                     if current_repairer_tag == repairer.tag:
                         target_micro = MicroFactory.get_unit_micro(repair_target)
-                        await target_micro.move(repair_target, repairer.position)
+                        await target_micro.move_to_repairer(repair_target, repairer.position)
 
         # add more repairers
         if repairer_shortage > 0:
@@ -798,7 +798,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                             current_repairer_tag = current_repair_targets.get(repair_target.tag, repairer.tag)
                             if current_repairer_tag == repairer.tag:
                                 target_micro = MicroFactory.get_unit_micro(repair_target)
-                                await target_micro.move(repair_target, repairer.position)
+                                await target_micro.move_to_repairer(repair_target, repairer.position)
                 else:
                     break
 

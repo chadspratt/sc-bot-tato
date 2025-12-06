@@ -68,7 +68,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         await self.detect_stuck_units(iteration) # fast
 
         self.map.update_influence_maps(self.new_damage_by_position) # fast
-        BaseUnitMicro.reset_tanks_being_retreated_to()
+        BaseUnitMicro.reset_tag_sets()
 
         await self.structure_micro.execute(self.rush_detected_type) # unknown speed
 

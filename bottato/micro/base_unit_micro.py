@@ -24,9 +24,14 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     retreat_health: float = 0.75
     time_in_frames_to_attack: float = 0.25 * 22.4
     scout_tags: set[int] = set()
+    harass_tags: set[int] = set()
     healing_unit_tags: set[int] = set()
     tanks_being_retreated_to: Dict[int, float] = {}
     tanks_being_retreated_to_prev_frame: Dict[int, float] = {}
+    harass_location_reached_tags: set[int] = set()
+    repair_started_tags: set[int] = set()
+    repairer_tags: set[int] = set()
+    repairer_tags_prev_frame: set[int] = set()
 
     damaging_effects = [
         EffectId.PSISTORMPERSISTENT,
@@ -49,14 +54,31 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         self.map: Map = map
 
     @staticmethod
-    def reset_tanks_being_retreated_to():
+    def reset_tag_sets():
         BaseUnitMicro.tanks_being_retreated_to_prev_frame = BaseUnitMicro.tanks_being_retreated_to
         BaseUnitMicro.tanks_being_retreated_to = {}
+        BaseUnitMicro.repairer_tags_prev_frame = BaseUnitMicro.repairer_tags
+        BaseUnitMicro.repairer_tags = set()
 
     ###########################################################################
     # meta actions - used by non-micro classes to order units
     ###########################################################################
+    async def move_to_repairer(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
+        if self.bot.workers.closest_distance_to(unit) < 2.0:
+            BaseUnitMicro.repair_started_tags.add(unit.tag)
+        if unit.tag in BaseUnitMicro.scout_tags:
+            await self.scout(unit, target)
+            return True
+        elif unit.tag in BaseUnitMicro.harass_tags:
+            return await self.harass(unit, target, force_move=force_move, previous_position=previous_position)
+        else:
+            return await self.move(unit, target, force_move=force_move, previous_position=previous_position)
+
     async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
+        if unit.tag in BaseUnitMicro.scout_tags:
+            BaseUnitMicro.scout_tags.remove(unit.tag)
+        elif unit.tag in BaseUnitMicro.harass_tags:
+            BaseUnitMicro.harass_tags.remove(unit.tag)
         attack_health = self.attack_health
         # if force_move and unit.distance_to_squared(target) < 144:
         #     # force move is used for retreating. allow attacking and other micro when near staging location
@@ -93,6 +115,10 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         return True
 
     async def harass(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
+        BaseUnitMicro.harass_tags.add(unit.tag)
+        if unit.tag not in BaseUnitMicro.harass_location_reached_tags:
+            if unit.position.manhattan_distance(target) < 10:
+                BaseUnitMicro.harass_location_reached_tags.add(unit.tag)
         attack_health = self.attack_health
         # if force_move and unit.distance_to_squared(target) < 144:
         #     # force move is used for retreating. allow attacking and other micro when near staging location
@@ -129,7 +155,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         return True
 
     async def scout(self, unit: Unit, scouting_location: Point2):
-        self.scout_tags.add(unit.tag)
+        BaseUnitMicro.scout_tags.add(unit.tag)
         if unit.tag in self.bot.unit_tags_received_action:
             return
         logger.debug(f"scout {unit} health {unit.health}/{unit.health_max} ({unit.health_percentage}) health")
@@ -149,6 +175,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             unit.move(scouting_location)
 
     async def repair(self, unit: Unit, target: Unit):
+        BaseUnitMicro.repairer_tags.add(unit.tag)
         if unit.tag in self.bot.unit_tags_received_action:
             return
         if self._avoid_effects(unit, force_move=False):
@@ -337,7 +364,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         ultimate_destination: Point2 | None = None
         if unit.is_mechanical:
             if not threats:
-                repairers: Units = self.bot.workers.filter(lambda w: w.is_repairing) or self.bot.workers
+                repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags_prev_frame) or self.bot.workers
                 # if repairers:
                 #     repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
                 if repairers:
