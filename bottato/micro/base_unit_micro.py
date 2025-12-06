@@ -247,9 +247,9 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                 return False
 
         if unit.type_id == UnitTypeId.SCV and not threats:
-            injured_scvs = self.bot.workers.filter(lambda w: w.health_percentage < 1.0 and w.tag != unit.tag)
-            if injured_scvs:
-                unit.repair(injured_scvs.closest_to(unit))
+            injured_units = self.bot.units.filter(lambda u: u.health_percentage < 1.0 and u.tag != unit.tag and u.is_mechanical)
+            if injured_units:
+                unit.repair(injured_units.closest_to(unit))
                 return True
 
         # retreat if there is nothing this unit can attack and it's not an SCV which might be repairing

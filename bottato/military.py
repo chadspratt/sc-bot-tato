@@ -432,16 +432,17 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 break
         
         enemy_distance_to_bunker = 100
-        enemy_distance_to_townhall = 100
+        # enemy_distance_to_townhall = 100
         current_enemies = enemies_in_base.filter(lambda unit: unit.age == 0)
         if current_enemies:
             enemy_distance_to_bunker = current_enemies.closest_distance_to(bunker.structure)
-            enemy_distance_to_townhall = current_enemies.closest_distance_to(self.bot.start_location)
+            # enemy_distance_to_townhall = current_enemies.closest_distance_to(self.bot.start_location)
 
-        if self.bot.time > 360 or enemy_distance_to_townhall < 15:
-            if enemy_distance_to_bunker > 9:
-                self.empty_bunker(bunker)
-                return
+        # if self.bot.time > 360 or enemy_distance_to_townhall < 15:
+        bunker_range = max([passenger.ground_range for passenger in bunker.structure.passengers], default=0) + 1 + bunker.structure.radius
+        if enemy_distance_to_bunker < 100 and enemy_distance_to_bunker > bunker_range:
+            self.empty_bunker(bunker)
+            return
 
         for unit in bunker.units:
             try:
