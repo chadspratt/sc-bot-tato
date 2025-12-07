@@ -47,7 +47,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         logger.debug(f"self.enemies_out_of_view: {self.enemies_out_of_view}")
         for enemy_unit in self.enemies_out_of_view:
             time_since_last_seen = self.bot.time - self.last_seen[enemy_unit.tag]
-            if enemy_unit.is_structure and self.bot.is_visible(enemy_unit.position):
+            if enemy_unit.is_structure and self.is_visible(enemy_unit.position, enemy_unit.radius):
                 self.enemies_out_of_view.remove(enemy_unit)
             elif enemy_unit.tag in visible_tags or time_since_last_seen > self.unit_may_not_exist_seconds:
                 self.enemies_out_of_view.remove(enemy_unit)
@@ -56,7 +56,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 new_prediction = self.get_predicted_position(enemy_unit, 0)
                 # back the projection up to edge of visibility we can see that it isn't there
                 reverse_vector = None
-                while self.bot.is_visible(new_prediction):
+                while self.is_visible(new_prediction, enemy_unit.radius):
                     if self.last_seen_position[enemy_unit.tag] == new_prediction:
                         # seems to be some fuzziness where building pos is visible but building is not in enemy_structures
                         break
@@ -110,6 +110,25 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         self.enemies_in_view = new_visible_enemies
         # self.update_squads()
         self.stop_timer("enemy.update_references")
+
+    def is_visible(self, position: Point2, radius: float) -> bool:
+        diagonal_radius = (radius ** 2 * 2) ** 0.5
+        positions_to_check = [
+            position,
+            Point2((position.x - radius, position.y)),
+            Point2((position.x + radius, position.y)),
+            Point2((position.x, position.y - radius)),
+            Point2((position.x, position.y + radius)),
+            Point2((position.x - diagonal_radius, position.y - diagonal_radius)),
+            Point2((position.x - diagonal_radius, position.y + diagonal_radius)),
+            Point2((position.x + diagonal_radius, position.y - diagonal_radius)),
+            Point2((position.x + diagonal_radius, position.y + diagonal_radius)),
+        ]
+        for pos in positions_to_check:
+            if self.bot.is_visible(pos):
+                return True
+        return False
+
 
     def get_predicted_position(self, unit: Unit, seconds_ahead: float) -> Point2:
         if unit.type_id in (UnitTypeId.COLLAPSIBLEROCKTOWERDEBRIS,):

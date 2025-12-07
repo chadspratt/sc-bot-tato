@@ -55,15 +55,27 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
     def _harass_attack_something(self, unit, health_threshold, force_move: bool = False):
         if unit.health_percentage < self.attack_health:
-            threats = self.enemy.threats_to(unit)
+            threats = self.enemy.threats_to(unit, attack_range_buffer=5)
             if threats:
                 return False
-        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
-        if not can_attack:
-            return False
 
-        nearby_enemies = self.enemy.get_enemies_in_range(unit, include_structures=False, include_destructables=False)
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+
+        nearby_enemies: Units
+        if can_attack:
+            nearby_enemies = self.enemy.get_enemies_in_range(unit, include_structures=False, include_destructables=False)
+        else:
+            nearby_enemies = self.enemy.threats_to(unit, attack_range_buffer=5)
+
         if not nearby_enemies:
+            if unit.tag in self.harass_location_reached_tags:
+                nearest_probe, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.PROBE])
+                if nearest_probe:
+                    if can_attack:
+                        return self._kite(unit, nearest_probe)
+                    else:
+                        unit.move(nearest_probe.position)
+                        return True
             return False
 
         # enemy_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))

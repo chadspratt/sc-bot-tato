@@ -17,7 +17,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
     harass_attack_health: float = 0.9
     harass_retreat_health: float = 0.5
     cloak_researched: bool = False
-    cloak_energy_threshold: float = 25.0
+    cloak_energy_threshold: float = 40.0
 
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if not self.cloak_researched:
@@ -25,8 +25,12 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 self.cloak_researched = True
             else:
                 return False
-        if not unit.is_cloaked and unit.energy >= self.cloak_energy_threshold and self.enemy.threats_to(unit):
-            unit(AbilityId.BEHAVIOR_CLOAKON_BANSHEE)
+        if not unit.is_cloaked:
+            if unit.energy >= self.cloak_energy_threshold and self.enemy.threats_to(unit):
+                unit(AbilityId.BEHAVIOR_CLOAKON_BANSHEE)
+        else:
+            if unit.health_percentage < self.harass_attack_health and not self.unit_is_closer_than(unit, self.enemy.get_enemies(), 15, self.bot):
+                unit(AbilityId.BEHAVIOR_CLOAKOFF_BANSHEE)
         return False
 
     def _harass_attack_something(self, unit, health_threshold, force_move: bool = False):

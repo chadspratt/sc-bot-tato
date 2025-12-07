@@ -741,8 +741,12 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
         # remove excess repairers
         if repairer_shortage < 0:
+            # don't retire mid-repair
+            inactive_repairers = current_repairers.filter(lambda unit: not unit.is_repairing)
             for i in range(-repairer_shortage):
-                retiring_repairer = current_repairers.furthest_to(injured_units.random) if injured_units else current_repairers.random
+                if not inactive_repairers:
+                    break
+                retiring_repairer = inactive_repairers.furthest_to(injured_units.random) if injured_units else inactive_repairers.random
                 if self.vespene.has_unused_capacity:
                     self.update_assigment(retiring_repairer, WorkerJobType.VESPENE, None)
                 elif self.minerals.has_unused_capacity:
@@ -750,7 +754,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 else:
                     logger.debug(f"nowhere for {retiring_repairer} to retire to, staying repairer")
                     break
-                current_repairers.remove(retiring_repairer)
+                inactive_repairers.remove(retiring_repairer)
 
         # tell existing to repair closest that isn't themself
         units_with_no_repairer: List[Unit] = []

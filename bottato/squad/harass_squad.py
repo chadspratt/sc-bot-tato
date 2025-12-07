@@ -76,6 +76,9 @@ class HarassSquad(Squad, GeometryMixin, TimerMixin):
                 else:
                     destination = self.harass_location if unit.health_percentage > 0.65 else self.bot.start_location
                     # try to circle around threats that outrange us
-                    circle_around_position = micro.get_circle_around_position(unit, nearest_threat.position, destination)
-                    await micro.harass(unit, circle_around_position)
-                    continue
+                    if unit.position == nearest_threat.position:
+                        # avoid divide by zero
+                        await micro.harass(unit, destination)
+                    else:
+                        circle_around_position = micro.get_circle_around_position(unit, nearest_threat.position, destination)
+                        await micro.harass(unit, circle_around_position)

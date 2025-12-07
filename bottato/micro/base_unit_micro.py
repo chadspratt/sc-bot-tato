@@ -342,7 +342,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0) -> Unit | None:
         priority_targets = nearby_enemies.filter(lambda u: u.type_id in UnitTypes.HIGH_PRIORITY_TARGETS)
         if priority_targets:
-            in_range = priority_targets.in_attack_range_of(unit, bonus_distance=bonus_distance)
+            in_range = UnitTypes.in_attack_range_of(unit, priority_targets, bonus_distance=bonus_distance)
             if in_range:
                 return in_range.first
         offensive_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack(u))
@@ -351,15 +351,15 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                 self.threats[unit.tag] = UnitTypes.threats(unit, offensive_targets)
             threats = self.threats[unit.tag]
             if threats:
-                in_range = threats.in_attack_range_of(unit, bonus_distance=bonus_distance)
+                in_range = UnitTypes.in_attack_range_of(unit, threats, bonus_distance=bonus_distance)
                 if in_range:
                     return in_range.first
-            in_range = offensive_targets.in_attack_range_of(unit, bonus_distance=bonus_distance)
+            in_range = UnitTypes.in_attack_range_of(unit, offensive_targets, bonus_distance=bonus_distance)
             if in_range:
                 return in_range.first
         passive_targets = nearby_enemies.filter(lambda u: not UnitTypes.can_attack(u))
         if passive_targets:
-            in_range = passive_targets.in_attack_range_of(unit, bonus_distance=bonus_distance)
+            in_range = UnitTypes.in_attack_range_of(unit, passive_targets, bonus_distance=bonus_distance)
             if in_range:
                 return in_range.first
             
@@ -410,7 +410,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if do_kite:
             # can attack while staying out of range
             target_distance = self.distance(unit, target) - target.radius - unit.radius
-            if target_distance < target_range + 0.8:
+            if target_distance < attack_range - 1.0:
                 if self._stay_at_max_range(unit, Units([target], bot_object=self.bot)):
                     return True
         self._attack(unit, target)

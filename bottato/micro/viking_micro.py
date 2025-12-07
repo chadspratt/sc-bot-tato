@@ -116,6 +116,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 enemy_units = self.bot.enemy_units.filter(lambda u: BuffId.NEURALPARASITE not in u.buffs)
                 enemies = UnitTypes.in_attack_range_of(viking, enemy_units, bonus_distance=5).filter(
                     lambda unit: unit.can_be_attacked)
+                enemies.sort(key=lambda e: e.health + e.shield)
                 for enemy in enemies:
                     if enemy.type_id not in damage_vs_type:
                         damage_vs_type[enemy.type_id] = viking.calculate_damage_vs_target(enemy)[0]
