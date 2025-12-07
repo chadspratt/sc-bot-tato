@@ -71,7 +71,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         return self._kite(unit, weakest_enemy)
     
     def can_be_attacked(self, unit: Unit) -> bool:
-        if unit.is_cloaked:
+        if unit.is_cloaked and unit.energy >= 5:
             observers = self.bot.enemy_units.of_type(UnitTypeId.OBSERVER)
             if observers and observers.closest_distance_to(unit) < 12:
                 return True
