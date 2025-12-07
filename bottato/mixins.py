@@ -195,6 +195,14 @@ class GeometryMixin:
             if GeometryMixin.distance_squared(unit1, unit) < distance_sq:
                 close_units.append(unit)
         return close_units
+    
+    @staticmethod
+    def unit_is_closer_than(unit1: Unit, units: Units, distance: float, bot: BotAI) -> bool:
+        distance_sq = distance * distance
+        for unit in units:
+            if GeometryMixin.distance_squared(unit1, unit) < distance_sq:
+                return True
+        return False
 
     @staticmethod
     def closest_unit_to_unit(unit1: Unit, units: Units) -> Unit:
