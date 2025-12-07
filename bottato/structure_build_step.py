@@ -2,8 +2,9 @@ from loguru import logger
 
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
@@ -45,7 +46,9 @@ class StructureBuildStep(BuildStep):
             self.bot.client.debug_text_world(
                 self.unit_type_id.name, self.unit_in_charge.position3d)
     
-    def is_unit_type(self, unit_type_id: UnitTypeId) -> bool:
+    def is_unit_type(self, unit_type_id: UnitTypeId | UpgradeId) -> bool:
+        if isinstance(unit_type_id, UpgradeId):
+            return False
         return self.unit_type_id == unit_type_id
 
     def is_unit(self) -> bool:

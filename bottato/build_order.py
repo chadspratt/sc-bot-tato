@@ -203,7 +203,9 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
             self.move_between_queues(UnitTypeId.BARRACKSREACTOR, self.static_queue, self.priority_queue)
             self.move_between_queues(UnitTypeId.STARPORT, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.STARPORTTECHLAB, self.static_queue, self.priority_queue)
             self.add_to_build_queue([UnitTypeId.BANSHEE, UpgradeId.BANSHEECLOAK], queue=self.priority_queue)
+            self.add_to_build_queue([UnitTypeId.BANSHEE], queue=self.static_queue, position=5, add_prereqs=False)
         if BuildOrderChange.RUSH not in self.changes_enacted and rush_detected_type not in (RushType.BATTLECRUISER, RushType.NONE):
             self.changes_enacted.append(BuildOrderChange.RUSH)
             # prioritize bunker and first tank
@@ -237,19 +239,20 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 return True
         return False
 
-    def add_to_build_queue(self, unit_types: List[UnitTypeId | UpgradeId] | List[UnitTypeId],
-                           position: int | None = None, queue: List[BuildStep] | None = None) -> None:
+    def add_to_build_queue(self, unit_types: List[UnitTypeId | UpgradeId],
+                           position: int | None = None, queue: List[BuildStep] | None = None, add_prereqs: bool = True) -> None:
         if queue is None:
             queue = self.build_queue
         all_prereqs: List[UnitTypeId | UpgradeId] = []
-        for unit_type in unit_types:
-            if isinstance(unit_type, UpgradeId):
-                continue
-            prereqs = self.production.build_order_with_prereqs(unit_type)
-            for prereq in prereqs:
-                if prereq != unit_type and prereq not in all_prereqs:
-                    all_prereqs.append(prereq)
-        unit_types = all_prereqs + unit_types
+        if add_prereqs:
+            for unit_type in unit_types:
+                if isinstance(unit_type, UpgradeId):
+                    continue
+                prereqs = self.production.build_order_with_prereqs(unit_type)
+                for prereq in prereqs:
+                    if prereq != unit_type and prereq not in all_prereqs:
+                        all_prereqs.append(prereq)
+            unit_types = all_prereqs + unit_types
                 
         for build_step in queue:
             if isinstance(build_step, StructureBuildStep) or isinstance(build_step, SCVBuildStep):
@@ -279,14 +282,14 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             return build_step
         return StructureBuildStep(unit_type, self.bot, self.workers, self.production, self.map)
     
-    def queue_prereqs(self, unit_types: List[UnitTypeId]) -> None:
+    def queue_prereqs(self, unit_types: List[UnitTypeId | UpgradeId]) -> None:
         for unit_type in unit_types:
             prereqs = self.production.build_order_with_prereqs(unit_type)
             prereqs.remove(unit_type)
             if prereqs:
                 self.add_to_build_queue(prereqs, queue=self.build_queue)
 
-    def get_military_queue(self, enemy: Enemy) -> List[UnitTypeId]:
+    def get_military_queue(self, enemy: Enemy) -> List[UnitTypeId | UpgradeId]:
         self.start_timer("get_military_queue")
         worker_supply_cap = min(self.workers.max_workers, self.bot.workers.amount * 1.15)
         military_cap = self.bot.supply_cap - worker_supply_cap
@@ -304,7 +307,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             ideal_supply += supply_cost * count
         # scale composition to fit military cap
         buildable_percentage = min(1.0, military_cap / ideal_supply) if ideal_supply > 0 else 0
-        queue: List[UnitTypeId] = []
+        queue: List[UnitTypeId | UpgradeId] = []
         if UnitTypeId.RAVEN not in ideal_composition:
             # have at least one raven for detection
             ideal_composition[UnitTypeId.RAVEN] = 0.1
@@ -376,7 +379,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                     self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT] * (needed_count - in_progress_count), queue=self.priority_queue)
         self.stop_timer("queue_supply")
 
-    def get_in_progress_count(self, unit_type: UnitTypeId) -> int:
+    def get_in_progress_count(self, unit_type: UnitTypeId | UpgradeId) -> int:
         count = 0
         for build_step in self.started + self.interrupted_queue:
             if build_step.is_unit_type(unit_type):
@@ -443,7 +446,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 affordable_units.append(self.unit_queue[0].unit_type_id)
         self.stop_timer("queue_production-get_affordable_build_list")
         self.start_timer("queue_production-additional_needed_production")
-        extra_production: List[UnitTypeId] = self.production.additional_needed_production(affordable_units)
+        extra_production: List[UnitTypeId | UpgradeId] = self.production.additional_needed_production(affordable_units)
         # only add if not already in progress
         extra_production = self.remove_in_progress_from_list(extra_production)
         self.stop_timer("queue_production-additional_needed_production")
@@ -483,9 +486,9 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             self.add_to_build_queue([UnitTypeId.MEDIVAC] * queue_count, queue=self.static_queue)
         self.stop_timer("queue_medivacs")
 
-    def remove_in_progress_from_list(self, build_list: List[UnitTypeId]) -> List[UnitTypeId]:
-        in_progress_counts: Dict[UnitTypeId, int] = {}
-        result: List[UnitTypeId] = []
+    def remove_in_progress_from_list(self, build_list: List[UnitTypeId | UpgradeId]) -> List[UnitTypeId | UpgradeId]:
+        in_progress_counts: Dict[UnitTypeId | UpgradeId, int] = {}
+        result: List[UnitTypeId | UpgradeId] = []
         for unit_type in build_list:
             if unit_type not in in_progress_counts:
                 in_progress_counts[unit_type] = self.get_in_progress_count(unit_type)

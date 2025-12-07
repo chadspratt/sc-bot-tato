@@ -203,7 +203,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             # has_friendly_buffer = len(friendlies_nearer_to_enemy) >= 5
             if closest_enemy.age == 0:
                 closest_enemy_is_visible = True
-                structures_under_threat = UnitTypes.in_attack_range_of(closest_enemy, self.bot.structures)
+                structures_under_threat = UnitTypes.in_attack_range_of(closest_enemy, self.bot.structures.filter(lambda s: s.type_id != UnitTypeId.AUTOTURRET), bonus_distance=2).exists
 
         if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
             if is_sieged and (closest_distance > self.sieged_range - 2 or not closest_enemy_is_visible) and friendly_buffer_count < 5:

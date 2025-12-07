@@ -29,14 +29,6 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             unit(AbilityId.BEHAVIOR_CLOAKON_BANSHEE)
         return False
 
-    excluded_enemy_types = [
-        UnitTypeId.LARVA,
-        UnitTypeId.EGG
-    ]
-    target_structure_types = [
-        UnitTypeId.SPINECRAWLER,
-    ]
-
     def _harass_attack_something(self, unit, health_threshold, force_move: bool = False):
         if unit.tag in BaseUnitMicro.repair_started_tags:
             if unit.health_percentage == 1.0:
@@ -108,15 +100,13 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             if not threats:
                 if unit.health_percentage >= self.harass_attack_health:
                     return False
-                # just stop and wait for regen
-                unit.stop()
-                return True
-
-            # retreat if there is nothing this unit can attack
-            visible_threats = threats.filter(lambda t: t.age == 0)
-            targets = UnitTypes.in_attack_range_of(unit, visible_threats, bonus_distance=3)
-            if not targets:
                 do_retreat = True
+            else:
+                # retreat if there is nothing this unit can attack
+                visible_threats = threats.filter(lambda t: t.age == 0)
+                targets = UnitTypes.in_attack_range_of(unit, visible_threats, bonus_distance=3)
+                if not targets:
+                    do_retreat = True
 
         # check if incoming damage will bring unit below health threshold
         if not do_retreat:
@@ -132,39 +122,3 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             unit.move(retreat_position)
             return True
         return False
-    
-    # def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
-    #     relevant_enemies = self.bot.enemy_units.filter(lambda u: u.armor < 10) + self.bot.enemy_structures.of_type(self.offensive_structure_types)
-    #     nearby_enemies = relevant_enemies.closer_than(15, unit)
-    #     nearby_structures = self.bot.enemy_structures.closer_than(15, unit)
-    #     targets = nearby_enemies.filter(lambda u: not u.is_flying and u.type_id not in self.excluded_enemy_types)
-    #     tanks: Units = targets.filter(lambda u: u.type_id in (UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK))
-    #     if not targets:
-    #         targets = nearby_structures
-    #     threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_air(u))
-    #     can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
-    #     if targets:
-    #         if not threats:
-    #             if tanks:
-    #                 unit.attack(tanks.closest_to(unit))
-    #             else:
-    #                 unit.attack(targets.closest_to(unit))
-    #             return True
-    #         elif can_attack:
-    #             max_threats = 0 if unit.health_percentage < health_threshold else 4
-    #             attackable_threats = threats.filter(lambda u: not u.is_flying) + tanks
-    #             closest_target = attackable_threats.closest_to(unit)
-    #             if closest_target:
-    #                 if len(threats) < max_threats or closest_target.distance_to(unit) < unit.ground_range - 0.5:
-    #                     unit.attack(closest_target)
-    #                     return True
-    #             else:
-    #                 closest_target = targets.closest_to(unit)
-    #                 if len(threats) < max_threats or closest_target.distance_to(unit) < unit.ground_range - 0.5:
-    #                     unit.attack(closest_target)
-    #                     return True
-    #         if self._retreat_to_tank(unit, can_attack):
-    #             return True
-    #         if self._stay_at_max_range(unit, threats):
-    #             return True
-    #     return False

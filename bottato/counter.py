@@ -40,7 +40,7 @@ class Counter():
         UnitTypeId.IMMORTAL: { # 4
             UnitTypeId.BANSHEE: 0.5, # 1.5
             UnitTypeId.MARINE: 1.5,
-            UnitTypeId.SIEGETANK: 0.3 # 1
+            UnitTypeId.SIEGETANK: 0.2 # 1
         },
         UnitTypeId.MOTHERSHIP: { # 8
             UnitTypeId.VIKINGFIGHTER: 4,

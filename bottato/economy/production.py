@@ -293,7 +293,7 @@ class Production(UnitReferenceMixin, TimerMixin):
                     capacity += facility.get_available_capacity()
         return capacity
     
-    def can_build_any(self, unit_types: List[UnitTypeId]) -> bool:
+    def can_build_any(self, unit_types: List[UnitTypeId | UpgradeId]) -> bool:
         for unit_type in unit_types:
             builder_type: UnitTypeId = self.get_cheapest_builder_type(unit_type)
             tech_lab_required: bool = False
@@ -368,7 +368,7 @@ class Production(UnitReferenceMixin, TimerMixin):
             UnitTypeId.FACTORY: [],
             UnitTypeId.STARPORT: [],
         }
-        additional_production: List[UnitTypeId] = []
+        additional_production: List[UnitTypeId | UpgradeId] = []
         prereqs_added: List[UnitTypeId] = []
         for builder_type in self.facilities.keys():
             production_capacity[builder_type]["tech"]["net"] = production_capacity[builder_type]["tech"]["available"] - production_capacity[builder_type]["tech"]["needed"]
@@ -456,14 +456,14 @@ class Production(UnitReferenceMixin, TimerMixin):
                         facility.set_add_on_type(generic_type)
                         logger.debug(f"adding to {facility_type}-{generic_type}")
 
-    def build_order_with_prereqs(self, unit_type: UnitTypeId) -> List[UnitTypeId]:
+    def build_order_with_prereqs(self, unit_type: UnitTypeId | UpgradeId) -> List[UnitTypeId | UpgradeId]:
         build_order = self.build_order_with_prereqs_recurse(unit_type)
         build_order.reverse()
         return build_order
 
     def build_order_with_prereqs_recurse(self,
-                                         unit_type: UnitTypeId | None,
-                                         previous_types: List[UnitTypeId] | None= None) -> List[UnitTypeId]:
+                                         unit_type: UnitTypeId | UpgradeId | None,
+                                         previous_types: List[UnitTypeId | UpgradeId] | None= None) -> List[UnitTypeId | UpgradeId]:
         if unit_type is None:
             return []
         if previous_types is None:
@@ -475,7 +475,7 @@ class Production(UnitReferenceMixin, TimerMixin):
                 return []
             elif isinstance(unit_type, UpgradeId) and self.bot.already_pending_upgrade(unit_type):
                 return []
-        build_order = [unit_type]
+        build_order: List[UnitTypeId | UpgradeId] = [unit_type]
         previous_types.append(unit_type)
 
         if isinstance(unit_type, UpgradeId):

@@ -3,9 +3,10 @@ from loguru import logger
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.units import Units
-from sc2.ids.unit_typeid import UnitTypeId
-from sc2.unit_command import UnitCommand
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
+from sc2.unit_command import UnitCommand
 from sc2.position import Point2
 from sc2.protocol import ConnectionAlreadyClosedError, ProtocolError
 
@@ -76,7 +77,9 @@ class SCVBuildStep(BuildStep):
                     self.unit_type_id.name, self.convert_point2_to_3(self.position, self.bot)
                 )
     
-    def is_unit_type(self, unit_type_id: UnitTypeId) -> bool:
+    def is_unit_type(self, unit_type_id: UnitTypeId | UpgradeId) -> bool:
+        if isinstance(unit_type_id, UpgradeId):
+            return False
         return self.unit_type_id == unit_type_id or \
             self.unit_type_id == UnitTypeId.REFINERY and unit_type_id == UnitTypeId.REFINERYRICH
 

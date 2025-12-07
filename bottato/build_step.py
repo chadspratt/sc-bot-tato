@@ -48,7 +48,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     def draw_debug_box(self):
         pass
 
-    def is_unit_type(self, unit_type_id: UnitTypeId) -> bool:
+    def is_unit_type(self, unit_type_id: UnitTypeId | UpgradeId) -> bool:
         return False
 
     def is_upgrade_type(self, upgrade_id: UpgradeId) -> bool:

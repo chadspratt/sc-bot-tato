@@ -96,7 +96,7 @@ class GhostMicro(BaseUnitMicro, GeometryMixin):
                 best_target = enemy
         
         if best_target and best_value > 200:
-            unit(AbilityId.EMP_EMP, best_target)
+            unit(AbilityId.EMP_EMP, best_target.position)
             return True
         
         return False
