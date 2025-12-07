@@ -234,6 +234,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.squads.remove(squad)
 
         self.army_ratio = self.calculate_army_ratio()
+        enemies_in_base_ratio = self.calculate_army_ratio(enemies_in_base)
 
         # assign squads to counter enemies that are alone or in small groups
         countered_enemies: Dict[int, FormationSquad] = {}
@@ -320,7 +321,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             self.start_timer("military move squads update formation")
             self.main_army.update_formation()
             self.stop_timer("military move squads update formation")
-            if defend_with_main_army:
+            if defend_with_main_army and enemies_in_base_ratio >= 1.0:
                 LogHelper.add_log(f"squad {self.main_army.name} mounting defense")
                 self.start_timer("military move squads defend")
                 await self.main_army.move(enemies_in_base.closest_to(self.main_army.position).position)
@@ -548,9 +549,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         return new_units
     
     # XXX why does this fluctuate
-    def calculate_army_ratio(self) -> float:
+    def calculate_army_ratio(self, enemies_in_base: Units | None = None) -> float:
         seconds_since_killed = min(60, 60 - (self.bot.time - 300) // 2)
-        enemies = self.enemy.get_army(seconds_since_killed=seconds_since_killed)
+        enemies = enemies_in_base if enemies_in_base else self.enemy.get_army(seconds_since_killed=seconds_since_killed)
         friendlies = self.main_army.units
         if not enemies:
             return 10.0
