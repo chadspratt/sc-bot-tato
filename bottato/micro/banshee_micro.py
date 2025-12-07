@@ -91,6 +91,9 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         do_retreat = False
 
         if unit.health_percentage <= self.harass_retreat_health:
+            if not self.can_be_attacked(unit):
+                unit.move(self._get_retreat_destination(unit, Units([], self.bot)))
+                return True
             do_retreat = True
         elif not self.can_be_attacked(unit):
             return False
