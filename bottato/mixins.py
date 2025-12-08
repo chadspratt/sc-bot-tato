@@ -11,6 +11,8 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2, Point3
 
+from bottato.log_helper import LogHelper
+
 
 class UnitReferenceMixin:
     class UnitNotFound(Exception):
@@ -261,7 +263,8 @@ class TimerMixin:
         if hasattr(self, "timers"):
             for timer_name in self.timers.keys():
                 timer = self.timers[timer_name]
-                logger.info(f"{prefix}{timer_name},{timer['total']}")
+                LogHelper.add_log(f"{prefix}{timer_name},{timer['total']}")
+                # logger.info(f"{prefix}{timer_name},{timer['total']}")
 
 
 class DebugMixin:

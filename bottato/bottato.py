@@ -30,6 +30,7 @@ class BotTato(BotAI, TimerMixin):
         #         [UnitTypeId.CARRIER, 1, self.game_info.map_center, 2],
         #     ]
         # )
+        LogHelper.testing = os.environ.get("LOG_TESTING") == "1"
         self.last_replay_save_time = 0
         logger.debug(os.getcwd())
         logger.debug(f"vision blockers: {self.game_info.vision_blockers}")

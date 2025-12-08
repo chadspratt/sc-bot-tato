@@ -10,12 +10,18 @@ class LogHelper:
 
     bot: BotAI
 
+    testing: bool = False
+
     @staticmethod
     def add_log(message: str):
+        if LogHelper.testing:
+            return
         LogHelper.new_messages.append(message)
 
     @staticmethod
     def print_logs():
+        if LogHelper.testing:
+            return
         formatted_time = LogHelper.bot.time_formatted
         for message in LogHelper.new_messages:
             if message not in LogHelper.previous_messages:

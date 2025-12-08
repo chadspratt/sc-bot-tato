@@ -366,7 +366,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     def _stay_at_max_range(self, unit: Unit, targets: Units) -> bool:
         if not targets:
             return False
-        nearest_target = targets.closest_to(unit)
+        nearest_target = self.closest_unit_to_unit(unit, targets)
         # don't keep distance from structures since it prevents units in back from attacking
         # except for zerg structures that spawn broodlings when they die
         if nearest_target.is_structure and (nearest_target.race != "Zerg" or nearest_target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS):
@@ -380,10 +380,10 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             else:
                 enemy_tanks = targets.of_type(UnitTypeId.SIEGETANKSIEGED)
                 if enemy_tanks:
-                    nearest_sieged_tank = enemy_tanks.closest_to(unit)
+                    nearest_sieged_tank = self.closest_unit_to_unit(unit, enemy_tanks)
 
             if nearest_sieged_tank:
-                distance_to_tank = unit.distance_to(nearest_sieged_tank)
+                distance_to_tank = self.distance(unit, nearest_sieged_tank)
                 if distance_to_tank < 7:
                     # dive on sieged tanks
                     attack_range = 0

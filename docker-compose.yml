@@ -1,0 +1,10 @@
+services:
+  bot:
+    build:
+      context: ..
+      dockerfile: ./python_sc2/dockerfiles/Dockerfile
+    container_name: sc2_bot
+    volumes:
+      - .:/root/bot
+      - C:\Program Files (x86)\StarCraft II\Maps:/root/StarCraftII/Maps
+    command: uv run /root/bot/run_bottato_vs_computer.py
