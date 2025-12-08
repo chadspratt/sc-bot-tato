@@ -90,7 +90,7 @@ async def main():
             else:
                 bottato_result = result
         logger.info(f"Result vs {opponent}: {bottato_result}")
-        assert bottato_result == Result.Victory, f"BotTato should win against computer, but got {bottato_result}" # type: ignore
+        assert bottato_result == Result.Victory, f"BotTato should win against {opponent}, but got {bottato_result}" # type: ignore
     logger.info("Checked all results")
 
 
