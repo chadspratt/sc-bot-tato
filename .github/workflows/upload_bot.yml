@@ -31,7 +31,7 @@ jobs:
 
     - name: Rearrange files
       run: |
-        rm -rf . git
+        rm -rf .git
         mv python-sc2/sc2 .
         mv main/* .
         rm -rf python-sc2 main
