@@ -12,7 +12,7 @@ from sc2.data import Race
 from bottato.log_helper import LogHelper
 from bottato.counter import Counter
 from bottato.unit_types import UnitTypes
-from bottato.build_order.build_step import BuildStep
+from bottato.building.build_step import BuildStep
 from bottato.economy.workers import Workers
 from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
 from bottato.squad.squad import Squad
