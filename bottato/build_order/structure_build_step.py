@@ -11,11 +11,11 @@ from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from bottato.log_helper import LogHelper
 from bottato.enums import BuildResponseCode, RushType
 from bottato.unit_types import UnitTypes
-from bottato.build_step import BuildStep
 from bottato.map.map import Map
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
-from bottato.special_locations import SpecialLocations
+from bottato.build_order.build_step import BuildStep
+from bottato.build_order.special_locations import SpecialLocations
 from bottato.tech_tree import TECH_TREE
 
 class StructureBuildStep(BuildStep):

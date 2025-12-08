@@ -14,7 +14,7 @@ from sc2.game_state import EffectData
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import TimerMixin, GeometryMixin, UnitReferenceMixin
-from bottato.build_order import BuildOrder
+from bottato.build_order.build_order import BuildOrder
 from bottato.micro.structure_micro import StructureMicro
 from bottato.enemy import Enemy
 from bottato.economy.workers import Workers
@@ -213,6 +213,8 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.enemy.record_death(unit_tag)
         self.military.record_death(unit_tag)
         self.my_workers.record_death(unit_tag)
+        if destroyed_unit and destroyed_unit.type_id == UnitTypeId.BUNKER:
+            self.build_order
 
     def add_upgrade(self, upgrade: UpgradeId):
         logger.debug(f"upgrade completed {upgrade}")

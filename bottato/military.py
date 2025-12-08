@@ -12,7 +12,7 @@ from sc2.data import Race
 from bottato.log_helper import LogHelper
 from bottato.counter import Counter
 from bottato.unit_types import UnitTypes
-from bottato.build_step import BuildStep
+from bottato.build_order.build_step import BuildStep
 from bottato.economy.workers import Workers
 from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
 from bottato.squad.squad import Squad
@@ -321,7 +321,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             self.start_timer("military move squads update formation")
             self.main_army.update_formation()
             self.stop_timer("military move squads update formation")
-            if defend_with_main_army and enemies_in_base_ratio >= 1.0:
+            if defend_with_main_army and (self.bot.time > 420 or enemies_in_base_ratio >= 1.0):
                 LogHelper.add_log(f"squad {self.main_army.name} mounting defense")
                 self.start_timer("military move squads defend")
                 await self.main_army.move(enemies_in_base.closest_to(self.main_army.position).position)

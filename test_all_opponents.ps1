@@ -19,6 +19,9 @@ $jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose 
 $jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run -e RACE=zerg -e BUILD=power bot } -ArgumentList $workDir
 $jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run -e RACE=zerg -e BUILD=air bot } -ArgumentList $workDir
 
+# Prune orphan containers before starting jobs
+docker container prune -f
+
 # Wait for all jobs to complete and show their output
 $jobs | Wait-Job | Receive-Job
 $jobs | Remove-Job

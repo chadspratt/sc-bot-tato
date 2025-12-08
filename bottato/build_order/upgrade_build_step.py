@@ -7,11 +7,11 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit_command import UnitCommand
 from sc2.unit import Unit
 
-from bottato.build_step import BuildStep
 from bottato.map.map import Map
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
-from bottato.special_locations import SpecialLocations
+from bottato.build_order.build_step import BuildStep
+from bottato.build_order.special_locations import SpecialLocations
 from bottato.upgrades import RESEARCH_ABILITIES
 from bottato.enums import BuildResponseCode, RushType
 

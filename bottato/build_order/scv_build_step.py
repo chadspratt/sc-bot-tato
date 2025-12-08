@@ -13,11 +13,11 @@ from sc2.protocol import ConnectionAlreadyClosedError, ProtocolError
 from bottato.log_helper import LogHelper
 from bottato.enums import BuildResponseCode, RushType, WorkerJobType
 from bottato.unit_types import UnitTypes
-from bottato.build_step import BuildStep
 from bottato.map.map import Map
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
-from bottato.special_locations import SpecialLocations
+from bottato.build_order.build_step import BuildStep
+from bottato.build_order.special_locations import SpecialLocations
 from bottato.tech_tree import TECH_TREE
 from bottato.micro.micro_factory import MicroFactory
 from bottato.micro.base_unit_micro import BaseUnitMicro
