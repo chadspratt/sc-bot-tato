@@ -2,7 +2,7 @@
 name: Upload Bot
 
 # Controls when the action will run. Workflow runs when manually triggered using the UI
-# or API.
+# or API. 
 on:
   push:
     branches:
@@ -17,28 +17,39 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
+    - name: Checkout sc-bot-tato
+      uses: actions/checkout@v4
+
     - name: Checkout python-sc2
       uses: actions/checkout@v4
       with:
         sparse-checkout: sc2
         repository: chadspratt/python-sc2
-        path: python-sc2
+        path: temp-python-sc2
 
-    - name: Checkout sc-bot-tato
-      uses: actions/checkout@v4
-      with:
-        path: main
+    - name: Copy sc2 directory
+      run: cp -r temp-python-sc2/sc2 .
 
-    - name: Rearrange files
+    - name: Debug - List bottato directory
       run: |
-        rm -rf .git
-        mv python-sc2/sc2 .
-        mv main/* .
-        rm -rf python-sc2 main
+        echo "=== Contents of bottato directory ==="
+        ls -la bottato/
+        echo "=== Checking for old files ==="
+        ls -la bottato/build_step.py 2>&1 || echo "build_step.py not found in bottato/"
+        ls -la bottato/build_order.py 2>&1 || echo "build_order.py not found in bottato/"
+        ls -la bottato/map.py 2>&1 || echo "map.py not found in bottato/"
+        echo "=== Contents of bottato/building ==="
+        ls -la bottato/building/
 
     # Runs a single command using the runners shell
     - name: Zip Files
       run: zip -r bottato.zip sc2 bottato __init__.py ladderbots.json LICENSE README.md bot.py run.py
+    
+    - name: Debug - Check zip contents
+      run: |
+        echo "=== Contents of zip file ==="
+        unzip -l bottato.zip | grep -E "(build_step|build_order|map\. py)"
+    
     - name: Upload
       env:
         AI_ARENA_API_KEY: ${{ secrets.AI_ARENA_API_KEY }}
