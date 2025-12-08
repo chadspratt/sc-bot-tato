@@ -22,14 +22,19 @@ jobs:
       with:
         sparse-checkout: sc2
         repository: chadspratt/python-sc2
+        path: python-sc2
 
-    - name: Checkout
+    - name: Checkout sc-bot-tato
       uses: actions/checkout@v4
       with:
         path: main
 
     - name: Rearrange files
-      run: mv -f main/* .
+      run: |
+        rm -rf . git
+        mv python-sc2/sc2 .
+        mv main/* .
+        rm -rf python-sc2 main
 
     # Runs a single command using the runners shell
     - name: Zip Files
