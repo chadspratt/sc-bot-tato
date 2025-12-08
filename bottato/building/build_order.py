@@ -17,12 +17,12 @@ from bottato.economy.production import Production
 from bottato.mixins import TimerMixin, UnitReferenceMixin
 from bottato.upgrades import Upgrades
 from bottato.map.map import Map
-from bottato.build_order.build_step import BuildStep
-from bottato.build_order.scv_build_step import SCVBuildStep
-from bottato.build_order.upgrade_build_step import UpgradeBuildStep
-from bottato.build_order.structure_build_step import StructureBuildStep
-from bottato.build_order.special_locations import SpecialLocations, SpecialLocation
-from bottato.build_order.build_starts import BuildStarts
+from bottato.building.build_step import BuildStep
+from bottato.building.scv_build_step import SCVBuildStep
+from bottato.building.upgrade_build_step import UpgradeBuildStep
+from bottato.building.structure_build_step import StructureBuildStep
+from bottato.building.special_locations import SpecialLocations, SpecialLocation
+from bottato.building.build_starts import BuildStarts
 from bottato.counter import Counter
 from bottato.enums import RushType, BuildResponseCode, WorkerJobType, BuildOrderChange
 

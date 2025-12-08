@@ -10,8 +10,8 @@ from sc2.unit import Unit
 from bottato.map.map import Map
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
-from bottato.build_order.build_step import BuildStep
-from bottato.build_order.special_locations import SpecialLocations
+from bottato.building.build_step import BuildStep
+from bottato.building.special_locations import SpecialLocations
 from bottato.upgrades import RESEARCH_ABILITIES
 from bottato.enums import BuildResponseCode, RushType
 

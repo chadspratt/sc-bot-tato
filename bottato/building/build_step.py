@@ -8,7 +8,7 @@ from bottato.map.map import Map
 from bottato.mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
-from bottato.build_order.special_locations import SpecialLocations
+from bottato.building.special_locations import SpecialLocations
 from bottato.enums import BuildResponseCode, RushType
 
 

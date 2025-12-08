@@ -7,4 +7,5 @@ services:
     volumes:
       - .:/root/bot
       - C:\Program Files (x86)\StarCraft II\Maps:/root/StarCraftII/Maps
+      - C:\Users\inter\Documents\StarCraft II\Replays\Multiplayer\docker:/root/replays
     command: uv run /root/bot/run_bottato_vs_computer.py

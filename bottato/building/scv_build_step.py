@@ -16,8 +16,8 @@ from bottato.unit_types import UnitTypes
 from bottato.map.map import Map
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
-from bottato.build_order.build_step import BuildStep
-from bottato.build_order.special_locations import SpecialLocations
+from bottato.building.build_step import BuildStep
+from bottato.building.special_locations import SpecialLocations
 from bottato.tech_tree import TECH_TREE
 from bottato.micro.micro_factory import MicroFactory
 from bottato.micro.base_unit_micro import BaseUnitMicro

@@ -8,7 +8,7 @@ from sc2.units import Units
 from sc2.position import Point2, Point3
 from sc2.ids.unit_typeid import UnitTypeId
 
-from bottato.build_order.build_step import BuildStep
+from bottato.building.build_step import BuildStep
 from bottato.mixins import GeometryMixin, TimerMixin
 from bottato.squad.formation import ParentFormation
 from bottato.micro.base_unit_micro import BaseUnitMicro
