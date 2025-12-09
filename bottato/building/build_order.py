@@ -57,6 +57,8 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
         self.changes_enacted: List[BuildOrderChange] = []
 
+        if self.bot.enemy_race == Race.Protoss: # type: ignore
+            build_name += " protoss"
         for unit_type in BuildStarts.get_build_start(build_name):
             step = self.create_build_step(unit_type, None)
             self.static_queue.append(step)
@@ -191,21 +193,6 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                     self.static_queue.remove(step)
                     self.add_to_build_queue([UnitTypeId.BARRACKSTECHLAB, UnitTypeId.MARAUDER], position=0, queue=self.priority_queue)
                     break
-        if BuildOrderChange.PROTOSS not in self.changes_enacted and self.bot.enemy_race == Race.Protoss: # type: ignore
-            self.changes_enacted.append(BuildOrderChange.PROTOSS)
-            self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
-            self.move_between_queues(UnitTypeId.REFINERY, self.static_queue, self.priority_queue)
-            self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue)
-            self.move_between_queues(UnitTypeId.REFINERY, self.static_queue, self.priority_queue)
-            self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
-            self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
-            self.move_between_queues(UnitTypeId.COMMANDCENTER, self.static_queue, self.priority_queue)
-            self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
-            self.move_between_queues(UnitTypeId.BARRACKSREACTOR, self.static_queue, self.priority_queue)
-            self.move_between_queues(UnitTypeId.STARPORT, self.static_queue, self.priority_queue)
-            self.move_between_queues(UnitTypeId.STARPORTTECHLAB, self.static_queue, self.priority_queue)
-            self.add_to_build_queue([UnitTypeId.BANSHEE, UpgradeId.BANSHEECLOAK], queue=self.priority_queue)
-            self.add_to_build_queue([UnitTypeId.BANSHEE], queue=self.static_queue, position=5, add_prereqs=False)
         if BuildOrderChange.RUSH not in self.changes_enacted and rush_detected_type not in (RushType.BATTLECRUISER, RushType.NONE):
             self.changes_enacted.append(BuildOrderChange.RUSH)
             # prioritize bunker and first tank

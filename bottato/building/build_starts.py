@@ -137,6 +137,45 @@ class BuildStarts():
 #                 UnitTypeId.MARINE,
 #                 UnitTypeId.SIEGETANK,
             ]
+        elif build_name == "pig_b2gm protoss":
+            return [
+                UnitTypeId.SCV,
+                UnitTypeId.SCV,
+                UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,
+                UnitTypeId.REFINERY,
+                UnitTypeId.BARRACKS,
+                UnitTypeId.REFINERY,                    # 2ND GAS,
+                UnitTypeId.REAPER,
+                UnitTypeId.MARINE,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
+                UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
+                UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.BUNKER,                      # NATURAL choke, XXX on high ground if getting cheesed
+                UnitTypeId.FACTORYTECHLAB,              # fast SIEGETANK access,
+                UnitTypeId.SIEGETANK,                   # start as soon as TECHLAB is ready,
+                UnitTypeId.MARINE,               # begin reactor cycles,
+                UnitTypeId.MARINE,
+                UnitTypeId.STARPORT,
+                UnitTypeId.STARPORTTECHLAB,
+                UnitTypeId.BANSHEE,
+                UnitTypeId.BANSHEE,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.MEDIVAC, # early medivac good?
+                UnitTypeId.BARRACKS,
+                UnitTypeId.MARINE, # supply blocked until depot finishes
+                UnitTypeId.MARINE,
+                UnitTypeId.REFINERY,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.VIKINGFIGHTER, 
+            ]
         elif build_name == "tvt1":
             # https://lotv.spawningtool.com/build/171779/
             # Standard Terran vs Terran (3 Reaper 2 Hellion) (TvT Economic)
