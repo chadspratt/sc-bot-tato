@@ -181,10 +181,10 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             self.changes_enacted.append(BuildOrderChange.BATTLECRUISER)
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 2, position=0, queue=self.priority_queue)
         if BuildOrderChange.REAPER not in self.changes_enacted and \
-                self.bot.enemy_race == Race.Terran and self.bot.enemy_units(UnitTypeId.REAPER): # type: ignore
+                self.bot.enemy_race == Race.Terran and self.bot.enemy_units(UnitTypeId.REAPER).amount > 1: # type: ignore
             self.changes_enacted.append(BuildOrderChange.REAPER)
             # queue one hellion in case of reaper rush
-            self.add_to_build_queue([UnitTypeId.HELLION], position=0, queue=self.priority_queue)
+            self.add_to_build_queue([UnitTypeId.HELLION] * 2, position=0, queue=self.priority_queue)
             # swap reactor for techlab (faster, allows marauder)
             for step in self.static_queue:
                 if step.is_unit_type(UnitTypeId.BARRACKSREACTOR):

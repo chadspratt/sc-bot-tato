@@ -272,9 +272,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         
         # don't attack if low health and there are threats
         if unit.health_percentage < health_threshold:
-            if unit.tag not in self.threats:
-                self.threats[unit.tag] = UnitTypes.threats(unit, nearby_enemies, bonus_distance=6)
-            if self.threats[unit.tag]:
+            if UnitTypes.threats(unit, nearby_enemies, bonus_distance=6):
                 return False
             
         # no enemy in range, stay near tanks
@@ -344,7 +342,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if priority_targets:
             in_range = UnitTypes.in_attack_range_of(unit, priority_targets, bonus_distance=bonus_distance)
             if in_range:
-                return in_range.first
+                return in_range.sorted(lambda u: u.health + u.shield).first
         offensive_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack(u))
         if offensive_targets:
             if unit.tag not in self.threats:
@@ -353,15 +351,15 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             if threats:
                 in_range = UnitTypes.in_attack_range_of(unit, threats, bonus_distance=bonus_distance)
                 if in_range:
-                    return in_range.first
+                    return in_range.sorted(lambda u: u.health + u.shield).first
             in_range = UnitTypes.in_attack_range_of(unit, offensive_targets, bonus_distance=bonus_distance)
             if in_range:
-                return in_range.first
+                return in_range.sorted(lambda u: u.health + u.shield).first
         passive_targets = nearby_enemies.filter(lambda u: not UnitTypes.can_attack(u))
         if passive_targets:
             in_range = UnitTypes.in_attack_range_of(unit, passive_targets, bonus_distance=bonus_distance)
             if in_range:
-                return in_range.first
+                return in_range.sorted(lambda u: u.health + u.shield).first
             
     def _stay_at_max_range(self, unit: Unit, targets: Units) -> bool:
         if not targets:
