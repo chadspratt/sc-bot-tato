@@ -38,19 +38,19 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 if nearby_enemies and len(nearby_enemies.filter(lambda u: u.is_flying or u.type_id == UnitTypeId.COLOSSUS)) == 0:
                     # land on enemy sieged tanks
                     nearest_enemy = nearby_enemies.closest_to(unit)
-                    nearest_distance = unit.distance_to(nearest_enemy)
+                    nearest_distance_sq = unit.distance_to_squared(nearest_enemy)
                     if nearest_enemy.type_id == UnitTypeId.SIEGETANKSIEGED:
-                        if nearest_distance > 1.8:
+                        if nearest_distance_sq > 3.24:
                             unit.move(nearest_enemy.position)
-                        elif nearest_distance < 1.1:
+                        elif nearest_distance_sq < 1.21:
                             unit.move(nearest_enemy.position.towards(unit, 1.5)) # type: ignore
                         else:
                             unit(AbilityId.MORPH_VIKINGASSAULTMODE)
                         return True
                     if self.bot.enemy_structures:
                         nearest_structure = self.bot.enemy_structures.closest_to(unit)
-                        nearest_distance = min(nearest_distance, unit.distance_to(nearest_structure))
-                    if nearest_distance < 11:
+                        nearest_distance_sq = min(nearest_distance_sq, unit.distance_to_squared(nearest_structure))
+                    if nearest_distance_sq < 144:
                         # wait to land until closer to enemies
                         unit(AbilityId.MORPH_VIKINGASSAULTMODE)
                         return True

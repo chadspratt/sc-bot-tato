@@ -367,7 +367,7 @@ class Map(TimerMixin, GeometryMixin):
             # XXX maybe cache this for performance, would need to use rounded position and store a sorted list of closest positions
             # most lookups should only have to look at first few candidates
             pathable_position: Point2 = self.influence_maps.closest_towards_point(candidates, position)
-            if pathable_position.distance_to(position) < 1.5:
+            if pathable_position._distance_squared(position) < 2.25:
                 pathable_position = position
         if unit:
             self.influence_maps.add_cost(pathable_position, unit.radius, self.ground_grid, np.inf)

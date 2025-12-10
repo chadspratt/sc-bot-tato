@@ -343,7 +343,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                 return in_range.sorted(lambda u: u.health + u.shield).first
         offensive_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack(u))
         if offensive_targets:
-            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=0)
+            threats = self.enemy.threats_to_friendly_unit(unit, visible_only=True)
             if threats:
                 in_range = self.enemy.in_attack_range(unit, threats, bonus_distance)
                 if in_range:
@@ -390,8 +390,6 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
 
         attack_range = UnitTypes.range_vs_target(unit, nearest_target)
         future_enemy_position = nearest_target.position
-        # if nearest_target.distance_to(unit) > attack_range / 2:
-        #     future_enemy_position = self.enemy.get_predicted_position(nearest_target, unit.weapon_cooldown / 22.4)
         target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius - 1)
         return self._move_to_pathable_position(unit, target_position) # type: ignore
 
@@ -478,7 +476,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         medivacs = self.bot.units.filter(lambda unit: unit.type_id == UnitTypeId.MEDIVAC and unit.energy > 5 and unit.cargo_used == 0)
         if medivacs:
             nearest_medivac = medivacs.closest_to(unit)
-            if unit.distance_to(nearest_medivac) > 4:
+            if unit.distance_to_squared(nearest_medivac) > 16:
                 unit.move(nearest_medivac)
             else:
                 self._attack_something(unit, 0.0)
@@ -511,37 +509,39 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             self.stop_timer("_retreat_to_tank")
             return False
         if unit.health_percentage >= 0.9:
-            nearby_injured_friendlies = self.bot.units.filter(lambda u: u.health_percentage < 0.9 and u.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER)).closer_than(5, unit)
+            injured_friendlies = self.bot.units.filter(lambda u: u.health_percentage < 0.9 and u.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER))
             # poke out at full health otherwise enemy might never be engaged
-            if not nearby_injured_friendlies:
+            if not self.unit_is_closer_than(unit, injured_friendlies, 5, self.bot):
                 return False
-            #     tank_to_enemy_distance += 3.0
 
-        close_enemies = self.bot.enemy_units.closer_than(15, unit).filter(
-            lambda u: u.type_id not in self.retreat_to_tank_excluded_types and not u.is_flying and UnitTypes.can_attack_ground(u) and u.unit_alias != UnitTypeId.CHANGELING)
-        if len(close_enemies) == 0:
+        tank_targets = self.bot.enemy_units.filter(
+            lambda u: u.type_id not in self.retreat_to_tank_excluded_types
+                and not u.is_flying
+                and UnitTypes.can_attack_ground(u)
+                and u.unit_alias != UnitTypeId.CHANGELING
+            )
+        if not tank_targets:
             self.stop_timer("_retreat_to_tank")
             return False
-        
-        closest_enemy = close_enemies.closest_to(unit)
-        if closest_enemy.is_flying:
+        closest_enemy = tank_targets.closest_to(unit)
+        if closest_enemy.distance_to_squared(unit) > 225:
             self.stop_timer("_retreat_to_tank")
             return False
 
         nearest_tank = tanks.closest_to(unit)
-        tank_to_enemy_distance = self.distance(nearest_tank, closest_enemy)
-        if tank_to_enemy_distance > 13.5 + nearest_tank.radius + closest_enemy.radius and tank_to_enemy_distance < 40:
+        tank_to_enemy_distance_sq = self.distance_squared(nearest_tank, closest_enemy)
+        if tank_to_enemy_distance_sq < 1600 and tank_to_enemy_distance_sq > (13.5 + nearest_tank.radius + closest_enemy.radius)**2:
             optimal_distance = 13.5 - UnitTypes.ground_range(closest_enemy) - unit.radius + nearest_tank.radius - 2.0
             unit.move(nearest_tank.position.towards(unit.position, optimal_distance)) # type: ignore
-            if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
-                BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance
+            if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
+                BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance_sq
             self.stop_timer("_retreat_to_tank")
             return True
-        elif not can_attack and tank_to_enemy_distance < unit.distance_to(closest_enemy) + 3:
+        elif not can_attack and tank_to_enemy_distance_sq < unit.distance_to_squared(closest_enemy) * 0.3:
             # defend tank if it's closer to enemy than unit
             unit.move(nearest_tank.position.towards(closest_enemy.position, 3)) # type: ignore
-            if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
-                BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance
+            if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
+                BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance_sq
             self.stop_timer("_retreat_to_tank")
             return True
         self.stop_timer("_retreat_to_tank")
@@ -560,5 +560,5 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         # away_from_enemy_position = unit.position.towards(threat_position, -1)
         circle_around_positions = [Point2(unit.position + tangent_vector1),
                                     Point2(unit.position + tangent_vector2)]
-        circle_around_positions.sort(key=lambda pos: pos.distance_to(destination))
+        circle_around_positions.sort(key=lambda pos: pos._distance_squared(destination))
         return circle_around_positions[0].towards(threat_position, -1) # type: ignore

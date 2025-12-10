@@ -265,7 +265,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 non_flying = self.bot.townhalls.ready.filter(lambda th: not th.is_flying)
                 if non_flying:
                     closest_townhall: Unit = self.closest_unit_to_unit(worker, non_flying)
-                    if closest_townhall.distance_to(worker) < 15:
+                    if closest_townhall.distance_to_squared(worker) < 225:
                         assignment.dropoff_target = closest_townhall
                 if assignment.dropoff_target is None:
                     return False
@@ -352,11 +352,11 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.start_timer("my_workers.speed_smart")
         if position is None or target is None:
             return
-        remaining_distance = worker.distance_to(position)
-        if 0.75 < remaining_distance < 1.75:
+        remaining_distance = worker.distance_to_squared(position)
+        if 0.5625 < remaining_distance < 3.0625:
             worker.move(position)
             worker(AbilityId.SMART, target, True)
-        elif remaining_distance <= 0.75:
+        elif remaining_distance <= 0.5625:
             first_order = worker.orders[0]
             if first_order.ability.id != AbilityId.HARVEST_GATHER or first_order.target != target.tag:
                 worker(AbilityId.SMART, target)
@@ -373,12 +373,12 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             for townhall in self.bot.townhalls:
                 nearby_enemy_structures = self.bot.enemy_structures.closer_than(23, townhall).filter(lambda u: not u.is_flying)
                 if nearby_enemy_structures:
-                    nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 10000 + a.distance_to(townhall))
+                    nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1000000 + a.distance_to_squared(townhall))
                 nearby_enemy_range = 25 if nearby_enemy_structures else 12
                 nearby_enemies = self.bot.enemy_units.closer_than(nearby_enemy_range, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
                 for enemy in self.units_to_attack:
                     predicted_position = self.enemy.get_predicted_position(enemy, 0.0)
-                    if predicted_position.distance_to(townhall.position) < 25:
+                    if predicted_position._distance_squared(townhall.position) < 625:
                         nearby_enemies.append(enemy)
                 if nearby_enemies or nearby_enemy_structures:
                     logger.debug(f"units_to_attack: {self.units_to_attack}")
@@ -417,13 +417,13 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         logger.debug(f"no attackers available for enemy {nearby_enemy}")
                         break
                     for attacker in attackers:
-                        if attacker.distance_to(enemy_position) > 25 or abs(self.bot.get_terrain_height(attacker.position) - self.bot.get_terrain_height(enemy_position)) > 5:
+                        if attacker.distance_to_squared(enemy_position) > 625 or abs(self.bot.get_terrain_height(attacker.position) - self.bot.get_terrain_height(enemy_position)) > 5:
                             # don't pull workers from far away or go down a ramp
                             logger.debug(f"worker {attacker} too far from enemy {nearby_enemy}")
                             continue
                         if nearby_enemy.is_structure:
                             attacker.attack(nearby_enemy)
-                        elif attacker.distance_to(enemy_position) < enemy_position.distance_to(predicted_position):
+                        elif attacker.distance_to_squared(enemy_position) < self.distance_squared(enemy_position, predicted_position):
                             await micro.move(attacker, nearby_enemy.position)
                         else:
                             # try to head off units instead of trailing after them

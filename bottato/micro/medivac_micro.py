@@ -15,6 +15,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     heal_cost = 1
     heal_start_cost = 5
     heal_range = 4
+    heal_range_sq = 16
     ability_health = 0.5
     pick_up_range = 2
     health_threshold_for_healing = 0.75
@@ -38,15 +39,15 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 unit(AbilityId.UNLOADALLAT, unit)
                 return True
             return False
-        enemy_distance_to_target = self.bot.enemy_units.closest_distance_to(target) if self.bot.enemy_units else 9999
-        if force_move and self.bot.time > 300 and unit.cargo_left > 0 and enemy_distance_to_target > 20:
+        enemy_distance_to_target = self.closest_distance_squared(target, self.bot.enemy_units) if self.bot.enemy_units else 999999
+        if force_move and self.bot.time > 300 and unit.cargo_left > 0 and enemy_distance_to_target > 400:
             if self.units_to_pick_up_last_update != self.bot._total_steps_iterations:
                 self.units_to_pick_up_last_update = self.bot._total_steps_iterations
                 self.units_to_pick_up = self.bot.units.filter(
                     lambda u: u.type_id != UnitTypeId.SIEGETANKSIEGED
                         and u.movement_speed < unit.movement_speed
                         and not u.is_flying
-                        and u.distance_to(target) > 15)
+                        and u.distance_to_squared(target) > 225)
                 self.units_to_pick_up_potential_damage.clear()
                 # calculate potential damage to a medivac if it tried to pick up each unit
                 if self.units_to_pick_up and self.bot.enemy_units:
@@ -64,7 +65,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 # prioritize slower units, tiebreak with further from home
                 self.units_to_pick_up.sort(key=lambda u: u.movement_speed * 10000 - u.distance_to_squared(self.bot.start_location))
             for passenger in self.units_to_pick_up:
-                if passenger.distance_to(target) < unit.distance_to(target):
+                if passenger.distance_to_squared(target) < unit.distance_to_squared(target):
                     # skip units that are already closer to the target
                     continue
                 if passenger.cargo_size <= unit.cargo_left and self.units_to_pick_up_potential_damage.get(passenger.tag, 0) < unit.health:
@@ -72,7 +73,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                     passenger.move(unit.position) # possible passenger already received an order, but shouldn't hurt
                     self.units_to_pick_up.remove(passenger)
                     return True
-        if unit.cargo_used > 0 and (unit.distance_to(target) < 10 or enemy_distance_to_target <= 20):
+        if unit.cargo_used > 0 and (unit.distance_to_squared(target) < 100 or enemy_distance_to_target <= 400):
             unit(AbilityId.UNLOADALLAT, unit)
             return True
         if not self.heal_available(unit):
@@ -85,18 +86,18 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
             self.injured_bio_last_update = self.bot._total_steps_iterations
             self.injured_bio = self.bot.units.filter(lambda u: u.is_biological and u.health_percentage < 1.0)
 
-        heal_candidates = self.injured_bio.closer_than(20, unit)
-        if heal_candidates:
-            nearest_injured = heal_candidates.closest_to(unit)
-            if self.distance(unit, nearest_injured) <= self.heal_range:
-                # prioritize closest otherwise it defaults to lowest which delays units rejoining battle
-                unit(AbilityId.MEDIVACHEAL_HEAL, nearest_injured)
-                # unit.stop()
-                self.stopped_for_healing.add(unit.tag)
-            else:
-                unit.move(nearest_injured)
-                if unit.tag in self.stopped_for_healing:
-                    self.stopped_for_healing.remove(unit.tag)
+        if self.injured_bio:
+            nearest_injured = self.injured_bio.closest_to(unit)
+            if nearest_injured.distance_to_squared(unit) < 400:
+                if self.distance_squared(unit, nearest_injured) <= self.heal_range_sq:
+                    # prioritize closest otherwise it defaults to lowest which delays units rejoining battle
+                    unit(AbilityId.MEDIVACHEAL_HEAL, nearest_injured)
+                    # unit.stop()
+                    self.stopped_for_healing.add(unit.tag)
+                else:
+                    unit.move(nearest_injured)
+                    if unit.tag in self.stopped_for_healing:
+                        self.stopped_for_healing.remove(unit.tag)
 
         return unit.tag in self.bot.unit_tags_received_action
 

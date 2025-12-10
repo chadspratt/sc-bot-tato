@@ -189,7 +189,7 @@ class GeometryMixin:
         return distance
     
     @staticmethod
-    def closest_distance_squared(unit1: Unit, units: Units) -> float:
+    def closest_distance_squared(unit1: Unit | Point2, units: Units) -> float:
         closest_distance_sq = 9999
         for unit in units:
             closest_distance_sq = min(closest_distance_sq, GeometryMixin.distance_squared(unit1, unit))
@@ -251,6 +251,7 @@ class GeometryMixin:
                 most_nearby_unit = unit
                 most_nearby_units = nearby_units
         return (most_nearby_unit, most_nearby_units)
+
 
 class TimerMixin:
     def start_timer(self, timer_name: str) -> None:

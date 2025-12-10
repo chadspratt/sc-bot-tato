@@ -73,7 +73,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             + self.bot.enemy_structures.filter(lambda enemy: UnitTypes.can_attack_air(enemy))
         if threats:
             nearest_threat = threats.closest_to(unit)
-            if nearest_threat.distance_to(unit) < unit.sight_range:
+            if nearest_threat.distance_to_squared(unit) < unit.sight_range ** 2:
                 target_position = nearest_threat.position.towards(unit, unit.sight_range - 1)
                 unit.move(target_position) # type: ignore
                 return True

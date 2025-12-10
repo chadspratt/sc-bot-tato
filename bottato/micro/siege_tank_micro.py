@@ -84,7 +84,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 for townhall in self.bot.townhalls.ready:
                     if townhall.is_flying:
                         continue
-                    if townhall.distance_to(el) < 4:
+                    if townhall.distance_to_squared(el) < 16:
                         natural_in_place = True
                         break
         if self.bot.time < 300 or self.bot.time < 420 and not natural_in_place:
@@ -94,8 +94,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             if closest_enemy_to_ramp:
                 LogHelper.add_log(f"Early game siege tank micro for {unit}, closest enemy to ramp: {closest_enemy_to_ramp}")
                 # bonus_distance = 0 if is_sieged else 6
-                in_range_distance = 11 if closest_enemy_to_ramp.is_structure else 13
-                enemy_out_of_range = unit.distance_to(closest_enemy_to_ramp) >= in_range_distance
+                in_range_distance_sq = 121 if closest_enemy_to_ramp.is_structure else 169
+                enemy_out_of_range = unit.distance_to_squared(closest_enemy_to_ramp) >= in_range_distance_sq
                 if is_sieged and enemy_out_of_range and closest_enemy_to_ramp.is_structure:
                     self.unsiege(unit)
                     return True
@@ -117,14 +117,14 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     tank_position = None
                     bunkers = self.bot.structures(UnitTypeId.BUNKER)
                     bunker: Unit | None = bunkers.furthest_to(self.bot.main_base_ramp.top_center) if bunkers else None
-                    if bunker and bunker.distance_to(self.bot.main_base_ramp.top_center) > 6:
+                    if bunker and bunker.distance_to_squared(self.bot.main_base_ramp.top_center) > 36:
                         # bunker on low ground, position tank to cover it, a bit away from top of ramp
                         tank_positions = self.get_triangle_point_c(bunker.position, self.bot.main_base_ramp.top_center, 10.5, 5)
                         if tank_positions:
                             high_ground_height = self.bot.get_terrain_height(self.bot.main_base_ramp.top_center)
                             for position in tank_positions:
                                 if abs(self.bot.get_terrain_height(position) - high_ground_height) < 5:
-                                    if tank_position is None or tank_position.distance_to(self.bot.game_info.map_center) > position.distance_to(self.bot.game_info.map_center):
+                                    if tank_position is None or tank_position._distance_squared(self.bot.game_info.map_center) > position._distance_squared(self.bot.game_info.map_center):
                                         tank_position = position
                         if not tank_position:
                             tank_position = bunker.position.towards(unit, 10.5)
@@ -185,7 +185,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                                                                         excluded_types=excluded_enemy_types)
         closest_distance_after_siege = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
                                                                      excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time/2)[1]
-        closest_structure, closest_structure_distance = self.enemy.get_target_closer_than(unit, max_distance=self.sight_range - 1,include_units=False)
+        _, closest_structure_distance = self.enemy.get_target_closer_than(unit, max_distance=self.sight_range - 1,include_units=False)
 
         if transform_cooldown > 0 and not is_sieged:
             # try to actually get in range during cooldown

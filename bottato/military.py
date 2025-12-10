@@ -97,7 +97,7 @@ class StuckRescue(Squad, UnitReferenceMixin):
             else:
                 self.dropoff = self.main_army.position.towards(self.bot.start_location, 8) # type: ignore
                 self.transport.move(self.dropoff) # type: ignore
-                if self.transport.distance_to(self.dropoff) < 5: # type: ignore
+                if self.transport.distance_to_squared(self.dropoff) < 25: # type: ignore
                     self.transport(AbilityId.UNLOADALLAT, self.transport)
                     for tag in self.transport.passengers_tags:
                         self.pending_unload.add(tag)
@@ -206,18 +206,18 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         base_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET)
         if self.bot.enemy_race in (Race.Zerg, Race.Random): # type: ignore
             nydus_canals = self.bot.enemy_structures.of_type(UnitTypeId.NYDUSCANAL)
-            if nydus_canals and base_structures.closest_distance_to(nydus_canals.first) < 25 and self.main_army.units:
+            if nydus_canals and self.closest_distance_squared(nydus_canals.first, base_structures) < 625 and self.main_army.units:
                 # put massive priority on killing nydus canals near base
                 await self.main_army.move(nydus_canals.first.position)
                 return
         enemies_in_base: Units = Units([], self.bot)
-        enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: base_structures.closest_distance_to(unit) < 25))
+        enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.closest_distance_squared(unit, base_structures) < 625))
         if self.main_army.staging_location:
-            enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.main_army.staging_location.distance_to(unit) < 25))
+            enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.main_army.staging_location._distance_squared(unit.position) < 625))
 
         out_of_view_in_base = []
         for enemy in self.enemy.recent_out_of_view():
-            if base_structures.closest_distance_to(self.enemy.predicted_position[enemy.tag]) <= 25:
+            if self.closest_distance_squared(self.enemy.predicted_position[enemy.tag], base_structures) < 625:
                 out_of_view_in_base.append(enemy)
         enemies_in_base.extend(out_of_view_in_base)
 
@@ -434,16 +434,15 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.empty_bunker(bunker)
                 break
         
-        enemy_distance_to_bunker = 100
-        # enemy_distance_to_townhall = 100
+        enemy_distance_to_bunker = 10000
         current_enemies = enemies_in_base.filter(lambda unit: unit.age == 0)
         if current_enemies:
-            enemy_distance_to_bunker = current_enemies.closest_distance_to(bunker.structure)
-            # enemy_distance_to_townhall = current_enemies.closest_distance_to(self.bot.start_location)
+            enemy_distance_to_bunker = self.closest_distance_squared(bunker.structure, current_enemies)
 
-        # if self.bot.time > 360 or enemy_distance_to_townhall < 15:
-        bunker_range = max([passenger.ground_range for passenger in bunker.structure.passengers], default=6) + 1 + bunker.structure.radius
-        if enemy_distance_to_bunker < 100 and enemy_distance_to_bunker > bunker_range:
+        bunker_range = (max([passenger.ground_range
+                             for passenger in bunker.structure.passengers], default=6) + 1 + bunker.structure.radius
+                       ) ** 2
+        if enemy_distance_to_bunker < 10000 and enemy_distance_to_bunker > bunker_range:
             self.empty_bunker(bunker)
             return
 
@@ -451,7 +450,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             try:
                 unit = self.get_updated_unit_reference(unit, self.bot, self.units_by_tag)
                 # unit didn't enter bunker, maybe got stuck behind wall
-                if unit.distance_to(bunker.structure) <= 2.5:
+                if unit.distance_to_squared(bunker.structure) <= 6.25:
                     unit.smart(bunker.structure)
                 else:
                     micro = MicroFactory.get_unit_micro(unit)
@@ -465,8 +464,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                     valid_units = squad.units.of_type({UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.GHOST})
                     closest_units = valid_units.closest_n_units(bunker.structure, 4 - len(bunker.units))
                     for unit in closest_units:
-                        enemy_distance_to_unit = current_enemies.closest_distance_to(unit) if current_enemies else 100
-                        marine_distance_to_bunker = unit.distance_to(bunker.structure)
+                        enemy_distance_to_unit = self.closest_distance_squared(unit, current_enemies) if current_enemies else 10000
+                        marine_distance_to_bunker = unit.distance_to_squared(bunker.structure)
                         if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
                             # send unit to bunker if they won't have to move past enemies
                             self.transfer(unit, self.main_army, bunker)

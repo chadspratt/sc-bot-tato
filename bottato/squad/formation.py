@@ -266,7 +266,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
             # face nearest enemy
             if self.bot.enemy_units:
                 nearest_enemy = self.bot.enemy_units.closest_to(self.front_center)
-                if nearest_enemy.distance_to(self.front_center) < 20:
+                if nearest_enemy.distance_to_squared(self.front_center) < 400:
                     facing = self.get_facing(self.front_center, nearest_enemy.position)
             if not facing:
                 facing = self.get_facing(self.front_center, self.destination)
@@ -319,10 +319,10 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
         # # find waypoint beyond the units
         next_waypoint = destination
         next_waypoint_index = 1
-        distance = 0
-        while distance < 2 and next_waypoint_index < len(self.path):
+        distance_sq = 0
+        while distance_sq < 4 and next_waypoint_index < len(self.path):
             next_waypoint = self.path[next_waypoint_index]
-            distance = closest_position.distance_to(next_waypoint)
+            distance_sq = closest_position._distance_squared(next_waypoint)
             next_waypoint_index += 1
         closest_elevation = self.bot.get_terrain_z_height(closest_position)
         intersect_point: Point2
@@ -344,7 +344,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
             intersect_point = Point2((x_intersect, y_intersect))
         new_front_center = intersect_point.towards(next_waypoint, 1, limit=True)
         self.clamp_position_to_map_bounds(new_front_center) # type: ignore
-        while abs(self.bot.get_terrain_z_height(new_front_center) - closest_elevation) > 0.8 and new_front_center.distance_to(closest_position) > 1: # type: ignore
+        while abs(self.bot.get_terrain_z_height(new_front_center) - closest_elevation) > 0.8 and new_front_center._distance_squared(closest_position) > 1: # type: ignore
             new_front_center = new_front_center.towards(closest_position, 1, limit=True)
         return new_front_center # type: ignore
 
