@@ -240,7 +240,6 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
 
     last_targets_update_time: float = 0.0
     valid_targets: Units | None = None
-    threats: Dict[int, Units] = {}
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         return False
 
@@ -253,7 +252,6 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             self.valid_targets = self.bot.enemy_units.filter(
                 lambda u: u.can_be_attacked and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
                 ).sorted(key=lambda u: u.health + u.shield) + self.bot.enemy_structures
-            self.threats.clear()
 
         if not self.valid_targets:
             return False
@@ -272,7 +270,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         
         # don't attack if low health and there are threats
         if unit.health_percentage < health_threshold:
-            if UnitTypes.threats(unit, nearby_enemies, bonus_distance=6):
+            if self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6):
                 return False
             
         # no enemy in range, stay near tanks
@@ -299,7 +297,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
-        threats = self.enemy.threats_to(unit, attack_range_buffer=4)
+        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=4)
 
         if not threats:
             if unit.health_percentage >= health_threshold:
@@ -322,7 +320,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         # retreat if there is nothing this unit can attack and it's not an SCV which might be repairing
         if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
             visible_threats = threats.filter(lambda t: t.age == 0)
-            targets = UnitTypes.in_attack_range_of(unit, visible_threats, bonus_distance=3)
+            targets = self.enemy.in_attack_range(unit, visible_threats, 3)
             if not targets:
                 unit(AbilityId.UNSIEGE_UNSIEGE)
                 return True
@@ -340,24 +338,22 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0) -> Unit | None:
         priority_targets = nearby_enemies.filter(lambda u: u.type_id in UnitTypes.HIGH_PRIORITY_TARGETS)
         if priority_targets:
-            in_range = UnitTypes.in_attack_range_of(unit, priority_targets, bonus_distance=bonus_distance)
+            in_range = self.enemy.in_attack_range(unit, priority_targets, bonus_distance)
             if in_range:
                 return in_range.sorted(lambda u: u.health + u.shield).first
         offensive_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack(u))
         if offensive_targets:
-            if unit.tag not in self.threats:
-                self.threats[unit.tag] = UnitTypes.threats(unit, offensive_targets)
-            threats = self.threats[unit.tag]
+            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=0)
             if threats:
-                in_range = UnitTypes.in_attack_range_of(unit, threats, bonus_distance=bonus_distance)
+                in_range = self.enemy.in_attack_range(unit, threats, bonus_distance)
                 if in_range:
                     return in_range.sorted(lambda u: u.health + u.shield).first
-            in_range = UnitTypes.in_attack_range_of(unit, offensive_targets, bonus_distance=bonus_distance)
+            in_range = self.enemy.in_attack_range(unit, offensive_targets, bonus_distance)
             if in_range:
                 return in_range.sorted(lambda u: u.health + u.shield).first
         passive_targets = nearby_enemies.filter(lambda u: not UnitTypes.can_attack(u))
         if passive_targets:
-            in_range = UnitTypes.in_attack_range_of(unit, passive_targets, bonus_distance=bonus_distance)
+            in_range = self.enemy.in_attack_range(unit, passive_targets, bonus_distance)
             if in_range:
                 return in_range.sorted(lambda u: u.health + u.shield).first
             
@@ -408,9 +404,11 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if do_kite:
             # can attack while staying out of range
             target_distance = self.distance(unit, target) - target.radius - unit.radius
-            if target_distance < attack_range - 1.0:
+            if target_distance < attack_range - 0.8:
                 if self._stay_at_max_range(unit, Units([target], bot_object=self.bot)):
                     return True
+                unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
+                return True
         self._attack(unit, target)
         return True
     
@@ -505,6 +503,9 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if unit.type_id in {UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED}:
             self.stop_timer("_retreat_to_tank")
             return False
+        if not unit.can_be_attacked:
+            self.stop_timer("_retreat_to_tank")
+            return False
         tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))
         if not tanks:
             self.stop_timer("_retreat_to_tank")
@@ -547,15 +548,17 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         return False
     
     def get_circle_around_position(self, unit: Unit, threat_position: Point2, destination: Point2) -> Point2:
-        threat_to_unit_vector = (unit.position - threat_position).normalized
-        tangent_vector1 = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
-        tangent_vector2 = Point2((-tangent_vector1.x, -tangent_vector1.y))
-        away_from_enemy_position = unit.position.towards(threat_position, -1)
-        circle_around_positions = [Point2(away_from_enemy_position + tangent_vector1),
-                                    Point2(away_from_enemy_position + tangent_vector2)]
         if unit.distance_to_squared(destination) > 225:
             path_to_destination = self.map.get_path_points(unit.position, destination)
             if len(path_to_destination) > 1:
                 destination = path_to_destination[1]
+                if unit.distance_to_squared(destination) < threat_position._distance_squared(destination):
+                    return destination
+        threat_to_unit_vector = (unit.position - threat_position).normalized
+        tangent_vector1 = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
+        tangent_vector2 = Point2((-tangent_vector1.x, -tangent_vector1.y))
+        # away_from_enemy_position = unit.position.towards(threat_position, -1)
+        circle_around_positions = [Point2(unit.position + tangent_vector1),
+                                    Point2(unit.position + tangent_vector2)]
         circle_around_positions.sort(key=lambda pos: pos.distance_to(destination))
-        return circle_around_positions[0]
+        return circle_around_positions[0].towards(threat_position, -1) # type: ignore

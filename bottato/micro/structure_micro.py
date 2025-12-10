@@ -96,7 +96,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                     cc(AbilityId.LIFT)
                     return
                 if cc.health_percentage < 0.8 and self.bot.enemy_units:
-                    nearby_enemies = UnitTypes.threats(cc, self.bot.enemy_units, bonus_distance = 2)
+                    nearby_enemies = self.enemy.threats_to_friendly_unit(cc, attack_range_buffer=2)
                     if nearby_enemies:
                         threats = nearby_enemies.filter(lambda enemy: UnitTypes.can_attack_ground(enemy))
                         if threats:
@@ -136,7 +136,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                 attackers = ground_attackers
             if not attackers:
                 continue
-            attackers = UnitTypes.threats(enemy, attackers)
+            attackers = self.enemy.threats_to(enemy, attackers)
             if attackers.amount > 1:
                 enemies_to_scan.append(enemy)
 

@@ -170,7 +170,13 @@ class GeometryMixin:
         return unit1.distance_to(unit2.position)
         
     @staticmethod
-    def distance_squared(unit1: Unit, unit2: Unit) -> float:
+    def distance_squared(unit1: Unit | Point2, unit2: Unit | Point2) -> float:
+        if isinstance(unit1, Point2):
+            if isinstance(unit2, Point2):
+                return unit1._distance_squared(unit2)
+            return unit1._distance_squared(unit2.position)
+        if isinstance(unit2, Point2):
+            return unit1.position._distance_squared(unit2)
         if unit1.age == 0 and unit2.age == 0:
             return unit1.distance_to_squared(unit2)        
         return unit1.distance_to_squared(unit2.position)

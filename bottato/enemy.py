@@ -1,10 +1,11 @@
-from typing import Dict, List
+from typing import Dict, List, Tuple
 from loguru import logger
 from collections import deque
 
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.units import Units
+from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
@@ -26,18 +27,22 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         self.enemies_out_of_view: Units = Units([], bot)
         self.enemies_killed: List[tuple[Unit, float]] = []
         self.new_units: Units = Units([], bot)
-        self.first_seen: dict[int, float] = {}
-        self.last_seen: dict[int, float] = {}
-        self.last_seen_step: dict[int, int] = {}
-        self.last_seen_position: dict[int, Point2] = {}
-        self.last_seen_positions: dict[int, deque] = {}
-        self.predicted_position: dict[int, Point2] = {}
-        self.predicted_frame_vector: dict[int, Point2] = {}
+        self.first_seen: Dict[int, float] = {}
+        self.last_seen: Dict[int, float] = {}
+        self.last_seen_step: Dict[int, int] = {}
+        self.last_seen_position: Dict[int, Point2] = {}
+        self.last_seen_positions: Dict[int, deque] = {}
+        self.predicted_position: Dict[int, Point2] = {}
+        self.predicted_frame_vector: Dict[int, Point2] = {}
         self.enemy_squads: List[EnemySquad] = []
-        self.squads_by_unit_tag: dict[int, EnemySquad] = {}
-        self.all_seen: dict[UnitTypeId, set[int]] = {}
+        self.squads_by_unit_tag: Dict[int, EnemySquad] = {}
+        self.all_seen: Dict[UnitTypeId, set[int]] = {}
+        self.threat_cache: Dict[int, Dict[int, float]] = {}
+        self.target_cache: Dict[int, Dict[int, float]] = {}
 
-    def update_references(self, units_by_tag: dict[int, Unit]):
+    def update_references(self, units_by_tag: Dict[int, Unit]):
+        self.threat_cache.clear()
+        self.target_cache.clear()
         self.start_timer("enemy.update_references")
         for squad in self.enemy_squads:
             squad.update_references(units_by_tag)
@@ -205,24 +210,72 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                     current_squad.transfer(enemy_unit, nearby_squad)
                     self.squads_by_unit_tag[enemy_unit.tag] = nearby_squad
 
-    def threats_to(self, friendly_unit: Unit, attack_range_buffer=2) -> Units:
-        threats = Units([enemy_unit for enemy_unit in self.enemies_in_view
-                         if UnitTypes.target_in_range(enemy_unit, friendly_unit, attack_range_buffer)],
-                        self.bot)
-        range_limits: Dict[UnitTypeId, float] = {}
-        for enemy_unit in self.recent_out_of_view():
-            if enemy_unit.type_id not in range_limits:
-                enemy_attack_range = UnitTypes.range_vs_target(enemy_unit, friendly_unit)
-                if enemy_attack_range == 0.0:
-                    range_limits[enemy_unit.type_id] = 0
+    def threats_to_friendly_unit(self, friendly_unit: Unit, attack_range_buffer=0) -> Units:
+        return self.threats_to(friendly_unit,
+                               self.enemies_in_view + self.recent_out_of_view(),
+                               attack_range_buffer)
+
+    def threats_to(self, unit: Unit, attackers: Units, attack_range_buffer=0) -> Units:
+        threats = Units([], self.bot)
+        if not unit.can_be_attacked:
+            return threats
+
+        if unit.tag not in self.threat_cache:
+            self.threat_cache[unit.tag] = {}
+        cache_threats = self.threat_cache[unit.tag]
+
+        attackers = attackers.filter(lambda u: UnitTypes.can_attack_target(u, unit)
+                                     or u.is_detector and unit.is_cloaked)
+
+        for threat in attackers:
+            range_buffer: float
+            if threat.tag in cache_threats:
+                range_buffer = cache_threats[threat.tag]
+            else:
+                if threat.age == 0:
+                    range_buffer = UnitTypes.get_range_buffer_vs_target(threat, unit)
                 else:
-                    range_limits[enemy_unit.type_id] = (enemy_attack_range + attack_range_buffer) ** 2
-            range_limit = range_limits[enemy_unit.type_id]
-            if range_limit == 0:
-                continue
-            if friendly_unit.distance_to_squared(self.predicted_position[enemy_unit.tag]) <= range_limit:
-                threats.append(enemy_unit)
+                    enemy_position: Point2 = self.predicted_position[threat.tag]
+                    range_buffer = UnitTypes.get_range_buffer_vs_target(threat, unit, attacker_position=enemy_position)
+                cache_threats[threat.tag] = range_buffer
+            if range_buffer <= attack_range_buffer:
+                threats.append(threat)
+
         return threats
+    
+    def in_friendly_attack_range(self, friendly_unit: Unit, attack_range_buffer:float=0, targets: Units | None = None) -> Units:
+        candidates = targets if targets else self.enemies_in_view
+        in_range = self.in_attack_range(friendly_unit, candidates, attack_range_buffer)
+        return in_range
+    
+    def in_enemy_attack_range(self, enemy_unit: Unit, attack_range_buffer: float=0, targets: Units | None = None) -> Units:
+        candidates = targets if targets else self.bot.units + self.bot.structures
+        in_range = self.in_attack_range(enemy_unit, candidates, attack_range_buffer)
+        return in_range
+    
+    def in_attack_range(self, unit: Unit, targets: Units, attack_range_buffer: float=0) -> Units:
+        in_range = Units([], self.bot)
+
+        if unit.tag not in self.target_cache:
+            self.target_cache[unit.tag] = {}
+        cache_targets = self.target_cache[unit.tag]
+
+        targets = targets.filter(lambda u: u.can_be_attacked
+                                 and u.armor < 10
+                                 and BuffId.NEURALPARASITE not in u.buffs
+                                 and UnitTypes.can_attack_target(unit, u))
+
+        for target_unit in targets:
+            range_buffer: float
+            if target_unit.tag in cache_targets:
+                range_buffer = cache_targets[target_unit.tag]
+            else:
+                range_buffer = UnitTypes.get_range_buffer_vs_target(unit, target_unit)
+                cache_targets[target_unit.tag] = range_buffer
+            if range_buffer <= attack_range_buffer:
+                in_range.append(target_unit)
+
+        return in_range
 
     def threats_to_repairer(self, friendly_unit: Unit, attack_range_buffer: float=2) -> Units:
         threats = Units([enemy_unit for enemy_unit in self.enemies_in_view
@@ -271,7 +324,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         excluded_types = self.non_army_non_scout_unit_types if include_scouts else self.non_army_unit_types
         enemies = (self.enemies_in_view + self.enemies_out_of_view)
         if seconds_since_killed > 0:
-            killed_types: dict[UnitTypeId, int] = {}
+            killed_types: Dict[UnitTypeId, int] = {}
             cutoff_time = self.bot.time - seconds_since_killed
             killed_units = Units([], self.bot)
             for i in range(len(self.enemies_killed)-1, -1, -1):
@@ -323,7 +376,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                                include_structures=True, include_units=True, include_destructables=False,
                                excluded_types=[], seconds_ahead: float=0) -> tuple[Unit | None, float]:
         candidates: Units = self.get_candidates(include_structures, include_units, include_destructables,
-                                                True, excluded_types)
+                                                excluded_types=excluded_types)
         distance_limit = max_distance ** 2
         for enemy in candidates:
             enemy_distance: float
@@ -337,7 +390,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     def get_enemies_in_range(self, friendly_unit: Unit, include_structures=True, include_units=True, include_destructables=False, excluded_types=[]) -> Units:
         enemies_in_range: Units = Units([], self.bot)
-        candidates = self.get_candidates(include_structures, include_units, include_destructables, excluded_types)
+        candidates = self.get_candidates(include_structures, include_units, include_destructables, excluded_types=excluded_types)
         for candidate in candidates:
             range = self.distance(friendly_unit, candidate) - friendly_unit.radius - candidate.radius
             attack_range = UnitTypes.range_vs_target(friendly_unit, candidate)

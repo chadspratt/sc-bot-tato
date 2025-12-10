@@ -52,7 +52,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         if enemy_unit is None:
             return False
 
-        threats = self.enemy.threats_to(unit)
+        threats = self.enemy.threats_to_friendly_unit(unit, 2)
         if threats and enemy_distance < self.ideal_enemy_distance - 2:
             # too close
             return False

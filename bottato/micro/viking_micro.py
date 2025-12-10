@@ -113,9 +113,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             for viking in vikings:
                 if not viking.is_flying:
                     continue
-                enemy_units = self.bot.enemy_units.filter(lambda u: BuffId.NEURALPARASITE not in u.buffs)
-                enemies = UnitTypes.in_attack_range_of(viking, enemy_units, bonus_distance=5).filter(
-                    lambda unit: unit.can_be_attacked)
+                enemies = self.enemy.in_friendly_attack_range(viking, attack_range_buffer=5)
                 enemies.sort(key=lambda e: e.health + e.shield)
                 for enemy in enemies:
                     if enemy.type_id not in damage_vs_type:
@@ -163,13 +161,13 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
         if self._retreat_to_tank(unit, can_attack):
             return True
 
-        bonus_distance = 2 if unit.is_flying else 4
-        enemies = self.bot.enemy_units.filter(lambda unit: unit.can_be_attacked and unit.armor < 10)
+        attack_range_buffer = 2 if unit.is_flying else 4
+        enemies = self.bot.enemy_units
         if not unit.is_flying:
             enemies += self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES)
-        candidates = UnitTypes.in_attack_range_of(unit, enemies, bonus_distance)
+        candidates = self.enemy.in_attack_range(unit, enemies, attack_range_buffer)
         if not candidates and not unit.is_flying:
-            candidates = UnitTypes.in_attack_range_of(unit, self.bot.enemy_structures, bonus_distance)
+            candidates = self.enemy.in_attack_range(unit, self.bot.enemy_structures, attack_range_buffer)
         if not candidates:
             return False
 

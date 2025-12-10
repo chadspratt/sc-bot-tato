@@ -3,6 +3,7 @@ from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
+from sc2.position import Point2
 
 from bottato.mixins import GeometryMixin
 from bottato.enums import UnitAttribute
@@ -439,32 +440,26 @@ class UnitTypes(GeometryMixin):
         return distance <= (attacker.radius + target.radius + attack_range + bonus_distance) ** 2
     
     @staticmethod
-    def in_attack_range_of(attacker: Unit, targets: Units, bonus_distance: float = 0.0) -> Units:
+    def get_range_buffer_vs_target(attacker: Unit, target: Unit, attacker_position: Point2 | None = None, target_position: Point2 | None = None) -> float:
         """
-        Filter a set of units to those that are in attack range of the given attacker unit.
+        Get the range buffer of the attacker unit against the target unit.
         """
-        in_range_units = Units([], targets._bot_object)
-        for target in targets:
-            if UnitTypes.target_in_range(attacker, target, bonus_distance):
-                in_range_units.append(target)
-        return in_range_units
-    
-    @staticmethod
-    def threats(target: Unit, attackers: Units, bonus_distance: float = 0.0) -> Units:
-        """
-        Get enemy units that can attack the given unit.
-        """
-        threats = Units([], attackers._bot_object)
-        for attacker in attackers:
-            if UnitTypes.target_in_range(attacker, target, bonus_distance):
-                threats.append(attacker)
-        return threats
+        attack_range = UnitTypes.range_vs_target(attacker, target)
+        if attack_range == 0.0:
+            return float('inf')
+        distance = UnitTypes.distance_squared(attacker_position if attacker_position else attacker, target_position if target_position else target)
+        actual_distance = (distance ** 0.5) - attacker.radius - target.radius
+        return actual_distance - attack_range
     
     @staticmethod
     def range_vs_target(attacker: Unit, target: Unit) -> float:
         """
         Get the attack range of the attacker unit against the target unit.
         """
+        if attacker.type_id == UnitTypeId.HIGHTEMPLAR and target.energy > 10:
+            return 10 # feedback
+        if attacker.is_detector and target.is_cloaked:
+            return attacker.sight_range # treat detection as a weapon to be avoided
         if target.is_flying:
             return UnitTypes.air_range(attacker)
         elif target.type_id == UnitTypeId.COLOSSUS:
@@ -477,6 +472,8 @@ class UnitTypes(GeometryMixin):
         """
         Check if the attacker unit can attack the target unit.
         """
+        if not attacker.is_ready:
+            return False
         return UnitTypes.range_vs_target(attacker, target) > 0
 
     @staticmethod

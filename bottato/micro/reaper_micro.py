@@ -55,9 +55,10 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
     def _harass_attack_something(self, unit, health_threshold, force_move: bool = False):
         if unit.health_percentage < self.attack_health:
-            threats = self.enemy.threats_to(unit, attack_range_buffer=5)
-            if threats:
-                return False
+            return False
+            # threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
+            # if threats:
+            #     return False
 
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
 
@@ -65,7 +66,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         if can_attack:
             nearby_enemies = self.enemy.get_enemies_in_range(unit, include_structures=False, include_destructables=False)
         else:
-            nearby_enemies = self.enemy.threats_to(unit, attack_range_buffer=5)
+            nearby_enemies = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
 
         if not nearby_enemies:
             if unit.tag in self.harass_location_reached_tags:
@@ -87,12 +88,16 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                     # don't attack enemies that outrange
                     return False
         weakest_enemy = nearby_enemies.sorted(key=lambda t: t.shield + t.health).first
+        height_difference = weakest_enemy.position3d.z - self.bot.get_terrain_z_height(unit)
+        if height_difference > 0.5:
+            # don't attack enemies significantly higher than us
+            return False
         return self._kite(unit, weakest_enemy)
 
     async def _harass_retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
-        threats = self.enemy.threats_to(unit, attack_range_buffer=4)
+        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
 
         if not threats:
             if unit.health_percentage >= health_threshold:
@@ -104,7 +109,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         # retreat if there is nothing this unit can attack
         do_retreat = False
         visible_threats = threats.filter(lambda t: t.age == 0)
-        targets = UnitTypes.in_attack_range_of(unit, visible_threats, bonus_distance=3)
+        targets = self.enemy.in_attack_range(unit, visible_threats, 3)
         if not targets:
             do_retreat = True
 

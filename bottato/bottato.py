@@ -61,6 +61,7 @@ class BotTato(BotAI, TimerMixin):
     async def on_end(self, game_result: Result):
         print("Game ended.")
         self.print_all_timers()
+        LogHelper.print_logs()
         try:
             logger.debug(self.commander.build_order.complete)
         except AttributeError:

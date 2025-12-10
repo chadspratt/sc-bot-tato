@@ -29,7 +29,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     threat_damage: dict[UnitTypeId, float] = {}
 
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
-        threats = self.enemy.threats_to(unit, 5)
+        threats = self.enemy.threats_to_friendly_unit(unit, 5)
         if unit.health_percentage < self.health_threshold_for_healing and threats:
             if unit.tag not in self.last_afterburner_time or self.bot.time - self.last_afterburner_time[unit.tag] > 14.0:
                 unit(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)

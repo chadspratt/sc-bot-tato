@@ -1,12 +1,14 @@
 from typing import List
 
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
+
 # from sc2.ids.upgrade_id import UpgradeId
 
 
 class BuildStarts():
     @staticmethod
-    def get_build_start(build_name: str) -> List[UnitTypeId]:
+    def get_build_start(build_name: str) -> List[UnitTypeId | UpgradeId]:
         if build_name == "empty":
             return []
         elif build_name == "test":
@@ -161,6 +163,7 @@ class BuildStarts():
                 UnitTypeId.STARPORT,
                 UnitTypeId.STARPORTTECHLAB,
                 UnitTypeId.BANSHEE,
+                UpgradeId.BANSHEECLOAK,
                 UnitTypeId.BANSHEE,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,

@@ -398,7 +398,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
                 if rush_detected_type != RushType.NONE and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
                     self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 10) # type: ignore
-                elif rush_detected_type != RushType.NONE and len(self.bot.townhalls) <= 3 and self.army_ratio < 0.5:
+                elif rush_detected_type != RushType.NONE and len(self.bot.townhalls) <= 3 and self.army_ratio < 1.0:
                     self.main_army.staging_location = self.map.natural_position.towards(self.bot.main_base_ramp.bottom_center, 5) # type: ignore
                 elif len(self.bot.townhalls) > 1:
                     closest_base = self.map.get_closest_unit_by_path(self.bot.townhalls, enemy_position)

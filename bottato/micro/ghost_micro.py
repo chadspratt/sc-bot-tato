@@ -54,7 +54,7 @@ class GhostMicro(BaseUnitMicro, GeometryMixin):
             return True
         
         # Use cloak when enemies are nearby
-        if await self.bot.can_cast(unit, AbilityId.BEHAVIOR_CLOAKON_GHOST) and self.enemy.threats_to(unit):
+        if await self.bot.can_cast(unit, AbilityId.BEHAVIOR_CLOAKON_GHOST) and self.enemy.threats_to_friendly_unit(unit, 2):
             unit(AbilityId.BEHAVIOR_CLOAKON_GHOST)
             return True
         

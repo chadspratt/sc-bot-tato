@@ -26,7 +26,9 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             else:
                 return False
         if not unit.is_cloaked:
-            if unit.energy >= self.cloak_energy_threshold and self.enemy.threats_to(unit):
+            threats = self.enemy.get_enemies().filter(
+                lambda u: not u.is_detector)
+            if unit.energy >= self.cloak_energy_threshold and self.enemy.threats_to(unit, threats, 2):
                 unit(AbilityId.BEHAVIOR_CLOAKON_BANSHEE)
         else:
             if unit.health_percentage < self.harass_attack_health and not self.unit_is_closer_than(unit, self.enemy.get_enemies(), 15, self.bot):
@@ -42,7 +44,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if unit.health_percentage <= self.harass_retreat_health:
             return False
         if unit.health_percentage < self.harass_attack_health and self.can_be_attacked(unit):
-            threats = self.enemy.threats_to(unit, attack_range_buffer=5)
+            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
             if threats:
                 return False
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
@@ -50,7 +52,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if can_attack:
             nearby_enemies = self.enemy.get_enemies_in_range(unit, include_structures=False, include_destructables=False)
         else:
-            nearby_enemies = self.enemy.threats_to(unit, attack_range_buffer=5)
+            nearby_enemies = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
 
         if not nearby_enemies:
             if unit.tag in self.harass_location_reached_tags:
@@ -102,7 +104,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         elif not self.can_be_attacked(unit):
             return False
         
-        threats = self.enemy.threats_to(unit, attack_range_buffer=5)
+        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
         if not do_retreat:
             if not threats:
                 if unit.health_percentage >= self.harass_attack_health:
@@ -111,7 +113,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             else:
                 # retreat if there is nothing this unit can attack
                 visible_threats = threats.filter(lambda t: t.age == 0)
-                targets = UnitTypes.in_attack_range_of(unit, visible_threats, bonus_distance=3)
+                targets = self.enemy.in_attack_range(unit, visible_threats, 3)
                 if not targets:
                     do_retreat = True
 
