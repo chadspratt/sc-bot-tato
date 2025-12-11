@@ -99,19 +99,26 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             return False
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
 
+        do_retreat = False
+
         if not threats:
             if unit.health_percentage >= health_threshold:
                 return False
             # just stop and wait for regen
             unit.stop()
             return True
+        else:
+            for threat in threats:
+                if UnitTypes.ground_range(threat) > unit.ground_range:
+                    # just run the fuck away from threats
+                    do_retreat = True
 
-        # retreat if there is nothing this unit can attack
-        do_retreat = False
-        visible_threats = threats.filter(lambda t: t.age == 0)
-        targets = self.enemy.in_attack_range(unit, visible_threats, 3)
-        if not targets:
-            do_retreat = True
+        if not do_retreat:
+            # retreat if there is nothing this unit can attack
+            visible_threats = threats.filter(lambda t: t.age == 0)
+            targets = self.enemy.in_attack_range(unit, visible_threats, 3)
+            if not targets:
+                do_retreat = True
 
         # check if incoming damage will bring unit below health threshold
         if not do_retreat:

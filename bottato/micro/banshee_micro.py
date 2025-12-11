@@ -47,12 +47,18 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
             if threats:
                 return False
+        if self.can_be_attacked(unit):
+            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=1)
+            if threats:
+                for threat in threats:
+                    if UnitTypes.air_range(threat) >= unit.ground_range:
+                        # don't attack enemies that outrange
+                        return False
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         nearby_enemies: Units
-        if can_attack:
-            nearby_enemies = self.enemy.get_enemies_in_range(unit, include_structures=False, include_destructables=False)
-        else:
-            nearby_enemies = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
+        attack_range_buffer = 0 if can_attack else 5
+        enemy_candidates = self.enemy.get_candidates(include_structures=False, include_out_of_view=False)
+        nearby_enemies = self.enemy.in_attack_range(unit, enemy_candidates, attack_range_buffer)
 
         if not nearby_enemies:
             if unit.tag in self.harass_location_reached_tags:
@@ -64,15 +70,6 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                         unit.move(nearest_probe.position)
                         return True
             return False
-        if self.can_be_attacked(unit):
-            # enemy_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
-            threats = nearby_enemies.filter(lambda enemy: enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG))
-
-            if threats:
-                for threat in threats:
-                    if UnitTypes.air_range(threat) >= unit.ground_range:
-                        # don't attack enemies that outrange
-                        return False
         weakest_enemy = nearby_enemies.sorted(key=lambda t: t.shield + t.health).first
         return self._kite(unit, weakest_enemy)
     

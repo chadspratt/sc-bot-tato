@@ -216,8 +216,6 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     def threats_to(self, unit: Unit, attackers: Units, attack_range_buffer=0) -> Units:
         threats = Units([], self.bot)
-        if not unit.can_be_attacked:
-            return threats
 
         if unit.tag not in self.threat_cache:
             self.threat_cache[unit.tag] = {}
@@ -242,12 +240,12 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
         return threats
     
-    def in_friendly_attack_range(self, friendly_unit: Unit, attack_range_buffer:float=0, targets: Units | None = None) -> Units:
+    def in_friendly_attack_range(self, friendly_unit: Unit, targets: Units | None = None, attack_range_buffer:float=0) -> Units:
         candidates = targets if targets else self.enemies_in_view
         in_range = self.in_attack_range(friendly_unit, candidates, attack_range_buffer)
         return in_range
     
-    def in_enemy_attack_range(self, enemy_unit: Unit, attack_range_buffer: float=0, targets: Units | None = None) -> Units:
+    def in_enemy_attack_range(self, enemy_unit: Unit, targets: Units | None = None, attack_range_buffer: float=0) -> Units:
         candidates = targets if targets else self.bot.units + self.bot.structures
         in_range = self.in_attack_range(enemy_unit, candidates, attack_range_buffer)
         return in_range

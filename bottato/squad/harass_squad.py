@@ -43,7 +43,7 @@ class HarassSquad(Squad, GeometryMixin, TimerMixin):
 
         for unit in self.units:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
-            nearby_enemies = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_target(u, unit) and u.distance_to(unit) < 15)
+            nearby_enemies = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_target(u, unit) and u.distance_to_squared(unit) < 225)
             threatening_structures = self.bot.enemy_structures.filter(
                 lambda structure: structure.is_ready and UnitTypes.can_attack_target(structure, unit)
                     and structure.distance_to(unit) < UnitTypes.range_vs_target(structure, unit) + 3)

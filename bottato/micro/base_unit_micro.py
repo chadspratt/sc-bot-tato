@@ -398,11 +398,11 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     def _kite(self, unit: Unit, target: Unit) -> bool:
         attack_range = UnitTypes.range_vs_target(unit, target)
         target_range = UnitTypes.range_vs_target(target, unit)
-        do_kite = attack_range > target_range and unit.movement_speed > target.movement_speed
+        do_kite = attack_range > target_range > 0 and unit.movement_speed > target.movement_speed
         if do_kite:
             # can attack while staying out of range
             target_distance = self.distance(unit, target) - target.radius - unit.radius
-            if target_distance < attack_range - 0.8:
+            if target_distance < attack_range - 1:
                 if self._stay_at_max_range(unit, Units([target], bot_object=self.bot)):
                     return True
                 unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
