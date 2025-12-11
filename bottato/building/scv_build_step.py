@@ -147,16 +147,17 @@ class SCVBuildStep(BuildStep):
                 if self.position is None:
                     return BuildResponseCode.NO_LOCATION
 
-        threats = None
-        if self.bot.enemy_units:
-            threats = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_ground(u))
-        if threats and threats.closest_distance_to(self.position) < 15:
-            return BuildResponseCode.TOO_CLOSE_TO_ENEMY
-
         if self.unit_in_charge is None:
             self.unit_in_charge = self.workers.get_builder(self.position)
         if self.unit_in_charge is None:
             return BuildResponseCode.NO_BUILDER
+
+        threats = self.bot.enemy_units.filter(
+            lambda u: u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE) \
+                and UnitTypes.can_attack_ground(u))
+        enemy_is_close = self.unit_is_closer_than(self.unit_in_charge, threats, 15, self.bot)
+        if enemy_is_close:
+            return BuildResponseCode.TOO_CLOSE_TO_ENEMY
 
         build_response: bool | UnitCommand
         if self.unit_being_built:
@@ -441,8 +442,7 @@ class SCVBuildStep(BuildStep):
                     lambda u: UnitTypes.can_attack_ground(u) \
                         and u.type_id not in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
                 if threats:
-                    closest_threat = threats.closest_to(self.unit_in_charge)
-                    enemy_is_close = closest_threat.distance_to_squared(self.unit_in_charge) < 144 # 12 squared
+                    enemy_is_close = self.unit_is_closer_than(self.unit_in_charge, threats, 12, self.bot)
                     if not enemy_is_close:
                         return False
                     if self.unit_in_charge:
