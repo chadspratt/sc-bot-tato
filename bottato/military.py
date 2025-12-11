@@ -309,8 +309,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stop_timer("military army value")
 
         self.start_timer("military manage bunkers")
-        await self.manage_bunker(self.bunker, enemies_in_base, mount_offense)
-        await self.manage_bunker(self.bunker2, enemies_in_base, mount_offense)
+        await self.manage_bunker(self.bunker, enemies_in_base, enemies_in_base_ratio, mount_offense)
+        await self.manage_bunker(self.bunker2, enemies_in_base, enemies_in_base_ratio, mount_offense)
         self.stop_timer("military manage bunkers")
 
         await self.harass(newest_enemy_base, rush_detected_type)
@@ -334,7 +334,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 target = None
                 target_position = None
                 attackable_enemies = self.enemy.enemies_in_view.filter(
-                    lambda unit: unit.can_be_attacked and unit.armor < 10 and unit.tag not in countered_enemies)
+                    lambda unit: UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()) and unit.armor < 10 and unit.tag not in countered_enemies)
                 
                 ignored_enemy_tags = set()
                 for enemy in attackable_enemies:
@@ -424,7 +424,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
         self.stop_timer("manage_squads")
 
-    async def manage_bunker(self, bunker: Bunker, enemies_in_base: Units, mount_offense: bool):
+    async def manage_bunker(self, bunker: Bunker, enemies_in_base: Units, enemies_in_base_ratio: float, mount_offense: bool):
         if mount_offense or not bunker.structure:
             self.empty_bunker(bunker)
             return
@@ -439,12 +439,13 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         if current_enemies:
             enemy_distance_to_bunker = self.closest_distance_squared(bunker.structure, current_enemies)
 
-        bunker_range = (max([passenger.ground_range
-                             for passenger in bunker.structure.passengers], default=6) + 1 + bunker.structure.radius
-                       ) ** 2
-        if enemy_distance_to_bunker < 10000 and enemy_distance_to_bunker > bunker_range:
-            self.empty_bunker(bunker)
-            return
+        if enemies_in_base_ratio >= 1.0:
+            bunker_range = (max([passenger.ground_range
+                                for passenger in bunker.structure.passengers], default=6) + 1 + bunker.structure.radius
+                        ) ** 2
+            if enemy_distance_to_bunker < 10000 and enemy_distance_to_bunker > bunker_range:
+                self.empty_bunker(bunker)
+                return
 
         for unit in bunker.units:
             try:
@@ -550,7 +551,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
     # XXX why does this fluctuate
     def calculate_army_ratio(self, enemies_in_base: Units | None = None) -> float:
         seconds_since_killed = min(60, 60 - (self.bot.time - 300) // 2)
-        enemies = enemies_in_base if enemies_in_base else self.enemy.get_army(seconds_since_killed=seconds_since_killed)
+        enemies = enemies_in_base if enemies_in_base is not None else self.enemy.get_army(seconds_since_killed=seconds_since_killed)
         friendlies = self.main_army.units
         if not enemies:
             return 10.0

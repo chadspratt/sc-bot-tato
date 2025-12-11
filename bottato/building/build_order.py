@@ -218,11 +218,14 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                     # add a second bunker for low ground
                     self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
     
-    def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep]) -> bool:
+    def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep], position: int | None = None) -> bool:
         for step in from_queue:
             if step.is_unit_type(unit_type):
                 from_queue.remove(step)
-                to_queue.append(step)
+                if position is not None:
+                    to_queue.insert(position, step)
+                else:
+                    to_queue.append(step)
                 return True
         return False
 
@@ -447,12 +450,12 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         # use excess minerals and idle barracks
         need_early_marines: bool = self.bot.time < 300 and \
             (rush_detected_type != RushType.NONE or self.bot.enemy_units.closer_than(20, self.map.natural_position).amount > 2)
-        if need_early_marines and self.bot.minerals >= 50:
+        if need_early_marines and self.bot.minerals >= 50 and self.bot.structures(UnitTypeId.BARRACKSREACTOR):
             idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
             priority_queue_count = self.get_queued_count(UnitTypeId.MARINE, self.priority_queue)
             if idle_capacity > 0 and priority_queue_count == 0:
-                if not self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue):
-                    self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue)
+                if not self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue, position=0):
+                    self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue, position=0)
         elif self.bot.minerals > 500 and self.bot.supply_left > 15:
             idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
             if idle_capacity > 0:

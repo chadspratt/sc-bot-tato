@@ -10,6 +10,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
 from sc2.game_data import Cost
 
+from bottato.unit_types import UnitTypes
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.micro_factory import MicroFactory
@@ -66,11 +67,13 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.aged_mules: Units = Units([], bot)
         self.worker_micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first)
         self.units_to_attack: Set[Unit] = set()
+        self.workers_being_repaired: Set[int] = set()
 
     def update_references(self, units_by_tag: dict[int, Unit], builder_tags: List[int]):
         self.start_timer("update_references")
         self.minerals.update_references(units_by_tag)
         self.vespene.update_references(units_by_tag)
+        self.workers_being_repaired.clear()
 
         self.assignments_by_job[WorkerJobType.IDLE].clear()
         self.assignments_by_job[WorkerJobType.MINERALS].clear()
@@ -192,6 +195,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if assignment.on_attack_break \
                     or not assignment.unit_available \
                     or assignment.job_type not in [WorkerJobType.MINERALS, WorkerJobType.VESPENE] \
+                    or assignment.unit.tag in self.workers_being_repaired \
                     or await self.worker_micro._retreat(assignment.unit, 0.5):
                 continue
             
@@ -375,7 +379,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 if nearby_enemy_structures:
                     nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1000000 + a.distance_to_squared(townhall))
                 nearby_enemy_range = 25 if nearby_enemy_structures else 12
-                nearby_enemies = self.bot.enemy_units.closer_than(nearby_enemy_range, townhall).filter(lambda u: not u.is_flying and u.can_be_attacked)
+                nearby_enemies = self.bot.enemy_units.closer_than(nearby_enemy_range, townhall).filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
                 for enemy in self.units_to_attack:
                     predicted_position = self.enemy.get_predicted_position(enemy, 0.0)
                     if predicted_position._distance_squared(townhall.position) < 625:
@@ -597,7 +601,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if not candidates:
             logger.debug("FAILED TO GET SCOUT")
         else:
-            scout = candidates.closest_to(position)
+            healthy_candidates = candidates.filter(lambda u: u.health_percentage == 1.0)
+            scout = healthy_candidates.closest_to(position) if healthy_candidates else candidates.closest_to(position)
             if scout is not None:
                 logger.debug(f"found scout {scout}")
                 self.update_assigment(scout, WorkerJobType.SCOUT, None)
@@ -731,10 +736,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         current_repairers: Units = self.availiable_workers_on_job(WorkerJobType.REPAIR)
         current_repair_targets = {}
         for worker in self.bot.workers:
-            if worker.health_percentage < 0.5:
-                self.set_as_idle(worker)
-            elif worker.is_repairing:
+            if worker.is_repairing:
                 current_repair_targets[worker.orders[0].target] = worker.tag
+            elif worker.health_percentage < 0.5:
+                self.set_as_idle(worker)
         current_repairers: Units = self.availiable_workers_on_job(WorkerJobType.REPAIR)
         repairer_shortage: int = round(needed_repairers) - len(current_repairers)
         logger.debug(f"missing health {missing_health} need repairers {needed_repairers} have {len(current_repairers)} shortage {repairer_shortage}")
@@ -772,6 +777,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     if current_repairer_tag == repairer.tag:
                         target_micro = MicroFactory.get_unit_micro(repair_target)
                         await target_micro.move_to_repairer(repair_target, repairer.position)
+                        if repair_target.type_id == UnitTypeId.SCV:
+                            self.workers_being_repaired.add(repair_target.tag)
 
         # add more repairers
         if repairer_shortage > 0:
@@ -803,6 +810,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                             if current_repairer_tag == repairer.tag:
                                 target_micro = MicroFactory.get_unit_micro(repair_target)
                                 await target_micro.move_to_repairer(repair_target, repairer.position)
+                                if repair_target.type_id == UnitTypeId.SCV:
+                                    self.workers_being_repaired.add(repair_target.tag)
                 else:
                     break
 
@@ -819,10 +828,12 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
     def units_needing_repair(self) -> Units:
         injured_mechanical_units = Units([], self.bot)
-        if self.bot.time > 300:
-            injured_mechanical_units = self.bot.units.filter(lambda unit: unit.is_mechanical
-                                                            and unit.health < unit.health_max
-                                                            and len(self.enemy.threats_to_repairer(unit, attack_range_buffer=0)) == 0)
+        repair_scvs = self.bot.time > 300
+        injured_mechanical_units = self.bot.units.filter(lambda unit: unit.is_mechanical
+                                                         and unit.type_id != UnitTypeId.MULE
+                                                         and unit.health < unit.health_max
+                                                         and (repair_scvs or unit.type_id != UnitTypeId.SCV)
+                                                         and len(self.enemy.threats_to_repairer(unit, attack_range_buffer=0)) == 0)
         logger.debug(f"injured mechanical units {injured_mechanical_units}")
 
         # can only repair fully built structures

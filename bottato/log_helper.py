@@ -19,6 +19,13 @@ class LogHelper:
         LogHelper.new_messages.append(message)
 
     @staticmethod
+    async def add_chat(message: str):
+        await LogHelper.bot.client.chat_send(message, False)
+        if LogHelper.testing:
+            return
+        LogHelper.new_messages.append(message)
+
+    @staticmethod
     def print_logs():
         if LogHelper.testing:
             return

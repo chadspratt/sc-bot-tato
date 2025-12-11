@@ -65,7 +65,10 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     # meta actions - used by non-micro classes to order units
     ###########################################################################
     async def move_to_repairer(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
-        if unit.tag not in BaseUnitMicro.repair_started_tags and unit.position.manhattan_distance(target) < 2.0:
+        if unit.tag in BaseUnitMicro.repair_started_tags:
+            # already being repaired
+            target = unit.position
+        elif unit.tag not in BaseUnitMicro.repair_started_tags and unit.position.manhattan_distance(target) < 2.0:
             LogHelper.add_log(f"move_to_repairer {unit} is close to worker")
             BaseUnitMicro.repair_started_tags.add(unit.tag)
         if unit.tag in BaseUnitMicro.scout_tags:
@@ -250,7 +253,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if self.last_targets_update_time != self.bot.time:
             self.last_targets_update_time = self.bot.time
             self.valid_targets = self.bot.enemy_units.filter(
-                lambda u: u.can_be_attacked and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
+                lambda u: UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()) and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
                 ).sorted(key=lambda u: u.health + u.shield) + self.bot.enemy_structures
 
         if not self.valid_targets:
@@ -431,8 +434,8 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if unit.is_mechanical:
             if not threats:
                 repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags_prev_frame) or self.bot.workers
-                # if repairers:
-                #     repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
+                if repairers:
+                    repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
                 if repairers:
                     closest_repairer = repairers.closest_to(unit)
                     ultimate_destination = closest_repairer.position
@@ -501,7 +504,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if unit.type_id in {UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED}:
             self.stop_timer("_retreat_to_tank")
             return False
-        if not unit.can_be_attacked:
+        if not UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
             self.stop_timer("_retreat_to_tank")
             return False
         tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))

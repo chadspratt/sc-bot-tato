@@ -34,6 +34,9 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             if unit.health_percentage < self.harass_attack_health and not self.unit_is_closer_than(unit, self.enemy.get_enemies(), 15, self.bot):
                 unit(AbilityId.BEHAVIOR_CLOAKOFF_BANSHEE)
         return False
+    
+    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+        return self._harass_attack_something(unit, health_threshold, force_move)
 
     def _harass_attack_something(self, unit, health_threshold, force_move: bool = False):
         if unit.tag in BaseUnitMicro.repair_started_tags:
@@ -43,11 +46,11 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 return False
         if unit.health_percentage <= self.harass_retreat_health:
             return False
-        if unit.health_percentage < self.harass_attack_health and self.can_be_attacked(unit):
+        if unit.health_percentage < self.harass_attack_health and UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
             threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
             if threats:
                 return False
-        if self.can_be_attacked(unit):
+        if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
             threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=1)
             if threats:
                 for threat in threats:
@@ -72,20 +75,6 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             return False
         weakest_enemy = nearby_enemies.sorted(key=lambda t: t.shield + t.health).first
         return self._kite(unit, weakest_enemy)
-    
-    def can_be_attacked(self, unit: Unit) -> bool:
-        if unit.is_cloaked and unit.energy >= 5:
-            observers = self.bot.enemy_units.of_type(UnitTypeId.OBSERVER)
-            if observers and observers.closest_distance_to(unit) < 12:
-                return True
-            sieged_observers = self.bot.enemy_units.of_type(UnitTypeId.OBSERVERSIEGEMODE)
-            if sieged_observers and sieged_observers.closest_distance_to(unit) < 16:
-                return True
-            photon_cannons = self.bot.enemy_structures.of_type(UnitTypeId.PHOTONCANNON)
-            if photon_cannons and photon_cannons.closest_distance_to(unit) < 12:
-                return True
-            return False
-        return True
 
     async def _harass_retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
@@ -94,11 +83,11 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         do_retreat = False
 
         if unit.health_percentage <= self.harass_retreat_health:
-            if not self.can_be_attacked(unit):
+            if not UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
                 unit.move(self._get_retreat_destination(unit, Units([], self.bot)))
                 return True
             do_retreat = True
-        elif not self.can_be_attacked(unit):
+        elif not UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
             return False
         
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)

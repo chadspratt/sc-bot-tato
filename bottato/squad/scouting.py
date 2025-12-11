@@ -9,6 +9,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.data import race_townhalls
 from sc2.data import Race
 
+from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.military import Military
 from bottato.squad.squad import Squad
@@ -27,7 +28,7 @@ class ScoutingLocation:
         self.is_occupied_by_enemy: bool = False
 
     def __repr__(self) -> str:
-        return f"ScoutingLocation({self.position}, {self.last_seen})"
+        return f"ScoutingLocation({self.position})"
 
     def needs_fresh_scouting(self, current_time: float, skip_occupied: bool) -> bool:
         if self.is_occupied_by_enemy:
@@ -165,7 +166,7 @@ class Scout(Squad, UnitReferenceMixin):
             assignment: ScoutingLocation = self.scouting_locations[next_index]
             self.closest_distance_to_next_location = 9999
         self.scouting_locations_index = next_index
-        logger.debug(f"scout {self.unit} new assignment: {assignment}")
+        LogHelper.add_log(f"scout {self.unit} new assignment: {assignment}")
 
         await micro.scout(self.unit, assignment.position)
 
@@ -423,7 +424,7 @@ class Scouting(Squad, DebugMixin):
 
     async def detect_rush(self) -> RushType:
         if self.proxy_detected():
-            await self.bot.client.chat_send("proxy suspected", False)
+            await LogHelper.add_chat("proxy suspected")
             return RushType.PROXY
         if self.intel.enemy_race_confirmed is None:
             return RushType.NONE
@@ -433,13 +434,13 @@ class Scouting(Squad, DebugMixin):
             no_expansion = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.HATCHERY) == 1
             zergling_rush = self.enemy.get_total_count_of_type_seen(UnitTypeId.ZERGLING) >= 8 and self.bot.time < 180
             if early_pool:
-                await self.bot.client.chat_send("early pool detected", False)
+                await LogHelper.add_chat("early pool detected")
             if no_gas:
-                await self.bot.client.chat_send("no gas detected", False)
+                await LogHelper.add_chat("no gas detected")
             if no_expansion:
-                await self.bot.client.chat_send("no expansion detected", False)
+                await LogHelper.add_chat("no expansion detected")
             if zergling_rush:
-                await self.bot.client.chat_send("zergling rush detected", False)
+                await LogHelper.add_chat("zergling rush detected")
             if early_pool or no_gas or no_expansion or zergling_rush:
                 return RushType.STANDARD
         if self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
@@ -448,27 +449,27 @@ class Scouting(Squad, DebugMixin):
                 (self.intel.number_seen(UnitTypeId.FUSIONCORE) > 0 or
                  self.intel.number_seen(UnitTypeId.BATTLECRUISER) > 0)
             if battlecruiser:
-                await self.bot.client.chat_send("battlecruiser rush detected", False)
+                await LogHelper.add_chat("battlecruiser rush detected")
                 return RushType.BATTLECRUISER
             multiple_barracks = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.BARRACKS) > 1
             if multiple_barracks:
-                await self.bot.client.chat_send("multiple early barracks detected", False)
+                await LogHelper.add_chat("multiple early barracks detected")
             # if no_expansion:
-            #     await self.bot.client.chat_send("no expansion detected", False)
+            #     await LogHelper.add_chat("no expansion detected")
             if multiple_barracks:
                 return RushType.STANDARD
         # Protoss
         lots_of_gateways = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.GATEWAY) > 2
         no_expansion = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.NEXUS) == 1
         if lots_of_gateways:
-            await self.bot.client.chat_send("lots of gateways detected", False)
+            await LogHelper.add_chat("lots of gateways detected")
         if no_expansion:
-            await self.bot.client.chat_send("no expansion detected", False)
+            await LogHelper.add_chat("no expansion detected")
         if lots_of_gateways or no_expansion:
             return RushType.STANDARD
         
         if self.bot.time < 180 and len(self.bot.enemy_units) > 0 and len(self.bot.enemy_units.closer_than(30, self.bot.start_location)) > 5:
-            await self.bot.client.chat_send("early army detected near base", False)
+            await LogHelper.add_chat("early army detected near base")
             return RushType.STANDARD
         return RushType.NONE
     

@@ -1,4 +1,6 @@
 from typing import Any, Dict, Tuple
+
+from sc2.bot_ai import BotAI
 from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
@@ -461,7 +463,7 @@ class UnitTypes(GeometryMixin):
         """
         if attacker.type_id == UnitTypeId.HIGHTEMPLAR and target.energy > 10:
             return 10 # feedback
-        if attacker.is_detector and target.is_cloaked:
+        if target.is_cloaked and attacker.is_detector:
             return attacker.sight_range # treat detection as a weapon to be avoided
         if target.is_flying:
             return UnitTypes.air_range(attacker)
@@ -478,6 +480,36 @@ class UnitTypes(GeometryMixin):
         if not attacker.is_ready and attacker.type_id != UnitTypeId.OBSERVER:
             return False
         return UnitTypes.range_vs_target(attacker, target) > 0
+    
+    @staticmethod
+    def can_be_attacked(unit: Unit, bot: BotAI, enemy_units: Units) -> bool:
+        if not (unit.is_cloaked or unit.is_burrowed):
+            return True
+        is_mine = unit.owner_id == bot.player_id
+        if is_mine and unit.energy <= 5:
+            # cloak about to end so start retreating
+            return True
+        detectors: Units
+        if is_mine:
+            detectors = enemy_units.filter(lambda u: u.is_detector)
+        else:
+            detectors = bot.all_own_units.filter(lambda u: u.is_detector)
+        for detector in detectors:
+            bonus_detection_distance = 0
+            if is_mine:
+                bonus_detection_distance = 0.5 if detector.is_structure else 1
+            if UnitTypes.distance_squared(detector, unit) <= (detector.sight_range + unit.radius + bonus_detection_distance) ** 2:
+                return True
+        # observers = bot.enemy_units.of_type(UnitTypeId.OBSERVER)
+        # if observers and observers.closest_distance_to(unit) < 12:
+        #     return True
+        # sieged_observers = bot.enemy_units.of_type(UnitTypeId.OBSERVERSIEGEMODE)
+        # if sieged_observers and sieged_observers.closest_distance_to(unit) < 16:
+        #     return True
+        # photon_cannons = bot.enemy_structures.of_type(UnitTypeId.PHOTONCANNON)
+        # if photon_cannons and photon_cannons.closest_distance_to(unit) < 12:
+        #     return True
+        return False
 
     @staticmethod
     def count_units_by_type(units: Units, use_common_type: bool = True) -> dict[UnitTypeId, int]:

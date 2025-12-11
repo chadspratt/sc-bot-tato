@@ -257,7 +257,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             self.target_cache[unit.tag] = {}
         cache_targets = self.target_cache[unit.tag]
 
-        targets = targets.filter(lambda u: u.can_be_attacked
+        targets = targets.filter(lambda u: UnitTypes.can_be_attacked(u, self.bot, self.get_enemies())
                                  and u.armor < 10
                                  and BuffId.NEURALPARASITE not in u.buffs
                                  and UnitTypes.can_attack_target(unit, u))
