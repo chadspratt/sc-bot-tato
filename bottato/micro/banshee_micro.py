@@ -36,9 +36,9 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         return False
     
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
-        return self._harass_attack_something(unit, health_threshold, force_move)
+        return self._harass_attack_something(unit, health_threshold, self.bot.start_location, force_move)
 
-    def _harass_attack_something(self, unit, health_threshold, force_move: bool = False):
+    def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False):
         if unit.tag in BaseUnitMicro.repair_started_tags:
             if unit.health_percentage == 1.0 or self.bot.workers.closest_distance_to(unit) > 5:
                 BaseUnitMicro.repair_started_tags.remove(unit.tag)
@@ -56,6 +56,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 for threat in threats:
                     if UnitTypes.air_range(threat) >= unit.ground_range:
                         # don't attack enemies that outrange
+                        unit.move(self.get_circle_around_position(unit, threats.center, harass_location))
                         return False
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         nearby_enemies: Units

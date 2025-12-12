@@ -82,6 +82,16 @@ class SCVBuildStep(BuildStep):
             return False
         return self.unit_type_id == unit_type_id or \
             self.unit_type_id == UnitTypeId.REFINERY and unit_type_id == UnitTypeId.REFINERYRICH
+    
+    def is_addon(self) -> bool:
+        return self.unit_type_id in (
+            UnitTypeId.BARRACKSREACTOR,
+            UnitTypeId.BARRACKSTECHLAB,
+            UnitTypeId.FACTORYREACTOR,
+            UnitTypeId.FACTORYTECHLAB,
+            UnitTypeId.STARPORTREACTOR,
+            UnitTypeId.STARPORTTECHLAB,
+        )
 
     def get_unit_type_id(self) -> UnitTypeId | None:
         return self.unit_type_id

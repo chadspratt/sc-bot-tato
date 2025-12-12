@@ -50,6 +50,9 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
 
     def is_unit_type(self, unit_type_id: UnitTypeId | UpgradeId) -> bool:
         return False
+    
+    def is_addon(self) -> bool:
+        return False
 
     def is_upgrade_type(self, upgrade_id: UpgradeId) -> bool:
         return False

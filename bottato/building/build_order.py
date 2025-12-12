@@ -739,7 +739,9 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
                 build_response = BuildResponseCode.NO_SUPPLY
                 continue
-            if only_build_units and not build_step.is_unit() and not build_step.is_unit_type(UnitTypeId.COMMANDCENTER):
+            if only_build_units and not build_step.is_unit() \
+                    and not build_step.is_unit_type(UnitTypeId.COMMANDCENTER) \
+                    and not build_step.is_addon():
                 continue
             time_since_last_cancel = self.bot.time - build_step.last_cancel_time
             if time_since_last_cancel < 10:
@@ -769,8 +771,8 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 if build_step.interrupted_count > 5:
                     # can't trust that this actually got built
                     continue
-                remaining_resources.minerals = 0
-                break
+                # remaining_resources.minerals = 0
+                # break
             else:
                 if build_response != BuildResponseCode.NO_FACILITY:
                     LogHelper.add_log(f"failed to start {build_step}: {build_response}")
@@ -793,8 +795,8 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                         earlier_in_queue = max([step.get_unit_type_id() == builder_type for step in build_queue[:execution_index]], default=False)
                         if in_progress_builder_count == 0 and no_addon_count == 0 and not earlier_in_queue:
                             build_queue.pop(execution_index)
-                            remaining_resources.minerals = 0
-                            return remaining_resources
+                            # remaining_resources.minerals = 0
+                            # return remaining_resources
             self.stop_timer(f"handle response {build_response}")
         self.stop_timer("execute_pending_builds")
         return remaining_resources

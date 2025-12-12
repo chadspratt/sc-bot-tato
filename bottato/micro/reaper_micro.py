@@ -53,7 +53,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         return False
 
-    def _harass_attack_something(self, unit, health_threshold, force_move: bool = False):
+    def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False):
         if unit.health_percentage < self.attack_health:
             return False
             # threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)

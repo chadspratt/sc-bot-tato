@@ -142,7 +142,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             self.stop_timer("base_unit_micro.move._use_ability")
         if not action_taken:
             self.start_timer("base_unit_micro.move._attack_something")
-            action_taken = self._harass_attack_something(unit, health_threshold=attack_health, force_move=force_move)
+            action_taken = self._harass_attack_something(unit, attack_health, target, force_move=force_move)
             self.stop_timer("base_unit_micro.move._attack_something")
         if not action_taken and force_move:
             position_to_compare = target if unit.is_moving else unit.position
@@ -264,7 +264,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if can_attack:
-            bonus_distance = -2 if unit.health_percentage < health_threshold else 0
+            bonus_distance = -2 if unit.health_percentage < health_threshold else -0.5
             # attack enemy in range
             attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance)
             if attack_target:
@@ -294,7 +294,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
 
         return False
     
-    def _harass_attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+    def _harass_attack_something(self, unit: Unit, health_threshold: float, harass_location: Point2, force_move: bool = False) -> bool:
         return self._attack_something(unit, health_threshold, force_move)
 
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
