@@ -64,7 +64,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     ###########################################################################
     # meta actions - used by non-micro classes to order units
     ###########################################################################
-    async def move_to_repairer(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
+    async def move_to_repairer(self, unit: Unit, target: Point2, force_move: bool = True, previous_position: Point2 | None = None) -> bool:
         if unit.tag in BaseUnitMicro.repair_started_tags:
             # already being repaired
             target = unit.position
@@ -432,13 +432,16 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     def _get_retreat_destination(self, unit: Unit, threats: Units) -> Point2:
         ultimate_destination: Point2 | None = None
         if unit.is_mechanical:
-            if not threats:
-                repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags_prev_frame) or self.bot.workers
+            if not threats.filter(lambda t: t.can_attack):
+                repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags.union(BaseUnitMicro.repairer_tags_prev_frame)) or self.bot.workers
                 if repairers:
                     repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
                 if repairers:
                     closest_repairer = repairers.closest_to(unit)
-                    ultimate_destination = closest_repairer.position
+                    if closest_repairer.position.manhattan_distance(unit.position) < 1:
+                        ultimate_destination = unit.position
+                    else:
+                        ultimate_destination = closest_repairer.position
         else:
             medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC)
             if medivacs:

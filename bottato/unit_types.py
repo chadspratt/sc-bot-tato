@@ -486,7 +486,7 @@ class UnitTypes(GeometryMixin):
         if not (unit.is_cloaked or unit.is_burrowed):
             return True
         is_mine = unit.owner_id == bot.player_id
-        if is_mine and unit.energy <= 5:
+        if is_mine and unit.energy <= 8:
             # cloak about to end so start retreating
             return True
         detectors: Units

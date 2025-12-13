@@ -219,9 +219,6 @@ class SCVBuildStep(BuildStep):
                 # check that position hasn't already been attempted too many times
                 if el not in self.attempted_expansion_positions:
                     self.attempted_expansion_positions[el] = 0
-                elif self.attempted_expansion_positions[el] > 3:
-                    LogHelper.add_log(f"Skipping expansion at {el}, attempted too many times")
-                    continue
 
                 expansions_to_check.append(el)
 
@@ -232,15 +229,20 @@ class SCVBuildStep(BuildStep):
 
             LogHelper.add_log(f"Expansions to check: {expansions_to_check}")
             new_build_position = self.map.get_closest_position_by_path(expansions_to_check, self.bot.start_location)
-
-            # run it through find placement in case it's blocked by some weird map feature
-            if self.bot.game_info.map_name == 'Magannatha AIE':
-                new_build_position = await self.bot.find_placement(
-                    unit_type_id,
-                    near=new_build_position,
-                    max_distance=4,
-                    placement_step=2,
-                )
+            
+            if self.attempted_expansion_positions[new_build_position] > 3:
+                # build it wherever and fly it there later
+                LogHelper.add_log(f"Too many attempts to build cc at {new_build_position}, finding generic placement")
+                new_build_position = await self.find_generic_placement(unit_type_id, special_locations)
+            else:
+                # run it through find placement in case it's blocked by some weird map feature
+                if self.bot.game_info.map_name == 'Magannatha AIE':
+                    new_build_position = await self.bot.find_placement(
+                        unit_type_id,
+                        near=new_build_position,
+                        max_distance=4,
+                        placement_step=2,
+                    )
 
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2
@@ -287,76 +289,8 @@ class SCVBuildStep(BuildStep):
             if new_build_position is None:
                 new_build_position = await self.map.get_non_visible_position_in_main()
         else:
-            logger.debug(f"finding placement for {unit_type_id}")
-            if not special_locations.is_blocked:
-                new_build_position = special_locations.find_placement(unit_type_id)
-            if new_build_position is None:
-                addon_place = unit_type_id in (
-                    UnitTypeId.BARRACKS,
-                    UnitTypeId.FACTORY,
-                    UnitTypeId.STARPORT,
-                )
-                prefer_earlier_bases = unit_type_id in (
-                    UnitTypeId.SUPPLYDEPOT,
-                    UnitTypeId.BARRACKS,
-                    UnitTypeId.FACTORY,
-                    UnitTypeId.STARPORT,
-                    UnitTypeId.ENGINEERINGBAY,
-                    UnitTypeId.GHOSTACADEMY,
-                    UnitTypeId.FUSIONCORE,
-                    UnitTypeId.ARMORY,
-                )
-                map_center = self.bot.game_info.map_center
-                max_distance = 20
-                retry_count = 0
-                while new_build_position is None:
-                    try:
-                        if self.bot.townhalls:
-                            preferred_townhalls = self.bot.townhalls
-                            if prefer_earlier_bases and retry_count == 0:
-                                ready_townhalls = self.bot.townhalls.ready
-                                if len(ready_townhalls) == 1:
-                                    preferred_townhalls = ready_townhalls
-                                elif ready_townhalls:
-                                    non_flying_townhalls = ready_townhalls.filter(lambda th: not th.is_flying)
-                                    if len(non_flying_townhalls) == 1:
-                                        preferred_townhalls = non_flying_townhalls
-                                    elif non_flying_townhalls:
-                                        closest_townhall_to_enemy: Unit = self.map.get_closest_unit_by_path(non_flying_townhalls, self.bot.enemy_start_locations[0])
-                                        preferred_townhalls = non_flying_townhalls.filter(lambda th: th.tag != closest_townhall_to_enemy.tag)
-                                    else:
-                                        preferred_townhalls = ready_townhalls
-                            for townhall in preferred_townhalls:
-                                new_build_position = await self.bot.find_placement(
-                                    unit_type_id,
-                                    near=townhall.position.towards_with_random_angle(map_center, distance=8, max_difference=1.6),
-                                    placement_step=2,
-                                    addon_place=addon_place,
-                                    max_distance=max_distance,
-                                )
-                                if new_build_position is not None:
-                                    break
-                        else:
-                            new_build_position = await self.bot.find_placement(
-                                unit_type_id,
-                                near=self.bot.start_location,
-                                placement_step=2,
-                                addon_place=addon_place,
-                                max_distance=max_distance,
-                            )
-                    except (ConnectionAlreadyClosedError, ConnectionResetError, ProtocolError):
-                        return None
-                    if new_build_position:
-                        # don't build near edge to avoid trapping units
-                        edge_distance = self.map.get_distance_from_edge(new_build_position.rounded)
-                        if edge_distance <= 3:
-                            max_distance += 1
-                            logger.debug(f"{new_build_position} is {edge_distance} from edge")
-                            # accept defeat, is ok to do it sometimes
-                            if max_distance > 25:
-                                break
-                            retry_count += 1
-                            new_build_position = None
+            new_build_position = await self.find_generic_placement(unit_type_id, special_locations)
+
         if new_build_position:
             if self.bot.all_enemy_units:
                 threats = self.bot.all_enemy_units.filter(lambda u: UnitTypes.can_attack_ground(u) and u.type_id not in (UnitTypeId.DRONE, UnitTypeId.SCV, UnitTypeId.PROBE))
@@ -373,6 +307,79 @@ class SCVBuildStep(BuildStep):
                         if new_build_position.distance_to(build_pos) < 10:
                             self.attempted_expansion_positions[build_pos] += 1
                             break
+        return new_build_position
+    
+    async def find_generic_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations) -> Point2 | None:
+        logger.debug(f"finding placement for {unit_type_id}")
+        new_build_position: Point2 | None = None
+        if not special_locations.is_blocked:
+            new_build_position = special_locations.find_placement(unit_type_id)
+        addon_place = unit_type_id in (
+            UnitTypeId.BARRACKS,
+            UnitTypeId.FACTORY,
+            UnitTypeId.STARPORT,
+        )
+        prefer_earlier_bases = unit_type_id in (
+            UnitTypeId.SUPPLYDEPOT,
+            UnitTypeId.BARRACKS,
+            UnitTypeId.FACTORY,
+            UnitTypeId.STARPORT,
+            UnitTypeId.ENGINEERINGBAY,
+            UnitTypeId.GHOSTACADEMY,
+            UnitTypeId.FUSIONCORE,
+            UnitTypeId.ARMORY,
+        )
+        map_center = self.bot.game_info.map_center
+        max_distance = 20
+        retry_count = 0
+        while new_build_position is None:
+            try:
+                if self.bot.townhalls:
+                    preferred_townhalls = self.bot.townhalls
+                    if prefer_earlier_bases and retry_count == 0:
+                        ready_townhalls = self.bot.townhalls.ready
+                        if len(ready_townhalls) == 1:
+                            preferred_townhalls = ready_townhalls
+                        elif ready_townhalls:
+                            non_flying_townhalls = ready_townhalls.filter(lambda th: not th.is_flying)
+                            if len(non_flying_townhalls) == 1:
+                                preferred_townhalls = non_flying_townhalls
+                            elif non_flying_townhalls:
+                                closest_townhall_to_enemy: Unit = self.map.get_closest_unit_by_path(non_flying_townhalls, self.bot.enemy_start_locations[0])
+                                preferred_townhalls = non_flying_townhalls.filter(lambda th: th.tag != closest_townhall_to_enemy.tag)
+                            else:
+                                preferred_townhalls = ready_townhalls
+                    for townhall in preferred_townhalls:
+                        new_build_position = await self.bot.find_placement(
+                            unit_type_id,
+                            near=townhall.position.towards_with_random_angle(map_center, distance=8, max_difference=1.6),
+                            placement_step=2,
+                            addon_place=addon_place,
+                            max_distance=max_distance,
+                        )
+                        if new_build_position is not None:
+                            break
+                else:
+                    new_build_position = await self.bot.find_placement(
+                        unit_type_id,
+                        near=self.bot.start_location,
+                        placement_step=2,
+                        addon_place=addon_place,
+                        max_distance=max_distance,
+                    )
+            except (ConnectionAlreadyClosedError, ConnectionResetError, ProtocolError):
+                return None
+            if new_build_position:
+                # don't build near edge to avoid trapping units
+                edge_distance = self.map.get_distance_from_edge(new_build_position.rounded)
+                if edge_distance <= 3:
+                    max_distance += 1
+                    logger.debug(f"{new_build_position} is {edge_distance} from edge")
+                    # accept defeat, is ok to do it sometimes
+                    if max_distance > 25:
+                        break
+                    retry_count += 1
+                    new_build_position = None
         return new_build_position
 
     def get_geysir(self) -> Unit | None:
@@ -460,14 +467,17 @@ class SCVBuildStep(BuildStep):
                         interrupted = True
 
         if interrupted:
-            self.is_in_progress = False
-            self.position = None
-            self.geysir = None
-            self.worker_in_position_time = None
-            if self.unit_in_charge:
-                self.workers.set_as_idle(self.unit_in_charge)
-            self.unit_in_charge = None
+            self.set_interrupted()
         return interrupted
+    
+    def set_interrupted(self):
+        self.is_in_progress = False
+        self.position = None
+        self.geysir = None
+        self.worker_in_position_time = None
+        if self.unit_in_charge:
+            self.workers.set_as_idle(self.unit_in_charge)
+        self.unit_in_charge = None
 
     def cancel_construction(self):
         logger.debug(f"canceling build of {self.unit_being_built}")

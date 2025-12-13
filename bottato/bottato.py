@@ -14,6 +14,7 @@ from bottato.log_helper import LogHelper
 from bottato.commander import Commander
 from bottato.mixins import TimerMixin
 from bottato.micro.micro_factory import MicroFactory
+from bottato.enums import ActionErrorCode
 
 
 class BotTato(BotAI, TimerMixin):
@@ -42,6 +43,11 @@ class BotTato(BotAI, TimerMixin):
     async def on_step(self, iteration: int):
         logger.debug(f"======starting step {iteration} ({self.time}s)======")
 
+        for action_error in self.state.action_errors:
+            LogHelper.add_log(f"Action error: unit={self.units.by_tag(action_error.unit_tag)}, " +
+                              f"ability={action_error.exact_id}, error={ActionErrorCode(action_error.result)}")
+            if action_error.result == ActionErrorCode.CantBuildOnThat.value:
+                self.commander.build_order.mark_position_invalid_by_worker_tag(action_error.unit_tag)
         self.start_timer("update_unit_references")
         # XXX very slow
         await self.update_unit_references()

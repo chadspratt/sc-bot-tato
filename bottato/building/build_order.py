@@ -154,10 +154,10 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             step: BuildStep = self.started.pop(idx)
             step.interrupted_count += 1
             LogHelper.add_log(f"{step} interrupted")
-            if isinstance(step, SCVBuildStep) and step.unit_being_built is None:
-                if step.interrupted_count > 10:
-                    LogHelper.add_log(f"{step} interrupted too many times, removing from build order")
-                    continue
+            # if isinstance(step, SCVBuildStep) and step.unit_being_built is None:
+            #     if step.interrupted_count > 10:
+            #         LogHelper.add_log(f"{step} interrupted too many times, removing from build order")
+            #         continue
             if step.is_unit():
                 self.build_queue.insert(0, step)
             else:
@@ -824,3 +824,12 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         if requested_cost.vespene > 0:
             vespene_percent = remaining_resources.vespene / requested_cost.vespene
         return min(mineral_percent, vespene_percent)
+    
+    def mark_position_invalid_by_worker_tag(self, worker_tag: int) -> None:
+        for idx, build_step in enumerate(self.started):
+            if isinstance(build_step, SCVBuildStep) and build_step.unit_in_charge is not None:
+                if build_step.unit_in_charge.tag == worker_tag:
+                    build_step.set_interrupted()
+                    self.started.pop(idx)
+                    self.interrupted_queue.insert(0, build_step)
+                    break

@@ -59,12 +59,16 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                         unit.move(self.get_circle_around_position(unit, threats.center, harass_location))
                         return False
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+        if force_move and not can_attack:
+            return False
         nearby_enemies: Units
         attack_range_buffer = 0 if can_attack else 5
         enemy_candidates = self.enemy.get_candidates(include_structures=False, include_out_of_view=False)
         nearby_enemies = self.enemy.in_attack_range(unit, enemy_candidates, attack_range_buffer)
 
         if not nearby_enemies:
+            if force_move:
+                return False
             if unit.tag in self.harass_location_reached_tags:
                 nearest_probe, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.PROBE])
                 if nearest_probe:

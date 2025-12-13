@@ -31,14 +31,16 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
 
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         threats = self.enemy.threats_to_friendly_unit(unit, 5)
-        if unit.health_percentage < self.health_threshold_for_healing and threats:
-            if unit.tag not in self.last_afterburner_time or self.bot.time - self.last_afterburner_time[unit.tag] > 14.0:
-                unit(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)
-                self.last_afterburner_time[unit.tag] = self.bot.time
-            elif unit.cargo_used > 0 and unit.health_percentage < 0.3:
-                unit(AbilityId.UNLOADALLAT, unit)
-                return True
-            return False
+        if unit.health_percentage < self.health_threshold_for_healing:
+            if threats:
+                if unit.tag not in self.last_afterburner_time or self.bot.time - self.last_afterburner_time[unit.tag] > 14.0:
+                    unit(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)
+                    self.last_afterburner_time[unit.tag] = self.bot.time
+                elif unit.cargo_used > 0 and unit.health_percentage < 0.3:
+                    unit(AbilityId.UNLOADALLAT, unit)
+                return False
+            elif force_move:
+                return False
         enemy_distance_to_target = self.closest_distance_squared(target, self.bot.enemy_units) if self.bot.enemy_units else 999999
         if force_move and self.bot.time > 300 and unit.cargo_left > 0 and enemy_distance_to_target > 400:
             if self.units_to_pick_up_last_update != self.bot._total_steps_iterations:
