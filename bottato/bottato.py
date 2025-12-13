@@ -44,10 +44,13 @@ class BotTato(BotAI, TimerMixin):
         logger.debug(f"======starting step {iteration} ({self.time}s)======")
 
         for action_error in self.state.action_errors:
-            LogHelper.add_log(f"Action error: unit={self.units.by_tag(action_error.unit_tag)}, " +
-                              f"ability={action_error.exact_id}, error={ActionErrorCode(action_error.result)}")
-            if action_error.result == ActionErrorCode.CantBuildOnThat.value:
-                self.commander.build_order.mark_position_invalid_by_worker_tag(action_error.unit_tag)
+            try:
+                LogHelper.add_log(f"Action error: unit={self.units.by_tag(action_error.unit_tag)}, " +
+                                f"ability={action_error.exact_id}, error={ActionErrorCode(action_error.result)}")
+                if action_error.result == ActionErrorCode.CantBuildOnThat.value:
+                    self.commander.build_order.mark_position_invalid_by_worker_tag(action_error.unit_tag)
+            except Exception as e:
+                LogHelper.add_log(f"Error processing action error: {e}")
         self.start_timer("update_unit_references")
         # XXX very slow
         await self.update_unit_references()
