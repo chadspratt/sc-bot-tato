@@ -40,7 +40,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
 
     def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False):
         if unit.tag in BaseUnitMicro.repair_started_tags:
-            if unit.health_percentage == 1.0 or self.bot.workers.closest_distance_to(unit) > 5:
+            if unit.health_percentage == 1.0 or self.closest_distance(unit, self.bot.workers) > 5:
                 BaseUnitMicro.repair_started_tags.remove(unit.tag)
             else:
                 return False
