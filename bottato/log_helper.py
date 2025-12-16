@@ -7,6 +7,7 @@ from sc2.bot_ai import BotAI
 class LogHelper:
     previous_messages: dict[str, int] = {}
     new_messages: List[str] = []
+    chat_messages: List[str] = []
 
     bot: BotAI
 
@@ -20,10 +21,12 @@ class LogHelper:
 
     @staticmethod
     async def add_chat(message: str):
-        await LogHelper.bot.client.chat_send(message, False)
         if LogHelper.testing:
             return
-        LogHelper.new_messages.append(message)
+        if message not in LogHelper.chat_messages:
+            await LogHelper.bot.client.chat_send(message, False)
+            LogHelper.chat_messages.append(message)
+            LogHelper.new_messages.append(message)
 
     @staticmethod
     def print_logs():

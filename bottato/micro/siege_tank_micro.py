@@ -23,7 +23,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     sieged_tags = set()
     unsieged_tags = set()
     known_tags = set()
-    min_seconds_between_transform = max_siege_time + 1
+    min_seconds_between_transform = max_siege_time + 3
     last_transform_time: Dict[int, float] = {}
     last_force_move_time: Dict[int, float] = {}
     last_siege_attack_time: Dict[int, float] = {}

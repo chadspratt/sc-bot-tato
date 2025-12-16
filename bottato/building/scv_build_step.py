@@ -121,11 +121,11 @@ class SCVBuildStep(BuildStep):
     def get_position(self) -> Point2 | None:
         return self.position
 
-    async def execute(self, special_locations: SpecialLocations, rush_detected_type: RushType) -> BuildResponseCode:
+    async def execute(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
         self.start_timer("scv_build_step.execute inner")
 
         self.start_timer(f"scv_build_step.execute_scv_build {self.unit_type_id}")
-        response = await self.execute_scv_build(special_locations, rush_detected_type)
+        response = await self.execute_scv_build(special_locations, rush_detected_types)
         self.stop_timer(f"scv_build_step.execute_scv_build {self.unit_type_id}")
             
         if response == BuildResponseCode.SUCCESS:
@@ -133,7 +133,7 @@ class SCVBuildStep(BuildStep):
         self.stop_timer("scv_build_step.execute inner")
         return response
     
-    async def execute_scv_build(self, special_locations: SpecialLocations, rush_detected_type: RushType) -> BuildResponseCode:
+    async def execute_scv_build(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
         if self.unit_type_id in TECH_TREE:
             # check that all tech requirements are met
             for requirement in TECH_TREE[self.unit_type_id]:
@@ -153,7 +153,7 @@ class SCVBuildStep(BuildStep):
                 self.position = self.geysir.position
             else:
                 if self.position is None or (self.start_time is not None and self.start_time - self.bot.time > 5):
-                    self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected_type)
+                    self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected_types)
                 if self.position is None:
                     return BuildResponseCode.NO_LOCATION
 
@@ -183,7 +183,7 @@ class SCVBuildStep(BuildStep):
 
         return BuildResponseCode.SUCCESS if build_response else BuildResponseCode.FAILED
 
-    async def position_worker(self, special_locations: SpecialLocations, rush_detected_type: RushType):
+    async def position_worker(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]):
         if UnitTypeId.SCV in self.builder_type:
             if self.unit_type_id == UnitTypeId.REFINERYRICH:
                 self.unit_type_id = UnitTypeId.REFINERY
@@ -195,7 +195,7 @@ class SCVBuildStep(BuildStep):
                         return
                     self.position = self.geysir.position
                 else:
-                    self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected_type)
+                    self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected_types)
             if self.position is not None:
                 if self.unit_in_charge is None:
                     self.unit_in_charge = self.workers.get_builder(self.position)
@@ -203,9 +203,9 @@ class SCVBuildStep(BuildStep):
                     self.unit_in_charge.move(self.position)
     
     attempted_expansion_positions = {}
-    async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, rush_detected_type: RushType) -> Point2 | None:
+    async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> Point2 | None:
         new_build_position = None
-        if unit_type_id == UnitTypeId.COMMANDCENTER and (rush_detected_type == RushType.NONE or self.bot.townhalls.amount >= 2):
+        if unit_type_id == UnitTypeId.COMMANDCENTER and (len(rush_detected_types) == 0 or self.bot.townhalls.amount >= 2):
             # modified from bot_ai get_next_expansion
             expansions_to_check = []
             for el in self.bot.expansion_locations_list:
@@ -246,7 +246,7 @@ class SCVBuildStep(BuildStep):
 
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2
-            if rush_detected_type != RushType.NONE and self.bot.structures.of_type(UnitTypeId.BARRACKS) and not self.bot.structures.of_type(UnitTypeId.BUNKER):
+            if len(rush_detected_types) > 0 and self.bot.structures.of_type(UnitTypeId.BARRACKS) and not self.bot.structures.of_type(UnitTypeId.BUNKER):
                 # try to build near edge of high ground towards natural
                 # high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
                 ramp_barracks = self.bot.structures.of_type(UnitTypeId.BARRACKS).closest_to(self.bot.main_base_ramp.barracks_correct_placement) # type: ignore
@@ -264,14 +264,15 @@ class SCVBuildStep(BuildStep):
                 candidate = candidates[0]
                 # candidate = ramp_position.towards(self.map.natural_position, 2).towards(enemy_start, distance=1)
             retry_count = 0
-            while not new_build_position or self.bot.distance_math_hypot_squared(new_build_position, self.map.natural_position) < 16:
+            while not new_build_position or new_build_position._distance_squared(self.map.natural_position) < 16:
+                if retry_count > 5:
+                    new_build_position = None
+                    break
                 new_build_position = await self.bot.find_placement(
                                     unit_type_id,
                                     near=candidate,
-                                    placement_step=1)
+                                    placement_step=retry_count + 1)
                 retry_count += 1
-                if retry_count > 5:
-                    break
         elif unit_type_id == UnitTypeId.MISSILETURRET:
             bases = self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS})
             turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
@@ -298,7 +299,7 @@ class SCVBuildStep(BuildStep):
                     logger.debug(f"found enemy near proposed build position {new_build_position}, rejecting")
                     return None
                 
-            if unit_type_id == UnitTypeId.COMMANDCENTER and rush_detected_type == RushType.NONE:
+            if unit_type_id == UnitTypeId.COMMANDCENTER and len(rush_detected_types) == 0:
                 if new_build_position in self.attempted_expansion_positions:
                     self.attempted_expansion_positions[new_build_position] += 1
                 else:

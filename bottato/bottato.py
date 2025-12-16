@@ -1,6 +1,7 @@
 from typing import Dict
 from loguru import logger
 import os
+import random
 
 from sc2.bot_ai import BotAI
 from sc2.data import Result
@@ -23,7 +24,7 @@ class BotTato(BotAI, TimerMixin):
         self.last_timer_print = 0
         self.last_build_order_print = 0
         self.commander = Commander(self)
-        await self.commander.map.init()
+        await self.commander.init_map()
         # await self.client.debug_fast_build()
         # await self.client.debug_minerals()
         # await self.client.debug_create_unit(
@@ -32,7 +33,7 @@ class BotTato(BotAI, TimerMixin):
         #     ]
         # )
         LogHelper.testing = os.environ.get("LOG_TESTING") == "1"
-        self.last_replay_save_time = 0
+        self.replay_saved = False
         logger.debug(os.getcwd())
         logger.debug(f"vision blockers: {self.game_info.vision_blockers}")
         logger.debug(f"destructibles: {self.destructables}")
@@ -45,7 +46,7 @@ class BotTato(BotAI, TimerMixin):
 
         for action_error in self.state.action_errors:
             try:
-                LogHelper.add_log(f"Action error: unit={self.units.by_tag(action_error.unit_tag)}, " +
+                LogHelper.add_log(f"Action error: unit={self.all_own_units.by_tag(action_error.unit_tag)}, " +
                                 f"ability={action_error.exact_id}, error={ActionErrorCode(action_error.result)}")
                 if action_error.result == ActionErrorCode.CantBuildOnThat.value:
                     self.commander.build_order.mark_position_invalid_by_worker_tag(action_error.unit_tag)
@@ -63,6 +64,12 @@ class BotTato(BotAI, TimerMixin):
             self.commander.map.draw()
         self.print_build_order(10)
         LogHelper.print_logs()
+
+        if LogHelper.testing and self.time >= 3540 and not self.replay_saved:
+            # save replay at 59 minutes
+            replay_name = f"replays/timeout-{random.randint(1000, 9999)}.SC2Replay"
+            await self.client.save_replay(replay_name)
+            self.replay_saved = True
 
     def toggle_map_drawing(self):
         self.draw_map = not self.draw_map

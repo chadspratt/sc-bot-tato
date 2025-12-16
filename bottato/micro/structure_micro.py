@@ -21,18 +21,18 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
         self.command_center_destinations: dict[int, Point2 | None] = {}
         self.last_scan_time: float = 0
 
-    async def execute(self, rush_detected_type: RushType):
+    async def execute(self, rush_detected_types: set[RushType]):
         self.start_timer("structure_micro.execute")
         # logger.debug("adjust_supply_depots_for_enemies step")
-        self.adjust_supply_depots_for_enemies(rush_detected_type)
+        self.adjust_supply_depots_for_enemies(rush_detected_types)
         self.target_autoturrets()
         await self.move_command_centers()
         self.scan()
         self.stop_timer("structure_micro.execute")
 
-    def adjust_supply_depots_for_enemies(self, rush_detected_type: RushType):
+    def adjust_supply_depots_for_enemies(self, rush_detected_types: set[RushType]):
         # Raise depos when enemies are nearby
-        distance_threshold = 15 if rush_detected_type != RushType.NONE else 8
+        distance_threshold = 8 if rush_detected_types else 15
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
             for enemy_unit in self.bot.enemy_units:
                 if enemy_unit.is_flying:

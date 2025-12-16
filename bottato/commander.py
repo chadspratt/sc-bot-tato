@@ -46,8 +46,12 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.new_damage_by_position: dict[Point2, float] = {}
         self.pathable_position: Point2 | None = None
         self.stuck_units: Units = Units([], bot_object=self.bot)
-        self.rush_detected_type: RushType = RushType.NONE
+        self.rush_detected_types: set[RushType] = set()
         self.units_by_tag: dict[int, Unit] = {}
+
+    async def init_map(self):
+        await self.map.init()
+        self.scouting.init_scouting_routes()
 
     async def command(self, iteration: int):
         self.start_timer("command")
@@ -70,13 +74,12 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.map.update_influence_maps(self.new_damage_by_position) # fast
         BaseUnitMicro.reset_tag_sets()
 
-        await self.structure_micro.execute(self.rush_detected_type) # unknown speed
+        await self.structure_micro.execute(self.rush_detected_types) # unknown speed
 
         # XXX slow, 17% of command time
-        await self.build_order.execute(self.military.army_ratio, self.rush_detected_type, self.enemy)
+        await self.build_order.execute(self.military.army_ratio, self.rush_detected_types, self.enemy)
 
         await self.scout() # unknown speed
-        # self.rush_detected_type = RushType.STANDARD if self.bot.time > 70 else RushType.NONE
 
         # XXX extremely slow
         self.start_timer("avoid blueprints")
@@ -90,7 +93,8 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         await self.military.manage_squads(iteration,
                                           self.build_order.get_blueprints(),
                                           self.scouting.get_newest_enemy_base(),
-                                          self.rush_detected_type)
+                                          self.rush_detected_types,
+                                          self.scouting.proxy_buildings)
 
         await self.my_workers.attack_nearby_enemies() # ultra fast
         self.my_workers.distribute_idle() # fast
@@ -148,7 +152,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.start_timer("scout")
         self.scouting.update_visibility()
         await self.scouting.scout(self.new_damage_by_unit, self.units_by_tag)
-        self.rush_detected_type = await self.scouting.rush_detected_type
+        self.rush_detected_types = self.rush_detected_types.union(await self.scouting.rush_detected_types)
         self.stop_timer("scout")
 
     async def update_references(self, units_by_tag: dict[int, Unit]):

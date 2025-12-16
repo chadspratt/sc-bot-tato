@@ -70,18 +70,18 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             if force_move:
                 return False
             if unit.tag in self.harass_location_reached_tags:
-                nearest_probe, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.PROBE])
-                if nearest_probe:
+                nearest_worker, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE])
+                if nearest_worker:
                     if can_attack:
-                        return self._kite(unit, nearest_probe)
+                        return self._kite(unit, nearest_worker)
                     else:
-                        unit.move(nearest_probe.position)
+                        unit.move(nearest_worker.position)
                         return True
             return False
         weakest_enemy = nearby_enemies.sorted(key=lambda t: t.shield + t.health).first
         return self._kite(unit, weakest_enemy)
 
-    async def _harass_retreat(self, unit: Unit, health_threshold: float) -> bool:
+    async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False        
 

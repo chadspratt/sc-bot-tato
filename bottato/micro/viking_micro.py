@@ -19,6 +19,13 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
     target_assignments: dict[int, Unit] = {}  # viking tag -> enemy tag
     attack_health = 0.4
 
+    async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
+        enemy_bcs = self.bot.enemy_units.of_type(UnitTypeId.BATTLECRUISER)
+        if enemy_bcs:
+            await self.scout(unit, enemy_bcs.closest_to(unit).position)
+            return True
+        return await super().move(unit, target, force_move, previous_position)
+
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag in self.scout_tags:
             # scout mode, don't land

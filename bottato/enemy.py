@@ -58,6 +58,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 self.enemies_out_of_view.remove(enemy_unit)
             else:
                 # assume unit continues in same direction
+                self.last_seen_positions[enemy_unit.tag].append(None)
                 new_prediction = self.get_predicted_position(enemy_unit, 0)
                 # back the projection up to edge of visibility we can see that it isn't there
                 reverse_vector = None
@@ -117,23 +118,21 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         self.stop_timer("enemy.update_references")
 
     def is_visible(self, position: Point2, radius: float) -> bool:
-        diagonal_radius = (radius ** 2 * 2) ** 0.5
         positions_to_check = [
             position,
             Point2((position.x - radius, position.y)),
             Point2((position.x + radius, position.y)),
             Point2((position.x, position.y - radius)),
             Point2((position.x, position.y + radius)),
-            Point2((position.x - diagonal_radius, position.y - diagonal_radius)),
-            Point2((position.x - diagonal_radius, position.y + diagonal_radius)),
-            Point2((position.x + diagonal_radius, position.y - diagonal_radius)),
-            Point2((position.x + diagonal_radius, position.y + diagonal_radius)),
+            Point2((position.x - radius, position.y - radius)),
+            Point2((position.x - radius, position.y + radius)),
+            Point2((position.x + radius, position.y - radius)),
+            Point2((position.x + radius, position.y + radius)),
         ]
         for pos in positions_to_check:
             if self.bot.is_visible(pos):
                 return True
         return False
-
 
     def get_predicted_position(self, unit: Unit, seconds_ahead: float) -> Point2:
         if unit.type_id in (UnitTypeId.COLLAPSIBLEROCKTOWERDEBRIS,):
@@ -154,11 +153,18 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             return sum
         start: Point2 = recent_positions[0]
         i = 1
+        actual_sample_count = 0
         while i < sample_count:
             end: Point2 = recent_positions[i]
-            sum += end - start
             i += 1
-        sum /= sample_count - 1
+            if start is None or end is None:
+                start = end
+                continue
+            sum += end - start
+            start = end
+            actual_sample_count += 1
+        if actual_sample_count > 0:
+            sum /= actual_sample_count
         return sum
 
     def record_death(self, unit_tag):

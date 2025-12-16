@@ -55,7 +55,7 @@ class HarassSquad(Squad, GeometryMixin, TimerMixin):
             nearest_threat = None
             nearest_distance = 99999
             for threat in nearby_enemies + threatening_structures:
-                distance = threat.distance_to_squared(unit) - UnitTypes.range_vs_target(threat, unit) ** 2
+                distance = UnitTypes.get_range_buffer_vs_target(threat, unit)
                 if distance < nearest_distance:
                     nearest_distance = distance
                     nearest_threat = threat
@@ -64,7 +64,7 @@ class HarassSquad(Squad, GeometryMixin, TimerMixin):
                 await micro.harass(unit, self.harass_location)
             else:
                 enemy_range = UnitTypes.range_vs_target(nearest_threat, unit)
-                if UnitTypes.range_vs_target(unit, unit) > enemy_range:
+                if UnitTypes.range_vs_target(unit, nearest_threat) > enemy_range:
                     # kite enemies that we outrange
                     move_position = nearest_threat.position
                     if unit.weapon_cooldown != 0:

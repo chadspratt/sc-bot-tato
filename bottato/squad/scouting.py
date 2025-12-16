@@ -1,9 +1,10 @@
-from typing import List
+from typing import List, Set
 from loguru import logger
 
 from sc2.bot_ai import BotAI
 from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.units import Units
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.data import race_townhalls
@@ -55,6 +56,53 @@ class Scout(Squad, UnitReferenceMixin):
 
     def add_location(self, scouting_location: ScoutingLocation):
         self.scouting_locations.append(scouting_location)
+
+    def traveling_salesman_sort(self, map: Map | None = None):
+        """Sort scouting locations in traveling salesman order to minimize travel distance"""
+        if not self.scouting_locations:
+            return
+        sorted_locations: List[ScoutingLocation] = []
+        best_distance = float('inf')
+        current_position = self.scouting_locations[0]
+        sorted_unvisited = sorted(self.scouting_locations, key=lambda loc: current_position.position._distance_squared(loc.position))
+        last_position = sorted_unvisited[-1]
+        possible_routes: List[List[ScoutingLocation]] = self.get_routes([current_position], sorted_unvisited[1:-1])
+
+        for route in possible_routes:
+            total_distance = 0.0
+            previous_location = route[0]
+            route.append(last_position)
+            for location in route[1:]:
+                if map:
+                    # add distance to nearest pathing grid point
+                    path_points = map.get_path_points(previous_location.position, location.position)
+                    for i in range(1, len(path_points)):
+                        total_distance += path_points[i-1].distance_to(path_points[i])
+                else:
+                    total_distance += previous_location.position.distance_to(location.position)
+                if total_distance > best_distance:
+                    break
+                previous_location = location
+            else:
+                best_distance = total_distance
+                sorted_locations = route
+        self.scouting_locations = sorted_locations
+
+    def get_routes(self, current_route: List[ScoutingLocation], unvisited: List[ScoutingLocation]) -> List[List[ScoutingLocation]]:
+        if not unvisited:
+            return [current_route]
+        routes: List[List[ScoutingLocation]] = []
+        previous_location = current_route[-1]
+        sorted_unvisited = sorted(unvisited, key=lambda loc: previous_location.position._distance_squared(loc.position))
+        for i in range(len(sorted_unvisited)):
+            if i > 2:
+                # limit branching factor for performance
+                break
+            next_location = sorted_unvisited[i]
+            remaining = sorted_unvisited[:i] + sorted_unvisited[i+1:]
+            new_route = current_route + [next_location]
+            routes.extend(self.get_routes(new_route, remaining))
+        return routes
 
     def contains_location(self, scouting_location: ScoutingLocation):
         return scouting_location in self.scouting_locations
@@ -354,7 +402,7 @@ class Scouting(Squad, DebugMixin):
         self.map = map
         self.workers = workers
         self.military = military
-        self.rush_type: RushType = RushType.NONE
+        self.rush_types: set[RushType] = set()
         self.initial_scan_done: bool = False
 
         self.intel = EnemyIntel(self.bot)
@@ -362,6 +410,7 @@ class Scouting(Squad, DebugMixin):
         self.enemy_territory = Scout("enemy territory", self.bot, enemy)
         self.initial_scout = InitialScout(self.bot, self.map, self.enemy, self.intel)
         self.newest_enemy_base = self.bot.enemy_start_locations[0]
+        self.proxy_buildings: Units = Units([], self.bot)
 
         # positions to scout
         self.empty_enemy_expansion_locations: List[Point2] = []
@@ -381,6 +430,10 @@ class Scouting(Squad, DebugMixin):
             if not self.friendly_territory.contains_location(enemy_nearest_locations_temp[i]):
                 self.enemy_territory.add_location(enemy_nearest_locations_temp[i])
                 self.empty_enemy_expansion_locations.append(enemy_nearest_locations_temp[i].position)
+
+    def init_scouting_routes(self):
+        self.friendly_territory.traveling_salesman_sort(self.map)
+        self.enemy_territory.traveling_salesman_sort()
 
     def update_visibility(self):
         self.intel.catalog_visible_units()
@@ -422,12 +475,14 @@ class Scouting(Squad, DebugMixin):
             elif self.enemy_territory.unit and self.enemy_territory.unit.position.manhattan_distance(location.position) < 1:
                 location.last_visited = self.bot.time
 
-    async def detect_rush(self) -> RushType:
+    async def detect_rush(self) -> Set[RushType]:
+        rush_types: Set[RushType] = set()
+        if self.intel.enemy_race_confirmed is None:
+            # rush_types.add(RushType.NONE)
+            return rush_types
         if self.proxy_detected():
             await LogHelper.add_chat("proxy suspected")
-            return RushType.PROXY
-        if self.intel.enemy_race_confirmed is None:
-            return RushType.NONE
+            rush_types.add(RushType.PROXY)
         if self.intel.enemy_race_confirmed == Race.Zerg: # type: ignore
             early_pool = self.intel.first_building_time.get(UnitTypeId.SPAWNINGPOOL, 9999) < 40 # type: ignore
             no_gas = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.EXTRACTOR) == 0
@@ -442,40 +497,44 @@ class Scouting(Squad, DebugMixin):
             if zergling_rush:
                 await LogHelper.add_chat("zergling rush detected")
             if early_pool or no_gas or no_expansion or zergling_rush:
-                return RushType.STANDARD
-        if self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
+                rush_types.add(RushType.STANDARD)
+        elif self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
             # no_expansion = self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
             battlecruiser = self.bot.time < 360 and \
                 (self.intel.number_seen(UnitTypeId.FUSIONCORE) > 0 or
                  self.intel.number_seen(UnitTypeId.BATTLECRUISER) > 0)
             if battlecruiser:
                 await LogHelper.add_chat("battlecruiser rush detected")
-                return RushType.BATTLECRUISER
+                rush_types.add(RushType.BATTLECRUISER)
             multiple_barracks = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.BARRACKS) > 1
             if multiple_barracks:
                 await LogHelper.add_chat("multiple early barracks detected")
             # if no_expansion:
             #     await LogHelper.add_chat("no expansion detected")
             if multiple_barracks:
-                return RushType.STANDARD
-        # Protoss
-        lots_of_gateways = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.GATEWAY) > 2
-        no_expansion = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.NEXUS) == 1
-        if lots_of_gateways:
-            await LogHelper.add_chat("lots of gateways detected")
-        if no_expansion:
-            await LogHelper.add_chat("no expansion detected")
-        if lots_of_gateways or no_expansion:
-            return RushType.STANDARD
-        
-        if self.bot.time < 180 and len(self.bot.enemy_units) > 0 and len(self.bot.enemy_units.closer_than(30, self.bot.start_location)) > 5:
-            await LogHelper.add_chat("early army detected near base")
-            return RushType.STANDARD
-        return RushType.NONE
+                rush_types.add(RushType.STANDARD)
+        else:
+            # Protoss
+            lots_of_gateways = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.GATEWAY) > 2
+            no_expansion = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.NEXUS) == 1
+            if lots_of_gateways:
+                await LogHelper.add_chat("lots of gateways detected")
+            if no_expansion:
+                await LogHelper.add_chat("no expansion detected")
+            if lots_of_gateways or no_expansion:
+                rush_types.add(RushType.STANDARD)
+            
+            if self.bot.time < 180 and len(self.bot.enemy_units) > 0 and len(self.bot.enemy_units.closer_than(30, self.bot.start_location)) > 5:
+                await LogHelper.add_chat("early army detected near base")
+                rush_types.add(RushType.STANDARD)
+        # rush_types.add(RushType.NONE)
+        return rush_types
     
     def proxy_detected(self) -> bool:
         if self.intel.enemy_race_confirmed is None:
             return False
+        if self.proxy_buildings:
+            return True
         if self.intel.enemy_race_confirmed == Race.Zerg: # type: ignore
             # are zerg proxy a thing?
             return False
@@ -511,10 +570,10 @@ class Scouting(Squad, DebugMixin):
 
     async def scout(self, new_damage_taken: dict[int, float], units_by_tag: dict[int, Unit]):
         # Update scout unit references
-        friendly_scout_type = ScoutType.ANY if self.rush_type == RushType.PROXY or self.bot.time > 120 else ScoutType.NONE
+        friendly_scout_type = ScoutType.ANY if RushType.PROXY in self.rush_types or self.bot.time > 120 else ScoutType.NONE
         self.friendly_territory.update_scout(self.military, self.workers, units_by_tag, friendly_scout_type)
         self.enemy_territory.update_scout(self.military, self.workers, units_by_tag, ScoutType.VIKING)
-        if self.rush_type != RushType.NONE:
+        if self.rush_types:
             self.initial_scout.completed = True
         self.initial_scout.update_scout(self.workers, units_by_tag)
 
@@ -526,8 +585,26 @@ class Scouting(Squad, DebugMixin):
         await self.friendly_territory.move_scout(new_damage_taken)
         await self.enemy_territory.move_scout(new_damage_taken)
 
+        i = len(self.proxy_buildings) - 1
+        while i >= 0:
+            if self.bot.is_visible(self.proxy_buildings[i].position):
+                LogHelper.add_log(f"proxy building no longer detected: {self.proxy_buildings[i]}")
+                self.proxy_buildings.remove(self.proxy_buildings[i])
+            i -= 1
+
+        if self.friendly_territory.unit:
+            friendly_scout = self.friendly_territory.unit
+            scouted_structures = self.bot.enemy_structures.filter(lambda s: s.is_visible and s.position.manhattan_distance(friendly_scout.position) < 13)
+            for structure in scouted_structures:
+                for proxy_structure in self.proxy_buildings:
+                    if structure.type_id == proxy_structure.type_id and structure.position.manhattan_distance(proxy_structure.position) < 1:
+                        break
+                else:
+                    self.proxy_buildings.append(structure)
+                    LogHelper.add_log(f"proxy building detected: {structure}")
+
     @property
-    async def rush_detected_type(self) -> RushType:
+    async def rush_detected_types(self) -> Set[RushType]:
         if not self.initial_scan_done and 165 < self.bot.time < 210:
             reaper = self.bot.units(UnitTypeId.REAPER)
             if not reaper or reaper.first.distance_to(self.enemy_main.position) > 25:
@@ -538,7 +615,7 @@ class Scouting(Squad, DebugMixin):
                             self.initial_scan_done = True
                             break
                 
-        if self.rush_type != RushType.NONE:
-            return self.rush_type
-        self.rush_type = await self.detect_rush()
-        return self.rush_type
+        if self.bot.time > 300:
+            return self.rush_types
+        self.rush_types = self.rush_types.union(await self.detect_rush())
+        return self.rush_types

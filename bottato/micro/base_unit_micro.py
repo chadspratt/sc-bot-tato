@@ -151,7 +151,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             action_taken = True
         if not action_taken:
             self.start_timer("base_unit_micro.move._retreat")
-            action_taken = await self._harass_retreat(unit, health_threshold=self.retreat_health)
+            action_taken = await self._harass_retreat(unit, health_threshold=self.retreat_health, harass_location=target)
             self.stop_timer("base_unit_micro.move._retreat")
         
         if not action_taken:
@@ -310,8 +310,13 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                 # rare weirdness
                 return True
             # check if incoming damage will bring unit below health threshold
-            total_potential_damage = sum([threat.calculate_damage_vs_target(unit)[0] for threat in threats])
-            if (unit.health - total_potential_damage) / unit.health_max >= health_threshold:
+            hp_threshold = unit.health_max * health_threshold
+            current_health = unit.health
+            for threat in threats:
+                current_health -= threat.calculate_damage_vs_target(unit)[0]
+                if current_health < hp_threshold:
+                    break
+            else:
                 return False
 
         if unit.type_id == UnitTypeId.SCV and not threats and not unit.is_constructing_scv:
@@ -332,7 +337,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         unit.move(retreat_position)
         return True
     
-    async def _harass_retreat(self, unit: Unit, health_threshold: float) -> bool:
+    async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> bool:
         return await self._retreat(unit, health_threshold)
 
     ###########################################################################
@@ -557,9 +562,13 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if unit.distance_to_squared(destination) > 225:
             path_to_destination = self.map.get_path_points(unit.position, destination)
             if len(path_to_destination) > 1:
-                destination = path_to_destination[1]
-                if unit.distance_to_squared(destination) < threat_position._distance_squared(destination):
-                    return destination
+                for path_position in path_to_destination:
+                    distance_squared = unit.distance_to_squared(path_position)
+                    if distance_squared > threat_position._distance_squared(path_position):
+                        break
+                    if distance_squared > 400 or path_position == path_to_destination[-1]:
+                        # if no enemies along path, go to first node
+                        return path_to_destination[1]
         threat_to_unit_vector = (unit.position - threat_position).normalized
         tangent_vector1 = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
         tangent_vector2 = Point2((-tangent_vector1.x, -tangent_vector1.y))

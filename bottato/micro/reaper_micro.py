@@ -29,24 +29,21 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         grenade_targets: List[Point2] = []
         if targets and await self.grenade_available(unit):
             for target_unit in targets:
-                if target_unit.is_flying:
+                if target_unit.is_flying or target_unit.age > 0:
                     continue
                 future_target_position = self.enemy.get_predicted_position(target_unit, self.grenade_timer)
-                # future_target_position = target_unit.position
-                grenade_target = future_target_position
-                if grenade_target._distance_squared(unit.position) < grenade_target._distance_squared(target_unit.position) and \
-                    self.distance_squared(target_unit, unit) < grenade_target._distance_squared(target_unit.position):
-                    # don't throw grenade on opposite side of reaper from enemy, which ruins retreating
-                    # instead just throw it slightly behind reaper towards enemy
-                    grenade_target = unit.position.towards(target_unit.position, 0.1)
-                # grenade_target = future_target_position.towards(unit).
-                if unit.in_ability_cast_range(AbilityId.KD8CHARGE_KD8CHARGE, grenade_target): # type: ignore
-                    logger.debug(f"{unit} grenade candidates {target_unit}: {future_target_position} -> {grenade_target}")
-                    grenade_targets.append(grenade_target) # type: ignore
+                future_target_distance = future_target_position.distance_to(unit.position)
+                if future_target_distance > 5:
+                    continue
+                grenade_target: Point2 = future_target_position
+                if target_unit.is_facing(unit, angle_error=0.15):
+                    # throw towards current position to avoid cutting off own retreat when predicted position is behind
+                    grenade_target = unit.position.towards(target_unit.position, future_target_distance) # type: ignore
+                grenade_targets.append(grenade_target) # type: ignore
 
         if grenade_targets:
             # choose furthest to reduce chance of grenading self
-            grenade_target = unit.position.furthest(grenade_targets)
+            grenade_target = min(grenade_targets, key=lambda p: unit.position._distance_squared(p))
             logger.debug(f"{unit} grenading {grenade_target}")
             self.throw_grenade(unit, grenade_target) # type: ignore
             return True
@@ -64,18 +61,21 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         nearby_enemies: Units
         if can_attack:
-            nearby_enemies = self.enemy.get_enemies_in_range(unit, include_structures=False, include_destructables=False)
+            candidates = self.enemy.get_candidates(include_structures=False)
+            nearby_enemies = self.enemy.in_attack_range(unit, candidates)
+            if not nearby_enemies:
+                nearby_enemies = self.enemy.in_attack_range(unit, candidates, 5)
         else:
             nearby_enemies = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
 
         if not nearby_enemies:
             if unit.tag in self.harass_location_reached_tags:
-                nearest_probe, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.PROBE])
-                if nearest_probe:
+                nearest_worker, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE])
+                if nearest_worker:
                     if can_attack:
-                        return self._kite(unit, nearest_probe)
+                        return self._kite(unit, nearest_worker)
                     else:
-                        unit.move(nearest_probe.position)
+                        unit.move(nearest_worker.position)
                         return True
             return False
 
@@ -88,13 +88,14 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                     # don't attack enemies that outrange
                     return False
         weakest_enemy = nearby_enemies.sorted(key=lambda t: t.shield + t.health).first
-        height_difference = weakest_enemy.position3d.z - self.bot.get_terrain_z_height(unit)
-        if height_difference > 0.5:
-            # don't attack enemies significantly higher than us
-            return False
+        if weakest_enemy.age > 0:
+            height_difference = weakest_enemy.position3d.z - self.bot.get_terrain_z_height(unit)
+            if height_difference > 0.5:
+                # don't attack enemies significantly higher than us
+                return False
         return self._kite(unit, weakest_enemy)
 
-    async def _harass_retreat(self, unit: Unit, health_threshold: float) -> bool:
+    async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
@@ -107,46 +108,54 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             # just stop and wait for regen
             unit.stop()
             return True
-        else:
-            for threat in threats:
-                if UnitTypes.ground_range(threat) > unit.ground_range:
-                    # just run the fuck away from threats
-                    do_retreat = True
 
-        if not do_retreat:
-            # retreat if there is nothing this unit can attack
-            visible_threats = threats.filter(lambda t: t.age == 0)
-            targets = self.enemy.in_attack_range(unit, visible_threats, 3)
-            if not targets:
+        for threat in threats:
+            if UnitTypes.ground_range(threat) > unit.ground_range:
+                # just run the fuck away from threats
                 do_retreat = True
+                break
 
         # check if incoming damage will bring unit below health threshold
         if not do_retreat:
-            total_potential_damage = sum([threat.calculate_damage_vs_target(unit)[0] for threat in threats])
             if not unit.health_max:
                 # rare weirdness
                 return True
-            if (unit.health - total_potential_damage) / unit.health_max < health_threshold:
-                do_retreat = True
+            hp_threshold = unit.health_max * health_threshold
+            current_health = unit.health
+            for threat in threats:
+                current_health -= threat.calculate_damage_vs_target(unit)[0]
+                if current_health < hp_threshold:
+                    do_retreat = True
+                    break
 
         if do_retreat:
+            destination = harass_location
+            retreat_to_start =  unit.health_percentage < health_threshold or unit.distance_to_squared(harass_location) < 400
+            if retreat_to_start:
+                destination = self.bot.start_location
             avg_threat_position = threats.center
-            if unit.distance_to(self.bot.start_location) < avg_threat_position.distance_to(self.bot.start_location) + 2:
+            if unit.distance_to(destination) < avg_threat_position.distance_to(destination) + 2:
                 # if closer to start or already near enemy, move past them to go home
-                unit.move(self.bot.start_location)
+                unit.move(destination)
                 return True
-            retreat_position = unit.position.towards(avg_threat_position, -5)
-            # .towards(self.bot.start_location, 2)
-            if self.bot.in_pathing_grid(retreat_position): # type: ignore
-                unit.move(retreat_position) # type: ignore
-            else:
-                if unit.position == avg_threat_position:
-                    # avoid divide by zero
-                    unit.move(self.bot.start_location)
+            if retreat_to_start:
+                retreat_position = unit.position.towards(avg_threat_position, -5)
+                # .towards(destination, 2)
+                if self.bot.in_pathing_grid(retreat_position): # type: ignore
+                    unit.move(retreat_position) # type: ignore
                 else:
-                    circle_around_position = self.get_circle_around_position(unit, avg_threat_position, self.bot.start_location)
-                    unit.move(circle_around_position.towards(self.bot.start_location, 2)) # type: ignore
-            return True
+                    if unit.position == avg_threat_position:
+                        # avoid divide by zero
+                        unit.move(destination)
+                    else:
+                        circle_around_position = self.get_circle_around_position(unit, avg_threat_position, destination)
+                        unit.move(circle_around_position.towards(destination, 2)) # type: ignore
+                return True
+            else:
+                circle_around_position = self.get_circle_around_position(unit, avg_threat_position, destination)
+                unit.move(circle_around_position) # type: ignore
+                return True
+
         return False
 
     async def grenade_jump(self, unit: Unit, target: Unit) -> bool:

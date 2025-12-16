@@ -200,7 +200,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 continue
             
             if not self.bot.townhalls.ready:
-                logger.warning(
+                LogHelper.add_log(
                     f"{self.bot.time_formatted} Attempting to speed mine with no townhalls"
                 )
                 break

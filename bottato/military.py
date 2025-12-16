@@ -197,7 +197,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
     async def manage_squads(self, iteration: int,
                             blueprints: List[BuildStep],
                             newest_enemy_base: Point2 | None,
-                            rush_detected_type: RushType):
+                            rush_detected_types: set[RushType],
+                            proxy_buildings: Units):
         self.start_timer("manage_squads")
         self.main_army.draw_debug_box()
 
@@ -243,7 +244,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 # cannon rush response
                 self.workers.attack_enemy(enemy)
                 continue
-            if rush_detected_type != RushType.NONE and len(self.main_army.units) < 10:
+            if len(rush_detected_types) > 0 and len(self.main_army.units) < 10:
                 # don't send out units if getting rushed and army is small
                 defend_with_main_army = True
                 break
@@ -291,11 +292,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         army_is_grouped = self.main_army.is_grouped()
         mount_offense = army_is_big_enough and not defend_with_main_army
 
-        if mount_offense: # previously 600
+        if not enemies_in_base and proxy_buildings:
+            # if proxy buildings detected, mount offense even if army is small
+            mount_offense = True
+        elif mount_offense: # previously 600
             if self.bot.units([UnitTypeId.REAPER, UnitTypeId.VIKINGFIGHTER]).amount == 0 and self.bot.time < 420:
                 # wait for a scout to attack
                 mount_offense = False
-            elif rush_detected_type != RushType.NONE and self.bot.time < 360:
+            elif len(rush_detected_types) > 0 and self.bot.time < 360:
                 mount_offense = False
             elif self.bot.supply_used < 50: # previously 110
                 mount_offense = False
@@ -313,7 +317,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         await self.manage_bunker(self.bunker2, enemies_in_base, enemies_in_base_ratio, mount_offense)
         self.stop_timer("military manage bunkers")
 
-        await self.harass(newest_enemy_base, rush_detected_type)
+        await self.harass(newest_enemy_base, rush_detected_types)
 
         self.start_timer("military move squads")
         if self.main_army.units:
@@ -326,6 +330,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.start_timer("military move squads defend")
                 await self.main_army.move(enemies_in_base.closest_to(self.main_army.position).position)
                 self.stop_timer("military move squads defend")
+            elif mount_offense and len(proxy_buildings) > 0 and self.bot.time < 420:
+                self.start_timer("military move squads attack proxy buildings")
+                target_position = proxy_buildings.closest_to(self.main_army.position).position
+                await self.main_army.move(target_position)
+                self.stop_timer("military move squads attack proxy buildings")
             elif mount_offense:
                 self.start_timer("military move squads mount offense")
                 self.start_timer("military move squads choose attack target")
@@ -334,7 +343,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 target = None
                 target_position = None
                 attackable_enemies = self.enemy.enemies_in_view.filter(
-                    lambda unit: UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()) and unit.armor < 10 and unit.tag not in countered_enemies)
+                    lambda unit: UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies())
+                        and unit.armor < 10 and unit.tag not in countered_enemies)
                 
                 ignored_enemy_tags = set()
                 for enemy in attackable_enemies:
@@ -396,9 +406,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 # generally a retreat due to being outnumbered
                 LogHelper.add_log(f"squad {self.main_army} staging at {self.main_army.staging_location}")
                 enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
-                if rush_detected_type != RushType.NONE and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
+                if len(rush_detected_types) > 0 and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
                     self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 10) # type: ignore
-                elif rush_detected_type != RushType.NONE and len(self.bot.townhalls) <= 3 and self.army_ratio < 1.0:
+                elif len(rush_detected_types) > 0 and len(self.bot.townhalls) <= 3 and self.army_ratio < 1.0:
                     self.main_army.staging_location = self.map.natural_position.towards(self.bot.main_base_ramp.bottom_center, 5) # type: ignore
                 elif len(self.bot.townhalls) > 1:
                     closest_base = self.map.get_closest_unit_by_path(self.bot.townhalls, enemy_position)
@@ -480,9 +490,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         # self.bunker.transfer_all(self.main_army)
         bunker.empty()
 
-    async def harass(self, newest_enemy_base: Point2 | None, rush_detected_type: RushType):
+    async def harass(self, newest_enemy_base: Point2 | None, rush_detected_types: set[RushType]):
         self.start_timer("military harass")
-        if rush_detected_type == RushType.PROXY and self.bot.enemy_units(UnitTypeId.REAPER) and self.bot.time < 300:
+        if RushType.PROXY in rush_detected_types and self.bot.enemy_units(UnitTypeId.REAPER) and self.bot.time < 300:
             # stop harass during proxy reaper rush
             self.transfer_all(self.reaper_harass, self.main_army)
             self.stop_timer("military harass")

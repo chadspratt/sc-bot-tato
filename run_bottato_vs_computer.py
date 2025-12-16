@@ -64,6 +64,7 @@ def main():
         [Bot(Race.Terran, bot_class(), "BotTato"), opponent], # type: ignore
         realtime=False,
         save_replay_as=replay_name,
+        game_time_limit=3600,
     )
     
     bottato_result = result[0] if isinstance(result, list) else result

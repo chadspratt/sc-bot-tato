@@ -81,7 +81,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
     def get_position(self) -> Point2 | None:
         return None
 
-    async def execute(self, special_locations: SpecialLocations, rush_detected_type: RushType) -> BuildResponseCode:
+    async def execute(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
         # override in subclasses
         return BuildResponseCode.FAILED
 
