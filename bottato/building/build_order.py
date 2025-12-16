@@ -747,7 +747,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 continue
 
             percent_affordable = 1.0
-            if not build_step.is_in_progress:
+            if not isinstance(build_step, SCVBuildStep) or build_step.unit_being_built is None:
                 percent_affordable = self.percent_affordable(remaining_resources, build_step.cost)
                 if remaining_resources.minerals < 0:
                     break

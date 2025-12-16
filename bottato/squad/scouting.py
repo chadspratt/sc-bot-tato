@@ -19,7 +19,7 @@ from bottato.mixins import DebugMixin, GeometryMixin, UnitReferenceMixin
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.economy.workers import Workers
-from bottato.enums import RushType, ScoutType
+from bottato.enums import RushType, ScoutType, WorkerJobType
 
 class ScoutingLocation:
     def __init__(self, position: Point2):
@@ -116,6 +116,11 @@ class Scout(Squad, UnitReferenceMixin):
 
     def update_scout(self, military: Military, workers: Workers, units_by_tag: dict[int, Unit], scout_type: ScoutType = ScoutType.NONE):
         """Update unit reference for this scout"""
+        if self.unit and self.unit.type_id == UnitTypeId.SCV:
+            assignment = workers.assignments_by_worker[self.unit.tag]
+            if assignment.job_type != WorkerJobType.SCOUT:
+                # worker reassigned, release scout
+                self.unit = None
         if self.unit:
             if scout_type == ScoutType.ANY:
                 for location in self.scouting_locations:

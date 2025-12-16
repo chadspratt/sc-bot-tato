@@ -472,7 +472,6 @@ class SCVBuildStep(BuildStep):
         return interrupted
     
     def set_interrupted(self):
-        self.is_in_progress = False
         self.position = None
         self.geysir = None
         self.worker_in_position_time = None

@@ -768,6 +768,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             if len(units_with_no_repairer) > 5:
                 units_with_no_repairer = units_with_no_repairer[:5]  # spread out repairers to up to 5 units, mostly to keep initial wall repaired
         for repairer in current_repairers:
+            if repairer.is_constructing_scv:
+                # mixed up job somehow, stop constructing so it can go repair, probably an idle scv is trying to do the build
+                repairer(AbilityId.HALT)
+                continue
             repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
             self.update_assigment(repairer, WorkerJobType.REPAIR, repair_target)
             if repair_target:
