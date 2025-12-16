@@ -398,7 +398,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
 
         attack_range = UnitTypes.range_vs_target(unit, nearest_target)
         future_enemy_position = nearest_target.position
-        target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius - 1)
+        target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius - 0.5)
         return self._move_to_pathable_position(unit, target_position) # type: ignore
 
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
@@ -410,7 +410,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if do_kite:
             # can attack while staying out of range
             target_distance = self.distance(unit, target) - target.radius - unit.radius
-            if target_distance < attack_range - 1:
+            if target_distance < attack_range - 1.0:
                 if self._stay_at_max_range(unit, Units([target], bot_object=self.bot)):
                     return True
                 unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
