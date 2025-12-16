@@ -206,6 +206,10 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     ###########################################################################
     # main actions - iterated through by meta actions
     ###########################################################################
+    fixed_radius: dict[EffectId, float] = {
+        EffectId.PSISTORMPERSISTENT: 2,
+        EffectId.GUARDIANSHIELDPERSISTENT: 4.5
+    }
     def _avoid_effects(self, unit: Unit, force_move: bool) -> bool:
         # avoid damaging effects
         effects_to_avoid = []
@@ -218,7 +222,8 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                 if unit.type_id == UnitTypeId.SIEGETANKSIEGED and force_move:
                     unit(AbilityId.UNSIEGE_UNSIEGE)
                     return True
-            safe_distance = (effect.radius + unit.radius + 1.5) ** 2
+            effect_radius = self.fixed_radius.get(effect.id, effect.radius) # type: ignore
+            safe_distance = (effect_radius + unit.radius + 1.5) ** 2
             for position in effect.positions:
                 if unit.position._distance_squared(position) < safe_distance:
                     effects_to_avoid.append(position)
@@ -454,7 +459,8 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if ultimate_destination is None:
             bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
             if bunkers:
-                ultimate_destination = bunkers.closest_to(unit).position.towards(unit, -2) # type: ignore
+                away_from_position = threats.center if threats else self.bot.game_info.map_center
+                ultimate_destination = bunkers.closest_to(unit).position.towards(away_from_position, -2) # type: ignore
         
         if not ultimate_destination:
             ultimate_destination = self.bot.game_info.player_start_location
