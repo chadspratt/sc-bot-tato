@@ -176,7 +176,8 @@ class Counter():
         UnitTypeId.ROACH: {
             UnitTypeId.MARAUDER: 0.75,
             UnitTypeId.BANSHEE: 0.5,
-            UnitTypeId.SIEGETANK: 0.25
+            UnitTypeId.SIEGETANK: 0.25,
+            UnitTypeId.RAVEN: 0.1
         },
         UnitTypeId.SWARMHOSTMP: { # 3
             UnitTypeId.BANSHEE: 1

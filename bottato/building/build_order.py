@@ -59,6 +59,8 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
 
         if self.bot.enemy_race == Race.Protoss: # type: ignore
             build_name += " protoss"
+        elif self.bot.enemy_race == Race.Zerg: # type: ignore
+            build_name += " zerg"
         for unit_type in BuildStarts.get_build_start(build_name):
             step = self.create_build_step(unit_type, None)
             self.static_queue.append(step)
@@ -331,11 +333,13 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         available_townhalls = self.bot.townhalls.filter(lambda cc: cc.is_ready and cc.is_idle and not cc.is_flying)
         worker_build_capacity: int = len(available_townhalls)
         available_command_centers = available_townhalls.filter(lambda cc: cc.type_id == UnitTypeId.COMMANDCENTER)
-        if available_command_centers:
-            if len(self.bot.townhalls.of_type(UnitTypeId.ORBITALCOMMAND)) < 3 and self.bot.time > 90 \
-                    and self.get_in_progress_count(UnitTypeId.ORBITALCOMMAND) == 0:
-                # if self.bot.minerals >= 150 and self.bot.structures(UnitTypeId.BARRACKS).ready:
-                # queue orbital instead if can afford
+        if available_command_centers and self.bot.time > 90:
+            orbital_count = len(self.bot.townhalls.of_type(UnitTypeId.ORBITALCOMMAND))
+            in_progress_orbital_count = self.get_in_progress_count(UnitTypeId.ORBITALCOMMAND)
+            if orbital_count == 0 and in_progress_orbital_count == 0:
+                self.add_to_build_queue([UnitTypeId.ORBITALCOMMAND], queue=self.priority_queue, position=0)
+            elif orbital_count < 3 and in_progress_orbital_count == 0 and self.bot.structures(UnitTypeId.STARPORT):
+                # wait on starport before second orbital
                 self.add_to_build_queue([UnitTypeId.ORBITALCOMMAND], queue=self.priority_queue, position=0)
                 self.stop_timer("queue_townhall_build")
                 return
@@ -514,7 +518,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 continue
             if self.bot.structures(facility_type).ready.idle:
                 self.add_to_build_queue([next_upgrade], queue=self.priority_queue)
-            elif self.bot.townhalls.amount > 2 and self.get_in_progress_count(facility_type) == 0:
+            elif self.bot.townhalls.amount > 2 and self.bot.time > 300 and self.get_in_progress_count(facility_type) == 0:
                 facilities = self.bot.structures(facility_type)
                 if not facilities or self.bot.minerals > 500 and self.bot.vespene > 250 \
                         and len(facilities) < self.max_facilities.get(facility_type, 1):
@@ -749,14 +753,14 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             percent_affordable = 1.0
             if not isinstance(build_step, SCVBuildStep) or build_step.unit_being_built is None:
                 percent_affordable = self.percent_affordable(remaining_resources, build_step.cost)
-                if remaining_resources.minerals < 0:
-                    break
                 remaining_resources = remaining_resources - build_step.cost
             if percent_affordable < 1.0:
                 build_response = BuildResponseCode.NO_RESOURCES
                 if percent_affordable >= 0.75 and isinstance(build_step, SCVBuildStep) \
                         and self.bot.tech_requirement_progress(build_step.unit_type_id) == 1.0:
                     await build_step.position_worker(self.special_locations, rush_detected_types)
+                if remaining_resources.minerals < 0:
+                    break
                 continue
 
             # XXX slightly slow

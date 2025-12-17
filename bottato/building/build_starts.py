@@ -43,17 +43,17 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.BUNKER,                      # NATURAL choke, XXX on high ground if getting cheesed
                 UnitTypeId.FACTORYTECHLAB,              # fast SIEGETANK access,
+                UnitTypeId.STARPORT,
                 UnitTypeId.SIEGETANK,                   # start as soon as TECHLAB is ready,
                 UnitTypeId.MARINE,               # begin reactor cycles,
                 UnitTypeId.MARINE,
 # from here, keep SCV and MULE production constant until ~45 workers (author logic)
-                UnitTypeId.STARPORT,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
                 UnitTypeId.MEDIVAC, # early medivac good?
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
                 # UnitTypeId.SIEGETANK,
                 UnitTypeId.BARRACKS,
                 UnitTypeId.MARINE, # supply blocked until depot finishes
@@ -62,82 +62,6 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.VIKINGFIGHTER,               # safer baseline scout vs all races (LIBERATOR optional),
-                # UnitTypeId.ORBITALCOMMAND,              # NATURAL,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.BARRACKSTECHLAB,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.STARPORTTECHLAB,              # build REACTOR, then SWAP: lift FACTORY, land STARPORT on this REACTOR for MEDIVAC,
-#                 UnitTypeId.STARPORT,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-
-# # you may PAUSE STARPORT and extra FACTORY units until 4x BARRACKS start and upgrades begin, then resume MEDIVAC and SIEGETANK
-
-# # POWER SPIKE SETUP
-#                 # UnitTypeId.ENGINEERINGBAY,              # start TERRANINFANTRYWEAPONSLEVEL1 when ready,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.REFINERY,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.STARPORTREACTOR,
-#                 # UpgradeId.TERRANINFANTRYWEAPONSLEVEL1,
-#                 UnitTypeId.RAVEN,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.BARRACKS,
-#                 UnitTypeId.BARRACKS,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MEDIVAC, 
-#                 UnitTypeId.BARRACKS,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE, 
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MEDIVAC,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.REFINERY,
-#                 UnitTypeId.BARRACKSTECHLAB,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.BARRACKSREACTOR,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 #
-#                 UnitTypeId.SIEGETANK,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 # UpgradeId.STIMPACK,
-#                 # UpgradeId.SHIELDWALL,                  # Combat Shields, start as soon as techlab finishes
-#                 UnitTypeId.BARRACKSREACTOR,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.SIEGETANK,
-#                 UnitTypeId.MARAUDER,
-#                 UnitTypeId.MARAUDER,
-# # GAS ROUND-OUT AND UPGRADES
-#                 # UnitTypeId.REFINERY,
-#                 # UnitTypeId.REFINERY,
-#                 # UpgradeId.PUNISHERGRENADES,
-#                 UnitTypeId.MEDIVAC,                  # continuous pairs as gas allows,
-#                 UnitTypeId.MEDIVAC,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.SIEGETANK,
-
-# # RHYTHM TO FIRST TIMING
-#                 UnitTypeId.MARAUDER,                 # from TECHLAB RAX,
-#                 UnitTypeId.MARAUDER,
-#                 UnitTypeId.MARINE,                   # keep Reactor cycles going,
-#                 UnitTypeId.MARINE,
-#                 UnitTypeId.SIEGETANK,
             ]
         elif build_name == "pig_b2gm protoss":
             return [
@@ -157,10 +81,10 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.BUNKER,                      # NATURAL choke, XXX on high ground if getting cheesed
                 UnitTypeId.FACTORYTECHLAB,              # fast SIEGETANK access,
+                UnitTypeId.STARPORT,
                 UnitTypeId.SIEGETANK,                   # start as soon as TECHLAB is ready,
                 UnitTypeId.MARINE,               # begin reactor cycles,
                 UnitTypeId.MARINE,
-                UnitTypeId.STARPORT,
                 UnitTypeId.STARPORTTECHLAB,
                 UnitTypeId.BANSHEE,
                 UpgradeId.BANSHEECLOAK,
@@ -177,6 +101,52 @@ class BuildStarts():
                 UnitTypeId.REFINERY,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
+                UnitTypeId.VIKINGFIGHTER, 
+            ]
+        elif build_name == "pig_b2gm zerg":
+            return [
+                UnitTypeId.SCV,
+                UnitTypeId.SCV,
+                UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,
+                # UnitTypeId.SCV,
+                # UnitTypeId.SCV,
+                UnitTypeId.REFINERY,
+                UnitTypeId.BARRACKS,
+                # UnitTypeId.SCV,
+                # UnitTypeId.SCV,
+                # UnitTypeId.SCV,
+                UnitTypeId.REFINERY,                    # 2ND GAS,
+                UnitTypeId.REAPER,
+                UnitTypeId.MARINE,
+                # UnitTypeId.ORBITALCOMMAND,              # MAIN,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
+                UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
+                UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.BUNKER,                      # NATURAL choke, XXX on high ground if getting cheesed
+                UnitTypeId.FACTORYTECHLAB,              # fast SIEGETANK access,
+                UnitTypeId.STARPORT,
+                UnitTypeId.SIEGETANK,                   # start as soon as TECHLAB is ready,
+                UnitTypeId.MARINE,               # begin reactor cycles,
+                UnitTypeId.MARINE,
+                UnitTypeId.STARPORTTECHLAB,
+                UnitTypeId.RAVEN,   
+# from here, keep SCV and MULE production constant until ~45 workers (author logic)
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                UnitTypeId.SUPPLYDEPOT,
+                UnitTypeId.MEDIVAC, # early medivac good?
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,
+                # UnitTypeId.SIEGETANK,
+                UnitTypeId.BARRACKS,
+                UnitTypeId.MARINE, # supply blocked until depot finishes
+                UnitTypeId.MARINE,
+                UnitTypeId.REFINERY,
+                UnitTypeId.MARINE,
+                UnitTypeId.MARINE,            # safer baseline scout vs all races (LIBERATOR optional),
                 UnitTypeId.VIKINGFIGHTER, 
             ]
         elif build_name == "tvt1":

@@ -287,7 +287,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             
         if can_attack:
             # venture out to attack further enemy but don't chase too far
-            if move_position and move_position.manhattan_distance(unit.position) < 15:
+            if move_position and move_position.manhattan_distance(unit.position) < 20:
                 attack_target = self._get_attack_target(unit, nearby_enemies, 5)
                 if attack_target:
                     unit.attack(attack_target)
@@ -497,6 +497,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             if unit.distance_to_squared(nearest_medivac) > 16:
                 unit.move(nearest_medivac)
             else:
+                unit.move(self._get_retreat_destination(unit,self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=4)))
                 self._attack_something(unit, 0.0)
             logger.debug(f"{unit} marine retreating to heal at {nearest_medivac} hp {unit.health_percentage}")
             self.healing_unit_tags.add(unit.tag)
