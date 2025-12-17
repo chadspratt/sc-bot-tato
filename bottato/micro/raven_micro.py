@@ -26,8 +26,6 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.SCV, UnitTypeId.MULE,
                         UnitTypeId.DRONE, UnitTypeId.PROBE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.EGG, UnitTypeId.LARVA]
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
-        if force_move:
-            return False
         if unit.energy < self.turret_energy_cost:
             # not enough energy for cheapest spell
             return False
@@ -63,7 +61,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         return await self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
         
 
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
         if force_move:
             return False
         if unit.health_percentage < health_threshold:

@@ -713,60 +713,81 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
     async def update_repairers(self) -> None:
         injured_units = self.units_needing_repair()
         needed_repairers: int = 0
-        missing_health = 0
-        # limit to percentage of total workers
-        max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 5))
+        assigned_repairers: Units = Units([], bot_object=self.bot)
+        units_with_no_repairer: List[Unit] = []
         if injured_units:
-            # XXX also prioritize repairing missile turrets and PFs
-            bunker = injured_units(UnitTypeId.BUNKER)
-            if bunker:
-                needed_repairers = self.bot.workers.closest_n_units(bunker.first, 7).amount
-            else:
-                needed_repairers = 5  # early game, just assign a bunch so wall isn't broken by a rush
-                if self.bot.time > 300:                
-                    for worker in injured_units:
-                        missing_health += worker.health_max - worker.health
-                        logger.debug(f"{worker} missing health {worker.health_max - worker.health}")
-                    needed_repairers = math.ceil(missing_health / self.health_per_repairer)
-                    if needed_repairers > max_repairers:
-                        needed_repairers = max_repairers
-                    elif needed_repairers < len(injured_units):
-                        needed_repairers = max(needed_repairers, min(3, len(injured_units)))  # minimum of 3 repairers if there are multiple injured units
+            missing_health = 0
+            # limit to percentage of total workers
+            max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 5))
+            candidates: Units = Units([
+                            worker for worker in self.bot.workers
+                            if self.assignments_by_worker[worker.tag].job_type != WorkerJobType.BUILD
+                        ], bot_object=self.bot)
 
-        current_repairers: Units = self.availiable_workers_on_job(WorkerJobType.REPAIR)
+            for injured_unit in injured_units:
+                if injured_unit.type_id == UnitTypeId.BUNKER:
+                    assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 5, candidates))
+                elif injured_unit.type_id == UnitTypeId.MISSILETURRET:
+                    assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 3, candidates))
+                elif injured_unit.type_id == UnitTypeId.PLANETARYFORTRESS:
+                    if injured_unit.health_max - injured_unit.health < 50:
+                        assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 2, candidates))
+                    else:
+                        assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 8, candidates))
+                else:
+                    missing_health += injured_unit.health_max - injured_unit.health
+                    if self.bot.time < 300:
+                        units_with_no_repairer.append(injured_unit)
+
+            if missing_health > 0 and self.bot.time < 300:
+                # early game, just assign a bunch so wall isn't broken by a rush
+                needed_repairers = max(needed_repairers, 5)
+            else:
+                needed_repairers = math.ceil(missing_health / self.health_per_repairer)
+                if needed_repairers > max_repairers:
+                    needed_repairers = max_repairers
+                else:
+                    # minimum 1 repairer per injured, up to 3. mostly for repairing initial wall
+                    needed_repairers = max(needed_repairers, min(3, len(injured_units)))
+            
+        current_repairers: Units = self.availiable_workers_on_job(WorkerJobType.REPAIR).filter(
+            lambda u: u.tag not in assigned_repairers.tags)
         current_repair_targets = {}
-        for worker in self.bot.workers:
-            if worker.is_repairing:
+        for worker in current_repairers:
+            if worker.is_repairing and not worker.is_moving:
                 current_repair_targets[worker.orders[0].target] = worker.tag
             elif worker.health_percentage < 0.5:
                 self.set_as_idle(worker)
-        current_repairers: Units = self.availiable_workers_on_job(WorkerJobType.REPAIR)
-        repairer_shortage: int = round(needed_repairers) - len(current_repairers)
-        logger.debug(f"missing health {missing_health} need repairers {needed_repairers} have {len(current_repairers)} shortage {repairer_shortage}")
+                current_repairers.remove(worker)
+
+        repairer_shortage: int = needed_repairers - len(current_repairers)
 
         # remove excess repairers
         if repairer_shortage < 0:
             # don't retire mid-repair
-            inactive_repairers = current_repairers.filter(lambda unit: not unit.is_repairing)
+            inactive_repairers: Units = current_repairers.filter(lambda unit: not unit.is_repairing)
+            inactive_repairers.sort(key=lambda r: r.health)
             for i in range(-repairer_shortage):
                 if not inactive_repairers:
                     break
-                retiring_repairer = inactive_repairers.furthest_to(injured_units.random) if injured_units else inactive_repairers.random
+                lowest_health_repairer = inactive_repairers.first
+                retiring_repairer: Unit
+                if lowest_health_repairer.health_percentage < 1.0 or len(injured_units) == 0:
+                    retiring_repairer = lowest_health_repairer
+                else:
+                    retiring_repairer = inactive_repairers.furthest_to(injured_units.random)
                 if self.vespene.has_unused_capacity:
                     self.update_assigment(retiring_repairer, WorkerJobType.VESPENE, None)
                 elif self.minerals.has_unused_capacity:
                     self.update_assigment(retiring_repairer, WorkerJobType.MINERALS, None)
                 else:
-                    logger.debug(f"nowhere for {retiring_repairer} to retire to, staying repairer")
-                    break
+                    self.set_as_idle(retiring_repairer)
                 inactive_repairers.remove(retiring_repairer)
+                current_repairers.remove(retiring_repairer)
 
-        # tell existing to repair closest that isn't themself
-        units_with_no_repairer: List[Unit] = []
-        if self.bot.time < 300:
-            units_with_no_repairer = [unit for unit in injured_units]
-            if len(units_with_no_repairer) > 5:
-                units_with_no_repairer = units_with_no_repairer[:5]  # spread out repairers to up to 5 units, mostly to keep initial wall repaired
+        if len(units_with_no_repairer) > 5:
+            units_with_no_repairer = units_with_no_repairer[:5]  # spread out repairers to up to 5 units, mostly to keep initial wall repaired
+
         for repairer in current_repairers:
             if repairer.is_constructing_scv:
                 # mixed up job somehow, stop constructing so it can go repair, probably an idle scv is trying to do the build
@@ -802,22 +823,29 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 else:
                     unit_to_repair = injured_units.random
                 repairer: Unit = candidates.closest_to(unit_to_repair)
-                candidates.remove(repairer)
-
-                if repairer:
-                    repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
-                    self.update_assigment(repairer, WorkerJobType.REPAIR, repair_target)
-                    if repair_target:
-                        await self.worker_micro.repair(repairer, repair_target)
-                        if not repair_target.is_structure:
-                            current_repairer_tag = current_repair_targets.get(repair_target.tag, repairer.tag)
-                            if current_repairer_tag == repairer.tag:
-                                target_micro = MicroFactory.get_unit_micro(repair_target)
-                                await target_micro.move_to_repairer(repair_target, repairer.position)
-                                if repair_target.type_id == UnitTypeId.SCV:
-                                    self.workers_being_repaired.add(repair_target.tag)
-                else:
+                if not repairer:
                     break
+
+                candidates.remove(repairer)
+                repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
+                self.update_assigment(repairer, WorkerJobType.REPAIR, repair_target)
+                if repair_target:
+                    await self.worker_micro.repair(repairer, repair_target)
+                    if not repair_target.is_structure:
+                        current_repairer_tag = current_repair_targets.get(repair_target.tag, repairer.tag)
+                        if current_repairer_tag == repairer.tag:
+                            target_micro = MicroFactory.get_unit_micro(repair_target)
+                            await target_micro.move_to_repairer(repair_target, repairer.position)
+                            if repair_target.type_id == UnitTypeId.SCV:
+                                self.workers_being_repaired.add(repair_target.tag)
+    
+    async def assign_repairers_to_structure(self, injured_structure: Unit, number_of_repairers: int, candidates: Units) -> Units:
+        repairers: Units = candidates.closest_n_units(injured_structure, number_of_repairers)
+        for repairer in repairers:
+            candidates.remove(repairer)
+            self.update_assigment(repairer, WorkerJobType.REPAIR, injured_structure)
+            await self.worker_micro.repair(repairer, injured_structure)
+        return repairers
 
     def get_repair_target(self, repairer: Unit, injured_units: Units, units_needing_repair: list) -> Unit | None:
         other_units = injured_units.filter(lambda unit: unit.tag != repairer.tag)

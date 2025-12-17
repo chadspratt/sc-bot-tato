@@ -251,7 +251,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         return False
 
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
 
@@ -285,12 +285,13 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if self._retreat_to_tank(unit, can_attack):
             return True
             
-        # venture out to attack further enemy
         if can_attack:
-            attack_target = self._get_attack_target(unit, nearby_enemies, 5)
-            if attack_target:
-                unit.attack(attack_target)
-                return True
+            # venture out to attack further enemy but don't chase too far
+            if move_position and move_position.manhattan_distance(unit.position) < 15:
+                attack_target = self._get_attack_target(unit, nearby_enemies, 5)
+                if attack_target:
+                    unit.attack(attack_target)
+                    return True
         elif self.valid_targets:
             return self._stay_at_max_range(unit, self.valid_targets)
 
@@ -300,7 +301,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         return False
     
     def _harass_attack_something(self, unit: Unit, health_threshold: float, harass_location: Point2, force_move: bool = False) -> bool:
-        return self._attack_something(unit, health_threshold, force_move)
+        return self._attack_something(unit, health_threshold, force_move, harass_location)
 
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:

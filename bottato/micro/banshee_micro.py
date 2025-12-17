@@ -16,6 +16,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
     attack_health: float = 0.58
     harass_attack_health: float = 0.9
     harass_retreat_health: float = 0.5
+    retreat_health: float = 0.3
     cloak_researched: bool = False
     cloak_energy_threshold: float = 40.0
 
@@ -35,8 +36,36 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 unit(AbilityId.BEHAVIOR_CLOAKOFF_BANSHEE)
         return False
     
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
-        return self._harass_attack_something(unit, health_threshold, self.bot.start_location, force_move)
+    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
+        if unit.tag in BaseUnitMicro.repair_started_tags:
+            if unit.health_percentage == 1.0 or self.closest_distance(unit, self.bot.workers) > 5:
+                BaseUnitMicro.repair_started_tags.remove(unit.tag)
+            else:
+                return False
+        if unit.health_percentage <= self.retreat_health:
+            return False
+        if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()) \
+                and unit.health_percentage < self.attack_health \
+                and self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3):
+            return False
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+        if force_move and not can_attack:
+            return False
+        attack_range_buffer = 0 if can_attack else 5
+        enemy_candidates = self.enemy.get_candidates(include_out_of_view=False)
+        attack_target = self._get_attack_target(unit, enemy_candidates, attack_range_buffer)
+        if attack_target:
+            return self._kite(unit, attack_target)
+
+        if force_move:
+            return False
+        nearest_priority, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK, UnitTypeId.LURKERMP, UnitTypeId.LURKERMPBURROWED])
+        if nearest_priority:
+            if can_attack:
+                return self._kite(unit, nearest_priority)
+            else:
+                return self._stay_at_max_range(unit, Units([nearest_priority], bot_object=self.bot))
+        return False
 
     def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False):
         if unit.tag in BaseUnitMicro.repair_started_tags:
@@ -54,7 +83,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=1)
             if threats:
                 for threat in threats:
-                    if UnitTypes.air_range(threat) >= unit.ground_range:
+                    if threat.is_flying or UnitTypes.air_range(threat) >= unit.ground_range:
                         # don't attack enemies that outrange
                         unit.move(self.get_circle_around_position(unit, threats.center, harass_location))
                         return False

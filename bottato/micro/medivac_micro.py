@@ -103,7 +103,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
 
         return unit.tag in self.bot.unit_tags_received_action
 
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
         # doesn't have an attack
         return self._retreat_to_tank(unit, can_attack=False)
 

@@ -99,7 +99,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 return True
         return False
 
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
+    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
         if force_move:
             return False
         if unit.tag in self.bot.unit_tags_received_action:
