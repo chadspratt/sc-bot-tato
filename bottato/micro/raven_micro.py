@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Dict, Tuple
 from loguru import logger
 
 from sc2.position import Point2
@@ -21,11 +22,16 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     attack_health = 0.7 # detection
     turret_drop_time = 1.5
     missing_hidden_units: set[int] = set()
-    last_missile_launch: dict[int, tuple[float, float]] = {}
+    last_missile_launch: Dict[int, Tuple[Unit, float, float, bool]] = {}
 
     excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.SCV, UnitTypeId.MULE,
                         UnitTypeId.DRONE, UnitTypeId.PROBE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.EGG, UnitTypeId.LARVA]
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+        if unit.tag in self.last_missile_launch:
+            enemy_unit, last_time, energy_before_launch, launch_detected = self.last_missile_launch[unit.tag]
+            if self.bot.time - last_time < 11 and unit.energy < energy_before_launch and not launch_detected:
+                self.custom_effects_to_avoid.append((enemy_unit, self.bot.time, 3.5, 3.0))
+                self.last_missile_launch[unit.tag] = (enemy_unit, last_time, energy_before_launch, True)
         if unit.energy < self.turret_energy_cost:
             # not enough energy for cheapest spell
             return False
@@ -107,12 +113,12 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
 
     def fire_missile(self, unit: Unit, target: Unit) -> bool:
         if unit.tag in self.last_missile_launch:
-            last_time, energy_before_launch = self.last_missile_launch[unit.tag]
+            _ , last_time, energy_before_launch, launch_detected = self.last_missile_launch[unit.tag]
             if self.bot.time - last_time < 11:
                 if unit.energy < energy_before_launch:
                     # just launched a missile
                     return False
-        self.last_missile_launch[unit.tag] = (self.bot.time, unit.energy)
+        self.last_missile_launch[unit.tag] = (target, self.bot.time, unit.energy, False)
         unit(AbilityId.EFFECT_ANTIARMORMISSILE, target)
         return True
 

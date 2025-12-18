@@ -17,6 +17,7 @@ from bottato.micro.marine_micro import MarineMicro
 from bottato.micro.medivac_micro import MedivacMicro
 from bottato.micro.raven_micro import RavenMicro
 from bottato.micro.reaper_micro import ReaperMicro
+from bottato.micro.scv_micro import SCVMicro
 from bottato.micro.siege_tank_micro import SiegeTankMicro
 from bottato.micro.viking_micro import VikingMicro
 
@@ -31,6 +32,7 @@ micro_lookup = {
     UnitTypeId.MEDIVAC: MedivacMicro,
     UnitTypeId.RAVEN: RavenMicro,
     UnitTypeId.REAPER: ReaperMicro,
+    UnitTypeId.SCV: SCVMicro,
     UnitTypeId.SIEGETANK: SiegeTankMicro,
     UnitTypeId.VIKINGFIGHTER: VikingMicro,
 }

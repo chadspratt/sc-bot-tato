@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Dict, Tuple
 
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -16,6 +17,7 @@ class GhostMicro(BaseUnitMicro, GeometryMixin):
     snipe_range: float = 10.0
     emp_range: float = 10.0
     emp_radius: float = 1.5  # EMP effect radius
+    last_snipe: Dict[int, Tuple[int, float, float]] = {}
     
     # Protoss units good for EMP (high shields/energy)
     EMP_TARGETS = {
@@ -103,6 +105,13 @@ class GhostMicro(BaseUnitMicro, GeometryMixin):
     
     async def _use_snipe(self, unit: Unit) -> bool:
         """Use Snipe on high value Zerg units"""
+        if unit.tag in self.last_snipe:
+            last_target_tag, last_snipe_time, health = self.last_snipe[unit.tag]
+            last_target = self.bot.enemy_units.find_by_tag(last_target_tag)
+            if last_target and unit.health == health and (self.bot.time - last_snipe_time) < 2.0:
+                # waiting for snipe to finish
+                return True
+        
         if unit.energy < self.snipe_energy_cost:
             return False
 
@@ -151,6 +160,7 @@ class GhostMicro(BaseUnitMicro, GeometryMixin):
         
         if best_target:
             unit(AbilityId.EFFECT_GHOSTSNIPE, best_target)
+            self.last_snipe[unit.tag] = (best_target.tag, self.bot.time, unit.health)
             return True
         
         return False

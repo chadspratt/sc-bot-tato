@@ -196,7 +196,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     or not assignment.unit_available \
                     or assignment.job_type not in [WorkerJobType.MINERALS, WorkerJobType.VESPENE] \
                     or assignment.unit.tag in self.workers_being_repaired \
-                    or await self.worker_micro._retreat(assignment.unit, 0.5):
+                    or await self.worker_micro._retreat(assignment.unit, 0.7):
                 continue
             
             if not self.bot.townhalls.ready:
@@ -734,6 +734,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 2, candidates))
                     else:
                         assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 8, candidates))
+                elif injured_unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls.closest_distance_to(injured_unit) < 20:
+                    assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 3, candidates))
                 else:
                     missing_health += injured_unit.health_max - injured_unit.health
                     if self.bot.time < 300:
@@ -841,10 +843,13 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
     
     async def assign_repairers_to_structure(self, injured_structure: Unit, number_of_repairers: int, candidates: Units) -> Units:
         repairers: Units = candidates.closest_n_units(injured_structure, number_of_repairers)
+        assigned_count = 0
         for repairer in repairers:
             candidates.remove(repairer)
             self.update_assigment(repairer, WorkerJobType.REPAIR, injured_structure)
-            await self.worker_micro.repair(repairer, injured_structure)
+            if await self.worker_micro.repair(repairer, injured_structure):
+                assigned_count += 1
+        LogHelper.add_log(f"assigned {assigned_count} of {repairers} to repair {injured_structure}")
         return repairers
 
     def get_repair_target(self, repairer: Unit, injured_units: Units, units_needing_repair: list) -> Unit | None:

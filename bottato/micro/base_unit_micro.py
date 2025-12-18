@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict
+from typing import Dict, List, Tuple
 # import math
 from loguru import logger
 
@@ -33,6 +33,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     repair_started_tags: set[int] = set()
     repairer_tags: set[int] = set()
     repairer_tags_prev_frame: set[int] = set()
+    custom_effects_to_avoid: List[Tuple[Unit | Point2, float, float, float]] = []  # position, time, radius, duration
 
     damaging_effects = [
         EffectId.PSISTORMPERSISTENT,
@@ -180,18 +181,20 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")
             unit.move(scouting_location)
 
-    async def repair(self, unit: Unit, target: Unit):
+    async def repair(self, unit: Unit, target: Unit) -> bool:
         BaseUnitMicro.repairer_tags.add(unit.tag)
         if unit.tag in self.bot.unit_tags_received_action:
-            return
+            return False
         if self._avoid_effects(unit, force_move=False):
             logger.debug(f"unit {unit} avoiding effects")
-        elif target.type_id in (UnitTypeId.BUNKER, UnitTypeId.PLANETARYFORTRESS):
+        elif target.type_id in (UnitTypeId.BUNKER, UnitTypeId.PLANETARYFORTRESS, UnitTypeId.MISSILETURRET, UnitTypeId.SIEGETANKSIEGED):
             # repair defensive structures regardless of risk
             unit.repair(target)
+            return True
         elif self.bot.time < 360 and target.distance_to_squared(self.bot.main_base_ramp.top_center) < 9:
             # keep ramp wall repaired early game
             unit.repair(target)
+            return True
         else:
             if self._retreat_to_tank(unit, can_attack=True):
                 logger.debug(f"unit {unit} retreating to tank")
@@ -202,6 +205,8 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                 unit.move(target.position)
             else:
                 unit.repair(target)
+                return True
+        return False
 
     ###########################################################################
     # main actions - iterated through by meta actions
@@ -227,6 +232,19 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             for position in effect.positions:
                 if unit.position._distance_squared(position) < safe_distance:
                     effects_to_avoid.append(position)
+        i = len(self.custom_effects_to_avoid) - 1
+        while i >= 0:
+            effect = self.custom_effects_to_avoid[i]
+            effect_position, effect_time, effect_radius, effect_duration = effect
+            if isinstance(effect_position, Unit):
+                effect_position = effect_position.position
+            if self.bot.time - effect_time > effect_duration:
+                self.custom_effects_to_avoid.pop(i)
+            else:
+                safe_distance = (effect_radius + unit.radius + 1.5) ** 2
+                if unit.position._distance_squared(effect_position) < safe_distance:
+                    effects_to_avoid.append(effect_position)
+            i -= 1
         if effects_to_avoid:
             number_of_effects = len(effects_to_avoid)
             if number_of_effects == 1:
@@ -259,7 +277,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             self.last_targets_update_time = self.bot.time
             self.valid_targets = self.bot.enemy_units.filter(
                 lambda u: UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()) and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
-                ).sorted(key=lambda u: u.health + u.shield) + self.bot.enemy_structures
+                ) + self.bot.enemy_structures
 
         if not self.valid_targets:
             return False
@@ -270,6 +288,8 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if can_attack:
             bonus_distance = -2 if unit.health_percentage < health_threshold else -0.5
+            if unit.ground_range < 1:
+                bonus_distance = 0
             # attack enemy in range
             attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance)
             if attack_target:
@@ -461,7 +481,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
             if bunkers:
                 away_from_position = threats.center if threats else self.bot.game_info.map_center
-                ultimate_destination = bunkers.closest_to(unit).position.towards(away_from_position, -2) # type: ignore
+                ultimate_destination = bunkers.closest_to(unit).position.towards(away_from_position, -4) # type: ignore
         
         if not ultimate_destination:
             ultimate_destination = self.bot.game_info.player_start_location

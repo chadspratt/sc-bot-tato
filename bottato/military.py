@@ -451,7 +451,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
 
         if enemies_in_base_ratio >= 1.0:
             bunker_range = (max([passenger.ground_range
-                                for passenger in bunker.structure.passengers], default=6) + 1 + bunker.structure.radius
+                                for passenger in bunker.structure.passengers], default=6) + 2 + bunker.structure.radius
                         ) ** 2
             if enemy_distance_to_bunker < 10000 and enemy_distance_to_bunker > bunker_range:
                 self.empty_bunker(bunker)
