@@ -31,6 +31,12 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     early_game_siege_positions: Dict[int, Point2 | Pointlike] = {}
     stationary_positions: Dict[int, Tuple[Point2, float]] = {}
 
+    async def move_to_repairer(self, unit: Unit, target: Point2, force_move: bool = True, previous_position: Point2 | None = None) -> bool:
+        is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
+        if is_sieged:
+            return False
+        return await super().move_to_repairer(unit, target, force_move, previous_position)
+
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag not in self.known_tags:
             self.known_tags.add(unit.tag)
@@ -126,7 +132,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if force_move:
             self.last_force_move_time[unit.tag] = self.bot.time
         if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
-            if is_sieged and (closest_distance > self.sieged_range - 2 or not closest_enemy_is_visible) and friendly_buffer_count < 5:
+            if is_sieged and (closest_distance > self.sieged_range - 2 or not closest_enemy_is_visible):
+                # and friendly_buffer_count < 5:
                 self.unsiege(unit)
                 return True
             else:
@@ -135,7 +142,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         tank_height = self.bot.get_terrain_height(unit.position)
         enemy_height = self.bot.get_terrain_height(closest_enemy.position) if closest_enemy else tank_height
         has_high_ground_advantage = tank_height - 1 > enemy_height
-        siege_aggressively = on_cooldown or friendly_buffer_count >= 15 and len(self.unsieged_tags) < len(self.sieged_tags) - 2
+        siege_aggressively = on_cooldown and not is_sieged or friendly_buffer_count >= 15 and len(self.unsieged_tags) < len(self.sieged_tags) - 2
         # if is_sieged:
         #     unsiege_range = self.sieged_range
         #     if siege_aggressively:
@@ -174,7 +181,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         closest_enemy_distance = closest_distance_after_siege
         if structures_under_threat or siege_aggressively or has_high_ground_advantage and closest_enemy:
             # enemy might be immobile while attacking structures, so only siege if in range now
-            closest_enemy_distance = closest_distance
+            closest_enemy_distance = closest_distance + 0.5
 
         if is_sieged:
             unsiege_range = self.sieged_range
@@ -230,6 +237,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
         if unit.type_id == UnitTypeId.SIEGETANK:
+            if force_move:
+                return False
             return super()._attack_something(unit, health_threshold, force_move)
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if not can_attack:

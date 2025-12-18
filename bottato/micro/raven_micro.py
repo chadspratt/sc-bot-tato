@@ -7,9 +7,10 @@ from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 
-from bottato.unit_types import UnitTypes
-from bottato.mixins import GeometryMixin
 from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.micro.custom_effect import CustomEffect
+from bottato.mixins import GeometryMixin
+from bottato.unit_types import UnitTypes
 
 
 class RavenMicro(BaseUnitMicro, GeometryMixin):
@@ -30,7 +31,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         if unit.tag in self.last_missile_launch:
             enemy_unit, last_time, energy_before_launch, launch_detected = self.last_missile_launch[unit.tag]
             if self.bot.time - last_time < 11 and unit.energy < energy_before_launch and not launch_detected:
-                self.custom_effects_to_avoid.append((enemy_unit, self.bot.time, 3.5, 3.0))
+                BaseUnitMicro.add_custom_effect(enemy_unit, 3.5, self.bot.time, 3.0)
                 self.last_missile_launch[unit.tag] = (enemy_unit, last_time, energy_before_launch, True)
         if unit.energy < self.turret_energy_cost:
             # not enough energy for cheapest spell

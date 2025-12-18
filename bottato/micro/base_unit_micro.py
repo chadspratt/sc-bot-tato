@@ -12,11 +12,12 @@ from sc2.ids.buff_id import BuffId
 from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
 
-from bottato.log_helper import LogHelper
-from bottato.unit_types import UnitTypes
-from bottato.map.map import Map
-from bottato.mixins import GeometryMixin, TimerMixin
 from bottato.enemy import Enemy
+from bottato.log_helper import LogHelper
+from bottato.map.map import Map
+from bottato.micro.custom_effect import CustomEffect
+from bottato.mixins import GeometryMixin, TimerMixin
+from bottato.unit_types import UnitTypes
 
 
 class BaseUnitMicro(GeometryMixin, TimerMixin):
@@ -33,7 +34,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     repair_started_tags: set[int] = set()
     repairer_tags: set[int] = set()
     repairer_tags_prev_frame: set[int] = set()
-    custom_effects_to_avoid: List[Tuple[Unit | Point2, float, float, float]] = []  # position, time, radius, duration
+    custom_effects_to_avoid: List[CustomEffect] = []  # position, time, radius, duration
 
     damaging_effects = [
         EffectId.PSISTORMPERSISTENT,
@@ -72,6 +73,9 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         elif unit.tag not in BaseUnitMicro.repair_started_tags and unit.position.manhattan_distance(target) < 2.0:
             LogHelper.add_log(f"move_to_repairer {unit} is close to worker")
             BaseUnitMicro.repair_started_tags.add(unit.tag)
+        if unit.health_percentage > self.retreat_health and self.unit_is_closer_than(unit, self.bot.enemy_units, 15, self.bot):
+            # don't move to repairer if in combat and healthy
+            return False
         if unit.tag in BaseUnitMicro.scout_tags:
             await self.scout(unit, target)
             return True
@@ -215,6 +219,10 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         EffectId.PSISTORMPERSISTENT: 2,
         EffectId.GUARDIANSHIELDPERSISTENT: 4.5
     }
+    @staticmethod
+    def add_custom_effect(position: Unit | Point2, radius: float, start_time: float, duration: float):
+        BaseUnitMicro.custom_effects_to_avoid.append(CustomEffect(position, radius, start_time, duration))
+
     def _avoid_effects(self, unit: Unit, force_move: bool) -> bool:
         # avoid damaging effects
         effects_to_avoid = []
@@ -235,14 +243,12 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         i = len(self.custom_effects_to_avoid) - 1
         while i >= 0:
             effect = self.custom_effects_to_avoid[i]
-            effect_position, effect_time, effect_radius, effect_duration = effect
-            if isinstance(effect_position, Unit):
-                effect_position = effect_position.position
-            if self.bot.time - effect_time > effect_duration:
+            effect_position = effect.position.position
+            if self.bot.time - effect.start_time > effect.duration:
                 self.custom_effects_to_avoid.pop(i)
             else:
-                safe_distance = (effect_radius + unit.radius + 1.5) ** 2
-                if unit.position._distance_squared(effect_position) < safe_distance:
+                safe_distance = (effect.radius + unit.radius + 1.5) ** 2
+                if unit.position._distance_squared(effect_position) < safe_distance: # type: ignore
                     effects_to_avoid.append(effect_position)
             i -= 1
         if effects_to_avoid:
@@ -288,7 +294,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if can_attack:
             bonus_distance = -2 if unit.health_percentage < health_threshold else -0.5
-            if unit.ground_range < 1:
+            if UnitTypes.range(unit) < 1:
                 bonus_distance = 0
             # attack enemy in range
             attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance)

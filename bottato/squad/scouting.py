@@ -122,6 +122,11 @@ class Scout(Squad, UnitReferenceMixin):
                 if assignment.job_type != WorkerJobType.SCOUT:
                     # worker reassigned, release scout
                     self.unit = None
+        if self.unit and self.unit.type_id == UnitTypeId.VIKINGFIGHTER:
+            if military.enemies_in_base.filter(lambda u: u.is_flying):
+                # viking needed to defend base, release scout
+                military.transfer(self.unit, self, military.main_army)
+                self.unit = None
         if self.unit:
             if scout_type == ScoutType.ANY:
                 for location in self.scouting_locations:
@@ -129,7 +134,10 @@ class Scout(Squad, UnitReferenceMixin):
                         break
                 else:
                     # all locations have been seen, release scout
-                    workers.set_as_idle(self.unit)
+                    if self.unit.type_id == UnitTypeId.SCV:
+                        workers.set_as_idle(self.unit)
+                    else:
+                        military.transfer(self.unit, self, military.main_army)
                     self.unit = None
                     self.complete = True
                     return
@@ -140,6 +148,9 @@ class Scout(Squad, UnitReferenceMixin):
                 self.unit = None
                 pass
         elif self.bot.time < 500 and scout_type == ScoutType.VIKING:
+            if military.enemies_in_base.filter(lambda u: u.is_flying):
+                # viking needed to defend base
+                return
             # use initial viking to scout enemy army composition
             for unit in military.main_army.units:
                 if unit.type_id == UnitTypeId.VIKINGFIGHTER:
@@ -159,7 +170,7 @@ class Scout(Squad, UnitReferenceMixin):
             else:
                 # no marines or reapers, use a worker
                 if self.bot.workers:
-                    self.unit = self.bot.workers.random
+                    self.unit = workers.get_scout(self.bot.game_info.map_center)
                 else:
                     # unlikely, but fallback to any unit
                     for unit in military.main_army.units:
@@ -283,6 +294,8 @@ class InitialScout(Squad, GeometryMixin):
         self.enemy_natural_delayed: bool = False
         self.extra_production_detected: bool = False
         self.main_scouted: bool = False
+        self.last_waypoint: Point2 | None = None
+        self.do_natural_check: bool = False
         
         # Timing parameters
         self.start_time = 30
@@ -363,7 +376,7 @@ class InitialScout(Squad, GeometryMixin):
         if not self.unit or self.completed:
             return
         
-        if self.unit.health_percentage < 0.7 or self.bot.time > self.initial_scout_complete_time:
+        if self.unit.health_percentage < 0.7 or self.do_natural_check:
             self.waypoints = [self.map.enemy_natural_position]  # check natural before leaving
             if self.unit.distance_to(self.map.enemy_natural_position) < 9:
                 if self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
@@ -371,9 +384,21 @@ class InitialScout(Squad, GeometryMixin):
                     self.completed = self.bot.time > 150
                 else:
                     self.completed = True
+        elif self.last_waypoint:
+            if self.unit.distance_to(self.waypoints[0]) <= 5:
+                if self.waypoints[0] == self.last_waypoint and self.bot.time > self.initial_scout_complete_time:
+                    self.do_natural_check = True
+                else:
+                    self.waypoints.pop(0)
+                    # Check if we've completed all waypoints
+                    if len(self.waypoints) == 0:
+                        self.waypoints_completed = True
+                        self.main_scouted = True
+                        self.waypoints = list(self.original_waypoints)  # reset to keep scouting
         else:
-            i = len(self.waypoints) - 1
-            while i >= 0:
+            # find initial waypoint
+            i = 0
+            while i < len(self.waypoints):
                 # remove waypoints as they are checked
                 if self.unit.distance_to(self.waypoints[i]) <= 5:
                     if not self.waypoints_completed and len(self.waypoints) == len(self.original_waypoints):
@@ -381,15 +406,9 @@ class InitialScout(Squad, GeometryMixin):
                         self.original_waypoints = self.original_waypoints[i:] + self.original_waypoints[:i]
                         self.waypoints = list(self.original_waypoints)
                         self.waypoints.pop(0)
+                        self.last_waypoint = self.waypoints[-1]
                         break
-                    self.waypoints.pop(i)
-                i -= 1
-                
-            # Check if we've completed all waypoints
-            if len(self.waypoints) == 0:
-                self.waypoints_completed = True
-                self.main_scouted = True
-                self.waypoints = list(self.original_waypoints)  # reset to keep scouting
+                i += 1
             
         # for waypoint in self.waypoints:
         #     self.bot.client.debug_box2_out(self.convert_point2_to_3(waypoint))
@@ -397,8 +416,6 @@ class InitialScout(Squad, GeometryMixin):
         # Move to current waypoint
         if self.waypoints:
             self.unit.move(self.waypoints[0])
-            # micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit)
-            # await micro.scout(self.unit, self.waypoints[0])
 
 class Scouting(Squad, DebugMixin):
     def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers, military: Military):

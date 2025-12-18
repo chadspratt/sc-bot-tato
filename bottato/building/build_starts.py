@@ -24,17 +24,11 @@ class BuildStarts():
                 UnitTypeId.SCV,
                 UnitTypeId.SCV,
                 UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,
-                # UnitTypeId.SCV,
-                # UnitTypeId.SCV,
                 UnitTypeId.REFINERY,
                 UnitTypeId.BARRACKS,
-                # UnitTypeId.SCV,
-                # UnitTypeId.SCV,
-                # UnitTypeId.SCV,
                 UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
-                # UnitTypeId.ORBITALCOMMAND,              # MAIN,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
@@ -47,21 +41,19 @@ class BuildStarts():
                 UnitTypeId.SIEGETANK,                   # start as soon as TECHLAB is ready,
                 UnitTypeId.MARINE,               # begin reactor cycles,
                 UnitTypeId.MARINE,
-# from here, keep SCV and MULE production constant until ~45 workers (author logic)
+                UnitTypeId.VIKINGFIGHTER, # early medivac good?
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.MEDIVAC, # early medivac good?
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
-                # UnitTypeId.SIEGETANK,
                 UnitTypeId.BARRACKS,
-                UnitTypeId.MARINE, # supply blocked until depot finishes
+                UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.REFINERY,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
-                UnitTypeId.VIKINGFIGHTER,               # safer baseline scout vs all races (LIBERATOR optional),
+                # UnitTypeId.MEDIVAC,
             ]
         elif build_name == "pig_b2gm protoss":
             return [

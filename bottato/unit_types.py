@@ -414,6 +414,13 @@ class UnitTypes(GeometryMixin):
             return 0.0
         
     @staticmethod
+    def range(unit: Unit) -> float:
+        """
+        Get the maximum attack range of a unit type (either air or ground).
+        """
+        return max(UnitTypes.ground_range(unit), UnitTypes.air_range(unit))
+        
+    @staticmethod
     def dps(attacker: Unit, target: Unit) -> float:
         """
         Get the DPS of the attacker unit against the target unit.

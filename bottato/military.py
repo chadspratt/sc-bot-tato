@@ -153,6 +153,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.army_ratio: float = 1.0
         self.status_message = ""
         self.units_by_tag: Dict[int, Unit] = {}
+        self.enemies_in_base: Units = Units([], self.bot)
         # special squads
         self.main_army = FormationSquad(
             bot=bot,
@@ -211,18 +212,18 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 # put massive priority on killing nydus canals near base
                 await self.main_army.move(nydus_canals.first.position)
                 return
-        enemies_in_base: Units = Units([], self.bot)
-        enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.closest_distance_squared(unit, base_structures) < 625))
+        self.enemies_in_base.clear()
+        self.enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.closest_distance_squared(unit, base_structures) < 625))
         if self.main_army.staging_location:
-            enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.main_army.staging_location._distance_squared(unit.position) < 625))
+            self.enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.main_army.staging_location._distance_squared(unit.position) < 625))
 
         out_of_view_in_base = []
         for enemy in self.enemy.recent_out_of_view():
             if self.closest_distance_squared(self.enemy.predicted_position[enemy.tag], base_structures) < 625:
                 out_of_view_in_base.append(enemy)
-        enemies_in_base.extend(out_of_view_in_base)
+        self.enemies_in_base.extend(out_of_view_in_base)
 
-        logger.debug(f"enemies in base {enemies_in_base}")
+        logger.debug(f"enemies in base {self.enemies_in_base}")
         defend_with_main_army = False
         self.stop_timer("military enemies_in_base detection")
 
@@ -235,11 +236,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.squads.remove(squad)
 
         self.army_ratio = self.calculate_army_ratio()
-        enemies_in_base_ratio = self.calculate_army_ratio(enemies_in_base)
+        enemies_in_base_ratio = self.calculate_army_ratio(self.enemies_in_base)
 
         # assign squads to counter enemies that are alone or in small groups
         countered_enemies: Dict[int, FormationSquad] = {}
-        for enemy in enemies_in_base:
+        for enemy in self.enemies_in_base:
             if not self.main_army.units and enemy.type_id == UnitTypeId.PROBE:
                 # cannon rush response
                 self.workers.attack_enemy(enemy)
@@ -254,7 +255,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             if enemy.tag in countered_enemies:
                 continue
 
-            enemy_group = [e for e in enemies_in_base
+            enemy_group = [e for e in self.enemies_in_base
                             if e.tag not in countered_enemies
                             and (enemy.tag == e.tag or self.distance(enemy, e) < 8)]
 
@@ -288,11 +289,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         # main_army_value = self.get_army_value(self.main_army.units)
         # army_is_big_enough = main_army_value > enemy_value * 1.1 or self.bot.supply_used > 160
         # self.army_ratio = main_army_value / max(enemy_value, 1)
-        army_is_big_enough = self.army_ratio > 1.3 or self.bot.supply_used > 160 or self.offense_started == True and self.army_ratio > 1.0
+        army_is_big_enough = self.army_ratio > 1.3 or self.bot.supply_used > 160 or self.offense_started == True and self.army_ratio > 0.9
         army_is_grouped = self.main_army.is_grouped()
         mount_offense = army_is_big_enough and not defend_with_main_army
 
-        if not enemies_in_base and proxy_buildings:
+        if not self.enemies_in_base and proxy_buildings:
             # if proxy buildings detected, mount offense even if army is small
             mount_offense = True
         elif mount_offense: # previously 600
@@ -303,7 +304,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 mount_offense = False
             elif self.bot.supply_used < 50: # previously 110
                 mount_offense = False
-        if not mount_offense and enemies_in_base and self.army_ratio > 1.0:
+        if not mount_offense and self.enemies_in_base and self.army_ratio > 1.0:
             defend_with_main_army = True
 
         self.offense_started = mount_offense
@@ -313,8 +314,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.stop_timer("military army value")
 
         self.start_timer("military manage bunkers")
-        await self.manage_bunker(self.bunker, enemies_in_base, enemies_in_base_ratio, mount_offense)
-        await self.manage_bunker(self.bunker2, enemies_in_base, enemies_in_base_ratio, mount_offense)
+        await self.manage_bunker(self.bunker, self.enemies_in_base, enemies_in_base_ratio, mount_offense)
+        await self.manage_bunker(self.bunker2, self.enemies_in_base, enemies_in_base_ratio, mount_offense)
         self.stop_timer("military manage bunkers")
 
         await self.harass(newest_enemy_base, rush_detected_types)
@@ -328,7 +329,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
             if defend_with_main_army and (self.bot.time > 420 or enemies_in_base_ratio >= 1.0):
                 LogHelper.add_log(f"squad {self.main_army.name} mounting defense")
                 self.start_timer("military move squads defend")
-                await self.main_army.move(enemies_in_base.closest_to(self.main_army.position).position)
+                await self.main_army.move(self.enemies_in_base.closest_to(self.main_army.position).position)
                 self.stop_timer("military move squads defend")
             elif mount_offense and len(proxy_buildings) > 0 and self.bot.time < 420:
                 self.start_timer("military move squads attack proxy buildings")
@@ -343,32 +344,42 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 target = None
                 target_position = None
                 attackable_enemies = self.enemy.enemies_in_view.filter(
-                    lambda unit: UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies())
-                        and unit.armor < 10 and unit.tag not in countered_enemies)
+                    lambda unit: not unit.is_structure
+                        and UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies())
+                        and unit.armor < 10
+                        and unit.tag not in countered_enemies)
                 
                 ignored_enemy_tags = set()
+                closest_structure = self.bot.enemy_structures.closest_to(army_position) if self.bot.enemy_structures else None
+                closest_structure_distance = closest_structure.distance_to_squared(army_position) if closest_structure else 100000
+                enemy_army: Units | None = None
+                enemy_army_distance: float = 100000
+
                 for enemy in attackable_enemies:
-                    if enemy.tag in ignored_enemy_tags:
+                    enemy_distance = self.distance_squared(enemy, army_position)
+                    if enemy.tag in ignored_enemy_tags or enemy_distance > closest_structure_distance:
                         continue
-                    enemy_group = [e for e in attackable_enemies
-                                    if e.tag not in ignored_enemy_tags
-                                    and (enemy.tag == e.tag or self.distance(enemy, e) < 8)]
+                    enemy_group = attackable_enemies.filter(lambda e: e.tag not in ignored_enemy_tags
+                                    and self.distance_squared(enemy, e) < 64)
                     if len(enemy_group) >= 3:
-                        target = Units(enemy_group, self.bot)
-                        target_position = target.center
+                        enemy_army = enemy_group
+                        enemy_army_distance = enemy_distance
                         break
                     for e in enemy_group:
                         ignored_enemy_tags.add(e.tag)
+
+                if enemy_army and enemy_army_distance < closest_structure_distance:
+                    target = enemy_army
+                    target_position = enemy_army.center
+                elif closest_structure:
+                    target = closest_structure
+                    target_position = closest_structure.position
+                elif newest_enemy_base:
+                    target = newest_enemy_base
+                    target_position = newest_enemy_base
                 else:
-                    if self.bot.enemy_structures:
-                        target = self.bot.enemy_structures
-                        target_position = target.closest_to(army_position).position
-                    elif newest_enemy_base:
-                        target = newest_enemy_base
-                        target_position = newest_enemy_base
-                    else:
-                        target = self.bot.enemy_start_locations[0]
-                        target_position = target
+                    target = self.bot.enemy_start_locations[0]
+                    target_position = target
                 self.stop_timer("military move squads choose attack target")
                 if not army_is_grouped:
                     self.start_timer("military move squads regroup")
