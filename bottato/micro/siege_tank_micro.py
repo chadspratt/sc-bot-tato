@@ -51,9 +51,10 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
         last_transform = self.last_transform_time.get(unit.tag, -999)
         time_since_last_transform = self.bot.time - last_transform
-        if time_since_last_transform < self.min_seconds_between_transform:
-            logger.debug(f"unit last transformed {time_since_last_transform}s ago, need to wait {self.min_seconds_between_transform}")
-            return False
+        on_cooldown = time_since_last_transform < self.min_seconds_between_transform
+        # if time_since_last_transform < self.min_seconds_between_transform:
+        #     logger.debug(f"unit last transformed {time_since_last_transform}s ago, need to wait {self.min_seconds_between_transform}")
+        #     return False
 
         # siege if stationary for 4s
         if unit.tag not in self.stationary_positions:
@@ -109,7 +110,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                                                                      excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time/2)[1]
         _, closest_structure_distance = self.enemy.get_target_closer_than(unit, max_distance=self.sight_range - 1, include_units=False)
 
-        # has_friendly_buffer = False
         friendly_buffer_count = 0
         structures_under_threat = False
         closest_enemy_is_visible = False
@@ -118,7 +118,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if closest_enemy:
             friendlies_nearer_to_enemy = self.units_closer_than(closest_enemy, self.bot.units, closest_distance - 0.01, self.bot)
             friendly_buffer_count = len(friendlies_nearer_to_enemy)
-            # has_friendly_buffer = len(friendlies_nearer_to_enemy) >= 5
             if closest_enemy.age == 0:
                 closest_enemy_is_visible = True
                 structures = self.bot.structures.filter(lambda s: s.type_id != UnitTypeId.AUTOTURRET)
@@ -136,7 +135,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         tank_height = self.bot.get_terrain_height(unit.position)
         enemy_height = self.bot.get_terrain_height(closest_enemy.position) if closest_enemy else tank_height
         has_high_ground_advantage = tank_height - 1 > enemy_height
-        siege_aggressively = friendly_buffer_count >= 15 and len(self.unsieged_tags) < len(self.sieged_tags) - 2
+        siege_aggressively = on_cooldown or friendly_buffer_count >= 15 and len(self.unsieged_tags) < len(self.sieged_tags) - 2
         # if is_sieged:
         #     unsiege_range = self.sieged_range
         #     if siege_aggressively:

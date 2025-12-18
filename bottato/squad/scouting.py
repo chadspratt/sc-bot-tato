@@ -609,8 +609,9 @@ class Scouting(Squad, DebugMixin):
                     if structure.type_id == proxy_structure.type_id and structure.position.manhattan_distance(proxy_structure.position) < 1:
                         break
                 else:
-                    self.proxy_buildings.append(structure)
-                    LogHelper.add_log(f"proxy building detected: {structure}")
+                    if structure.type_id not in (UnitTypeId.PYLON, UnitTypeId.PHOTONCANNON):
+                        self.proxy_buildings.append(structure)
+                        LogHelper.add_log(f"proxy building detected: {structure}")
 
     @property
     async def rush_detected_types(self) -> Set[RushType]:
