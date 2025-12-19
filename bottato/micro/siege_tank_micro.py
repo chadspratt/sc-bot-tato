@@ -98,7 +98,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     if townhall.distance_to_squared(el) < 16:
                         natural_in_place = True
                         break
-        if self.bot.time < 300 or self.bot.time < 420 and not natural_in_place:
+        if self.bot.time < 300 or self.bot.time < 420 and not natural_in_place or target.distance_to(self.bot.start_location) < 15:
             return self._early_game_siege_tank_micro(unit, is_sieged)
 
         # remove missing

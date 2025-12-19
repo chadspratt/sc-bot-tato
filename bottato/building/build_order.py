@@ -155,11 +155,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             step: BuildStep = self.started.pop(idx)
             step.interrupted_count += 1
             LogHelper.add_log(f"{step} interrupted")
-            # if isinstance(step, SCVBuildStep) and step.unit_being_built is None:
-            #     if step.interrupted_count > 10:
-            #         LogHelper.add_log(f"{step} interrupted too many times, removing from build order")
-            #         continue
-            if step.is_unit():
+            if step.is_unit() and self.get_queued_count(step.get_unit_type_id()) > 0:
                 self.build_queue.insert(0, step)
             else:
                 self.interrupted_queue.insert(0, step)
@@ -220,6 +216,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                     self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
         if BuildOrderChange.BANSHEE_HARASS not in self.changes_enacted and self.bot.enemy_race == Race.Terran: # type: ignore
             self.changes_enacted.append(BuildOrderChange.BANSHEE_HARASS)
+            self.move_between_queues(UnitTypeId.STARPORT, self.static_queue, self.priority_queue)
             self.substitute_steps_in_queue(UnitTypeId.VIKINGFIGHTER, [
                 UnitTypeId.STARPORTTECHLAB,
                 UnitTypeId.BANSHEE,
@@ -399,10 +396,12 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 count += 1
         return count
 
-    def get_queued_count(self, unit_type: UnitTypeId, queue: List[BuildStep] | None = None) -> int:
+    def get_queued_count(self, unit_type: UnitTypeId | None, queue: List[BuildStep] | None = None) -> int:
+        count = 0
+        if unit_type is None:
+            return 0
         if queue is None:
             queue = self.priority_queue + self.static_queue + self.build_queue
-        count = 0
         for build_step in queue:
             if build_step.is_unit_type(unit_type):
                 count += 1
@@ -415,7 +414,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
             # probably unsafe or it would have landed
             self.stop_timer("queue_command_center")
             return
-        if self.bot.time < 100 or len(self.rush_detected_types) > 0 and self.bot.time < 300:
+        if self.bot.time < 100 or len(self.rush_detected_types) > 0 and (self.bot.time < 300 or self.bot.structures(UnitTypeId.STARPORT).amount == 0):
             # don't expand too early during rush
             self.stop_timer("queue_command_center")
             return

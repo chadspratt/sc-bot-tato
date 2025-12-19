@@ -70,7 +70,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if unit.tag in BaseUnitMicro.repair_started_tags:
             # already being repaired
             target = unit.position
-        elif unit.tag not in BaseUnitMicro.repair_started_tags and unit.position.manhattan_distance(target) < 2.0:
+        elif unit.tag not in BaseUnitMicro.repair_started_tags and unit.position.manhattan_distance(target) < 2.0 and self.bot.in_pathing_grid(unit.position):
             LogHelper.add_log(f"move_to_repairer {unit} is close to worker")
             BaseUnitMicro.repair_started_tags.add(unit.tag)
         if unit.health_percentage > self.retreat_health and self.unit_is_closer_than(unit, self.bot.enemy_units, 15, self.bot):

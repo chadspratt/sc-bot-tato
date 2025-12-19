@@ -863,6 +863,16 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 units_needing_repair.remove(new_target)
         return new_target
 
+    ramp_wall_structers: Set[UnitTypeId] = set([
+        UnitTypeId.BARRACKS,
+        UnitTypeId.BARRACKSREACTOR,
+        UnitTypeId.SUPPLYDEPOT,
+    ])
+    defensive_structures: Set[UnitTypeId] = set([
+        UnitTypeId.BUNKER,
+        UnitTypeId.MISSILETURRET,
+        UnitTypeId.PLANETARYFORTRESS,
+    ])
     def units_needing_repair(self) -> Units:
         injured_mechanical_units = Units([], self.bot)
         repair_scvs = self.bot.time > 300
@@ -870,14 +880,17 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                                                          and unit.type_id != UnitTypeId.MULE
                                                          and unit.health < unit.health_max
                                                          and (repair_scvs or unit.type_id != UnitTypeId.SCV)
-                                                         and len(self.enemy.threats_to_repairer(unit, attack_range_buffer=0)) == 0)
+                                                         and (
+                                                             unit.type_id != UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls.closest_distance_to(unit) < 20
+                                                            or len(self.enemy.threats_to_repairer(unit, attack_range_buffer=0)) == 0))
         logger.debug(f"injured mechanical units {injured_mechanical_units}")
 
         # can only repair fully built structures
         injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
                                                         and unit.build_progress == 1
                                                         and unit.health < unit.health_max
-                                                        and ((self.bot.time < 300 and unit.type_id in (UnitTypeId.BUNKER, UnitTypeId.SUPPLYDEPOT))
+                                                        and ((self.bot.time < 300 and unit.type_id in self.ramp_wall_structers)
+                                                             or unit.type_id in self.defensive_structures
                                                              or len(self.enemy.threats_to_repairer(unit, attack_range_buffer=-unit.radius)) == 0))
         logger.debug(f"injured structures {injured_structures}")
         return injured_mechanical_units + injured_structures

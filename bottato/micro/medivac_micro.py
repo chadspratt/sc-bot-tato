@@ -30,7 +30,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     threat_damage: dict[UnitTypeId, float] = {}
 
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
-        threats = self.enemy.threats_to_friendly_unit(unit, 5)
+        threats = self.enemy.threats_to_friendly_unit(unit, 4)
         if unit.health_percentage < self.health_threshold_for_healing:
             if threats:
                 if unit.tag not in self.last_afterburner_time or self.bot.time - self.last_afterburner_time[unit.tag] > 14.0:
@@ -105,7 +105,9 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
 
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
         # doesn't have an attack
-        return self._retreat_to_tank(unit, can_attack=False)
+        if unit.health_percentage > self.health_threshold_for_healing:
+            return self._retreat_to_tank(unit, can_attack=False)
+        return False
 
     def heal_available(self, unit: Unit) -> bool:
         if unit.tag in self.stopped_for_healing:

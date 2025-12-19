@@ -11,6 +11,7 @@ from bottato.unit_types import UnitTypes
 from bottato.enemy import Enemy
 from bottato.mixins import GeometryMixin, TimerMixin
 from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.micro.custom_effect import CustomEffect
 from bottato.enums import RushType
 
 
@@ -39,6 +40,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                     continue
                 if self.distance(enemy_unit, depot) < distance_threshold - 2:
                     depot(AbilityId.MORPH_SUPPLYDEPOT_RAISE)
+                    # fake effect to tell units to get off the depot
+                    BaseUnitMicro.custom_effects_to_avoid.append(CustomEffect(depot.position, depot.radius, self.bot.time, 1))
                     break
         # Lower depos when no enemies are nearby
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:

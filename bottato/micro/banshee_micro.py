@@ -80,7 +80,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             if threats:
                 return False
         if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
-            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=1)
+            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
             if threats:
                 for threat in threats:
                     if threat.is_flying or UnitTypes.air_range(threat) >= unit.ground_range:
