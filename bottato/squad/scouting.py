@@ -136,11 +136,9 @@ class Scout(Squad, UnitReferenceMixin):
                     # all locations have been seen, release scout
                     if self.unit.type_id == UnitTypeId.SCV:
                         workers.set_as_idle(self.unit)
-                    else:
-                        military.transfer(self.unit, self, military.main_army)
-                    self.unit = None
-                    self.complete = True
-                    return
+                        self.unit = None
+                        self.complete = True
+                        return
             try:
                 self.unit = self.get_updated_unit_reference(self.unit, self.bot, units_by_tag)
                 logger.debug(f"{self.name} scout {self.unit}")

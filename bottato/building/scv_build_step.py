@@ -122,15 +122,10 @@ class SCVBuildStep(BuildStep):
         return self.position
 
     async def execute(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
-        self.start_timer("scv_build_step.execute inner")
-
-        self.start_timer(f"scv_build_step.execute_scv_build {self.unit_type_id}")
         response = await self.execute_scv_build(special_locations, rush_detected_types)
-        self.stop_timer(f"scv_build_step.execute_scv_build {self.unit_type_id}")
             
         if response == BuildResponseCode.SUCCESS:
             self.is_in_progress = True
-        self.stop_timer("scv_build_step.execute inner")
         return response
     
     async def execute_scv_build(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:

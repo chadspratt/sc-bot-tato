@@ -45,7 +45,6 @@ class UpgradeBuildStep(BuildStep):
         return self.upgrade_id == upgrade_id
         
     async def execute(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
-        self.start_timer("build_step.execute inner")
         response = None
 
         logger.debug(f"researching upgrade {self.upgrade_id}")
@@ -65,7 +64,6 @@ class UpgradeBuildStep(BuildStep):
                 required_tech_building is None or self.bot.structure_type_build_progress(required_tech_building) == 1
             )
             if not requirement_met:
-                self.stop_timer("build_step.execute inner")
                 return BuildResponseCode.NO_TECH
             logger.debug(f"{self.unit_in_charge} researching upgrade with ability {ability}")
             successful_action: UnitCommand | bool = self.unit_in_charge(ability)
@@ -76,7 +74,6 @@ class UpgradeBuildStep(BuildStep):
         if response is None:
             logger.debug("upgrade failed to start")
             response = BuildResponseCode.FAILED
-        self.stop_timer("build_step.execute inner")
 
         return response
 

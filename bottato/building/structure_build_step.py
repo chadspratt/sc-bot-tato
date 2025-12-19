@@ -83,13 +83,9 @@ class StructureBuildStep(BuildStep):
         return 9999
 
     async def execute(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
-        self.start_timer("structure_build_step.execute inner")
-        self.start_timer(f"structure_build_step.execute_facility_build {self.unit_type_id}")
         response = await self.execute_facility_build()
-        self.stop_timer(f"structure_build_step.execute_facility_build {self.unit_type_id}")
         if response == BuildResponseCode.SUCCESS:
             self.is_in_progress = True
-        self.stop_timer("structure_build_step.execute inner")
         return response
 
     async def execute_facility_build(self) -> BuildResponseCode:

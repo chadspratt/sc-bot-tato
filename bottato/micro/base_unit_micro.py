@@ -146,18 +146,18 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             action_taken = await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move)
             self.stop_timer("base_unit_micro.move._use_ability")
         if not action_taken:
-            self.start_timer("base_unit_micro.move._attack_something")
+            self.start_timer("base_unit_micro.move._harass_attack_something")
             action_taken = self._harass_attack_something(unit, attack_health, target, force_move=force_move)
-            self.stop_timer("base_unit_micro.move._attack_something")
+            self.stop_timer("base_unit_micro.move._harass_attack_something")
         if not action_taken and force_move:
             position_to_compare = target if unit.is_moving else unit.position
             if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
                 unit.move(target)
             action_taken = True
         if not action_taken:
-            self.start_timer("base_unit_micro.move._retreat")
+            self.start_timer("base_unit_micro.move._harass_retreat")
             action_taken = await self._harass_retreat(unit, health_threshold=self.retreat_health, harass_location=target)
-            self.stop_timer("base_unit_micro.move._retreat")
+            self.stop_timer("base_unit_micro.move._harass_retreat")
         
         if not action_taken:
             position_to_compare = target if unit.is_moving else unit.position
@@ -287,7 +287,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
 
         if not self.valid_targets:
             return False
-        nearby_enemies = self.valid_targets.closer_than(20, unit)
+        nearby_enemies = self.valid_targets.closer_than(20, unit).sorted(lambda u: u.health + u.shield)
         if not nearby_enemies:
             return False
         
@@ -360,7 +360,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         # retreat if there is nothing this unit can attack and it's not an SCV which might be repairing
         if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
             visible_threats = threats.filter(lambda t: t.age == 0)
-            targets = self.enemy.in_attack_range(unit, visible_threats, 3)
+            targets = self.enemy.in_attack_range(unit, visible_threats, 3, first_only=True)
             if not targets:
                 unit(AbilityId.UNSIEGE_UNSIEGE)
                 return True
@@ -378,24 +378,24 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0) -> Unit | None:
         priority_targets = nearby_enemies.filter(lambda u: u.type_id in UnitTypes.HIGH_PRIORITY_TARGETS)
         if priority_targets:
-            in_range = self.enemy.in_attack_range(unit, priority_targets, bonus_distance)
+            in_range = self.enemy.in_attack_range(unit, priority_targets, bonus_distance, first_only=True)
             if in_range:
-                return in_range.sorted(lambda u: u.health + u.shield).first
+                return in_range.first
         offensive_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack(u))
         if offensive_targets:
             threats = self.enemy.threats_to_friendly_unit(unit, visible_only=True)
             if threats:
-                in_range = self.enemy.in_attack_range(unit, threats, bonus_distance)
+                in_range = self.enemy.in_attack_range(unit, threats, bonus_distance, first_only=True)
                 if in_range:
-                    return in_range.sorted(lambda u: u.health + u.shield).first
-            in_range = self.enemy.in_attack_range(unit, offensive_targets, bonus_distance)
+                    return in_range.first
+            in_range = self.enemy.in_attack_range(unit, offensive_targets, bonus_distance, first_only=True)
             if in_range:
-                return in_range.sorted(lambda u: u.health + u.shield).first
+                return in_range.first
         passive_targets = nearby_enemies.filter(lambda u: not UnitTypes.can_attack(u))
         if passive_targets:
-            in_range = self.enemy.in_attack_range(unit, passive_targets, bonus_distance)
+            in_range = self.enemy.in_attack_range(unit, passive_targets, bonus_distance, first_only=True)
             if in_range:
-                return in_range.sorted(lambda u: u.health + u.shield).first
+                return in_range.first
             
     def _stay_at_max_range(self, unit: Unit, targets: Units) -> bool:
         if not targets:

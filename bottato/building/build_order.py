@@ -642,11 +642,12 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
 
     def move_to_complete(self, build_step: BuildStep) -> None:
         self.complete.append(build_step)
-        for timer_name in build_step.timers.keys():
-            if timer_name not in self.timers:
-                self.timers[timer_name] = build_step.timers[timer_name]
-            else:
-                self.timers[timer_name]['total'] += build_step.timers[timer_name]['total']
+        if hasattr(build_step, 'timers'):
+            for timer_name in build_step.timers.keys():
+                if timer_name not in self.timers:
+                    self.timers[timer_name] = build_step.timers[timer_name]
+                else:
+                    self.timers[timer_name]['total'] += build_step.timers[timer_name]['total']
 
     def update_started_structure(self, started_structure: Unit) -> None:
         for in_progress_step in self.started:

@@ -256,7 +256,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         in_range = self.in_attack_range(enemy_unit, candidates, attack_range_buffer)
         return in_range
     
-    def in_attack_range(self, unit: Unit, targets: Units, attack_range_buffer: float=0) -> Units:
+    def in_attack_range(self, unit: Unit, targets: Units, attack_range_buffer: float=0, first_only: bool = False) -> Units:
         in_range = Units([], self.bot)
 
         if unit.tag not in self.target_cache:
@@ -277,6 +277,8 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 cache_targets[target_unit.tag] = range_buffer
             if range_buffer <= attack_range_buffer:
                 in_range.append(target_unit)
+                if first_only:
+                    break
 
         return in_range
 
@@ -380,14 +382,14 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                                excluded_types=[], seconds_ahead: float=0) -> tuple[Unit | None, float]:
         candidates: Units = self.get_candidates(include_structures, include_units, include_destructables,
                                                 excluded_types=excluded_types)
-        distance_limit = max_distance ** 2
         for enemy in candidates:
+            distance_limit = (max_distance + enemy.radius + friendly_unit.radius) ** 2
             enemy_distance: float
             if seconds_ahead > 0:
                 enemy_distance = friendly_unit.distance_to_squared(self.get_predicted_position(enemy, seconds_ahead))
             else:
                 enemy_distance = self.distance_squared(friendly_unit, enemy)
-            if enemy_distance < distance_limit:
+            if enemy_distance <= distance_limit:
                 return (enemy, enemy_distance ** 0.5 - enemy.radius - friendly_unit.radius)
         return (None, 9999)
 

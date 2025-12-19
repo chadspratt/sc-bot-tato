@@ -135,7 +135,7 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
                     self.pathable_position = await self.bot.find_placement(UnitTypeId.MISSILETURRET,self.bot.game_info.map_center, 25, placement_step = 5)
             # pathable_destination: Point2 = miners.furthest_to(self.bot.start_location).position
             if self.pathable_position is not None:
-                paths_to_check = [[unit, self.pathable_position] for unit in self.military.main_army.units
+                paths_to_check = [[unit, self.pathable_position] for unit in self.bot.units
                                   if unit.type_id != UnitTypeId.SIEGETANKSIEGED and not unit.is_flying
                                   and unit.position.manhattan_distance(self.bot.start_location) < 60]
                 if paths_to_check:

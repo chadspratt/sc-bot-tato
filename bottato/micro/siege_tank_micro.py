@@ -46,17 +46,18 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if unit.is_transforming:
             return False
 
-        is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
-        # fix miscategorizations, though it's probably just transforming
-        if is_sieged != (unit.tag in self.sieged_tags):
-            if is_sieged:
-                self.unsiege(unit, update_last_transform_time=False)
-            else:
-                self.siege(unit, update_last_transform_time=False)
-            return True
-
         last_transform = self.last_transform_time.get(unit.tag, -999)
         time_since_last_transform = self.bot.time - last_transform
+        is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
+        if is_sieged != (unit.tag in self.sieged_tags):
+            # fix miscategorizations, though it's probably just transforming
+            if time_since_last_transform > 1.5:
+                if is_sieged:
+                    self.siege(unit, update_last_transform_time=False)
+                else:
+                    self.unsiege(unit, update_last_transform_time=False)
+            return True
+
         on_cooldown = time_since_last_transform < self.min_seconds_between_transform
         # if time_since_last_transform < self.min_seconds_between_transform:
         #     logger.debug(f"unit last transformed {time_since_last_transform}s ago, need to wait {self.min_seconds_between_transform}")
@@ -127,7 +128,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             if closest_enemy.age == 0:
                 closest_enemy_is_visible = True
                 structures = self.bot.structures.filter(lambda s: s.type_id != UnitTypeId.AUTOTURRET)
-                structures_under_threat = self.enemy.in_attack_range(closest_enemy, structures, 2).exists
+                structures_under_threat = self.enemy.in_attack_range(closest_enemy, structures, 2, first_only=True).exists
 
         if force_move:
             self.last_force_move_time[unit.tag] = self.bot.time
@@ -203,7 +204,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     unit.move(closer_position) # type: ignore
                     return True
             enemy_will_be_close_enough = closest_enemy_distance <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
-            enemy_will_be_far_enough = True if has_high_ground_advantage else closest_distance > self.sieged_minimum_range + 2
+            enemy_will_be_far_enough = True if has_high_ground_advantage else closest_distance > self.sieged_minimum_range + 3
             if enemy_will_be_far_enough and enemy_will_be_close_enough:
                 self.siege(unit)
                 return True

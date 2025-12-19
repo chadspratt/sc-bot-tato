@@ -52,7 +52,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if force_move and not can_attack:
             return False
         attack_range_buffer = 0 if can_attack else 5
-        enemy_candidates = self.enemy.get_candidates(include_out_of_view=False)
+        enemy_candidates = self.enemy.get_candidates(include_out_of_view=False).sorted(lambda u: u.health + u.shield)
         attack_target = self._get_attack_target(unit, enemy_candidates, attack_range_buffer)
         if attack_target:
             return self._kite(unit, attack_target)
@@ -90,25 +90,24 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if force_move and not can_attack:
             return False
-        nearby_enemies: Units
+        nearby_enemy: Units
         attack_range_buffer = 0 if can_attack else 5
-        enemy_candidates = self.enemy.get_candidates(include_structures=False, include_out_of_view=False)
-        nearby_enemies = self.enemy.in_attack_range(unit, enemy_candidates, attack_range_buffer)
+        enemy_candidates = self.enemy.get_candidates(include_structures=False, include_out_of_view=False).sorted(lambda u: u.health + u.shield)
+        nearby_enemy = self.enemy.in_attack_range(unit, enemy_candidates, attack_range_buffer, first_only=True)
 
-        if not nearby_enemies:
-            if force_move:
-                return False
-            if unit.tag in self.harass_location_reached_tags:
-                nearest_worker, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE])
-                if nearest_worker:
-                    if can_attack:
-                        return self._kite(unit, nearest_worker)
-                    else:
-                        unit.move(nearest_worker.position)
-                        return True
+        if nearby_enemy:
+            return self._kite(unit, nearby_enemy.first)
+        if force_move:
             return False
-        weakest_enemy = nearby_enemies.sorted(key=lambda t: t.shield + t.health).first
-        return self._kite(unit, weakest_enemy)
+        if unit.tag in self.harass_location_reached_tags:
+            nearest_worker, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE])
+            if nearest_worker:
+                if can_attack:
+                    return self._kite(unit, nearest_worker)
+                else:
+                    unit.move(nearest_worker.position)
+                    return True
+        return False
 
     async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
@@ -133,8 +132,8 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             else:
                 # retreat if there is nothing this unit can attack
                 visible_threats = threats.filter(lambda t: t.age == 0)
-                targets = self.enemy.in_attack_range(unit, visible_threats, 3)
-                if not targets:
+                target = self.enemy.in_attack_range(unit, visible_threats, 3, first_only=True)
+                if not target:
                     do_retreat = True
 
         # check if incoming damage will bring unit below health threshold
