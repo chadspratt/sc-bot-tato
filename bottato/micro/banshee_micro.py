@@ -86,7 +86,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                     if threat.is_flying or UnitTypes.air_range(threat) >= unit.ground_range:
                         # don't attack enemies that outrange
                         unit.move(self.get_circle_around_position(unit, threats.center, harass_location))
-                        return False
+                        return True
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if force_move and not can_attack:
             return False
