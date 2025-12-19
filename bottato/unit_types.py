@@ -3,6 +3,7 @@ from typing import Any, Dict, Tuple
 from sc2.bot_ai import BotAI
 from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.effect_id import EffectId
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
@@ -507,15 +508,11 @@ class UnitTypes(GeometryMixin):
                 bonus_detection_distance = 0.5 if detector.is_structure else 1
             if UnitTypes.distance_squared(detector, unit) <= (detector.sight_range + unit.radius + bonus_detection_distance) ** 2:
                 return True
-        # observers = bot.enemy_units.of_type(UnitTypeId.OBSERVER)
-        # if observers and observers.closest_distance_to(unit) < 12:
-        #     return True
-        # sieged_observers = bot.enemy_units.of_type(UnitTypeId.OBSERVERSIEGEMODE)
-        # if sieged_observers and sieged_observers.closest_distance_to(unit) < 16:
-        #     return True
-        # photon_cannons = bot.enemy_structures.of_type(UnitTypeId.PHOTONCANNON)
-        # if photon_cannons and photon_cannons.closest_distance_to(unit) < 12:
-        #     return True
+        for effect in bot.state.effects:
+            if effect.id == EffectId.SCANNERSWEEP:
+                for position in effect.positions:
+                    if UnitTypes.distance_squared(position, unit) <= (13 + unit.radius) ** 2:
+                        return True
         return False
 
     @staticmethod

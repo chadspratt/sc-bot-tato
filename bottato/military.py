@@ -514,7 +514,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.transfer(reapers[0], self.main_army, self.reaper_harass)
             else:
                 self.stop_timer("military harass")
-        if not self.banshee_harass.units and self.bot.enemy_race == Race.Protoss: # type: ignore
+        if not self.banshee_harass.units and (self.bot.enemy_race == Race.Protoss or self.bot.enemy_race == Race.Terran and len(rush_detected_types) > 0): # type: ignore
             # transfer a banshee from main army to harass squad
             banshees = self.main_army.units(UnitTypeId.BANSHEE)
             if banshees:

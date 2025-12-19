@@ -61,6 +61,7 @@ class BuildOrderChange(enum.Enum):
     RUSH = 0
     BATTLECRUISER = 1
     REAPER = 2
+    BANSHEE_HARASS = 3
 
 class ActionErrorCode(enum.Enum):
   Success = 1

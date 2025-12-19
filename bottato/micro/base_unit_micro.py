@@ -217,7 +217,8 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     ###########################################################################
     fixed_radius: dict[EffectId, float] = {
         EffectId.PSISTORMPERSISTENT: 2,
-        EffectId.GUARDIANSHIELDPERSISTENT: 4.5
+        EffectId.GUARDIANSHIELDPERSISTENT: 4.5,
+        EffectId.SCANNERSWEEP: 13,
     }
     @staticmethod
     def add_custom_effect(position: Unit | Point2, radius: float, start_time: float, duration: float):

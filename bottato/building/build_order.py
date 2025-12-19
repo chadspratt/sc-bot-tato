@@ -218,6 +218,13 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 if self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue):
                     # add a second bunker for low ground
                     self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
+        if BuildOrderChange.BANSHEE_HARASS not in self.changes_enacted and self.bot.enemy_race == Race.Terran: # type: ignore
+            self.changes_enacted.append(BuildOrderChange.BANSHEE_HARASS)
+            self.substitute_steps_in_queue(UnitTypeId.VIKINGFIGHTER, [
+                UnitTypeId.STARPORTTECHLAB,
+                UnitTypeId.BANSHEE,
+                UpgradeId.BANSHEECLOAK], self.static_queue)
+
     
     def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep], position: int | None = None) -> bool:
         for step in from_queue:
@@ -227,6 +234,19 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                     to_queue.insert(position, step)
                 else:
                     to_queue.append(step)
+                return True
+        return False
+    
+    def substitute_steps_in_queue(self, from_unit_type: UnitTypeId | UpgradeId,
+                                  to_unit_types: List[UnitTypeId | UpgradeId],
+                                  queue: List[BuildStep]) -> bool:
+        for idx, step in enumerate(queue):
+            if step.is_unit_type(from_unit_type):
+                queue.remove(step)
+                for to_unit_type in to_unit_types:
+                    new_step = self.create_build_step(to_unit_type)
+                    queue.insert(idx, new_step)
+                    idx += 1
                 return True
         return False
 
@@ -430,6 +450,8 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
         self.stop_timer("queue_refinery")
 
     def queue_production(self, only_build_units: bool):
+        if not self.bot.structures(UnitTypeId.STARPORT):
+            return
         self.start_timer("queue_production")
         # add more barracks/factories/starports to handle backlog of pending affordable units
         self.start_timer("queue_production-get_affordable_build_list")
