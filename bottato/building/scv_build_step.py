@@ -1,3 +1,4 @@
+import math
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -223,7 +224,14 @@ class SCVBuildStep(BuildStep):
                 return None
 
             LogHelper.add_log(f"Expansions to check: {expansions_to_check}")
-            new_build_position = self.map.get_closest_position_by_path(expansions_to_check, self.bot.start_location)
+            expansion_distances = self.map.get_distances_by_path(self.bot.start_location, expansions_to_check)
+            closest_distance = math.inf
+            new_build_position = expansions_to_check[0]
+            for expansion, distance in expansion_distances.items():
+                adjusted_distance = distance - expansion.distance_to(self.bot.enemy_start_locations[0])
+                if adjusted_distance < closest_distance:
+                    closest_distance = adjusted_distance
+                    new_build_position = expansion
             
             if self.attempted_expansion_positions[new_build_position] > 3:
                 # build it wherever and fly it there later

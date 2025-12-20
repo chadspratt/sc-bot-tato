@@ -139,7 +139,7 @@ class BuildStarts():
                 UnitTypeId.REFINERY,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,            # safer baseline scout vs all races (LIBERATOR optional),
-                UnitTypeId.VIKINGFIGHTER, 
+                UnitTypeId.BANSHEE, 
             ]
         elif build_name == "tvt1":
             # https://lotv.spawningtool.com/build/171779/
