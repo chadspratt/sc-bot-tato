@@ -251,6 +251,13 @@ class GeometryMixin:
                 most_nearby_unit = unit
                 most_nearby_units = nearby_units
         return (most_nearby_unit, most_nearby_units)
+    
+    @staticmethod
+    def position_is_between(point: Point2, point_a: Point2, point_b: Point2) -> bool:
+        ab_distance = point_a._distance_squared(point_b)
+        ap_distance = point_a._distance_squared(point)
+        pb_distance = point._distance_squared(point_b)
+        return ap_distance < ab_distance and pb_distance < ab_distance 
 
 
 class TimerMixin:

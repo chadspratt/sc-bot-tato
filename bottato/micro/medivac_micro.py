@@ -41,15 +41,20 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 return False
             elif force_move:
                 return False
+        target_distance_to_start = target._distance_squared(self.bot.start_location)
         enemy_distance_to_target = self.closest_distance_squared(target, self.bot.enemy_units) if self.bot.enemy_units else 999999
+        # only ferry units on retreat
         if force_move and self.bot.time > 300 and unit.cargo_left > 0 and enemy_distance_to_target > 400:
             if self.units_to_pick_up_last_update != self.bot._total_steps_iterations:
                 self.units_to_pick_up_last_update = self.bot._total_steps_iterations
-                self.units_to_pick_up = self.bot.units.filter(
-                    lambda u: u.type_id != UnitTypeId.SIEGETANKSIEGED
-                        and u.movement_speed < unit.movement_speed
-                        and not u.is_flying
-                        and u.distance_to_squared(target) > 225)
+                self.units_to_pick_up = Units([], self.bot)
+                for u in self.bot.units:
+                    if u.type_id == UnitTypeId.SIEGETANKSIEGED or u.is_flying or u.movement_speed >= unit.movement_speed:
+                        continue
+                    u_distance_to_start = u.distance_to_squared(self.bot.start_location)
+                    u_distance_to_target = u.distance_to_squared(target)
+                    if 225 < u_distance_to_target < u_distance_to_start and target_distance_to_start < u_distance_to_start:
+                        self.units_to_pick_up.append(u)
                 self.units_to_pick_up_potential_damage.clear()
                 # calculate potential damage to a medivac if it tried to pick up each unit
                 if self.units_to_pick_up and self.bot.enemy_units:
