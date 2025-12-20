@@ -221,6 +221,7 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 UnitTypeId.STARPORTTECHLAB,
                 UnitTypeId.BANSHEE,
                 UpgradeId.BANSHEECLOAK], self.static_queue)
+            self.add_to_build_queue([UnitTypeId.BANSHEE], queue=self.static_queue)
 
     
     def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep], position: int | None = None) -> bool:
@@ -703,11 +704,15 @@ class BuildOrder(TimerMixin, UnitReferenceMixin):
                 builder = in_progress_step.unit_in_charge
                 in_progress_step.completed_time = self.bot.time
                 if builder and builder.type_id == UnitTypeId.SCV:
-                    if in_progress_step.is_unit_type(UnitTypeId.REFINERY):
-                        self.workers.vespene.add_node(completed_structure)
-                        self.workers.update_assigment(builder, WorkerJobType.VESPENE, completed_structure)
-                    else:
-                        self.workers.set_as_idle(builder)
+                    try:
+                        builder = self.get_updated_unit_reference(builder, self.bot)
+                        if in_progress_step.is_unit_type(UnitTypeId.REFINERY):
+                            self.workers.vespene.add_node(completed_structure)
+                            self.workers.update_assigment(builder, WorkerJobType.VESPENE, completed_structure)
+                        else:
+                            self.workers.set_as_idle(builder)
+                    except self.UnitNotFound:
+                        pass
                 self.move_to_complete(self.started.pop(idx))
                 break
         ramp_blocker: SpecialLocation

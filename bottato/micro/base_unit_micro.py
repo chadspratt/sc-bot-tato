@@ -296,7 +296,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if can_attack:
             bonus_distance = -2 if unit.health_percentage < health_threshold else -0.5
             if UnitTypes.range(unit) < 1:
-                bonus_distance = 0
+                bonus_distance = 1
             # attack enemy in range
             attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance)
             if attack_target:
@@ -431,7 +431,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
 
         attack_range = UnitTypes.range_vs_target(unit, nearest_target)
         future_enemy_position = nearest_target.position
-        target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius - 0.5)
+        target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius + 0.5)
         return self._move_to_pathable_position(unit, target_position) # type: ignore
 
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}

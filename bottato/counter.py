@@ -100,7 +100,8 @@ class Counter():
             UnitTypeId.VIKINGFIGHTER: 0.5
         },
         UnitTypeId.MARAUDER: { # 2
-            UnitTypeId.MARINE: 2.5
+            UnitTypeId.MARINE: 1.6,
+            UnitTypeId.BANSHEE: 0.3
         },
         UnitTypeId.MARINE: { # 1
             UnitTypeId.SIEGETANK: 0.2,

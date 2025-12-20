@@ -482,7 +482,7 @@ class Scouting(Squad, DebugMixin):
                         if position.manhattan_distance(location.position) < 10:
                             del self.enemy_base_built_times[position]
                             break
-                    if location.position == self.newest_enemy_base:
+                    if self.newest_enemy_base and location.position.manhattan_distance(self.newest_enemy_base) < 10:
                         self.newest_enemy_base = None
                         max_time = -1
                         for position, build_time in self.enemy_base_built_times.items():
@@ -587,6 +587,11 @@ class Scouting(Squad, DebugMixin):
         return self.intel
 
     def get_newest_enemy_base(self) -> Point2 | None:
+        max_time = -1
+        for position, build_time in self.enemy_base_built_times.items():
+            if build_time > max_time:
+                max_time = build_time
+                self.newest_enemy_base = position
         return self.newest_enemy_base
 
     async def scout(self, new_damage_taken: dict[int, float], units_by_tag: dict[int, Unit]):

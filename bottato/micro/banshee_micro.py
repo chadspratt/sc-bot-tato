@@ -14,7 +14,7 @@ from bottato.unit_types import UnitTypes
 
 class BansheeMicro(BaseUnitMicro, GeometryMixin):
     attack_health: float = 0.65
-    harass_attack_health: float = 0.9
+    harass_attack_health: float = 0.8
     harass_retreat_health: float = 0.6
     retreat_health: float = 0.6
     cloak_researched: bool = False

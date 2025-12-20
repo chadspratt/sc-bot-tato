@@ -118,13 +118,13 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.BUNKER,                      # NATURAL choke, XXX on high ground if getting cheesed
-                UnitTypeId.FACTORYTECHLAB,              # fast SIEGETANK access,
                 UnitTypeId.STARPORT,
-                UnitTypeId.SIEGETANK,                   # start as soon as TECHLAB is ready,
+                UnitTypeId.HELLION,
                 UnitTypeId.MARINE,               # begin reactor cycles,
                 UnitTypeId.MARINE,
                 UnitTypeId.STARPORTTECHLAB,
                 UnitTypeId.RAVEN,   
+                UnitTypeId.BANSHEE,
 # from here, keep SCV and MULE production constant until ~45 workers (author logic)
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,

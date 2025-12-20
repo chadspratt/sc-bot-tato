@@ -154,6 +154,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
         self.status_message = ""
         self.units_by_tag: Dict[int, Unit] = {}
         self.enemies_in_base: Units = Units([], self.bot)
+        self.anti_banshee_units: Units | None = None
         # special squads
         self.main_army = FormationSquad(
             bot=bot,
@@ -514,13 +515,16 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin, TimerMixin):
                 self.transfer(reapers[0], self.main_army, self.reaper_harass)
             else:
                 self.stop_timer("military harass")
-        if not self.banshee_harass.units and (self.bot.enemy_race == Race.Protoss or self.bot.enemy_race == Race.Terran and len(rush_detected_types) > 0): # type: ignore
-            # transfer a banshee from main army to harass squad
-            banshees = self.main_army.units(UnitTypeId.BANSHEE)
-            if banshees:
-                self.transfer(banshees[0], self.main_army, self.banshee_harass)
-            else:
-                self.stop_timer("military harass")
+        if self.banshee_harass.units.amount < 2 and (self.bot.enemy_race != Race.Terran or len(rush_detected_types) > 0): # type: ignore
+            if not self.anti_banshee_units:
+                self.anti_banshee_units = self.bot.enemy_units((UnitTypeId.VIKINGFIGHTER, UnitTypeId.PHOENIX, UnitTypeId.MUTALISK))
+            if not self.anti_banshee_units:
+                # transfer a banshee from main army to harass squad
+                banshees = self.main_army.units(UnitTypeId.BANSHEE)
+                if banshees:
+                    self.transfer(banshees[0], self.main_army, self.banshee_harass)
+                else:
+                    self.stop_timer("military harass")
             
         await self.reaper_harass.harass(newest_enemy_base)
         await self.banshee_harass.harass(newest_enemy_base)
