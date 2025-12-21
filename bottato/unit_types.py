@@ -458,7 +458,7 @@ class UnitTypes(GeometryMixin):
         if attack_range == 0.0:
             return float('inf')
         distance = UnitTypes.distance_squared(attacker_position if attacker_position else attacker, target_position if target_position else target)
-        if distance > 1000:
+        if distance > 500:
             # too far away to care
             return float('inf')
         actual_distance = (distance ** 0.5) - attacker.radius - target.radius

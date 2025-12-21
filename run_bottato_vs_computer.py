@@ -53,7 +53,7 @@ def main():
     build = os.environ.get("BUILD")
     opponent_race = race_dict.get(race)
     opponent_build = build_dict.get(build)
-    opponent = Computer(opponent_race, Difficulty.VeryHard, ai_build=opponent_build) # type: ignore
+    opponent = Computer(opponent_race, Difficulty.CheatMoney, ai_build=opponent_build) # type: ignore
     replay_name = f"replays/{random_map}_{race}-{build}.SC2Replay"
     
     # disable logging done by LogHelper

@@ -11,6 +11,7 @@ from sc2.unit_command import UnitCommand
 from sc2.position import Point2
 from sc2.protocol import ConnectionAlreadyClosedError, ProtocolError
 
+from bottato.mixins import timed, timed_async
 from bottato.log_helper import LogHelper
 from bottato.enums import BuildResponseCode, RushType, WorkerJobType
 from bottato.unit_types import UnitTypes
@@ -63,6 +64,7 @@ class SCVBuildStep(BuildStep):
             except self.UnitNotFound:
                 self.unit_being_built = None
 
+    @timed
     def draw_debug_box(self):
         if self.unit_in_charge is not None:
             self.bot.client.debug_sphere_out(self.unit_in_charge, 1, (255, 130, 0))
@@ -129,6 +131,7 @@ class SCVBuildStep(BuildStep):
             self.is_in_progress = True
         return response
     
+    @timed_async
     async def execute_scv_build(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
         if self.unit_type_id in TECH_TREE:
             # check that all tech requirements are met

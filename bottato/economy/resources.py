@@ -9,7 +9,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
 
-from bottato.mixins import GeometryMixin, UnitReferenceMixin
+from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed
 
 class ResourceNode(UnitReferenceMixin):
     def __init__(self, node: Unit, max_workers: int, max_mules: int, is_long_distance: bool = False):
@@ -146,6 +146,7 @@ class Resources(UnitReferenceMixin, GeometryMixin):
                 return True
         return False
 
+    @timed
     def update_references(self, units_by_tag: dict[int, Unit] | None = None):
         nodes_to_remove = []
         

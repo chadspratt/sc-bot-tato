@@ -8,6 +8,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
+from bottato.mixins import timed, timed_async
 from bottato.log_helper import LogHelper
 from bottato.enums import BuildResponseCode, RushType
 from bottato.unit_types import UnitTypes
@@ -41,6 +42,7 @@ class StructureBuildStep(BuildStep):
             except self.UnitNotFound:
                 self.unit_in_charge = None
 
+    @timed
     def draw_debug_box(self):
         if self.unit_in_charge is not None:
             self.bot.client.debug_text_world(
@@ -88,6 +90,7 @@ class StructureBuildStep(BuildStep):
             self.is_in_progress = True
         return response
 
+    @timed_async
     async def execute_facility_build(self) -> BuildResponseCode:
         response = None
         # not built by scv

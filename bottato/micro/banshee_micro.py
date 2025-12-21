@@ -8,7 +8,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
 from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.mixins import GeometryMixin
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.unit_types import UnitTypes
 
 
@@ -20,6 +20,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
     cloak_researched: bool = False
     cloak_energy_threshold: float = 40.0
 
+    @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if not self.cloak_researched:
             if UpgradeId.BANSHEECLOAK in self.bot.state.upgrades:
@@ -36,6 +37,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 unit(AbilityId.BEHAVIOR_CLOAKOFF_BANSHEE)
         return False
     
+    @timed
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
         if unit.tag in BaseUnitMicro.repair_started_tags:
             if unit.health_percentage == 1.0 or self.closest_distance(unit, self.bot.workers) > 5:
@@ -67,6 +69,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 return self._stay_at_max_range(unit, Units([nearest_priority], bot_object=self.bot))
         return False
 
+    @timed
     def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False):
         if unit.tag in BaseUnitMicro.repair_started_tags:
             if unit.health_percentage == 1.0 or self.closest_distance(unit, self.bot.workers) > 5:
@@ -109,6 +112,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                     return True
         return False
 
+    @timed_async
     async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False        

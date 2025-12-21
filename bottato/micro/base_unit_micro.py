@@ -16,11 +16,11 @@ from bottato.enemy import Enemy
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.custom_effect import CustomEffect
-from bottato.mixins import GeometryMixin, TimerMixin
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.unit_types import UnitTypes
 
 
-class BaseUnitMicro(GeometryMixin, TimerMixin):
+class BaseUnitMicro(GeometryMixin):
     ability_health: float = 0.1
     attack_health: float = 0.1
     retreat_health: float = 0.75
@@ -66,6 +66,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     ###########################################################################
     # meta actions - used by non-micro classes to order units
     ###########################################################################
+    @timed_async
     async def move_to_repairer(self, unit: Unit, target: Point2, force_move: bool = True, previous_position: Point2 | None = None) -> bool:
         if unit.tag in BaseUnitMicro.repair_started_tags:
             # already being repaired
@@ -84,6 +85,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         else:
             return await self.move(unit, target, force_move=force_move, previous_position=previous_position)
 
+    @timed_async
     async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
         if unit.tag in BaseUnitMicro.scout_tags:
             BaseUnitMicro.scout_tags.remove(unit.tag)
@@ -97,26 +99,18 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             
         if unit.tag in self.bot.unit_tags_received_action:
             return True
-        self.start_timer("base_unit_micro.move._avoid_effects")
         action_taken = self._avoid_effects(unit, force_move)
-        self.stop_timer("base_unit_micro.move._avoid_effects")
         if not action_taken:
-            self.start_timer("base_unit_micro.move._use_ability")
             action_taken = await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move)
-            self.stop_timer("base_unit_micro.move._use_ability")
         if not action_taken:
-            self.start_timer("base_unit_micro.move._attack_something")
             action_taken = self._attack_something(unit, health_threshold=attack_health, force_move=force_move)
-            self.stop_timer("base_unit_micro.move._attack_something")
         if not action_taken and force_move:
             position_to_compare = target if unit.is_moving else unit.position
             if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
                 unit.move(target)
             action_taken = True
         if not action_taken:
-            self.start_timer("base_unit_micro.move._retreat")
             action_taken = await self._retreat(unit, health_threshold=self.retreat_health)
-            self.stop_timer("base_unit_micro.move._retreat")
         
         if not action_taken:
             position_to_compare = target if unit.is_moving else unit.position
@@ -124,6 +118,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                 unit.move(target)
         return True
 
+    @timed_async
     async def harass(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
         BaseUnitMicro.harass_tags.add(unit.tag)
         if unit.tag not in BaseUnitMicro.harass_location_reached_tags:
@@ -138,26 +133,18 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         if unit.tag in self.bot.unit_tags_received_action:
             LogHelper.add_log(f"harass {unit} already has action")
             return True
-        self.start_timer("base_unit_micro.move._avoid_effects")
         action_taken = self._avoid_effects(unit, force_move)
-        self.stop_timer("base_unit_micro.move._avoid_effects")
         if not action_taken:
-            self.start_timer("base_unit_micro.move._use_ability")
             action_taken = await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move)
-            self.stop_timer("base_unit_micro.move._use_ability")
         if not action_taken:
-            self.start_timer("base_unit_micro.move._harass_attack_something")
             action_taken = self._harass_attack_something(unit, attack_health, target, force_move=force_move)
-            self.stop_timer("base_unit_micro.move._harass_attack_something")
         if not action_taken and force_move:
             position_to_compare = target if unit.is_moving else unit.position
             if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
                 unit.move(target)
             action_taken = True
         if not action_taken:
-            self.start_timer("base_unit_micro.move._harass_retreat")
             action_taken = await self._harass_retreat(unit, health_threshold=self.retreat_health, harass_location=target)
-            self.stop_timer("base_unit_micro.move._harass_retreat")
         
         if not action_taken:
             position_to_compare = target if unit.is_moving else unit.position
@@ -165,6 +152,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                 unit.move(target)
         return True
 
+    @timed_async
     async def scout(self, unit: Unit, scouting_location: Point2):
         BaseUnitMicro.scout_tags.add(unit.tag)
         if unit.tag in self.bot.unit_tags_received_action:
@@ -185,6 +173,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")
             unit.move(scouting_location)
 
+    @timed_async
     async def repair(self, unit: Unit, target: Unit) -> bool:
         BaseUnitMicro.repairer_tags.add(unit.tag)
         if unit.tag in self.bot.unit_tags_received_action:
@@ -224,6 +213,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
     def add_custom_effect(position: Unit | Point2, radius: float, start_time: float, duration: float):
         BaseUnitMicro.custom_effects_to_avoid.append(CustomEffect(position, radius, start_time, duration))
 
+    @timed
     def _avoid_effects(self, unit: Unit, force_move: bool) -> bool:
         # avoid damaging effects
         effects_to_avoid = []
@@ -273,9 +263,11 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
 
     last_targets_update_time: float = 0.0
     valid_targets: Units | None = None
+    @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         return False
 
+    @timed
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
@@ -327,9 +319,11 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
 
         return False
     
+    @timed
     def _harass_attack_something(self, unit: Unit, health_threshold: float, harass_location: Point2, force_move: bool = False) -> bool:
         return self._attack_something(unit, health_threshold, force_move, harass_location)
 
+    @timed_async
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
@@ -370,12 +364,14 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
         unit.move(retreat_position)
         return True
     
+    @timed_async
     async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> bool:
         return await self._retreat(unit, health_threshold)
 
     ###########################################################################
     # utility behaviors - used by main actions
     ###########################################################################
+    @timed
     def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0) -> Unit | None:
         priority_targets = nearby_enemies.filter(lambda u: u.type_id in UnitTypes.HIGH_PRIORITY_TARGETS)
         if priority_targets:
@@ -398,6 +394,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             if in_range:
                 return in_range.first
             
+    @timed
     def _stay_at_max_range(self, unit: Unit, targets: Units) -> bool:
         if not targets:
             return False
@@ -436,6 +433,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
 
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
 
+    @timed
     def _kite(self, unit: Unit, target: Unit) -> bool:
         attack_range = UnitTypes.range_vs_target(unit, target)
         target_range = UnitTypes.range_vs_target(target, unit)
@@ -468,6 +466,7 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             return True
         return False
             
+    @timed
     def _get_retreat_destination(self, unit: Unit, threats: Units) -> Point2:
         ultimate_destination: Point2 | None = None
         if unit.is_mechanical:
@@ -513,11 +512,13 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             circle_around_position = self.get_circle_around_position(unit, avg_threat_position, ultimate_destination)
             return circle_around_position.towards(ultimate_destination, 2) # type: ignore
     
+    @timed
     def _position_is_pathable(self, unit: Unit, position: Point2) -> bool:
         if unit.is_flying and self.bot.in_map_bounds(position) or self.bot.in_pathing_grid(position):
             return True
         return False
 
+    @timed
     def _retreat_to_medivac(self, unit: Unit) -> bool:
         medivacs = self.bot.units.filter(lambda unit: unit.type_id == UnitTypeId.MEDIVAC and unit.energy > 5 and unit.cargo_used == 0)
         if medivacs:
@@ -543,17 +544,16 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             UnitTypeId.LARVA,
             UnitTypeId.EGG
     ))
+    @timed
     def _retreat_to_tank(self, unit: Unit, can_attack: bool) -> bool:
-        self.start_timer("_retreat_to_tank")
         if unit.type_id in {UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED}:
-            self.stop_timer("_retreat_to_tank")
             return False
         if not UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
-            self.stop_timer("_retreat_to_tank")
             return False
-        tanks = self.bot.units.of_type((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED))
+        tanks = self.bot.units.of_type(UnitTypeId.SIEGETANKSIEGED)
         if not tanks:
-            self.stop_timer("_retreat_to_tank")
+            tanks = self.bot.units.of_type(UnitTypeId.SIEGETANK)
+        if not tanks:
             return False
         if unit.health_percentage >= 0.9:
             injured_friendlies = self.bot.units.filter(lambda u: u.health_percentage < 0.9 and u.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER))
@@ -568,11 +568,9 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
                 and u.unit_alias != UnitTypeId.CHANGELING
             )
         if not tank_targets:
-            self.stop_timer("_retreat_to_tank")
             return False
         closest_enemy = tank_targets.closest_to(unit)
         if closest_enemy.distance_to_squared(unit) > 225:
-            self.stop_timer("_retreat_to_tank")
             return False
 
         nearest_tank = tanks.closest_to(unit)
@@ -582,18 +580,16 @@ class BaseUnitMicro(GeometryMixin, TimerMixin):
             unit.move(nearest_tank.position.towards(unit.position, optimal_distance)) # type: ignore
             if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
                 BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance_sq
-            self.stop_timer("_retreat_to_tank")
             return True
         elif not can_attack and tank_to_enemy_distance_sq < unit.distance_to_squared(closest_enemy) * 0.3:
             # defend tank if it's closer to enemy than unit
             unit.move(nearest_tank.position.towards(closest_enemy.position, 3)) # type: ignore
             if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
                 BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance_sq
-            self.stop_timer("_retreat_to_tank")
             return True
-        self.stop_timer("_retreat_to_tank")
         return False
     
+    @timed
     def get_circle_around_position(self, unit: Unit, threat_position: Point2, destination: Point2) -> Point2:
         if unit.distance_to_squared(destination) > 225:
             path_to_destination = self.map.get_path_points(unit.position, destination)

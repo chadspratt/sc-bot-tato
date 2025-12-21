@@ -7,7 +7,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 
 from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.mixins import GeometryMixin
+from bottato.mixins import GeometryMixin, timed_async
 
 
 class MarineMicro(BaseUnitMicro, GeometryMixin):
@@ -25,6 +25,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
         UnitTypeId.MULE,
     ))
 
+    @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.health <= 35:
             return False
@@ -57,6 +58,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     def is_stimmed(self, unit: Unit) -> bool:
         return unit.tag in self.last_stim_time and self.bot.time - self.last_stim_time[unit.tag] < 11
 
+    @timed_async
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.health_percentage < 0.7:
             return self._retreat_to_medivac(unit)

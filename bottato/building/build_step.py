@@ -5,14 +5,14 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 
 from bottato.map.map import Map
-from bottato.mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
+from bottato.mixins import UnitReferenceMixin, GeometryMixin
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
 from bottato.building.special_locations import SpecialLocations
 from bottato.enums import BuildResponseCode, RushType
 
 
-class BuildStep(UnitReferenceMixin, GeometryMixin, TimerMixin):
+class BuildStep(UnitReferenceMixin, GeometryMixin):
     unit_in_charge: Unit | None = None
     check_idle: bool = False
     last_cancel_time: float = -10

@@ -9,7 +9,7 @@ from sc2.ids.ability_id import AbilityId
 
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.custom_effect import CustomEffect
-from bottato.mixins import GeometryMixin
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.unit_types import UnitTypes
 
 
@@ -27,6 +27,8 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
 
     excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.SCV, UnitTypeId.MULE,
                         UnitTypeId.DRONE, UnitTypeId.PROBE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.EGG, UnitTypeId.LARVA]
+                        
+    @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag in self.last_missile_launch:
             enemy_unit, last_time, energy_before_launch, launch_detected = self.last_missile_launch[unit.tag]
@@ -68,6 +70,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         return await self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
         
 
+    @timed
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
         if force_move:
             return False
@@ -99,12 +102,14 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                 self.missing_hidden_units.add(closest_unit.tag)
         return False
 
+    @timed_async
     async def attack_with_turret(self, unit: Unit, target: Point2) -> bool:
         self.bot.client.debug_line_out(unit, self.convert_point2_to_3(target, self.bot), (100, 255, 50))
         turret_position = target.towards(unit, self.turret_attack_range - 1, limit=True)
         logger.debug(f"{unit} trying to drop turret at {turret_position} to attack {target} at {target.position}")
         return await self.drop_turret(unit, turret_position) # type: ignore
 
+    @timed_async
     async def drop_turret(self, unit: Unit, target: Point2) -> bool:
         position = await self.bot.find_placement(UnitTypeId.AUTOTURRET, target, placement_step=1, max_distance=2)
         if position:
@@ -112,6 +117,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             return True
         return False
 
+    @timed
     def fire_missile(self, unit: Unit, target: Unit) -> bool:
         if unit.tag in self.last_missile_launch:
             _ , last_time, energy_before_launch, launch_detected = self.last_missile_launch[unit.tag]

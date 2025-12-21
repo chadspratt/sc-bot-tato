@@ -7,7 +7,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.mixins import GeometryMixin
+from bottato.mixins import GeometryMixin, timed_async
 
 
 class GhostMicro(BaseUnitMicro, GeometryMixin):
@@ -46,6 +46,7 @@ class GhostMicro(BaseUnitMicro, GeometryMixin):
         UnitTypeId.LURKERMPBURROWED,
     }
 
+    @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         # Try to use EMP against Protoss
         if await self._use_emp(unit):
@@ -62,6 +63,7 @@ class GhostMicro(BaseUnitMicro, GeometryMixin):
         
         return False
     
+    @timed_async
     async def _use_emp(self, unit: Unit) -> bool:
         """Use EMP on grouped Protoss units with shields/energy"""
         if unit.energy < self.emp_energy_cost:
@@ -103,6 +105,7 @@ class GhostMicro(BaseUnitMicro, GeometryMixin):
         
         return False
     
+    @timed_async
     async def _use_snipe(self, unit: Unit) -> bool:
         """Use Snipe on high value Zerg units"""
         if unit.tag in self.last_snipe:

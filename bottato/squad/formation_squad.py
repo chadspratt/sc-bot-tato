@@ -9,7 +9,7 @@ from sc2.position import Point2, Point3
 from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.building.build_step import BuildStep
-from bottato.mixins import GeometryMixin, TimerMixin
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.squad.formation import ParentFormation
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
@@ -19,7 +19,7 @@ from bottato.map.map import Map
 from bottato.enums import SquadFormationType
 
 
-class FormationSquad(Squad, GeometryMixin, TimerMixin):
+class FormationSquad(Squad, GeometryMixin):
     def __init__(
         self,
         enemy: Enemy,
@@ -41,6 +41,7 @@ class FormationSquad(Squad, GeometryMixin, TimerMixin):
     def __repr__(self):
         return f"FormationSquad({self.name},{len(self.units)}, {self.parent_formation})"
 
+    @timed
     def draw_debug_box(self):
         if self.parent_formation.front_center:
             self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.parent_formation.front_center, self.bot), 1.5, (0, 255, 255))
@@ -62,8 +63,6 @@ class FormationSquad(Squad, GeometryMixin, TimerMixin):
                 destination3: Point3 = self.convert_point2_to_3(self._destination, self.bot)
                 self.bot.client.debug_line_out(previous_point3, destination3, (255, 50, 50))
                 self.bot.client.debug_sphere_out(destination3, 0.5, (255, 50, 50))
-
-        super().draw_debug_box()
 
     @property
     def position(self) -> Point2:
@@ -89,6 +88,7 @@ class FormationSquad(Squad, GeometryMixin, TimerMixin):
         has = len(self.units)
         return f"{self.name}({has})"
 
+    @timed
     def update_formation(self, reset=False):
         # decide formation(s)
         if reset:
@@ -127,6 +127,7 @@ class FormationSquad(Squad, GeometryMixin, TimerMixin):
             return True
         return False
 
+    @timed_async
     async def move(self, destination: Point2, facing_position: Point2 | None = None, force_move: bool = False, blueprints: List[BuildStep] = []):
         if not self.units:
             return
@@ -139,10 +140,8 @@ class FormationSquad(Squad, GeometryMixin, TimerMixin):
                 facing_position = destination + (destination - self.position)
         self.destination_facing = self.get_facing(destination, facing_position)
 
-        self.start_timer("formation get_unit_destinations")
         # 1/3 of total command execution time
         formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.units, grouped_units, self.destination_facing, self.units_by_tag)
-        self.stop_timer("formation get_unit_destinations")
 
         logger.debug(f"squad {self.name} moving from {self.position} to {self._destination} with {formation_positions.values()}")
         for unit in self.units:
@@ -164,16 +163,13 @@ class FormationSquad(Squad, GeometryMixin, TimerMixin):
                 previous_position = self.executed_positions.get(unit.tag, None)
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
                 logger.debug(f"unit {unit} using micro {micro}")
-                self.start_timer("formation assign positions move")
-                self.start_timer(f"formation assign positions move {unit.type_id}")
                 # 1/3 of total command execution time
                 if await micro.move(unit, formation_positions[unit.tag], force_move, previous_position=previous_position):
                     self.executed_positions[unit.tag] = formation_positions[unit.tag]
                 elif unit.tag in  self.executed_positions:
                     del self.executed_positions[unit.tag]
-                self.stop_timer(f"formation assign positions move {unit.type_id}")
-                self.stop_timer("formation assign positions move")
 
+    @timed
     def is_grouped(self) -> bool:
         if self.bot.time - self.last_ungrouped_time < 2:
             # give it a couple seconds to regroup before checking again

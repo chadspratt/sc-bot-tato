@@ -7,6 +7,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit_command import UnitCommand
 from sc2.unit import Unit
 
+from bottato.mixins import timed, timed_async
 from bottato.map.map import Map
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
@@ -36,6 +37,7 @@ class UpgradeBuildStep(BuildStep):
             except self.UnitNotFound:
                 self.unit_in_charge = None
 
+    @timed
     def draw_debug_box(self):
         if self.unit_in_charge is not None:
             self.bot.client.debug_text_world(
@@ -43,7 +45,8 @@ class UpgradeBuildStep(BuildStep):
 
     def is_upgrade_type(self, upgrade_id: UpgradeId) -> bool:
         return self.upgrade_id == upgrade_id
-        
+    
+    @timed_async
     async def execute(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
         response = None
 

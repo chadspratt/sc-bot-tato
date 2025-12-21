@@ -16,7 +16,7 @@ from bottato.map.map import Map
 from bottato.micro.micro_factory import MicroFactory
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.enemy import Enemy
-from bottato.mixins import GeometryMixin, UnitReferenceMixin, TimerMixin
+from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed, timed_async
 from bottato.economy.minerals import Minerals
 from bottato.economy.vespene import Vespene
 from bottato.economy.resources import ResourceNode, Resources
@@ -41,7 +41,7 @@ class WorkerAssignment():
         return f"WorkerAssignment({self.unit}({self.unit_available}), {self.job_type.name}, {self.target})"
 
 
-class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
+class Workers(UnitReferenceMixin, GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy, map: Map) -> None:
         self.bot: BotAI = bot
         self.enemy = enemy
@@ -69,8 +69,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         self.units_to_attack: Set[Unit] = set()
         self.workers_being_repaired: Set[int] = set()
 
+    @timed
     def update_references(self, units_by_tag: dict[int, Unit], builder_tags: List[int]):
-        self.start_timer("update_references")
         self.minerals.update_references(units_by_tag)
         self.vespene.update_references(units_by_tag)
         self.workers_being_repaired.clear()
@@ -133,7 +133,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             self.bot.client.debug_text_3d(f"{assignment.job_type.name}\n{assignment.unit.tag}",
                                           assignment.unit.position3d + Point3((0, 0, 1)), size=8, color=(255, 255, 255))
         logger.debug(f"assignment summary {self.assignments_by_job}")
-        self.stop_timer("update_references")
 
     def add_worker(self, worker: Unit) -> bool:
         if worker.tag not in self.assignments_by_worker:
@@ -154,8 +153,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             return True
         return False
 
+    @timed
     def drop_mules(self):
-        self.start_timer("my_workers.drop_mules")
         # take off mules that are about to expire so they don't waste minerals
         for mule in self.aged_mules.copy():
             if mule.age > 58:
@@ -181,15 +180,14 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE,
                         target=fullest_mineral_field.position.towards(nearest_townhall), # type: ignore
                         queue=True)
-        self.stop_timer("my_workers.drop_mules")
 
     def remove_mule(self, mule: Unit):
         logger.debug(f"removing mule {mule}")
         self.minerals.remove_mule(mule)
         self.aged_mules.remove(mule)
 
+    @timed_async
     async def speed_mine(self):
-        self.start_timer("my_workers.speed_mine")
         assignment: WorkerAssignment
         for assignment in self.assignments_by_worker.values():
             if assignment.on_attack_break \
@@ -214,7 +212,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             # self.bottato_speed_mine(assignment)
             self.ares_speed_mine(assignment)
             # self.sharpy_speed_mine(assignment)
-        self.stop_timer("my_workers.speed_mine")
 
     def sharpy_speed_mine(self, assignment: WorkerAssignment) -> None:
         worker = assignment.unit
@@ -319,10 +316,10 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
         return False
 
+    @timed
     def bottato_speed_mine(self, assignment: WorkerAssignment) -> None:
         worker = assignment.unit
         if worker.is_carrying_resource:
-            self.start_timer("my_workers.speed_mine returning")
             assignment.initial_gather_complete = True
             assignment.is_returning = True
             if len(worker.orders) == 1:
@@ -335,9 +332,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                         position = assignment.dropoff_target.position.towards(worker, min_distance, limit=True)
                         assignment.dropoff_position = position # type: ignore
                 self.speed_smart(worker, assignment.dropoff_target, assignment.dropoff_position)
-            self.stop_timer("my_workers.speed_mine returning")
         elif assignment.target:
-            self.start_timer("my_workers.speed_mine gathering")
             if assignment.initial_gather_complete:
                 if assignment.gather_position is None:
                     assignment.gather_position = self.minerals.nodes_by_tag[assignment.target.tag].mining_position
@@ -350,10 +345,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             else:
                 # first time gathering, just gather
                 worker.gather(assignment.target)
-            self.stop_timer("my_workers.speed_mine gathering")
 
+    @timed
     def speed_smart(self, worker: Unit, target: Unit | None, position: Point2 | None = None) -> None:
-        self.start_timer("my_workers.speed_smart")
         if position is None or target is None:
             return
         remaining_distance = worker.distance_to_squared(position)
@@ -364,10 +358,9 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             first_order = worker.orders[0]
             if first_order.ability.id != AbilityId.HARVEST_GATHER or first_order.target != target.tag:
                 worker(AbilityId.SMART, target)
-        self.stop_timer("my_workers.speed_smart")
 
+    @timed_async
     async def attack_nearby_enemies(self) -> None:
-        self.start_timer("my_workers.attack_nearby_enemies")
         attacker_tags = set()
         if self.bot.townhalls and self.bot.time < 200:
             available_workers = self.bot.workers.filter(lambda u: self.assignments_by_worker[u.tag].job_type in {WorkerJobType.MINERALS, WorkerJobType.VESPENE})
@@ -445,8 +438,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                     else:
                         assignment.unit.smart(assignment.target)
 
-        self.stop_timer("my_workers.attack_nearby_enemies")
-
     def attack_enemy(self, enemy: Unit):
         for existing_enemy in self.units_to_attack:
             if existing_enemy.tag == enemy.tag:
@@ -486,12 +477,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         if new_target:
             if assignment.job_type == WorkerJobType.REPAIR:
                 pass
-                # if new_target.tag not in self.bot.unit_tags_received_action:
-                    # if new_target.type_id != UnitTypeId.SCV or self.assignments_by_worker[new_target.tag].job_type != JobType.REPAIR:
-                    #     # don't move if the scv is already repairing something else
-                    #     new_target.move(worker)
-                # if not self.bot.enemy_units or self.bot.time < 360 or self.closest_distance(new_target, self.bot.enemy_units) > 5:
-                    # worker.repair(new_target)
             elif assignment.job_type == WorkerJobType.VESPENE:
                 if self.vespene.add_worker_to_node(worker, new_target):
                     assignment.gather_position = new_target.position
@@ -518,16 +503,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         else:
             if assignment.job_type == WorkerJobType.REPAIR:
                 pass
-                # injured_units = self.units_needing_repair().filter(lambda u: u.tag != worker.tag)
-                # if injured_units:
-                #     new_target = injured_units.closest_to(worker)
-                #     if new_target.tag not in self.bot.unit_tags_received_action:
-                #         # if new_target.type_id != UnitTypeId.SCV or self.assignments_by_worker[new_target.tag].job_type != JobType.REPAIR:
-                #         #     # don't move if the scv is already repairing something else
-                #         #     new_target.move(worker)
-                #     # worker.repair(new_target)
-                # else:
-                #     return False
             elif assignment.job_type == WorkerJobType.MINERALS:
                 new_target = self.minerals.add_worker(worker)
                 if new_target is None:
@@ -538,10 +513,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
                 assignment.dropoff_target = None
                 assignment.dropoff_position = None
                 if worker.is_carrying_resource and self.bot.townhalls:
-                    # worker.move(assignment.dropoff_position)
                     worker.smart(self.bot.townhalls.closest_to(worker))
                 else:
-                    # worker.move(assignment.gather_position)
                     worker.smart(new_target)
             elif assignment.job_type == WorkerJobType.VESPENE:
                 new_target = self.vespene.add_worker(worker)
@@ -557,7 +530,6 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             assignment.initial_gather_complete = False
         assignment.target = new_target
         return True
-        # assignment.gather_position = None
 
     def record_death(self, unit_tag):
         if unit_tag in self.assignments_by_worker:
@@ -619,16 +591,13 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
         ],
             bot_object=self.bot)
 
-    # def deliver_resources(self, worker: Unit):
-    #     if worker.is_carrying_resource:
-
     def set_as_idle(self, worker: Unit):
         if worker.tag in self.assignments_by_worker:
             self.update_assigment(worker, WorkerJobType.IDLE, None)
 
     builder_idle_time: dict[int, float] = {}
+    @timed
     def distribute_idle(self):
-        self.start_timer("my_workers.distribute_idle")
         if self.bot.workers.idle:
             logger.debug(f"idle workers {self.bot.workers.idle}")
         tags_to_remove = [tag for tag in self.builder_idle_time if tag not in self.bot.workers.idle.tags]
@@ -690,8 +659,8 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
             f"idle({len(self.assignments_by_job[WorkerJobType.IDLE])}({len(self.bot.workers.idle)})), "
             f"total({len(self.assignments_by_worker.keys())}({len(self.bot.workers)}))"
         )
-        self.stop_timer("my_workers.distribute_idle")
 
+    @timed_async
     async def redistribute_workers(self, needed_resources: Cost) -> int:
         await self.update_repairers()
 
@@ -710,6 +679,7 @@ class Workers(UnitReferenceMixin, TimerMixin, GeometryMixin):
 
         return 0
 
+    @timed_async
     async def update_repairers(self) -> None:
         injured_units = self.units_needing_repair()
         needed_repairers: int = 0

@@ -13,8 +13,9 @@ from sc2.game_state import EffectData
 
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
-from bottato.mixins import TimerMixin, GeometryMixin, UnitReferenceMixin
+from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed, timed_async
 from bottato.building.build_order import BuildOrder
+from bottato.building.build_step import BuildStep
 from bottato.micro.structure_micro import StructureMicro
 from bottato.enemy import Enemy
 from bottato.economy.workers import Workers
@@ -25,7 +26,7 @@ from bottato.map.map import Map
 from bottato.enums import RushType, WorkerJobType
 
 
-class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
+class Commander(GeometryMixin, UnitReferenceMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
 
@@ -53,8 +54,8 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         await self.map.init()
         self.scouting.init_scouting_routes()
 
+    @timed_async
     async def command(self, iteration: int):
-        self.start_timer("command")
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.bot.main_base_ramp.bottom_center), 1, (255, 0, 0))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.bot.game_info.map_center), 1, (255, 255, 255))
         # ramp_to_natural_vector = (self.map.natural_position - self.bot.main_base_ramp.bottom_center).normalized
@@ -74,38 +75,39 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         self.map.update_influence_maps(self.new_damage_by_position) # fast
         BaseUnitMicro.reset_tag_sets()
 
-        await self.structure_micro.execute(self.rush_detected_types) # unknown speed
+        await self.structure_micro.execute(self.rush_detected_types) # fast
 
         # XXX slow, 17% of command time
         await self.build_order.execute(self.military.army_ratio, self.rush_detected_types, self.enemy)
 
-        await self.scout() # unknown speed
+        await self.scout() # fast
 
-        # XXX extremely slow
-        self.start_timer("avoid blueprints")
-        blueprints = self.build_order.get_blueprints()
-        for blueprint in blueprints:
-            position = blueprint.get_position()
-            if position:
-                self.create_fake_grenade(position)
-        self.stop_timer("avoid blueprints")
-        # very slow, 53% of command time
+        blueprints = self.avoid_blueprints()
+        # very slow, 70% of command time
         await self.military.manage_squads(iteration,
-                                          self.build_order.get_blueprints(),
+                                          blueprints,
                                           self.scouting.get_newest_enemy_base(),
                                           self.rush_detected_types,
                                           self.scouting.proxy_buildings)
 
         await self.my_workers.attack_nearby_enemies() # ultra fast
         self.my_workers.distribute_idle() # fast
-        await self.my_workers.speed_mine() # slow, 20% of command time
+        await self.my_workers.speed_mine() # slow, 15% of command time
         # if self.bot.time > 240:
         #     logger.debug(f"minerals gathered: {self.bot.state.score.collected_minerals}")
         self.my_workers.drop_mules() # fast
 
         self.new_damage_by_unit.clear()
         self.new_damage_by_position.clear()
-        self.stop_timer("command")
+
+    @timed
+    def avoid_blueprints(self) -> list[BuildStep]:
+        blueprints = self.build_order.get_blueprints()
+        for blueprint in blueprints:
+            position = blueprint.get_position()
+            if position:
+                self.create_fake_grenade(position)
+        return blueprints
 
     class FakeGrenadeProto:
         def __init__(self, position: Point2):
@@ -119,8 +121,8 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         fake_reaper_grenade = self.FakeGrenadeProto(position)
         self.bot.state.effects.add(EffectData(fake_reaper_grenade, fake=True))
 
+    @timed_async
     async def detect_stuck_units(self, iteration: int):
-        self.start_timer("detect_stuck_units")
         if iteration % 3 == 0 and self.bot.workers and self.bot.units.of_type(UnitTypeId.MEDIVAC):
             self.stuck_units.clear()
             if self.pathable_position is None:
@@ -145,18 +147,16 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
                             self.bot.client.debug_text_3d("STUCK", path[0].position3d)
                             self.stuck_units.append(path[0])
                             logger.debug(f"unit is stuck {path[0]}")
-        self.stop_timer("detect_stuck_units")
         self.military.rescue_stuck_units(self.stuck_units)
 
+    @timed_async
     async def scout(self):
-        self.start_timer("scout")
         self.scouting.update_visibility()
         await self.scouting.scout(self.new_damage_by_unit, self.units_by_tag)
         self.rush_detected_types = self.rush_detected_types.union(await self.scouting.rush_detected_types)
-        self.stop_timer("scout")
 
+    @timed_async
     async def update_references(self, units_by_tag: dict[int, Unit]):
-        self.start_timer("update_references")
         self.units_by_tag = units_by_tag
         self.my_workers.update_references(units_by_tag, self.build_order.get_assigned_worker_tags())
         self.military.update_references(units_by_tag)
@@ -164,7 +164,6 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
         await self.build_order.update_references(units_by_tag)
         await self.production.update_references(units_by_tag)
         self.stuck_units = self.get_updated_unit_references(self.stuck_units, self.bot, units_by_tag)
-        self.stop_timer("update_references")
 
     def update_started_structure(self, unit: Unit):
         self.build_order.update_started_structure(unit)
@@ -223,15 +222,3 @@ class Commander(TimerMixin, GeometryMixin, UnitReferenceMixin):
     def add_upgrade(self, upgrade: UpgradeId):
         logger.debug(f"upgrade completed {upgrade}")
         self.build_order.update_completed_upgrade(upgrade)
-
-    def print_all_timers(self, interval: int = 0):
-        self.print_timers("commander-")
-        self.build_order.print_timers("build_order-")
-        self.my_workers.print_timers("my_workers-")
-        self.map.print_timers("map-")
-        self.military.print_timers("military-")
-        self.military.main_army.print_timers("main_army-")
-        self.military.main_army.parent_formation.print_timers("main_formation-")
-        self.enemy.print_timers("enemy-")
-        self.production.print_timers("production-")
-        self.structure_micro.print_timers("structure_micro-")

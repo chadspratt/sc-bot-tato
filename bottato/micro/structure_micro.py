@@ -9,28 +9,28 @@ from sc2.position import Point2
 
 from bottato.unit_types import UnitTypes
 from bottato.enemy import Enemy
-from bottato.mixins import GeometryMixin, TimerMixin
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.custom_effect import CustomEffect
 from bottato.enums import RushType
 
 
-class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
+class StructureMicro(BaseUnitMicro, GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy) -> None:
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
         self.command_center_destinations: dict[int, Point2 | None] = {}
         self.last_scan_time: float = 0
 
+    @timed_async
     async def execute(self, rush_detected_types: set[RushType]):
-        self.start_timer("structure_micro.execute")
         # logger.debug("adjust_supply_depots_for_enemies step")
         self.adjust_supply_depots_for_enemies(rush_detected_types)
         self.target_autoturrets()
         await self.move_command_centers()
         self.scan()
-        self.stop_timer("structure_micro.execute")
 
+    @timed
     def adjust_supply_depots_for_enemies(self, rush_detected_types: set[RushType]):
         # Raise depos when enemies are nearby
         distance_threshold = 8 if rush_detected_types else 15
@@ -53,12 +53,14 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
             else:
                 depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)
 
+    @timed
     def target_autoturrets(self):
         turret: Unit
         for turret in self.bot.structures(UnitTypeId.AUTOTURRET):
             logger.debug(f"turret {turret} attacking")
             self._attack_something(turret, 0)
 
+    @timed_async
     async def move_command_centers(self):
         for cc in self.bot.structures((UnitTypeId.COMMANDCENTER, UnitTypeId.COMMANDCENTERFLYING, UnitTypeId.ORBITALCOMMAND, UnitTypeId.ORBITALCOMMANDFLYING)).ready:
             if cc.is_flying:
@@ -107,6 +109,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin, TimerMixin):
                             cc(AbilityId.CANCEL_LAST)
                             cc(AbilityId.LIFT)
 
+    @timed
     def scan(self):
         if self.bot.time - self.last_scan_time < 9:
             return

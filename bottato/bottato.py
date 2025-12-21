@@ -13,12 +13,12 @@ from sc2.game_data import AbilityData
 
 from bottato.log_helper import LogHelper
 from bottato.commander import Commander
-from bottato.mixins import TimerMixin
+from bottato.mixins import print_decorator_timers, timed, timed_async
 from bottato.micro.micro_factory import MicroFactory
 from bottato.enums import ActionErrorCode
 
 
-class BotTato(BotAI, TimerMixin):
+class BotTato(BotAI):
     async def on_start(self):
         # self.disable_logging()
         self.last_timer_print = 0
@@ -52,10 +52,8 @@ class BotTato(BotAI, TimerMixin):
                     self.commander.build_order.mark_position_invalid_by_worker_tag(action_error.unit_tag)
             except Exception as e:
                 LogHelper.add_log(f"Error processing action error: {e}")
-        self.start_timer("update_unit_references")
         # XXX very slow
         await self.update_unit_references()
-        self.stop_timer("update_unit_references")
 
         await self.commander.command(iteration)
 
@@ -83,20 +81,18 @@ class BotTato(BotAI, TimerMixin):
         except AttributeError:
             pass
 
+    @timed_async
     async def update_unit_references(self):
-        self.start_timer("commander.update_references")
         units_by_tag: Dict[int, Unit] = {}
         for unit in self.all_units:
             units_by_tag[unit.tag] = unit
         await self.commander.update_references(units_by_tag)
-        self.stop_timer("commander.update_references")
 
     def print_all_timers(self, interval: int = 0):
         if self.time - self.last_timer_print > interval:
             self.last_timer_print = self.time
-            self.print_timers("main-")
-            self.commander.print_all_timers()
-            MicroFactory.print_timers()
+            if not LogHelper.testing:
+                print_decorator_timers()
             LogHelper.add_log(self.commander.build_order.get_build_queue_string())
             LogHelper.add_log(f"upgrades: {self.state.upgrades}")
 

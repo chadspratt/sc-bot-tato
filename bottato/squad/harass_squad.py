@@ -5,13 +5,13 @@ from typing import List
 from sc2.position import Point2, Point3
 
 from bottato.unit_types import UnitTypes
-from bottato.mixins import GeometryMixin, TimerMixin
+from bottato.mixins import GeometryMixin, timed
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.squad.squad import Squad
 
 
-class HarassSquad(Squad, GeometryMixin, TimerMixin):
+class HarassSquad(Squad, GeometryMixin):
     def __init__(
         self,
         **kwargs,
@@ -22,6 +22,7 @@ class HarassSquad(Squad, GeometryMixin, TimerMixin):
     def __repr__(self):
         return f"FormationSquad({self.name},{len(self.units)})"
 
+    @timed
     def draw_debug_box(self):
         if self.harass_location:
             destination3: Point3 = self.convert_point2_to_3(self.harass_location, self.bot)

@@ -1,3 +1,4 @@
+from functools import cache, cached_property
 from typing import Dict, List, Tuple
 from loguru import logger
 from collections import deque
@@ -10,11 +11,11 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
 from bottato.unit_types import UnitTypes
-from bottato.mixins import UnitReferenceMixin, GeometryMixin, TimerMixin
+from bottato.mixins import UnitReferenceMixin, GeometryMixin, timed
 from bottato.squad.enemy_squad import EnemySquad
 
 
-class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
+class Enemy(UnitReferenceMixin, GeometryMixin):
     unit_probably_moved_seconds = 10
     unit_may_not_exist_seconds = 600
     enemy_squad_counter = 0
@@ -37,13 +38,12 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         self.enemy_squads: List[EnemySquad] = []
         self.squads_by_unit_tag: Dict[int, EnemySquad] = {}
         self.all_seen: Dict[UnitTypeId, set[int]] = {}
-        self.threat_cache: Dict[int, Dict[int, float]] = {}
-        self.target_cache: Dict[int, Dict[int, float]] = {}
+        self.attack_range_squared_cache: Dict[UnitTypeId, Dict[float, Dict[UnitTypeId, float]]] = {}
+        self.unit_distance_squared_cache: Dict[int, Dict[int, float]] = {}
 
+    @timed
     def update_references(self, units_by_tag: Dict[int, Unit]):
-        self.threat_cache.clear()
-        self.target_cache.clear()
-        self.start_timer("enemy.update_references")
+        self.unit_distance_squared_cache.clear()
         for squad in self.enemy_squads:
             squad.update_references(units_by_tag)
         # remove visible from out_of_view
@@ -115,7 +115,6 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                         self.predicted_position[enemy_unit.tag] = self.get_predicted_position(enemy_unit, 0)
         self.enemies_in_view = new_visible_enemies
         # self.update_squads()
-        self.stop_timer("enemy.update_references")
 
     def is_visible(self, position: Point2, radius: float) -> bool:
         positions_to_check = [
@@ -134,6 +133,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 return True
         return False
 
+    @timed
     def get_predicted_position(self, unit: Unit, seconds_ahead: float) -> Point2:
         if unit.type_id in (UnitTypeId.COLLAPSIBLEROCKTOWERDEBRIS,):
             return unit.position
@@ -143,6 +143,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         frame_vector = self.predicted_frame_vector[unit.tag]
         return self.predict_future_unit_position(unit, time_since_last_seen + seconds_ahead, self.bot, frame_vector=frame_vector)
 
+    @timed
     def get_average_movement_per_step(self, recent_positions: deque):
         sum: Point2 = Point2((0, 0))
         sample_count = len(recent_positions)
@@ -220,28 +221,32 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         enemies = self.enemies_in_view if visible_only else self.enemies_in_view + self.recent_out_of_view()
         return self.threats_to(friendly_unit, enemies, attack_range_buffer)
 
+    @timed
     def threats_to(self, unit: Unit, attackers: Units, attack_range_buffer=0) -> Units:
         threats = Units([], self.bot)
 
-        if unit.tag not in self.threat_cache:
-            self.threat_cache[unit.tag] = {}
-        cache_threats = self.threat_cache[unit.tag]
+        try:
+            unit_distance_cache = self.unit_distance_squared_cache[unit.tag]
+        except KeyError:
+            unit_distance_cache = {}
+            self.unit_distance_squared_cache[unit.tag] = unit_distance_cache
 
         attackers = attackers.filter(lambda u: UnitTypes.can_attack_target(u, unit)
                                      or u.is_detector and unit.is_cloaked)
 
         for threat in attackers:
-            range_buffer: float
-            if threat.tag in cache_threats:
-                range_buffer = cache_threats[threat.tag]
-            else:
+            attack_range_squared = self.get_attack_range_with_buffer(threat, unit, attack_range_buffer)
+            if threat.tag not in unit_distance_cache:
                 if threat.age == 0:
-                    range_buffer = UnitTypes.get_range_buffer_vs_target(threat, unit)
+                    distance_squared = self.distance_squared(unit, threat)
                 else:
                     enemy_position: Point2 = self.predicted_position[threat.tag]
-                    range_buffer = UnitTypes.get_range_buffer_vs_target(threat, unit, attacker_position=enemy_position)
-                cache_threats[threat.tag] = range_buffer
-            if range_buffer <= attack_range_buffer:
+                    distance_squared = self.distance_squared(unit, enemy_position)
+                unit_distance_cache[threat.tag] = distance_squared
+            else:
+                distance_squared = unit_distance_cache[threat.tag]
+
+            if distance_squared <= attack_range_squared:
                 threats.append(threat)
 
         return threats
@@ -256,32 +261,62 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
         in_range = self.in_attack_range(enemy_unit, candidates, attack_range_buffer)
         return in_range
     
+    @timed
     def in_attack_range(self, unit: Unit, targets: Units, attack_range_buffer: float=0, first_only: bool = False) -> Units:
         in_range = Units([], self.bot)
 
-        if unit.tag not in self.target_cache:
-            self.target_cache[unit.tag] = {}
-        cache_targets = self.target_cache[unit.tag]
+        try:
+            unit_distance_cache = self.unit_distance_squared_cache[unit.tag]
+        except KeyError:
+            unit_distance_cache = {}
+            self.unit_distance_squared_cache[unit.tag] = unit_distance_cache
 
         targets = targets.filter(lambda u: UnitTypes.can_be_attacked(u, self.bot, self.get_enemies())
                                  and u.armor < 10
-                                 and BuffId.NEURALPARASITE not in u.buffs
-                                 and UnitTypes.can_attack_target(unit, u))
+                                 and BuffId.NEURALPARASITE not in u.buffs)
 
         for target_unit in targets:
-            range_buffer: float
-            if target_unit.tag in cache_targets:
-                range_buffer = cache_targets[target_unit.tag]
+            attack_range_squared = self.get_attack_range_with_buffer(unit, target_unit, attack_range_buffer)
+            if attack_range_squared == 0.0:
+                continue
+
+            if target_unit.tag not in unit_distance_cache:
+                distance_squared = self.distance_squared(unit, target_unit)
+                unit_distance_cache[target_unit.tag] = distance_squared
             else:
-                range_buffer = UnitTypes.get_range_buffer_vs_target(unit, target_unit)
-                cache_targets[target_unit.tag] = range_buffer
-            if range_buffer <= attack_range_buffer:
+                distance_squared = unit_distance_cache[target_unit.tag]
+
+            if distance_squared <= attack_range_squared:
                 in_range.append(target_unit)
                 if first_only:
                     break
 
         return in_range
+    
+    def get_attack_range_with_buffer(self, attacker: Unit, target: Unit, attack_range_buffer: float) -> float:
+        try:
+            attack_range_cache = self.attack_range_squared_cache[attacker.type_id]
+        except KeyError:
+            attack_range_cache = {}
+            self.attack_range_squared_cache[attacker.type_id] = attack_range_cache
 
+        try:
+            attack_range_buffer_cache = attack_range_cache[attack_range_buffer]
+        except KeyError:
+            attack_range_buffer_cache = {}
+            attack_range_cache[attack_range_buffer] = attack_range_buffer_cache
+
+        try:
+            return attack_range_buffer_cache[target.type_id]
+        except KeyError:
+            base_range = UnitTypes.range_vs_target(attacker, target)
+            if base_range == 0:
+                attack_range_buffer_cache[target.type_id] = 0.0
+            else:
+                attack_range_buffer_cache[target.type_id] = (base_range + attack_range_buffer + attacker.radius + target.radius) ** 2
+            return attack_range_buffer_cache[target.type_id]
+
+    @timed
     def threats_to_repairer(self, friendly_unit: Unit, attack_range_buffer: float=2) -> Units:
         threats = Units([enemy_unit for enemy_unit in self.enemies_in_view
                          if UnitTypes.target_in_range(enemy_unit, friendly_unit, attack_range_buffer)],
@@ -344,6 +379,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             enemies += killed_units
         return enemies.filter(lambda unit: not unit.is_structure and unit.type_id not in excluded_types)
 
+    @timed
     def get_closest_target(self, friendly_unit: Unit, distance_limit=999999,
                            include_structures=True, include_units=True, include_destructables=False,
                            include_out_of_view=True, excluded_types=[], included_types=[], seconds_ahead: float=0) -> tuple[Unit | None, float]:
@@ -377,6 +413,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             nearest_distance = nearest_distance ** 0.5 - nearest_enemy.radius - friendly_unit.radius
         return (nearest_enemy, nearest_distance)
     
+    @timed
     def get_target_closer_than(self, friendly_unit: Unit, max_distance: float,
                                include_structures=True, include_units=True, include_destructables=False,
                                excluded_types=[], seconds_ahead: float=0) -> tuple[Unit | None, float]:
@@ -393,6 +430,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 return (enemy, enemy_distance ** 0.5 - enemy.radius - friendly_unit.radius)
         return (None, 9999)
 
+    @timed
     def get_enemies_in_range(self, friendly_unit: Unit, include_structures=True, include_units=True, include_destructables=False, excluded_types=[]) -> Units:
         enemies_in_range: Units = Units([], self.bot)
         candidates = self.get_candidates(include_structures, include_units, include_destructables, excluded_types=excluded_types)
@@ -403,21 +441,18 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
                 enemies_in_range.append(candidate)
         return enemies_in_range
 
+    @timed
     def get_candidates(self, include_structures=True, include_units=True, include_destructables=False,
                        include_out_of_view=True, excluded_types=[], included_types=[]):
         candidates: Units = Units([], self.bot)
         if include_structures and include_units:
             candidates = self.bot.enemy_units + self.bot.enemy_structures
-            if include_out_of_view:
-                candidates += self.recent_out_of_view()
         elif include_units:
             candidates = self.bot.enemy_units.copy()
-            if include_out_of_view:
-                candidates += self.recent_out_of_view().filter(lambda unit: not unit.is_structure or unit.type_id == UnitTypeId.CREEPTUMOR)
         elif include_structures:
             candidates = self.bot.enemy_structures.copy()
-            if include_out_of_view:
-                candidates += self.recent_out_of_view().filter(lambda unit: unit.is_structure)
+        if include_out_of_view:
+            candidates += self.recent_out_of_view(include_structures, include_units)
         if include_destructables:
             candidates += self.bot.destructables
         else:
@@ -440,9 +475,33 @@ class Enemy(UnitReferenceMixin, GeometryMixin, TimerMixin):
             return creep_tumors_excluded
         return need_detection
 
-    def recent_out_of_view(self) -> Units:
-        return self.enemies_out_of_view.filter(
-            lambda enemy_unit: self.bot.time - self.last_seen[enemy_unit.tag] < Enemy.unit_probably_moved_seconds)
+    out_of_view_cache: Dict[str, tuple[Units | None, float]] = {
+        "all": (None, -1),
+        "units": (None, -1),
+        "structures": (None, -1),
+    }
+    @timed
+    def recent_out_of_view(self, include_structures=True, include_units=True) -> Units:
+        out_of_view, cache_time = self.out_of_view_cache["all"]
+        if out_of_view is None or cache_time != self.bot.time:
+            out_of_view = self.enemies_out_of_view.filter(
+                lambda enemy_unit: self.bot.time - self.last_seen[enemy_unit.tag] < Enemy.unit_probably_moved_seconds)
+            self.out_of_view_cache["all"] = (out_of_view, self.bot.time)
+        if include_units and include_structures:
+            return out_of_view
+        elif include_units:
+            out_of_view_units, cache_time = self.out_of_view_cache["units"]
+            if out_of_view_units is None or cache_time != self.bot.time:
+                out_of_view_units = out_of_view.filter(lambda enemy_unit: not enemy_unit.is_structure or enemy_unit.type_id == UnitTypeId.CREEPTUMOR)
+                self.out_of_view_cache["units"] = (out_of_view_units, self.bot.time)
+            return out_of_view_units
+        else:
+            # structures only
+            out_of_view_structures, cache_time = self.out_of_view_cache["structures"]
+            if out_of_view_structures is None or cache_time != self.bot.time:
+                out_of_view_structures = out_of_view.filter(lambda enemy_unit: enemy_unit.is_structure)
+                self.out_of_view_cache["structures"] = (out_of_view_structures, self.bot.time)
+            return out_of_view_structures
     
     def get_total_count_of_type_seen(self, unit_type: UnitTypeId) -> int:
         return len(self.all_seen.get(unit_type, set()))

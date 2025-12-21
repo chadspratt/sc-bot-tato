@@ -9,11 +9,11 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
 from bottato.map.map import Map
-from bottato.mixins import TimerMixin
+from bottato.mixins import timed
 from bottato.economy.resources import ResourceNode, Resources
 
 
-class Minerals(Resources, TimerMixin):
+class Minerals(Resources):
     MINING_RADIUS = 1.325
     mineral_type_ids = [
         UnitTypeId.MINERALFIELD, UnitTypeId.MINERALFIELD450, UnitTypeId.MINERALFIELD750,
@@ -33,8 +33,8 @@ class Minerals(Resources, TimerMixin):
         # self.mule_tags_by_node_tag = {}
         # self.mining_positions: dict[int, Point2] = {}
 
+    @timed
     def update_references(self, units_by_tag: dict[int, Unit] | None = None):
-        self.start_timer("minerals.update_references")
         super().update_references(units_by_tag)
         # remove missing tags
         if units_by_tag:
@@ -50,7 +50,6 @@ class Minerals(Resources, TimerMixin):
             self.bot.client.debug_text_3d(
                 f"{len(node.worker_tags)}/{node.max_workers if not node.is_long_distance else 6}\n{node.node.tag}",
                 node.node.position3d, size=8, color=(255, 255, 255))
-        self.stop_timer("minerals.update_references")
 
     def record_non_worker_death(self, unit_tag: int):
         # townhall destroyed, update all nodes to long distance
@@ -111,12 +110,21 @@ class Minerals(Resources, TimerMixin):
         nodes_to_add = math.ceil(idle_worker_count / 6)
         if self.bot.townhalls:
             candidates = Units([mf for mf in self.bot.mineral_field if mf.tag not in self.nodes_by_tag], self.bot)
-            while added < nodes_to_add and candidates:
-                closest_node = self.map.get_closest_unit_by_path(candidates, self.bot.start_location)
+            mineral_distances = self.map.get_unit_distances_by_path(self.bot.start_location, candidates)
+            while added < nodes_to_add:
+                closest_distance = float('inf')
+                closest_node = None
+                for candidate, distance in mineral_distances.items():
+                    adjusted_distance = distance - candidate.distance_to(self.bot.enemy_start_locations[0])
+                    if adjusted_distance < closest_distance:
+                        closest_distance = adjusted_distance
+                        closest_node = candidate
+                if closest_node is None:
+                    break
                 self.add_node(closest_node)
                 self.add_mining_position(closest_node)
+                del mineral_distances[closest_node]
                 added += 1
-                candidates = Units([mf for mf in self.bot.mineral_field if mf.tag not in self.nodes_by_tag], self.bot)
         return added
 
     def add_mule(self, mule: Unit, minerals: Unit):

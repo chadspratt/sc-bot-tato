@@ -10,7 +10,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 
 from bottato.unit_types import UnitTypes
-from bottato.mixins import GeometryMixin
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.micro.base_unit_micro import BaseUnitMicro
 
 
@@ -24,6 +24,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     unconfirmed_grenade_throwers: List[int] = []
 
     excluded_types = [UnitTypeId.EGG, UnitTypeId.LARVA]
+    @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False, excluded_types=self.excluded_types)
         grenade_targets: List[Point2] = []
@@ -50,6 +51,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         return False
 
+    @timed
     def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False):
         if unit.health_percentage < self.attack_health:
             return False
@@ -95,6 +97,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 return False
         return self._kite(unit, weakest_enemy)
 
+    @timed_async
     async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> bool:
         if unit.tag in self.bot.unit_tags_received_action:
             return False
@@ -169,6 +172,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         unit(AbilityId.KD8CHARGE_KD8CHARGE, target) # type: ignore
         self.unconfirmed_grenade_throwers.append(unit.tag)
 
+    @timed_async
     async def grenade_available(self, unit: Unit) -> bool:
         if unit.tag in self.unconfirmed_grenade_throwers:
             try:

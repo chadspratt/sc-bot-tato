@@ -7,8 +7,7 @@ from sc2.unit import Unit
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 
-from bottato.unit_types import UnitTypes
-from bottato.mixins import GeometryMixin
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.log_helper import LogHelper
 from bottato.micro.base_unit_micro import BaseUnitMicro
 
@@ -37,6 +36,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             return False
         return await super().move_to_repairer(unit, target, force_move, previous_position)
 
+    @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag not in self.known_tags:
             self.known_tags.add(unit.tag)
@@ -236,6 +236,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         else:
             logger.debug(f"{unit.tag} not in sieged_tags")
 
+    @timed
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
         if unit.type_id == UnitTypeId.SIEGETANK:
             if force_move:
@@ -251,6 +252,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         unit.attack(target)
         return True
     
+    @timed
     def _early_game_siege_tank_micro(self, unit: Unit, is_sieged: bool) -> bool:
         enemies_near_ramp = self.bot.all_enemy_units.closer_than(20, self.bot.main_base_ramp.bottom_center)
         closest_enemy_to_ramp = enemies_near_ramp.closest_to(unit) if enemies_near_ramp else None

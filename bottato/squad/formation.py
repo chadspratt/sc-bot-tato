@@ -9,7 +9,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.unit_types import UnitTypes
-from bottato.mixins import GeometryMixin, TimerMixin, UnitReferenceMixin
+from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed
 from bottato.map.map import Map
 from bottato.enums import SquadFormationType
 
@@ -176,6 +176,7 @@ class Formation:
             )
         return positions
 
+    @timed
     def get_unit_offsets_from_reference_point(
         self, reference_point: Point2
     ) -> List[Point2]:
@@ -187,7 +188,7 @@ class Formation:
         return unit_positions
 
 
-class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
+class ParentFormation(GeometryMixin, UnitReferenceMixin):
     """Collection of formations which are offset from each other. Translates between formation coords and game coords"""
 
     def __init__(self, bot: BotAI, map: Map):
@@ -216,10 +217,10 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
         logger.debug(f"Adding formation {formation_type.name} with unit tags {unit_tags}")
         self.formations.append(Formation(self.bot, formation_type, unit_tags, offset, spacing))
 
+    @timed
     def get_unit_destinations(
         self, formation_destination: Point2, units: Units, grouped_units: Units, destination_facing: float | None = None, units_by_tag: dict[int, Unit] | None = None
     ) -> dict[int, Point2]:
-        unit_destinations = {}
         reference_point: Point2 = Point2((0, 0))
         facing = None
 
@@ -237,7 +238,6 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
             self.path = [formation_destination]
             logger.debug(f"distance to {self.destination} < 5")
         else:
-            self.start_timer("formation get path points")
             # Get the raw path and immediately convert to a completely new list
             new_path = self.map.get_path_points(self.front_center, formation_destination)
             
@@ -246,12 +246,9 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
             else:
                 # keep old path if new path not found
                 self.path = new_path + self.path[1:]
-            self.stop_timer("formation get path points")
             # destination should be next waypoint, but need to
             next_waypoint = self.path[1] if len(self.path) > 1 else formation_destination
-            self.start_timer("formation calculate front center")
             self.front_center = self.calculate_formation_front_center(grouped_units, next_waypoint)
-            self.stop_timer("formation calculate front center")
             # limit front_center jumping around
             # self.front_center = self.front_center.towards(new_front_center, 2, limit=True)
 
@@ -275,30 +272,11 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
                     reference_point = formation.offset
                     break
 
-        for formation in self.formations:
-            # create list of positions to fill
-            self.start_timer("formation get offsets from reference point")
-            formation_offsets = formation.get_unit_offsets_from_reference_point(reference_point)
-            self.stop_timer("formation get offsets from reference point")
-            if facing:
-                formation_offsets = self.apply_rotations(facing, formation_offsets)
-            positions = [self.destination + offset for offset in formation_offsets]
-
-            # match positions to closest units
-            formation_units = self.get_updated_unit_references_by_tags(list(formation.unit_tags), self.bot, units_by_tag)
-            self.start_timer("formation assign positions")
-            for position in positions:
-                if not formation_units:
-                    break
-                closest_unit: Unit = min(formation_units, key=lambda u: u.position.manhattan_distance(position))
-                # unit = formation_units.closest_to(position)
-                valid_position = position if closest_unit.is_flying else self.map.get_pathable_position(position, closest_unit)
-                formation_units.remove(closest_unit)
-                unit_destinations[closest_unit.tag] = valid_position
-            self.stop_timer("formation assign positions")
+        unit_destinations: dict[int, Point2] = self.assign_positions_to_units(facing, reference_point, units_by_tag)
 
         return unit_destinations
 
+    @timed
     def calculate_formation_front_center(self, units: Units, destination: Point2) -> Point2:
         # closest_to_enemy = units.closest_to(self.bot.enemy_start_locations[0])
         # close_units = units.closer_than(15, closest_to_enemy)
@@ -347,6 +325,27 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin, TimerMixin):
         while abs(self.bot.get_terrain_z_height(new_front_center) - closest_elevation) > 0.8 and new_front_center._distance_squared(closest_position) > 1: # type: ignore
             new_front_center = new_front_center.towards(closest_position, 1, limit=True)
         return new_front_center # type: ignore
+    
+    @timed
+    def assign_positions_to_units(self, facing: float | None, reference_point: Point2, units_by_tag: dict[int, Unit] | None) -> dict[int, Point2]:
+        unit_destinations: dict[int, Point2] = {}
+        for formation in self.formations:
+            # create list of positions to fill
+            formation_offsets = formation.get_unit_offsets_from_reference_point(reference_point)
+            if facing is not None:
+                formation_offsets = self.apply_rotations(facing, formation_offsets)
+            positions = [self.destination + offset for offset in formation_offsets]
+
+            # match positions to closest units
+            formation_units = self.get_updated_unit_references_by_tags(list(formation.unit_tags), self.bot, units_by_tag)
+            for position in positions:
+                if not formation_units:
+                    break
+                closest_unit: Unit = min(formation_units, key=lambda u: u.position.manhattan_distance(position))
+                valid_position = position if closest_unit.is_flying else self.map.get_pathable_position(position, closest_unit)
+                formation_units.remove(closest_unit)
+                unit_destinations[closest_unit.tag] = valid_position
+        return unit_destinations
 
     def clamp_position_to_map_bounds(self, position: Point2) -> Point2:
         clamped_position = Point2((

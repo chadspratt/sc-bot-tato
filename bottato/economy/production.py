@@ -14,7 +14,7 @@ from sc2.constants import abilityid_to_unittypeid
 from sc2.position import Point2
 
 from bottato.log_helper import LogHelper
-from bottato.mixins import UnitReferenceMixin, TimerMixin
+from bottato.mixins import UnitReferenceMixin, timed, timed_async
 from bottato.tech_tree import TECH_TREE
 
 
@@ -127,7 +127,7 @@ class Facility(UnitReferenceMixin):
                 return True
         return False
 
-class Production(UnitReferenceMixin, TimerMixin):
+class Production(UnitReferenceMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
         self.facilities: dict[UnitTypeId, dict[UnitTypeId, List[Facility]]] = {
@@ -179,8 +179,8 @@ class Production(UnitReferenceMixin, TimerMixin):
             },
         }
 
+    @timed_async
     async def update_references(self, units_by_tag: dict[int, Unit]) -> None:
-        self.start_timer("update_references")
         for facility_type in self.facilities.values():
             for addon_type in facility_type.values():
                 facility: Facility
@@ -199,7 +199,6 @@ class Production(UnitReferenceMixin, TimerMixin):
                         facility.add_on_type = UnitTypeId.NOTAUNIT
                     if self.bot.supply_left == 0:
                         facility.queued_unit_ids.clear()
-        self.stop_timer("update_references")
 
     def remove_type_from_facilty_queue(self, facility_unit: Unit, queued_type: UnitTypeId) -> None:
         if facility_unit.type_id in self.facilities.keys():
@@ -303,6 +302,7 @@ class Production(UnitReferenceMixin, TimerMixin):
                 return True
         return False
 
+    @timed
     def additional_needed_production(self, unit_types: List[UnitTypeId]):
         production_capacity = {
             UnitTypeId.BARRACKS: {

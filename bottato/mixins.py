@@ -3,6 +3,7 @@ import random
 from loguru import logger
 from typing import Dict, List
 from time import perf_counter
+from functools import wraps
 
 from sc2.bot_ai import BotAI
 from sc2.game_data import Cost
@@ -12,6 +13,61 @@ from sc2.units import Units
 from sc2.position import Point2, Point3
 
 from bottato.log_helper import LogHelper
+
+
+# Global timer storage for decorator
+_decorator_timers: Dict[str, float] = {}
+_decorator_timer_counts: Dict[str, int] = {}
+
+
+def timed(func):
+    """Decorator to automatically time function execution and accumulate total time."""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = perf_counter()
+        result = func(*args, **kwargs)
+        elapsed = perf_counter() - start
+        
+        log_decorator_timer(*args, func=func, elapsed=elapsed)
+        
+        return result
+    return wrapper
+
+
+def timed_async(func):
+    """Decorator to automatically time async function execution and accumulate total time."""
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        start = perf_counter()
+        result = await func(*args, **kwargs)
+        elapsed = perf_counter() - start
+        
+        log_decorator_timer(*args, func=func, elapsed=elapsed)
+        
+        return result
+    return wrapper
+
+def log_decorator_timer(*args, func, elapsed: float):
+    """Log elapsed time for a decorated function."""
+    # Include class name if this is a method
+    if args and hasattr(args[0], '__class__'):
+        func_name = f"{args[0].__class__.__name__}.{func.__name__}"
+    else:
+        func_name = func.__name__
+        
+    if func_name not in _decorator_timers:
+        _decorator_timers[func_name] = 0
+        _decorator_timer_counts[func_name] = 0
+    _decorator_timers[func_name] += elapsed
+    _decorator_timer_counts[func_name] += 1
+
+
+def print_decorator_timers():
+    """Print all accumulated timer data from @timed decorators."""
+    timing_message = "Decorator Timing Results:"
+    for func_name, total_time in sorted(_decorator_timers.items(), key=lambda x: x[1], reverse=True):
+        timing_message += f"\n{func_name},{total_time:.4f},{_decorator_timer_counts[func_name]}"
+    logger.info(timing_message)
 
 
 class UnitReferenceMixin:
@@ -112,6 +168,7 @@ class GeometryMixin:
         return Point2((new_x, new_y))
 
     @staticmethod
+    @timed
     def apply_rotations(angle: float, points: List[Point2] | None=None) -> List[Point2]:
         # rotations default to facing along the y-axis, with a facing of pi/2
         if points is None:
@@ -170,6 +227,7 @@ class GeometryMixin:
         return unit1.distance_to(unit2.position)
         
     @staticmethod
+    @timed
     def distance_squared(unit1: Unit | Point2, unit2: Unit | Point2) -> float:
         if isinstance(unit1, Point2):
             if isinstance(unit2, Point2):
@@ -258,27 +316,6 @@ class GeometryMixin:
         ap_distance = point_a._distance_squared(point)
         pb_distance = point._distance_squared(point_b)
         return ap_distance < ab_distance and pb_distance < ab_distance 
-
-
-class TimerMixin:
-    def start_timer(self, timer_name: str) -> None:
-        if not hasattr(self, "timers"):
-            self.timers: Dict[str, Dict[str, float]] = {}
-        if timer_name not in self.timers:
-            self.timers[timer_name] = {"start": perf_counter(), 'total': 0}
-        else:
-            self.timers[timer_name]["start"] = perf_counter()
-
-    def stop_timer(self, timer_name: str) -> None:
-        timer = self.timers[timer_name]
-        timer['total'] += perf_counter() - timer["start"]
-
-    def print_timers(self, prefix: str = '') -> None:
-        if hasattr(self, "timers"):
-            for timer_name in self.timers.keys():
-                timer = self.timers[timer_name]
-                LogHelper.add_log(f"{prefix}{timer_name},{timer['total']}")
-                # logger.info(f"{prefix}{timer_name},{timer['total']}")
 
 
 class DebugMixin:

@@ -13,12 +13,12 @@ from sc2.position import Point2
 from sc2.ids.unit_typeid import UnitTypeId
 
 
-from bottato.mixins import TimerMixin, GeometryMixin
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.map.zone import Path, Zone
 from bottato.map.influence_maps import InfluenceMaps
 
 
-class Map(TimerMixin, GeometryMixin):
+class Map(GeometryMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
         self.influence_maps = InfluenceMaps(self.bot)
@@ -26,9 +26,7 @@ class Map(TimerMixin, GeometryMixin):
         self.cached_neighbors8: Dict[Tuple, Set[Tuple]] = {}
         self.cached_neighbors4: Dict[Tuple, Set[Tuple]] = {}
         self.coords_by_distance: Dict[int, List[Tuple]] = {}
-        self.start_timer("init_distance_from_edge")
         self.init_distance_from_edge(self.influence_maps.get_long_range_grid())
-        self.stop_timer("init_distance_from_edge")
         self.zones: Dict[int, Zone] = {}
         logger.debug(f"zones {self.zones}")
         self.first_draw = True
@@ -38,14 +36,12 @@ class Map(TimerMixin, GeometryMixin):
         self.all_damage_by_position: dict[Point2, List[Tuple[float, float]]] = {}
 
     async def init(self):
-        self.start_timer("init_zones")
         self.zones: Dict[int, Zone] = await self.init_zones(self.distance_from_edge)
-        self.stop_timer("init_zones")
         self.natural_position = await self.get_natural_position(self.bot.start_location)
         self.enemy_natural_position = await self.get_natural_position(self.bot.enemy_start_locations[0])
 
+    @timed_async
     async def refresh_map(self):
-        self.start_timer("refresh_map")
         if self.influence_maps.destructables_changed():
             self.init_distance_from_edge(self.influence_maps.get_long_range_grid())
             self.zones: Dict[int, Zone] = await self.init_zones(self.distance_from_edge)
@@ -55,8 +51,8 @@ class Map(TimerMixin, GeometryMixin):
                     for damage, time in damage_list:
                         zone.add_damage(damage, time)
             self.last_refresh_time = self.bot.time
-        self.stop_timer("refresh_map")
 
+    @timed
     def init_distance_from_edge(self, pathing_grid: np.ndarray):
         self.distance_from_edge: Dict[Tuple, int] = {}
         self.coords_by_distance.clear()
@@ -65,7 +61,6 @@ class Map(TimerMixin, GeometryMixin):
         next_layer = []
         unpathable = []
 
-        self.start_timer("init distance 0")
         self.coords_by_distance[0] = []
         for x in range(pathing_grid.shape[0]):
             for y in range(pathing_grid.shape[1]):
@@ -75,7 +70,6 @@ class Map(TimerMixin, GeometryMixin):
                     unpathable.append(coords)
                     self.distance_from_edge[coords] = 0
                     self.coords_by_distance[0].append(coords)
-        self.stop_timer("init distance 0")
 
         current_distance = 0
         while next_layer:
@@ -182,6 +176,7 @@ class Map(TimerMixin, GeometryMixin):
     #             return True
     #     return False
 
+    @timed_async
     async def init_zones(self, distance_from_edge: Dict[Tuple, int]) -> Dict[int, Zone]:
         coords: Tuple
         zone_index = 0
@@ -343,7 +338,15 @@ class Map(TimerMixin, GeometryMixin):
             path = self.get_path(start, position)
             distances_by_position[position] = path.distance
         return distances_by_position
+    
+    def get_unit_distances_by_path(self, start: Point2, units: Units) -> Dict[Unit, float]:
+        distances_by_unit: Dict[Unit, float] = {}
+        for unit in units:
+            path = self.get_path(start, unit.position)
+            distances_by_unit[unit] = path.distance
+        return distances_by_unit
 
+    @timed
     def get_path_points(self, start: Point2, end: Point2) -> List[Point2]:
         point2_path: List[Point2] = [start]
         zone: Zone
@@ -381,6 +384,7 @@ class Map(TimerMixin, GeometryMixin):
             self.influence_maps.add_cost(pathable_position, unit.radius, self.ground_grid, np.inf)
         return pathable_position
 
+    @timed
     def update_influence_maps(self, damage_by_position: dict[Point2, float]) -> None:
         for position, damage in damage_by_position.items():
             zone = self.zone_lookup_by_coord.get((position.x, position.y))
@@ -389,9 +393,7 @@ class Map(TimerMixin, GeometryMixin):
             if position not in self.all_damage_by_position:
                 self.all_damage_by_position[position] = []
             self.all_damage_by_position[position].append((damage, self.bot.time))
-        self.start_timer("update_influence_maps")
         self.ground_grid = self.influence_maps.get_pyastar_grid()
-        self.stop_timer("update_influence_maps")
     
     async def get_natural_position(self, start_position: Point2) -> Point2:
         """Find natural location, given friendly or enemy start position"""
@@ -440,6 +442,7 @@ class Map(TimerMixin, GeometryMixin):
     def draw_influence(self) -> None:
         self.influence_maps.draw_influence_in_game(self.ground_grid, 1, 2000)
 
+    @timed
     def draw(self) -> None:
         for zone_id in self.zones:
             zone = self.zones[zone_id]

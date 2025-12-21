@@ -9,7 +9,7 @@ from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.unit_types import UnitTypes
-from bottato.mixins import GeometryMixin
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.micro.base_unit_micro import BaseUnitMicro
 
 
@@ -19,6 +19,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
     target_assignments: dict[int, Unit] = {}  # viking tag -> enemy tag
     attack_health = 0.4
 
+    @timed_async
     async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
         enemy_bcs = self.bot.enemy_units.of_type(UnitTypeId.BATTLECRUISER)
         if enemy_bcs:
@@ -26,6 +27,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             return True
         return await super().move(unit, target, force_move, previous_position)
 
+    @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag in self.scout_tags:
             # scout mode, don't land
@@ -99,6 +101,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 return True
         return False
 
+    @timed
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
         if force_move:
             return False

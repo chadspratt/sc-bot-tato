@@ -8,7 +8,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.unit_types import UnitTypes
 from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.mixins import GeometryMixin
+from bottato.mixins import GeometryMixin, timed, timed_async
 
 
 class MedivacMicro(BaseUnitMicro, GeometryMixin):
@@ -29,6 +29,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     units_to_pick_up_potential_damage: dict[int, float] = {}
     threat_damage: dict[UnitTypeId, float] = {}
 
+    @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         threats = self.enemy.threats_to_friendly_unit(unit, 4)
         if unit.health_percentage < self.health_threshold_for_healing:
@@ -108,6 +109,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
 
         return unit.tag in self.bot.unit_tags_received_action
 
+    @timed
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
         # doesn't have an attack
         if unit.health_percentage > self.health_threshold_for_healing:
