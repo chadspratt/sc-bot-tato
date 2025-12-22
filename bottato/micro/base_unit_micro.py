@@ -401,7 +401,7 @@ class BaseUnitMicro(GeometryMixin):
         nearest_target = self.closest_unit_to_unit(unit, targets)
         # don't keep distance from structures since it prevents units in back from attacking
         # except for zerg structures that spawn broodlings when they die
-        if nearest_target.is_structure and (nearest_target.race != "Zerg" or nearest_target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS):
+        if nearest_target.is_structure and nearest_target.type_id not in UnitTypes.OFFENSIVE_STRUCTURE_TYPES and (nearest_target.race != "Zerg" or nearest_target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS):
             unit.move(nearest_target.position)
             return True
         # move away if weapon on cooldown
@@ -575,7 +575,7 @@ class BaseUnitMicro(GeometryMixin):
 
         nearest_tank = tanks.closest_to(unit)
         tank_to_enemy_distance_sq = self.distance_squared(nearest_tank, closest_enemy)
-        if tank_to_enemy_distance_sq < 1600 and tank_to_enemy_distance_sq > (13.5 + nearest_tank.radius + closest_enemy.radius)**2:
+        if tank_to_enemy_distance_sq < 900 and tank_to_enemy_distance_sq > (13.5 + nearest_tank.radius + closest_enemy.radius)**2:
             optimal_distance = 13.5 - UnitTypes.ground_range(closest_enemy) - unit.radius + nearest_tank.radius - 2.0
             unit.move(nearest_tank.position.towards(unit.position, optimal_distance)) # type: ignore
             if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:

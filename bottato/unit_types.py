@@ -475,6 +475,8 @@ class UnitTypes(GeometryMixin):
             return attacker.sight_range # treat detection as a weapon to be avoided
         if target.is_flying:
             return UnitTypes.air_range(attacker)
+        if attacker.type_id == UnitTypeId.BUNKER:
+            return 6
         elif target.type_id == UnitTypeId.COLOSSUS:
             return max(UnitTypes.ground_range(attacker), UnitTypes.air_range(attacker))
         else:

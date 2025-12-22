@@ -393,7 +393,7 @@ class Workers(UnitReferenceMixin, GeometryMixin):
                     attackers = []
                     number_of_attackers = 4 if nearby_enemy.is_structure else workers_per_enemy_unit
                     if len(healthy_workers) > number_of_attackers:
-                        attackers = healthy_workers.closest_n_units(enemy_position, number_of_attackers)
+                        attackers = healthy_workers.closest_n_units(predicted_position, number_of_attackers)
                         for attacker in attackers:
                             healthy_workers.remove(attacker)
                     else:
@@ -420,7 +420,8 @@ class Workers(UnitReferenceMixin, GeometryMixin):
                             continue
                         if nearby_enemy.is_structure:
                             attacker.attack(nearby_enemy)
-                        elif attacker.distance_to_squared(enemy_position) < self.distance_squared(enemy_position, predicted_position):
+                        elif nearby_enemy.is_facing(attacker, angle_error=0.15):
+                            # in front of enemy, turn to attack it
                             await micro.move(attacker, nearby_enemy.position)
                         else:
                             # try to head off units instead of trailing after them

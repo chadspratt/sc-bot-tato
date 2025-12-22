@@ -121,8 +121,6 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             # make lists of vikings that can attack each enemy
             damage_vs_type: dict[UnitTypeId, float] = {}
             for viking in vikings:
-                if not viking.is_flying:
-                    continue
                 enemies = self.enemy.in_friendly_attack_range(viking, attack_range_buffer=5)
                 enemies.sort(key=lambda e: e.health + e.shield)
                 for enemy in enemies:
@@ -176,7 +174,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
         if not unit.is_flying:
             enemies += self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES)
         candidates = self.enemy.in_attack_range(unit, enemies, attack_range_buffer)
-        if not candidates and not unit.is_flying:
+        if not candidates:
             candidates = self.enemy.in_attack_range(unit, self.bot.enemy_structures, attack_range_buffer)
         if not candidates:
             return False
