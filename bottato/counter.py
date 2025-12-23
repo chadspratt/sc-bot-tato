@@ -114,7 +114,7 @@ class Counter():
             UnitTypeId.VIKINGFIGHTER: 0.5
         },
         UnitTypeId.REAPER: { # 1
-            UnitTypeId.HELLION: 0.5
+            UnitTypeId.HELLION: 1
         },
         UnitTypeId.SIEGETANK: { # 3
             UnitTypeId.BANSHEE: 0.8

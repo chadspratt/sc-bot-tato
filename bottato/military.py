@@ -716,12 +716,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             self.add_to_main(unit)
         for squad in self.squads:
             squad.update_references(units_by_tag)
-        self.main_army.update_references(units_by_tag)
-        self.stuck_rescue.update_references(units_by_tag)
-        self.reaper_harass.update_references(units_by_tag)
-        self.banshee_harass.update_references(units_by_tag)
-        self.bunker.update_references(units_by_tag)
-        self.bunker2.update_references(units_by_tag)
+        # self.main_army.update_references(units_by_tag)
+        # self.stuck_rescue.update_references(units_by_tag)
+        # self.reaper_harass.update_references(units_by_tag)
+        # self.banshee_harass.update_references(units_by_tag)
+        # self.bunker.update_references(units_by_tag)
+        # self.bunker2.update_references(units_by_tag)
 
     def record_death(self, unit_tag):
         if unit_tag in self.squads_by_unit_tag:

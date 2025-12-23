@@ -54,12 +54,13 @@ def log_decorator_timer(*args, func, elapsed: float):
         func_name = f"{args[0].__class__.__name__}.{func.__name__}"
     else:
         func_name = func.__name__
-        
-    if func_name not in _decorator_timers:
-        _decorator_timers[func_name] = 0
-        _decorator_timer_counts[func_name] = 0
-    _decorator_timers[func_name] += elapsed
-    _decorator_timer_counts[func_name] += 1
+
+    try:
+        _decorator_timers[func_name] += elapsed
+        _decorator_timer_counts[func_name] += 1
+    except KeyError:
+        _decorator_timers[func_name] = elapsed
+        _decorator_timer_counts[func_name] = 1
 
 
 def print_decorator_timers():
@@ -228,7 +229,17 @@ class GeometryMixin:
         
     @staticmethod
     @timed
-    def distance_squared(unit1: Unit | Point2, unit2: Unit | Point2) -> float:
+    def distance_squared(unit1: Unit | Point2, unit2: Unit | Point2, predicted_positions: Dict[int, Point2] | None = None) -> float:
+        if isinstance(unit1, Unit) and unit1.age != 0 and predicted_positions is not None:
+            try:
+                unit1 = predicted_positions[unit1.tag]
+            except KeyError:
+                pass
+        if isinstance(unit2, Unit) and unit2.age != 0 and predicted_positions is not None:
+            try:
+                unit2 = predicted_positions[unit2.tag]
+            except KeyError:
+                pass
         if isinstance(unit1, Point2):
             if isinstance(unit2, Point2):
                 return unit1._distance_squared(unit2)
@@ -243,8 +254,8 @@ class GeometryMixin:
     def closest_distance(unit1: Unit, units: Units) -> float:
         distance = 9999
         for unit in units:
-            distance = min(distance, GeometryMixin.distance(unit1, unit))
-        return distance
+            distance = min(distance, GeometryMixin.distance_squared(unit1, unit))
+        return distance ** 0.5
     
     @staticmethod
     def closest_distance_squared(unit1: Unit | Point2, units: Units) -> float:

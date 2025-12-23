@@ -149,6 +149,9 @@ class BuildOrder(UnitReferenceMixin):
             step: BuildStep = self.started.pop(idx)
             step.interrupted_count += 1
             LogHelper.add_log(f"{step} interrupted")
+            if isinstance(step, UpgradeBuildStep) and step.upgrade_id in self.bot.state.upgrades:
+                # actually finished
+                continue
             if step.is_unit() and self.get_queued_count(step.get_unit_type_id()) > 0:
                 self.build_queue.insert(0, step)
             else:

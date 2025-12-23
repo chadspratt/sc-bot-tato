@@ -3,24 +3,25 @@ from typing import List, Set
 from loguru import logger
 
 from sc2.bot_ai import BotAI
-from sc2.units import Units
-from sc2.unit import Unit
+from sc2.data import Race
+from sc2.game_data import Cost
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
-from sc2.game_data import Cost
+from sc2.unit import Unit
+from sc2.units import Units
 
-from bottato.unit_types import UnitTypes
+from bottato.economy.minerals import Minerals
+from bottato.economy.resources import ResourceNode, Resources
+from bottato.economy.vespene import Vespene
+from bottato.enemy import Enemy
+from bottato.enums import WorkerJobType
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
-from bottato.micro.micro_factory import MicroFactory
 from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.enemy import Enemy
+from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed, timed_async
-from bottato.economy.minerals import Minerals
-from bottato.economy.vespene import Vespene
-from bottato.economy.resources import ResourceNode, Resources
-from bottato.enums import WorkerJobType
+from bottato.unit_types import UnitTypes
 
 
 class WorkerAssignment():
@@ -386,7 +387,7 @@ class Workers(UnitReferenceMixin, GeometryMixin):
                     continue
                 # assign closest 3 workers to attack each enemy
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first)
-                workers_per_enemy_unit = 2 if nearby_enemy_structures else 3
+                workers_per_enemy_unit = 2 if nearby_enemy_structures or self.bot.enemy_race != Race.Protoss else 3 # type: ignore
                 for nearby_enemy in nearby_enemies + nearby_enemy_structures:
                     enemy_position = nearby_enemy if nearby_enemy.age == 0 else self.enemy.get_predicted_position(nearby_enemy, 0.0)
                     predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)

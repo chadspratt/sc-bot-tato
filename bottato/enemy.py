@@ -238,10 +238,10 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             attack_range_squared = self.get_attack_range_with_buffer(threat, unit, attack_range_buffer)
             if threat.tag not in unit_distance_cache:
                 if threat.age == 0:
-                    distance_squared = self.distance_squared(unit, threat)
+                    distance_squared = self.distance_squared(unit, threat, self.predicted_position)
                 else:
                     enemy_position: Point2 = self.predicted_position[threat.tag]
-                    distance_squared = self.distance_squared(unit, enemy_position)
+                    distance_squared = self.distance_squared(unit, enemy_position, self.predicted_position)
                 unit_distance_cache[threat.tag] = distance_squared
             else:
                 distance_squared = unit_distance_cache[threat.tag]
@@ -281,7 +281,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 continue
 
             if target_unit.tag not in unit_distance_cache:
-                distance_squared = self.distance_squared(unit, target_unit)
+                distance_squared = self.distance_squared(unit, target_unit, self.predicted_position)
                 unit_distance_cache[target_unit.tag] = distance_squared
             else:
                 distance_squared = unit_distance_cache[target_unit.tag]
@@ -332,7 +332,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             range_limit = range_limits[enemy_unit.type_id]
             if range_limit == 0.0:
                 continue
-            if friendly_unit.distance_to_squared(self.predicted_position[enemy_unit.tag]) < range_limit:
+            if self.distance_squared(friendly_unit, enemy_unit, self.predicted_position) < range_limit:
                 threats.append(enemy_unit)
         return threats
 
@@ -397,7 +397,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             if seconds_ahead > 0:
                 enemy_distance = friendly_unit.distance_to_squared(self.get_predicted_position(enemy, seconds_ahead))
             else:
-                enemy_distance = self.distance_squared(friendly_unit, enemy)
+                enemy_distance = self.distance_squared(friendly_unit, enemy, self.predicted_position)
             if (enemy_distance < nearest_distance):
                 nearest_enemy = enemy
                 nearest_distance = enemy_distance
@@ -425,7 +425,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             if seconds_ahead > 0:
                 enemy_distance = friendly_unit.distance_to_squared(self.get_predicted_position(enemy, seconds_ahead))
             else:
-                enemy_distance = self.distance_squared(friendly_unit, enemy)
+                enemy_distance = self.distance_squared(friendly_unit, enemy, self.predicted_position)
             if enemy_distance <= distance_limit:
                 return (enemy, enemy_distance ** 0.5 - enemy.radius - friendly_unit.radius)
         return (None, 9999)
