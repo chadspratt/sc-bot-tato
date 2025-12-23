@@ -852,7 +852,7 @@ class Workers(UnitReferenceMixin, GeometryMixin):
                                                          and unit.health < unit.health_max
                                                          and (repair_scvs or unit.type_id != UnitTypeId.SCV)
                                                          and (
-                                                             unit.type_id != UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(unit) < 20
+                                                             unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(unit) < 20
                                                             or len(self.enemy.threats_to_repairer(unit, attack_range_buffer=0)) == 0))
         logger.debug(f"injured mechanical units {injured_mechanical_units}")
 
