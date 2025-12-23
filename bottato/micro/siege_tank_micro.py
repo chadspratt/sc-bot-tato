@@ -252,7 +252,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         unit.attack(target)
         return True
     
-    @timed
     def _early_game_siege_tank_micro(self, unit: Unit, is_sieged: bool) -> bool:
         enemies_near_ramp = self.bot.all_enemy_units.closer_than(20, self.bot.main_base_ramp.bottom_center)
         closest_enemy_to_ramp = enemies_near_ramp.closest_to(unit) if enemies_near_ramp else None

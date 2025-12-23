@@ -178,7 +178,7 @@ class FormationSquad(Squad, GeometryMixin):
             most_grouped_unit, grouped_units = self.get_most_grouped_unit(self.units, self.bot, 10)
             if most_grouped_unit:
                 distance_limit = 18 ** 2
-                units_out_of_formation = self.units.filter(lambda u: u.tag not in grouped_units.tags and u.distance_to_squared(most_grouped_unit) > distance_limit)
+                units_out_of_formation = self.units.filter(lambda u: u.age == 0 and u.tag not in grouped_units.tags and u.distance_to_squared(most_grouped_unit) > distance_limit)
                 if len(units_out_of_formation) / len(self.units) < 0.4:
                     return True
                 else:

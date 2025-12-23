@@ -575,7 +575,6 @@ class BuildOrder(UnitReferenceMixin):
                     else:
                         self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
 
-    @timed
     def get_first_resource_shortage(self, only_build_units: bool) -> Cost:
         needed_resources: Cost = Cost(-self.bot.minerals, -self.bot.vespene)
         # find first shortage
@@ -597,7 +596,6 @@ class BuildOrder(UnitReferenceMixin):
             needed_resources.vespene += build_step.cost.vespene
         return needed_resources
 
-    @timed
     def get_affordable_build_list(self, only_build_units: bool) -> List[UnitTypeId]:
         affordable_items: List[UnitTypeId] = []
         needed_resources: Cost = Cost(-self.bot.minerals, -self.bot.vespene)
@@ -730,6 +728,11 @@ class BuildOrder(UnitReferenceMixin):
             except IndexError:
                 break
             # skip steps for various reasons
+            if isinstance(build_step, SCVBuildStep) and build_step.unit_being_built and build_step.unit_being_built.build_progress == 1.0:
+                # already built
+                build_queue.pop(execution_index)
+                execution_index -= 1
+                continue
             if build_step.get_unit_type_id() in failed_types:
                 continue
             if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
@@ -761,6 +764,7 @@ class BuildOrder(UnitReferenceMixin):
             if build_response == BuildResponseCode.SUCCESS:
                 LogHelper.add_log(f"Started building {build_step}")
                 self.started.append(build_queue.pop(execution_index))
+                execution_index -= 1
                 if build_step.interrupted_count > 5:
                     # can't trust that this actually got built
                     continue
@@ -788,6 +792,7 @@ class BuildOrder(UnitReferenceMixin):
                         earlier_in_queue = max([step.get_unit_type_id() == builder_type for step in build_queue[:execution_index]], default=False)
                         if in_progress_builder_count == 0 and no_addon_count == 0 and not earlier_in_queue:
                             build_queue.pop(execution_index)
+                            execution_index -= 1
                             # remaining_resources.minerals = 0
                             # return remaining_resources
         return remaining_resources

@@ -79,7 +79,6 @@ class StuckRescue(Squad, UnitReferenceMixin):
                 self.is_loaded = False
                 self.dropoff = None
 
-    @timed
     def rescue(self, stuck_units: List[Unit]):
         if self.pending_unload:
             tags_to_check = list(self.pending_unload)
@@ -484,7 +483,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
 
     @timed_async
     async def regroup(self, target_position: Point2, blueprints: List[BuildStep]):
-        LogHelper.add_log(f"squad {self.main_army} regrouping")
+        LogHelper.add_log(f"main_army regrouping")
         sieged_tanks = self.bot.units.of_type(UnitTypeId.SIEGETANKSIEGED)
         army_center: Point2
         if sieged_tanks:

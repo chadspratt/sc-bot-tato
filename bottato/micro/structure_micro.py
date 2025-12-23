@@ -90,6 +90,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                             cc.move(destination)
                         continue
                 if cc.position == destination:
+                    BaseUnitMicro.add_custom_effect(cc.position, cc.radius, self.bot.time, 0.5)
                     cc(AbilityId.LAND, destination)
                 else:
                     cc.move(destination)

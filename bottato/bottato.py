@@ -76,6 +76,7 @@ class BotTato(BotAI):
         print("Game ended.")
         self.print_all_timers()
         LogHelper.print_logs()
+        logger.info(f"Game length: {self.time_formatted}")
         try:
             logger.debug(self.commander.build_order.complete)
         except AttributeError:

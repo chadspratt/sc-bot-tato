@@ -394,7 +394,6 @@ class BaseUnitMicro(GeometryMixin):
             if in_range:
                 return in_range.first
             
-    @timed
     def _stay_at_max_range(self, unit: Unit, targets: Units) -> bool:
         if not targets:
             return False
@@ -433,7 +432,6 @@ class BaseUnitMicro(GeometryMixin):
 
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
 
-    @timed
     def _kite(self, unit: Unit, target: Unit) -> bool:
         attack_range = UnitTypes.range_vs_target(unit, target)
         target_range = UnitTypes.range_vs_target(target, unit)
@@ -466,7 +464,6 @@ class BaseUnitMicro(GeometryMixin):
             return True
         return False
             
-    @timed
     def _get_retreat_destination(self, unit: Unit, threats: Units) -> Point2:
         ultimate_destination: Point2 | None = None
         if unit.is_mechanical:
@@ -512,7 +509,6 @@ class BaseUnitMicro(GeometryMixin):
             circle_around_position = self.get_circle_around_position(unit, avg_threat_position, ultimate_destination)
             return circle_around_position.towards(ultimate_destination, 2) # type: ignore
     
-    @timed
     def _position_is_pathable(self, unit: Unit, position: Point2) -> bool:
         if unit.is_flying and self.bot.in_map_bounds(position) or self.bot.in_pathing_grid(position):
             return True
@@ -589,7 +585,6 @@ class BaseUnitMicro(GeometryMixin):
             return True
         return False
     
-    @timed
     def get_circle_around_position(self, unit: Unit, threat_position: Point2, destination: Point2) -> Point2:
         if unit.distance_to_squared(destination) > 225:
             path_to_destination = self.map.get_path_points(unit.position, destination)

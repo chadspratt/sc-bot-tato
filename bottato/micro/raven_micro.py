@@ -117,7 +117,6 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             return True
         return False
 
-    @timed
     def fire_missile(self, unit: Unit, target: Unit) -> bool:
         if unit.tag in self.last_missile_launch:
             _ , last_time, energy_before_launch, launch_detected = self.last_missile_launch[unit.tag]

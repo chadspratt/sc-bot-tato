@@ -46,7 +46,6 @@ class UpgradeBuildStep(BuildStep):
     def is_upgrade_type(self, upgrade_id: UpgradeId) -> bool:
         return self.upgrade_id == upgrade_id
     
-    @timed_async
     async def execute(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
         response = None
 

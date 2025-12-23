@@ -11,19 +11,20 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.game_state import EffectData
 
-from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.micro.micro_factory import MicroFactory
-from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed, timed_async
 from bottato.building.build_order import BuildOrder
 from bottato.building.build_step import BuildStep
-from bottato.micro.structure_micro import StructureMicro
 from bottato.enemy import Enemy
+from bottato.enums import RushType, WorkerJobType
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
-from bottato.military import Military
-from bottato.squad.scouting import Scouting
+from bottato.map.destructibles import BUILDING_RADIUS
 from bottato.map.map import Map
-from bottato.enums import RushType, WorkerJobType
+from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.micro.micro_factory import MicroFactory
+from bottato.micro.structure_micro import StructureMicro
+from bottato.military import Military
+from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed, timed_async
+from bottato.squad.scouting import Scouting
 
 
 class Commander(GeometryMixin, UnitReferenceMixin):
@@ -100,26 +101,16 @@ class Commander(GeometryMixin, UnitReferenceMixin):
         self.new_damage_by_unit.clear()
         self.new_damage_by_position.clear()
 
-    @timed
     def avoid_blueprints(self) -> list[BuildStep]:
         blueprints = self.build_order.get_blueprints()
         for blueprint in blueprints:
             position = blueprint.get_position()
             if position:
-                self.create_fake_grenade(position)
+                BaseUnitMicro.add_custom_effect(position,
+                                                BUILDING_RADIUS[blueprint.get_unit_type_id()],
+                                                self.bot.time,
+                                                0.3)
         return blueprints
-
-    class FakeGrenadeProto:
-        def __init__(self, position: Point2):
-            self.radius = 0.5
-            self.tag = 0
-            self.unit_type = UnitTypeId.KD8CHARGE.value
-            self.pos = position
-            self.alliance = 3  # Effect
-
-    def create_fake_grenade(self, position: Point2):
-        fake_reaper_grenade = self.FakeGrenadeProto(position)
-        self.bot.state.effects.add(EffectData(fake_reaper_grenade, fake=True))
 
     @timed_async
     async def detect_stuck_units(self, iteration: int):

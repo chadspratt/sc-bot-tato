@@ -172,7 +172,6 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         unit(AbilityId.KD8CHARGE_KD8CHARGE, target) # type: ignore
         self.unconfirmed_grenade_throwers.append(unit.tag)
 
-    @timed_async
     async def grenade_available(self, unit: Unit) -> bool:
         if unit.tag in self.unconfirmed_grenade_throwers:
             try:

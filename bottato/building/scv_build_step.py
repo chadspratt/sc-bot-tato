@@ -414,6 +414,7 @@ class SCVBuildStep(BuildStep):
         interrupted = False
         if self.unit_in_charge is None or self.position is None:
             interrupted = True
+            LogHelper.add_log(f"{self} interrupted due to no worker {self.unit_in_charge} or position {self.position}")
         else:
             self.check_idle: bool = (
                 self.check_idle
@@ -427,6 +428,7 @@ class SCVBuildStep(BuildStep):
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
             if await micro._retreat(self.unit_in_charge, 0.8):
                 interrupted = True
+                LogHelper.add_log(f"{self} interrupted due to retreating worker {self.unit_in_charge}")
 
             if not interrupted and not self.unit_in_charge.is_constructing_scv:
                 if self.unit_being_built:
@@ -443,9 +445,11 @@ class SCVBuildStep(BuildStep):
                             )
                         else:
                             interrupted = True
+                            LogHelper.add_log(f"{self} interrupted due to unit not constructing")
                     else:
                         # position might not be buildable, can't trust can_place_single
                         interrupted = True
+                        LogHelper.add_log(f"{self} interrupted due to unit not constructing")
             if not interrupted:
                 if self.unit_being_built is None:
                     if self.unit_in_charge.distance_to_squared(self.position) < 9 and \
@@ -455,6 +459,7 @@ class SCVBuildStep(BuildStep):
                             self.cost.minerals <= self.bot.minerals and self.cost.vespene <= self.bot.vespene:
                         # position may be blocked
                         interrupted = True
+                        LogHelper.add_log(f"{self} interrupted due to unit waiting too long")
                 elif self.unit_in_charge.is_idle:
                     self.unit_in_charge.smart(self.unit_being_built)
             if not interrupted:
@@ -472,6 +477,7 @@ class SCVBuildStep(BuildStep):
                     if self.unit_in_charge:
                         self.unit_in_charge(AbilityId.HALT)
                         interrupted = True
+                        LogHelper.add_log(f"{self} interrupted due threats")
 
         if interrupted:
             self.set_interrupted()
