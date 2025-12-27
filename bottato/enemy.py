@@ -231,8 +231,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             unit_distance_cache = {}
             self.unit_distance_squared_cache[unit.tag] = unit_distance_cache
 
-        attackers = attackers.filter(lambda u: UnitTypes.can_attack_target(u, unit)
-                                     or u.is_detector and unit.is_cloaked)
+        attackers = attackers.filter(lambda u: UnitTypes.can_attack_target(u, unit))
 
         for threat in attackers:
             attack_range_squared = self.get_attack_range_with_buffer(threat, unit, attack_range_buffer)
@@ -271,7 +270,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             unit_distance_cache = {}
             self.unit_distance_squared_cache[unit.tag] = unit_distance_cache
 
-        targets = targets.filter(lambda u: UnitTypes.can_be_attacked(u, self.bot, self.get_enemies())
+        targets = targets.filter(lambda u: UnitTypes.can_attack_target(unit, u)
                                  and u.armor < 10
                                  and BuffId.NEURALPARASITE not in u.buffs)
 
@@ -293,28 +292,21 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
 
         return in_range
     
+    @timed
     def get_attack_range_with_buffer(self, attacker: Unit, target: Unit, attack_range_buffer: float) -> float:
         try:
-            attack_range_cache = self.attack_range_squared_cache[attacker.type_id]
+            return self.attack_range_squared_cache[attacker.type_id][attack_range_buffer][target.type_id]
         except KeyError:
-            attack_range_cache = {}
-            self.attack_range_squared_cache[attacker.type_id] = attack_range_cache
-
-        try:
-            attack_range_buffer_cache = attack_range_cache[attack_range_buffer]
-        except KeyError:
-            attack_range_buffer_cache = {}
-            attack_range_cache[attack_range_buffer] = attack_range_buffer_cache
-
-        try:
-            return attack_range_buffer_cache[target.type_id]
-        except KeyError:
+            if attacker.type_id not in self.attack_range_squared_cache:
+                self.attack_range_squared_cache[attacker.type_id] = {}
+            if attack_range_buffer not in self.attack_range_squared_cache[attacker.type_id]:
+                self.attack_range_squared_cache[attacker.type_id][attack_range_buffer] = {}
             base_range = UnitTypes.range_vs_target(attacker, target)
             if base_range == 0:
-                attack_range_buffer_cache[target.type_id] = 0.0
+                self.attack_range_squared_cache[attacker.type_id][attack_range_buffer][target.type_id] = 0.0
             else:
-                attack_range_buffer_cache[target.type_id] = (base_range + attack_range_buffer + attacker.radius + target.radius) ** 2
-            return attack_range_buffer_cache[target.type_id]
+                self.attack_range_squared_cache[attacker.type_id][attack_range_buffer][target.type_id] = (base_range + attack_range_buffer + attacker.radius + target.radius) ** 2
+            return self.attack_range_squared_cache[attacker.type_id][attack_range_buffer][target.type_id]
 
     @timed
     def threats_to_repairer(self, friendly_unit: Unit, attack_range_buffer: float=2) -> Units:

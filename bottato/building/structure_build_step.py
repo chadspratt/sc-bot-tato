@@ -149,6 +149,7 @@ class StructureBuildStep(BuildStep):
             return AbilityId.BUILD_TECHLAB
         return TRAIN_INFO[self.unit_in_charge.type_id][self.unit_type_id]["ability"] # type: ignore
 
+    @timed_async
     async def is_interrupted(self) -> bool:
         if self.unit_in_charge is None:
             self.is_in_progress = False

@@ -410,6 +410,7 @@ class SCVBuildStep(BuildStep):
                 return vespene_geysirs.closest_to(self.bot.start_location)
         return None
 
+    @timed_async
     async def is_interrupted(self) -> bool:
         interrupted = False
         if self.unit_in_charge is None or self.position is None:

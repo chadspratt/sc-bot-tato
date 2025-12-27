@@ -53,6 +53,7 @@ def main():
     build = os.environ.get("BUILD")
     opponent_race = race_dict.get(race)
     opponent_build = build_dict.get(build)
+    # opponent = Computer(opponent_race, Difficulty.CheatInsane, ai_build=opponent_build) # type: ignore
     opponent = Computer(opponent_race, Difficulty.CheatMoney, ai_build=opponent_build) # type: ignore
     replay_name = f"replays/{random_map}_{race}-{build}.SC2Replay"
     
@@ -68,7 +69,7 @@ def main():
     )
     
     bottato_result = result[0] if isinstance(result, list) else result
-    logger.info(f"================================\nResult vs {opponent}: {bottato_result}\n================================")
+    logger.info(f"\n================================\nResult vs {opponent}: {bottato_result}\n================================")
     assert bottato_result == Result.Victory, f"BotTato should win against {opponent}, but got {bottato_result}" # type: ignore
 
 
