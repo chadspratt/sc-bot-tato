@@ -472,7 +472,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 total_count += target_count
                 if attacker_type in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
                     total_damage_for_type += dps * target_count # approximate splash damage
-            average_damage = total_damage_for_type / total_count
+            average_damage = total_damage_for_type / total_count if total_count > 0 else 0.0
             # add total average damage for all attackers of this type
             total_damage += average_damage * attacker_count
         return total_damage
