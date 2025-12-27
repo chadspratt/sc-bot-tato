@@ -18,126 +18,14 @@ from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
 from bottato.squad.squad import Squad
 from bottato.squad.formation_squad import FormationSquad
 from bottato.squad.harass_squad import HarassSquad
+from bottato.squad.stuck_rescue import StuckRescue
+from bottato.squad.bunker import Bunker
 from bottato.micro.micro_factory import MicroFactory
 from bottato.enemy import Enemy
 from bottato.map.map import Map
 from bottato.mixins import GeometryMixin, DebugMixin, UnitReferenceMixin, timed, timed_async
 from bottato.enums import RushType
 
-class Bunker(Squad):
-    def __init__(self, bot: BotAI, number: int):
-        super().__init__(bot=bot, name=f"bunker{number}", color=(255, 255, 0))
-        self.structure = None
-    
-    def empty(self):
-        # command units to exit
-        if self.structure:
-            self.structure(AbilityId.UNLOADALL_BUNKER)
-        self.units.clear()
-    
-    def pop(self):
-        # command one unit to exit
-        if self.units:
-            unit = self.units.pop()
-            # command unit to exit bunker
-            return unit
-        return None
-
-    def salvage(self):
-        # command to salvage the bunker
-        if self.structure:
-            self.structure(AbilityId.SALVAGEBUNKER_SALVAGE)
-
-    def has_space(self):
-        return self.structure and len(self.units) < 4
-    
-    def update_references(self, units_by_tag):
-        if self.structure:
-            try:
-                self.structure = self.get_updated_unit_reference(self.structure, self.bot, units_by_tag)
-            except self.UnitNotFound:
-                self.structure = None
-
-class StuckRescue(Squad, UnitReferenceMixin):
-    def __init__(self, bot: BotAI, main_army: FormationSquad, squads_by_unit_tag: Dict[int, Squad | None]):
-        super().__init__(bot=bot, name="stuck rescue", color=(255, 0, 255))
-        self.main_army = main_army
-        self.squads_by_unit_tag = squads_by_unit_tag
-
-        self.transport: Unit | None = None
-        self.is_loaded: bool = False
-        self.dropoff: Point2 | None = None
-
-        self.pending_unload: set[int] = set()
-
-    def update_references(self, units_by_tag: Dict[int, Unit]):
-        if self.transport:
-            try:
-                self.transport = self.get_updated_unit_reference(self.transport, self.bot, units_by_tag)
-            except self.UnitNotFound:
-                self.transport = None
-                self.is_loaded = False
-                self.dropoff = None
-
-    def rescue(self, stuck_units: List[Unit]):
-        if self.pending_unload:
-            tags_to_check = list(self.pending_unload)
-            for tag in tags_to_check:
-                try:
-                    unit = self.get_updated_unit_reference_by_tag(tag, self.bot, None)
-                    self.main_army.recruit(unit)
-                    self.squads_by_unit_tag[unit.tag] = self.main_army
-                    self.pending_unload.remove(tag)
-                except self.UnitNotFound:
-                    pass
-        if self.transport and self.is_loaded:
-            if not self.transport.passengers_tags:
-                self.is_loaded = False
-                self.dropoff = None
-            else:
-                self.dropoff = self.main_army.position.towards(self.bot.start_location, 8) # type: ignore
-                self.transport.move(self.dropoff) # type: ignore
-                if self.transport.distance_to_squared(self.dropoff) < 25: # type: ignore
-                    self.transport(AbilityId.UNLOADALLAT, self.transport)
-                    for tag in self.transport.passengers_tags:
-                        self.pending_unload.add(tag)
-            return
-        if not stuck_units:
-            if self.transport:
-                if self.transport.cargo_used > 0:
-                    self.is_loaded = True
-                else:
-                    self.main_army.recruit(self.transport)
-                    self.transport = None
-                    self.is_loaded = False
-            return
-        if self.transport is None or self.transport.cargo_used == 0:
-            medivacs = self.bot.units(UnitTypeId.MEDIVAC)
-            if not medivacs:
-                return
-            medivacs_with_space = medivacs.filter(lambda unit: unit.cargo_left > 0)
-            if not medivacs_with_space:
-                return
-            closest_medivac = medivacs_with_space.closest_to(stuck_units[0])
-            if self.transport is None or self.transport != closest_medivac:
-                if self.transport:
-                    self.main_army.recruit(self.transport)
-                    self.squads_by_unit_tag[self.transport.tag] = self.main_army
-                self.transport = closest_medivac
-                if self.transport.tag in self.squads_by_unit_tag and self.squads_by_unit_tag[self.transport.tag] is not None:
-                    self.squads_by_unit_tag[self.transport.tag].remove(self.transport) # type: ignore
-                    self.squads_by_unit_tag[self.transport.tag] = None
-
-        cargo_left = self.transport.cargo_left
-        for unit in stuck_units:
-            if cargo_left >= unit.cargo_size:
-                self.transport(AbilityId.LOAD, unit, True)
-                cargo_left -= unit.cargo_size
-            else:
-                break
-        if cargo_left == self.transport.cargo_left:
-            # everything loaded (next frame)
-            self.is_loaded = True
 
 class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
     def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers) -> None:
@@ -505,107 +393,79 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                         break
                     i += 1
         await self.main_army.move(army_center, target_position, blueprints=blueprints)
-
-    @timed
-    def get_squad_request(self, remaining_cap: int) -> List[UnitTypeId]:
-        new_supply = 0
-        new_units: List[UnitTypeId] = []
-        for unit_type in new_units:
-            new_supply += self.bot.calculate_supply_cost(unit_type)
-
-        army_summary = UnitTypes.count_units_by_type(self.bot.units)
-
-        # unmatched_friendlies, unmatched_enemies = self.simulate_battle()
-        unmatched_enemies = self.bot.enemy_units
-        while new_supply < remaining_cap:
-            squad_type: SquadType = SquadTypeDefinitions['full army']
-            if unmatched_enemies:
-                # type_summary = self.count_units_by_type(unmatched_enemies)
-                property_summary = UnitTypes.count_units_by_property(unmatched_enemies)
-                # pick a squad type
-                if property_summary['flying'] >= property_summary['ground']:
-                    squad_type = SquadTypeDefinitions['anti air']
-                else:
-                    squad_type = SquadTypeDefinitions['full army']
-            # elif unmatched_friendlies:
-            #     # seem to be ahead,
-            #     squad_type = SquadTypeDefinitions['full army']
-            # else:
-            #     squad_type = SquadTypeDefinitions['full army']
-
-            for unit_type in squad_type.composition.unit_ids:
-                if unit_type not in army_summary:
-                    army_summary[unit_type] = 0
-                if army_summary[unit_type] > 0:
-                    army_summary[unit_type] -= 1
-                else:
-                    new_units.append(unit_type)
-                    new_supply += self.bot.calculate_supply_cost(unit_type)
-                    if new_supply > remaining_cap:
-                        break
-
-        logger.debug(f"new_supply: {new_supply} remaining_cap: {remaining_cap}")
-        logger.debug(f"military requesting {new_units}")
-        return new_units
     
+    passenger_stand_ins: Dict[UnitTypeId, Unit] = {}
     # XXX why does this fluctuate
     @timed
     def calculate_army_ratio(self, enemies_in_base: Units | None = None) -> float:
         seconds_since_killed = min(60, 60 - (self.bot.time - 300) // 2)
         enemies = enemies_in_base if enemies_in_base is not None else self.enemy.get_army(seconds_since_killed=seconds_since_killed)
-        friendlies = self.main_army.units
+        friendlies = self.main_army.units.copy()
+        for friendly in friendlies:
+            self.passenger_stand_ins[friendly.type_id] = friendly
+        for bunker in [self.bunker, self.bunker2]:
+            if bunker.structure and bunker.structure.passengers:
+                friendlies.append(bunker.structure)
+                    
         if not enemies:
             return 10.0
         if not friendlies:
             return 0.1
 
-        passengers: Units = Units([], bot_object=self.bot)
-        for medivac in self.bot.units(UnitTypeId.MEDIVAC):
-            for passenger in medivac.passengers:
-                passengers.append(passenger)
-        # clear to take upgrades in to account
-        self.damage_by_type.clear()
+        # update in case new upgrades have finished
         enemy_damage: float = self.calculate_total_damage(enemies, friendlies)
-        friendly_damage: float = self.calculate_total_damage(friendlies, enemies, passengers)
+        friendly_damage: float = self.calculate_total_damage(friendlies, enemies)
         
         enemy_health: float = sum([unit.health + unit.shield for unit in enemies])
         friendly_health: float = sum([unit.health for unit in friendlies])
+        for carrier in friendlies.of_type([UnitTypeId.BUNKER, UnitTypeId.MEDIVAC]):
+            for passenger in carrier.passengers:
+                friendly_health += passenger.health
 
         enemy_strength: float = enemy_damage / max(friendly_health, 1)
         friendly_strength: float = friendly_damage / max(enemy_health, 1)
 
         return friendly_strength / max(enemy_strength, 0.0001)
 
-    damage_by_type: Dict[UnitTypeId, Dict[UnitTypeId, float]] = {}
-    def calculate_total_damage(self, attackers: Units, targets: Units, passengers: Units | None = None) -> float:
+    @timed
+    def calculate_total_damage(self, attackers: Units, targets: Units) -> float:
+        damage_by_type: Dict[UnitTypeId, Dict[UnitTypeId, float]] = {}
         total_damage: float = 0.0
         attacker_type_counts = UnitTypes.count_units_by_type(attackers, use_common_type=False)
         target_type_counts = UnitTypes.count_units_by_type(targets, use_common_type=False)
-        passenger_type_counts = UnitTypes.count_units_by_type(passengers) if passengers else {}
         # calculate dps vs each target type if not already cached
         for attacker in attackers:
-            if attacker.type_id not in self.damage_by_type:
-                self.damage_by_type[attacker.type_id] = {}
+            if attacker.type_id not in damage_by_type:
+                damage_by_type[attacker.type_id] = {}
             for target in targets:
-                if target.type_id not in self.damage_by_type[attacker.type_id]:
-                    if UnitTypes.can_attack_target(attacker, target):
-                        dps = UnitTypes.dps(attacker, target)
-                    else:
-                        dps = 0.0
-                    self.damage_by_type[attacker.type_id][target.type_id] = dps
+                if target.type_id not in damage_by_type[attacker.type_id]:
+                    dps = UnitTypes.dps(attacker, target)
+                    damage_by_type[attacker.type_id][target.type_id] = dps
+                if attacker.type_id in (UnitTypeId.BUNKER, UnitTypeId.MEDIVAC):
+                    for passenger in attacker.passengers:
+                        if passenger.type_id not in damage_by_type:
+                            damage_by_type[passenger.type_id] = {}
+                        if target.type_id not in damage_by_type[passenger.type_id]:
+                            dps = UnitTypes.dps(self.passenger_stand_ins[passenger.type_id], target)
+                            damage_by_type[passenger.type_id][target.type_id] = dps
+                if target.type_id in (UnitTypeId.BUNKER, UnitTypeId.MEDIVAC):
+                    for passenger in target.passengers:
+                        if passenger.type_id not in damage_by_type[attacker.type_id]:
+                            dps = UnitTypes.dps(attacker, self.passenger_stand_ins[passenger.type_id])
+                            damage_by_type[attacker.type_id][passenger.type_id] = dps
 
         # calculate average damage vs all target types
         total_damage = 0.0
         for attacker_type, attacker_count in attacker_type_counts.items():
-            if attacker_type in passenger_type_counts:
-                attacker_count += passenger_type_counts[attacker_type]
             total_damage_for_type = 0.0
+            total_count = 0
             for target_type, target_count in target_type_counts.items():
-                dps = self.damage_by_type[attacker_type][target_type]
+                dps = damage_by_type[attacker_type][target_type]
                 total_damage_for_type += dps * target_count
+                total_count += target_count
                 if attacker_type in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
                     total_damage_for_type += dps * target_count # approximate splash damage
-            average_damage = total_damage_for_type / len(targets)
+            average_damage = total_damage_for_type / total_count
             # add total average damage for all attackers of this type
             total_damage += average_damage * attacker_count
         return total_damage
@@ -698,29 +558,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
     @timed
     def update_references(self, units_by_tag: Dict[int, Unit]):
         self.units_by_tag = units_by_tag
-        for unit in self.bot.units:
-            if unit.tag in self.squads_by_unit_tag:
-                squad = self.squads_by_unit_tag[unit.tag]
-                # keep in sync
-                if squad is None:
-                    continue
-                if squad in self.squads:
-                    if unit not in squad.units:
-                        squad.recruit(unit)
-                    continue
-            if unit.tag in self.bunker.units.tags:
-                continue
-            if unit.type_id in (UnitTypeId.SCV, UnitTypeId.MULE):
-                continue
-            self.add_to_main(unit)
+        self.squads_by_unit_tag.clear()
         for squad in self.squads:
             squad.update_references(units_by_tag)
-        # self.main_army.update_references(units_by_tag)
-        # self.stuck_rescue.update_references(units_by_tag)
-        # self.reaper_harass.update_references(units_by_tag)
-        # self.banshee_harass.update_references(units_by_tag)
-        # self.bunker.update_references(units_by_tag)
-        # self.bunker2.update_references(units_by_tag)
+            for unit in squad.units:
+                self.squads_by_unit_tag[unit.tag] = squad
+        for unit in self.bot.units:
+            if unit.tag not in self.squads_by_unit_tag and unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE):
+                self.add_to_main(unit)
 
     def record_death(self, unit_tag):
         if unit_tag in self.squads_by_unit_tag:
