@@ -238,13 +238,16 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             enemy_distance_to_bunker = self.closest_distance_squared(bunker.structure, current_enemies)
 
         if enemies_in_base_ratio >= 1.0:
+            enemy_distance_to_main = self.closest_distance_squared(self.bot.start_location, current_enemies) if current_enemies else 10000
+            buffer = 2 if enemy_distance_to_main > 300 else 0
             bunker_range = (max([passenger.ground_range
-                                for passenger in bunker.structure.passengers], default=6) + 2 + bunker.structure.radius
+                                for passenger in bunker.structure.passengers], default=6) + buffer + bunker.structure.radius
                         ) ** 2
             if enemy_distance_to_bunker < 10000 and enemy_distance_to_bunker > bunker_range:
                 self.empty_bunker(bunker)
                 return
 
+        # add units to bunker
         for unit in bunker.units:
             try:
                 unit = self.get_updated_unit_reference(unit, self.bot, self.units_by_tag)
@@ -443,6 +446,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                     damage_by_type[attacker.type_id][target.type_id] = dps
                 if attacker.type_id in (UnitTypeId.BUNKER, UnitTypeId.MEDIVAC):
                     for passenger in attacker.passengers:
+                        if passenger.type_id in (UnitTypeId.SCV, UnitTypeId.MULE):
+                            continue
                         if passenger.type_id not in damage_by_type:
                             damage_by_type[passenger.type_id] = {}
                         if target.type_id not in damage_by_type[passenger.type_id]:
@@ -450,6 +455,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                             damage_by_type[passenger.type_id][target.type_id] = dps
                 if target.type_id in (UnitTypeId.BUNKER, UnitTypeId.MEDIVAC):
                     for passenger in target.passengers:
+                        if passenger.type_id in (UnitTypeId.SCV, UnitTypeId.MULE):
+                            continue
                         if passenger.type_id not in damage_by_type[attacker.type_id]:
                             dps = UnitTypes.dps(attacker, self.passenger_stand_ins[passenger.type_id])
                             damage_by_type[attacker.type_id][passenger.type_id] = dps
