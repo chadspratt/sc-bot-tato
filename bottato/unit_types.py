@@ -525,8 +525,12 @@ class UnitTypes(GeometryMixin):
 
         for unit in units:
             type_id = unit.unit_alias if use_common_type and unit.unit_alias else unit.type_id
+            if type_id in (UnitTypeId.SCV, UnitTypeId.MULE):
+                continue
             if type_id in (UnitTypeId.BUNKER, UnitTypeId.MEDIVAC):
                 for passenger in unit.passengers:
+                    if passenger.type_id in (UnitTypeId.SCV, UnitTypeId.MULE):
+                        continue
                     counts[passenger.type_id] = counts.get(passenger.type_id, 0) + 1
             counts[type_id] = counts.get(type_id, 0) + 1
 
