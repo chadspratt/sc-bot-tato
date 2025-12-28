@@ -32,8 +32,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
 
     @timed
     def adjust_supply_depots_for_enemies(self, rush_detected_types: set[RushType]):
-        # Raise depos when enemies are nearby
-        distance_threshold = 8 if rush_detected_types else 15
+        # Raise depots when enemies are nearby
+        distance_threshold = 15 if rush_detected_types else 8
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
             for enemy_unit in self.bot.enemy_units:
                 if enemy_unit.is_flying:
@@ -43,7 +43,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     # fake effect to tell units to get off the depot
                     BaseUnitMicro.custom_effects_to_avoid.append(CustomEffect(depot.position, depot.radius, self.bot.time, 1))
                     break
-        # Lower depos when no enemies are nearby
+        # Lower depots when no enemies are nearby
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:
             for enemy_unit in self.bot.enemy_units:
                 if enemy_unit.is_flying:
