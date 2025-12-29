@@ -252,10 +252,12 @@ class EnemyIntel:
                 self.types_seen[unit.type_id].append(unit.position)
         elif unit.type_id not in self.types_seen:
             self.types_seen[unit.type_id] = [unit.position]
+            LogHelper.add_log(f"EnemyIntel: first seen {unit.type_id} at time {time:.1f}")
         
         if unit.type_id not in self.first_building_time:
             start_time = time - unit.build_progress * unit._type_data.cost.time / 22.4 # type: ignore
             self.first_building_time[unit.type_id] = start_time
+            LogHelper.add_log(f"EnemyIntel: first {unit.type_id} started at time {start_time:.1f}")
         
     def get_summary(self) -> str:
         return (f"Intel: Race={self.enemy_race_confirmed}, "

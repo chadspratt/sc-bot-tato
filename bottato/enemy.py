@@ -230,19 +230,6 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
     def threats_to_friendly_unit(self, friendly_unit: Unit, attack_range_buffer=0, visible_only=False, first_only: bool = False) -> Units:
         enemies = self.enemies_in_view if visible_only else self.enemies_in_view + self.recent_out_of_view()
         return self.threats_to(friendly_unit, enemies, attack_range_buffer, first_only=first_only)
-
-    unseen_threat_types: set[UnitTypeId] = set((
-        UnitTypeId.SIEGETANKSIEGED,
-        UnitTypeId.TEMPEST,
-        UnitTypeId.LURKERMPBURROWED
-    ))
-    @timed
-    def threats_to(self, unit: Unit, attackers: Units, attack_range_buffer=0, first_only: bool = False) -> Units:
-        return self.filter_units_by_attack_range(unit, attackers, attack_range_buffer, AttackDirection.IN, first_only=first_only)
-
-    @timed
-    def threat_in_attack_range(self, friendly_unit: Unit, attackers: Units, attack_range_buffer=0.0, first_only: bool = False) -> Units:
-        return self.filter_units_by_attack_range(friendly_unit, attackers, attack_range_buffer, AttackDirection.BOTH, first_only=first_only)
     
     def in_friendly_attack_range(self, friendly_unit: Unit, targets: Units | None = None, attack_range_buffer:float=0) -> Units:
         candidates = targets if targets else self.enemies_in_view
@@ -256,59 +243,72 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
     
     @timed
     def in_attack_range(self, unit: Unit, targets: Units, attack_range_buffer: float=0, first_only: bool = False) -> Units:
-        return self.filter_units_by_attack_range(unit, targets, attack_range_buffer, AttackDirection.OUT, first_only=first_only)
-    
-    @timed
-    def filter_units_by_attack_range(self, friendly_unit: Unit, enemies: Units, attack_range_buffer:float, attack_direction: AttackDirection, first_only: bool = False) -> Units:
-        in_range_enemies = Units([], self.bot)
+        in_range = Units([], self.bot)
 
-        try:
-            unit_distance_cache = self.unit_distance_squared_cache[friendly_unit.tag]
-        except KeyError:
-            unit_distance_cache = {}
-            self.unit_distance_squared_cache[friendly_unit.tag] = unit_distance_cache
+        targets = targets.filter(lambda u: UnitTypes.can_attack_target(unit, u)
+                                and u.armor < 10
+                                and BuffId.NEURALPARASITE not in u.buffs)
 
-        if attack_direction == AttackDirection.IN:
-            enemies = enemies.filter(lambda u: UnitTypes.can_attack_target(u, friendly_unit)
-                                        and (u.age == 0 or u.type_id in self.unseen_threat_types))
-        elif attack_direction == AttackDirection.OUT:
-            enemies = enemies.filter(lambda u: UnitTypes.can_attack_target(friendly_unit, u)
-                                    and u.armor < 10
-                                    and BuffId.NEURALPARASITE not in u.buffs)
-        else:  # BOTH
-            enemies = enemies.filter(lambda u: (
-                                                UnitTypes.can_attack_target(u, friendly_unit)
-                                                and UnitTypes.can_attack_target(friendly_unit, u)
-                                                and u.age == 0
-                                                and u.armor < 10
-                                                and BuffId.NEURALPARASITE not in u.buffs
-                                            ))
-
-        for enemy_unit in enemies:
-            if attack_direction == AttackDirection.IN:
-                attack_range_squared = self.get_attack_range_with_buffer(enemy_unit, friendly_unit, attack_range_buffer)
-            elif attack_direction == AttackDirection.OUT:
-                attack_range_squared = self.get_attack_range_with_buffer(friendly_unit, enemy_unit, attack_range_buffer)
-            else:  # BOTH
-                attack_range_squared = max(
-                    self.get_attack_range_with_buffer(enemy_unit, friendly_unit, attack_range_buffer),
-                    self.get_attack_range_with_buffer(friendly_unit, enemy_unit, attack_range_buffer)
-                )
-
-            if enemy_unit.tag not in unit_distance_cache:
-                distance_squared = self.distance_squared(friendly_unit, enemy_unit, self.predicted_position)
-                unit_distance_cache[enemy_unit.tag] = distance_squared
-            else:
-                distance_squared = unit_distance_cache[enemy_unit.tag]
+        for enemy_unit in targets:
+            attack_range_squared = self.get_attack_range_with_buffer(unit, enemy_unit, attack_range_buffer)
+            distance_squared = self.distance_squared(unit, enemy_unit, self.predicted_position)
 
             if distance_squared <= attack_range_squared:
-                in_range_enemies.append(enemy_unit)
+                in_range.append(enemy_unit)
                 if first_only:
                     break
 
-        return in_range_enemies
+        return in_range
+
+    unseen_threat_types: set[UnitTypeId] = set((
+        UnitTypeId.SIEGETANKSIEGED,
+        UnitTypeId.TEMPEST,
+        UnitTypeId.LURKERMPBURROWED
+    ))
+    @timed
+    def threats_to(self, unit: Unit, attackers: Units, attack_range_buffer=0, first_only: bool = False) -> Units:
+        in_range = Units([], self.bot)
+
+        attackers = attackers.filter(lambda u: UnitTypes.can_attack_target(u, unit)
+                                    and (u.age == 0 or u.type_id in self.unseen_threat_types))
+
+        for enemy_unit in attackers:
+            attack_range_squared = self.get_attack_range_with_buffer(enemy_unit, unit, attack_range_buffer)
+            distance_squared = self.distance_squared(unit, enemy_unit, self.predicted_position)
+
+            if distance_squared <= attack_range_squared:
+                in_range.append(enemy_unit)
+                if first_only:
+                    break
+
+        return in_range
 
     @timed
+    def threat_in_attack_range(self, friendly_unit: Unit, enemies: Units, attack_range_buffer=0.0, first_only: bool = False) -> Units:
+        in_range = Units([], self.bot)
+
+        enemies = enemies.filter(lambda u: (
+                                            UnitTypes.can_attack_target(u, friendly_unit)
+                                            and UnitTypes.can_attack_target(friendly_unit, u)
+                                            and u.age == 0
+                                            and u.armor < 10
+                                            and BuffId.NEURALPARASITE not in u.buffs
+                                        ))
+
+        for enemy_unit in enemies:
+            attack_range_squared = max(
+                self.get_attack_range_with_buffer(enemy_unit, friendly_unit, attack_range_buffer),
+                self.get_attack_range_with_buffer(friendly_unit, enemy_unit, attack_range_buffer)
+            )
+            distance_squared = self.distance_squared(friendly_unit, enemy_unit, self.predicted_position)
+
+            if distance_squared <= attack_range_squared:
+                in_range.append(enemy_unit)
+                if first_only:
+                    break
+
+        return in_range
+
     def get_attack_range_with_buffer(self, attacker: Unit, target: Unit, attack_range_buffer: float) -> float:
         try:
             return self.attack_range_squared_cache[attacker.type_id][attack_range_buffer][target.type_id]

@@ -228,7 +228,6 @@ class GeometryMixin:
         return unit1.distance_to(unit2.position)
         
     @staticmethod
-    @timed
     def distance_squared(unit1: Unit | Point2, unit2: Unit | Point2, predicted_positions: Dict[int, Point2] | None = None) -> float:
         if isinstance(unit1, Unit) and unit1.age != 0 and predicted_positions is not None:
             try:
