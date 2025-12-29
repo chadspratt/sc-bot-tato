@@ -199,7 +199,8 @@ class SCVBuildStep(BuildStep):
                 if self.unit_in_charge is None:
                     self.unit_in_charge = self.workers.get_builder(self.position)
                 if self.unit_in_charge is not None:
-                    self.unit_in_charge.move(self.position)
+                    unit_micro = MicroFactory.get_unit_micro(self.unit_in_charge)
+                    await unit_micro.move(self.unit_in_charge, self.position)
     
     attempted_expansion_positions = {}
     async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> Point2 | None:
