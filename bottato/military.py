@@ -154,10 +154,14 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 # put massive priority on killing nydus canals near base
                 await self.main_army.move(nydus_canals.first.position)
                 return enemies_in_base
-        enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.closest_distance_squared(unit, base_structures) < 625))
-        if self.main_army.staging_location:
-            enemies_in_base.extend(self.bot.enemy_units.filter(lambda unit: self.main_army.staging_location._distance_squared(unit.position) < 625))
+        
+        enemy_units = self.bot.enemy_units
+        if self.main_army.units.amount < 3:
+            enemy_units = enemy_units.exclude_type([UnitTypeId.OVERLORD])
 
+        enemies_in_base.extend(enemy_units.filter(lambda unit: self.closest_distance_squared(unit, base_structures) < 625))
+        if self.main_army.staging_location:
+            enemies_in_base.extend(enemy_units.filter(lambda unit: self.main_army.staging_location._distance_squared(unit.position) < 625))
         out_of_view_in_base = []
         for enemy in self.enemy.recent_out_of_view():
             if self.closest_distance_squared(self.enemy.predicted_position[enemy.tag], base_structures) < 625:

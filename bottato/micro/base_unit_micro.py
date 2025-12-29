@@ -297,7 +297,7 @@ class BaseUnitMicro(GeometryMixin):
         
         # don't attack if low health and there are threats
         if unit.health_percentage < health_threshold:
-            if self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6):
+            if self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6, first_only=True):
                 return False
             
         # no enemy in range, stay near tanks
@@ -380,11 +380,9 @@ class BaseUnitMicro(GeometryMixin):
                 return in_range.first
         offensive_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack(u))
         if offensive_targets:
-            threats = self.enemy.threats_to_friendly_unit(unit, visible_only=True)
-            if threats:
-                in_range = self.enemy.in_attack_range(unit, threats, bonus_distance, first_only=True)
-                if in_range:
-                    return in_range.first
+            threat_in_range = self.enemy.threat_in_attack_range(unit, offensive_targets, bonus_distance, first_only=True)
+            if threat_in_range:
+                return threat_in_range.first
             in_range = self.enemy.in_attack_range(unit, offensive_targets, bonus_distance, first_only=True)
             if in_range:
                 return in_range.first

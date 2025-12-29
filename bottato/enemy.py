@@ -10,9 +10,10 @@ from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
-from bottato.unit_types import UnitTypes
+from bottato.enums import AttackDirection
 from bottato.mixins import UnitReferenceMixin, GeometryMixin, timed
 from bottato.squad.enemy_squad import EnemySquad
+from bottato.unit_types import UnitTypes
 
 
 class Enemy(UnitReferenceMixin, GeometryMixin):
@@ -46,10 +47,18 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
         self.unit_distance_squared_cache.clear()
         for squad in self.enemy_squads:
             squad.update_references(units_by_tag)
-        # remove visible from out_of_view
-        visible_tags = self.bot.enemy_units.tags.union(self.bot.enemy_structures.tags)
-        logger.debug(f"visible tags: {visible_tags}")
-        logger.debug(f"self.enemies_out_of_view: {self.enemies_out_of_view}")
+
+        new_visible_enemies: Units = self.bot.enemy_units + self.bot.enemy_structures
+        visible_tags = new_visible_enemies.tags
+        
+        self.update_out_of_view(visible_tags)
+        self.set_last_seen_for_visible(new_visible_enemies)
+        self.add_new_out_of_view(visible_tags)
+
+        self.enemies_in_view = new_visible_enemies
+
+    @timed
+    def update_out_of_view(self, visible_tags: set[int]):
         for enemy_unit in self.enemies_out_of_view:
             time_since_last_seen = self.bot.time - self.last_seen[enemy_unit.tag]
             if enemy_unit.is_structure and self.is_visible(enemy_unit.position, enemy_unit.radius):
@@ -78,10 +87,10 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                         half_vertex_length=enemy_unit.radius,
                         color=(255, 0, 0)
                     )
-
-        # set last_seen for visible
-        new_visible_enemies: Units = self.bot.enemy_units + self.bot.enemy_structures
-        for enemy_unit in new_visible_enemies:
+    
+    @timed
+    def set_last_seen_for_visible(self, visible_enemies: Units):
+        for enemy_unit in visible_enemies:
             self.bot.client.debug_box2_out(
                 enemy_unit,
                 half_vertex_length=enemy_unit.radius,
@@ -99,6 +108,8 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 self.first_seen[enemy_unit.tag] = self.bot.time
                 self.all_seen.setdefault(enemy_unit.type_id, set()).add(enemy_unit.tag)
 
+    @timed
+    def add_new_out_of_view(self, visible_tags: set[int]):
         # add not visible to out_of_view
         for enemy_unit in self.enemies_in_view:
             if enemy_unit.tag not in visible_tags:
@@ -113,8 +124,6 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                     if not added:
                         self.enemies_out_of_view.append(enemy_unit)
                         self.predicted_position[enemy_unit.tag] = self.get_predicted_position(enemy_unit, 0)
-        self.enemies_in_view = new_visible_enemies
-        # self.update_squads()
 
     def is_visible(self, position: Point2, radius: float) -> bool:
         positions_to_check = [
@@ -217,38 +226,23 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                     current_squad.transfer(enemy_unit, nearby_squad)
                     self.squads_by_unit_tag[enemy_unit.tag] = nearby_squad
 
-    def threats_to_friendly_unit(self, friendly_unit: Unit, attack_range_buffer=0, visible_only=False) -> Units:
+    @timed
+    def threats_to_friendly_unit(self, friendly_unit: Unit, attack_range_buffer=0, visible_only=False, first_only: bool = False) -> Units:
         enemies = self.enemies_in_view if visible_only else self.enemies_in_view + self.recent_out_of_view()
-        return self.threats_to(friendly_unit, enemies, attack_range_buffer)
+        return self.threats_to(friendly_unit, enemies, attack_range_buffer, first_only=first_only)
+
+    unseen_threat_types: set[UnitTypeId] = set((
+        UnitTypeId.SIEGETANKSIEGED,
+        UnitTypeId.TEMPEST,
+        UnitTypeId.LURKERMPBURROWED
+    ))
+    @timed
+    def threats_to(self, unit: Unit, attackers: Units, attack_range_buffer=0, first_only: bool = False) -> Units:
+        return self.filter_units_by_attack_range(unit, attackers, attack_range_buffer, AttackDirection.IN, first_only=first_only)
 
     @timed
-    def threats_to(self, unit: Unit, attackers: Units, attack_range_buffer=0) -> Units:
-        threats = Units([], self.bot)
-
-        try:
-            unit_distance_cache = self.unit_distance_squared_cache[unit.tag]
-        except KeyError:
-            unit_distance_cache = {}
-            self.unit_distance_squared_cache[unit.tag] = unit_distance_cache
-
-        attackers = attackers.filter(lambda u: UnitTypes.can_attack_target(u, unit))
-
-        for threat in attackers:
-            attack_range_squared = self.get_attack_range_with_buffer(threat, unit, attack_range_buffer)
-            if threat.tag not in unit_distance_cache:
-                if threat.age == 0:
-                    distance_squared = self.distance_squared(unit, threat, self.predicted_position)
-                else:
-                    enemy_position: Point2 = self.predicted_position[threat.tag]
-                    distance_squared = self.distance_squared(unit, enemy_position, self.predicted_position)
-                unit_distance_cache[threat.tag] = distance_squared
-            else:
-                distance_squared = unit_distance_cache[threat.tag]
-
-            if distance_squared <= attack_range_squared:
-                threats.append(threat)
-
-        return threats
+    def threat_in_attack_range(self, friendly_unit: Unit, attackers: Units, attack_range_buffer=0.0, first_only: bool = False) -> Units:
+        return self.filter_units_by_attack_range(friendly_unit, attackers, attack_range_buffer, AttackDirection.BOTH, first_only=first_only)
     
     def in_friendly_attack_range(self, friendly_unit: Unit, targets: Units | None = None, attack_range_buffer:float=0) -> Units:
         candidates = targets if targets else self.enemies_in_view
@@ -262,36 +256,58 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
     
     @timed
     def in_attack_range(self, unit: Unit, targets: Units, attack_range_buffer: float=0, first_only: bool = False) -> Units:
-        in_range = Units([], self.bot)
+        return self.filter_units_by_attack_range(unit, targets, attack_range_buffer, AttackDirection.OUT, first_only=first_only)
+    
+    @timed
+    def filter_units_by_attack_range(self, friendly_unit: Unit, enemies: Units, attack_range_buffer:float, attack_direction: AttackDirection, first_only: bool = False) -> Units:
+        in_range_enemies = Units([], self.bot)
 
         try:
-            unit_distance_cache = self.unit_distance_squared_cache[unit.tag]
+            unit_distance_cache = self.unit_distance_squared_cache[friendly_unit.tag]
         except KeyError:
             unit_distance_cache = {}
-            self.unit_distance_squared_cache[unit.tag] = unit_distance_cache
+            self.unit_distance_squared_cache[friendly_unit.tag] = unit_distance_cache
 
-        targets = targets.filter(lambda u: UnitTypes.can_attack_target(unit, u)
-                                 and u.armor < 10
-                                 and BuffId.NEURALPARASITE not in u.buffs)
+        if attack_direction == AttackDirection.IN:
+            enemies = enemies.filter(lambda u: UnitTypes.can_attack_target(u, friendly_unit)
+                                        and (u.age == 0 or u.type_id in self.unseen_threat_types))
+        elif attack_direction == AttackDirection.OUT:
+            enemies = enemies.filter(lambda u: UnitTypes.can_attack_target(friendly_unit, u)
+                                    and u.armor < 10
+                                    and BuffId.NEURALPARASITE not in u.buffs)
+        else:  # BOTH
+            enemies = enemies.filter(lambda u: (
+                                                UnitTypes.can_attack_target(u, friendly_unit)
+                                                and UnitTypes.can_attack_target(friendly_unit, u)
+                                                and u.age == 0
+                                                and u.armor < 10
+                                                and BuffId.NEURALPARASITE not in u.buffs
+                                            ))
 
-        for target_unit in targets:
-            attack_range_squared = self.get_attack_range_with_buffer(unit, target_unit, attack_range_buffer)
-            if attack_range_squared == 0.0:
-                continue
+        for enemy_unit in enemies:
+            if attack_direction == AttackDirection.IN:
+                attack_range_squared = self.get_attack_range_with_buffer(enemy_unit, friendly_unit, attack_range_buffer)
+            elif attack_direction == AttackDirection.OUT:
+                attack_range_squared = self.get_attack_range_with_buffer(friendly_unit, enemy_unit, attack_range_buffer)
+            else:  # BOTH
+                attack_range_squared = max(
+                    self.get_attack_range_with_buffer(enemy_unit, friendly_unit, attack_range_buffer),
+                    self.get_attack_range_with_buffer(friendly_unit, enemy_unit, attack_range_buffer)
+                )
 
-            if target_unit.tag not in unit_distance_cache:
-                distance_squared = self.distance_squared(unit, target_unit, self.predicted_position)
-                unit_distance_cache[target_unit.tag] = distance_squared
+            if enemy_unit.tag not in unit_distance_cache:
+                distance_squared = self.distance_squared(friendly_unit, enemy_unit, self.predicted_position)
+                unit_distance_cache[enemy_unit.tag] = distance_squared
             else:
-                distance_squared = unit_distance_cache[target_unit.tag]
+                distance_squared = unit_distance_cache[enemy_unit.tag]
 
             if distance_squared <= attack_range_squared:
-                in_range.append(target_unit)
+                in_range_enemies.append(enemy_unit)
                 if first_only:
                     break
 
-        return in_range
-    
+        return in_range_enemies
+
     @timed
     def get_attack_range_with_buffer(self, attacker: Unit, target: Unit, attack_range_buffer: float) -> float:
         try:

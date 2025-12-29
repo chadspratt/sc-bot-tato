@@ -63,6 +63,11 @@ class BuildOrderChange(enum.Enum):
     REAPER = 2
     BANSHEE_HARASS = 3
 
+class AttackDirection(enum.Enum):
+    OUT = 0
+    IN = 1
+    BOTH = 2
+
 class ActionErrorCode(enum.Enum):
   Success = 1
   NotSupported = 2
