@@ -44,12 +44,14 @@ class SquadFormationType(enum.Enum):
     SQUARE = 4
     HOLLOW_HALF_CIRCLE = 5
     COLUMNS = 6
-    
-class RushType(enum.Enum):
+
+class BuildType(enum.Enum):
     NONE = 0
     PROXY = 1
-    STANDARD = 2
-    BATTLECRUISER = 3
+    RUSH = 2
+    BATTLECRUISER_RUSH = 3
+    EARLY_STARPORT = 4
+    EARLY_FLEET_BEACON = 5
 
 class ScoutType(enum.Enum):
     NONE = 0

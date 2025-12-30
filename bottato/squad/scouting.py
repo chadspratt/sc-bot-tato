@@ -1,4 +1,4 @@
-from typing import List, Set
+from typing import Dict, List
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -19,7 +19,7 @@ from bottato.mixins import DebugMixin, GeometryMixin, UnitReferenceMixin
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.economy.workers import Workers
-from bottato.enums import RushType, ScoutType, WorkerJobType
+from bottato.enums import BuildType, ScoutType, WorkerJobType
 
 class ScoutingLocation:
     def __init__(self, position: Point2):
@@ -425,7 +425,7 @@ class Scouting(Squad, DebugMixin):
         self.map = map
         self.workers = workers
         self.military = military
-        self.rush_types: set[RushType] = set()
+        self.enemy_builds_detected: Dict[BuildType, float] = {}
         self.initial_scan_done: bool = False
 
         self.intel = EnemyIntel(self.bot)
@@ -491,21 +491,19 @@ class Scouting(Squad, DebugMixin):
                             if build_time > max_time:
                                 max_time = build_time
                                 self.newest_enemy_base = position
-            # actually visit the spot to get vision on surroundings
             
+            # actually visit the spot to get vision on surroundings
             if self.friendly_territory.unit and self.friendly_territory.unit.position.manhattan_distance(location.position) < 1:
                 location.last_visited = self.bot.time
             elif self.enemy_territory.unit and self.enemy_territory.unit.position.manhattan_distance(location.position) < 1:
                 location.last_visited = self.bot.time
 
-    async def detect_rush(self) -> Set[RushType]:
-        rush_types: Set[RushType] = set()
+    async def detect_enemy_build(self):
         if self.intel.enemy_race_confirmed is None:
-            # rush_types.add(RushType.NONE)
-            return rush_types
+            return
         if self.proxy_detected():
             await LogHelper.add_chat("proxy suspected")
-            rush_types.add(RushType.PROXY)
+            self.add_detected_build(BuildType.PROXY)
         if self.intel.enemy_race_confirmed == Race.Zerg: # type: ignore
             early_pool = self.intel.first_building_time.get(UnitTypeId.SPAWNINGPOOL, 9999) < 40 # type: ignore
             no_gas = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.EXTRACTOR) == 0
@@ -520,7 +518,7 @@ class Scouting(Squad, DebugMixin):
             if zergling_rush:
                 await LogHelper.add_chat("zergling rush detected")
             if early_pool or no_gas or no_expansion or zergling_rush:
-                rush_types.add(RushType.STANDARD)
+                self.add_detected_build(BuildType.RUSH)
         elif self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
             # no_expansion = self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
             battlecruiser = self.bot.time < 360 and \
@@ -528,14 +526,14 @@ class Scouting(Squad, DebugMixin):
                  self.intel.number_seen(UnitTypeId.BATTLECRUISER) > 0)
             if battlecruiser:
                 await LogHelper.add_chat("battlecruiser rush detected")
-                rush_types.add(RushType.BATTLECRUISER)
+                self.add_detected_build(BuildType.BATTLECRUISER_RUSH)
             multiple_barracks = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.BARRACKS) > 1
             if multiple_barracks:
                 await LogHelper.add_chat("multiple early barracks detected")
             # if no_expansion:
             #     await LogHelper.add_chat("no expansion detected")
             if multiple_barracks:
-                rush_types.add(RushType.STANDARD)
+                self.add_detected_build(BuildType.RUSH)
         else:
             # Protoss
             lots_of_gateways = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.GATEWAY) > 2
@@ -545,13 +543,15 @@ class Scouting(Squad, DebugMixin):
             if no_expansion:
                 await LogHelper.add_chat("no expansion detected")
             if lots_of_gateways or no_expansion:
-                rush_types.add(RushType.STANDARD)
+                self.add_detected_build(BuildType.RUSH)
             
             if self.bot.time < 180 and len(self.bot.enemy_units) > 0 and len(self.bot.enemy_units.closer_than(30, self.bot.start_location)) > 5:
                 await LogHelper.add_chat("early army detected near base")
-                rush_types.add(RushType.STANDARD)
-        # rush_types.add(RushType.NONE)
-        return rush_types
+                self.add_detected_build(BuildType.RUSH)
+    
+    def add_detected_build(self, build_type: BuildType):
+        if build_type not in self.enemy_builds_detected:
+            self.enemy_builds_detected[build_type] = self.bot.time
     
     def proxy_detected(self) -> bool:
         if self.intel.enemy_race_confirmed is None:
@@ -598,10 +598,10 @@ class Scouting(Squad, DebugMixin):
 
     async def scout(self, new_damage_taken: dict[int, float], units_by_tag: dict[int, Unit]):
         # Update scout unit references
-        friendly_scout_type = ScoutType.ANY if RushType.PROXY in self.rush_types or self.bot.time > 120 else ScoutType.NONE
+        friendly_scout_type = ScoutType.ANY if BuildType.PROXY in self.enemy_builds_detected or self.bot.time > 120 else ScoutType.NONE
         self.friendly_territory.update_scout(self.military, self.workers, units_by_tag, friendly_scout_type)
         self.enemy_territory.update_scout(self.military, self.workers, units_by_tag, ScoutType.VIKING)
-        if self.rush_types:
+        if self.enemy_builds_detected:
             self.initial_scout.completed = True
         self.initial_scout.update_scout(self.workers, units_by_tag)
 
@@ -636,7 +636,7 @@ class Scouting(Squad, DebugMixin):
                         LogHelper.add_log(f"proxy building detected: {structure}")
 
     @property
-    async def rush_detected_types(self) -> Set[RushType]:
+    async def detected_enemy_builds(self) -> Dict[BuildType, float]:
         if not self.initial_scan_done and 165 < self.bot.time < 210:
             reaper = self.bot.units(UnitTypeId.REAPER)
             if not reaper or reaper.first.distance_to(self.enemy_main.position) > 25:
@@ -646,8 +646,6 @@ class Scouting(Squad, DebugMixin):
                             orbital(AbilityId.SCANNERSWEEP_SCAN, self.bot.enemy_start_locations[0])
                             self.initial_scan_done = True
                             break
-                
-        if self.bot.time > 300:
-            return self.rush_types
-        self.rush_types = self.rush_types.union(await self.detect_rush())
-        return self.rush_types
+
+        await self.detect_enemy_build()
+        return self.enemy_builds_detected

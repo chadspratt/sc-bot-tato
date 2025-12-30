@@ -24,7 +24,7 @@ from bottato.micro.micro_factory import MicroFactory
 from bottato.enemy import Enemy
 from bottato.map.map import Map
 from bottato.mixins import GeometryMixin, DebugMixin, UnitReferenceMixin, timed, timed_async
-from bottato.enums import RushType
+from bottato.enums import BuildType
 
 
 class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
@@ -86,12 +86,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
     async def manage_squads(self, iteration: int,
                             blueprints: List[BuildStep],
                             newest_enemy_base: Point2 | None,
-                            rush_detected_types: set[RushType],
+                            detected_enemy_builds: Dict[BuildType, float],
                             proxy_buildings: Units):
         self.main_army.draw_debug_box()
 
         self.enemies_in_base = await self.get_enemies_in_base()
-        defend_with_main_army, countered_enemies = await self.counter_enemies_in_base(rush_detected_types)
+        defend_with_main_army, countered_enemies = await self.counter_enemies_in_base(detected_enemy_builds)
         
         self.army_ratio = self.calculate_army_ratio()
         enemies_in_base_ratio = self.calculate_army_ratio(self.enemies_in_base)
@@ -107,7 +107,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             if self.bot.units([UnitTypeId.REAPER, UnitTypeId.VIKINGFIGHTER]).amount == 0 and self.bot.time < 420:
                 # wait for a scout to attack
                 mount_offense = False
-            elif len(rush_detected_types) > 0 and self.bot.time < 360:
+            elif len(detected_enemy_builds) > 0 and self.bot.time < 360:
                 mount_offense = False
             elif self.bot.supply_used < 50: # previously 110
                 mount_offense = False
@@ -122,7 +122,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         await self.manage_bunker(self.bunker, self.enemies_in_base, enemies_in_base_ratio, mount_offense)
         await self.manage_bunker(self.bunker2, self.enemies_in_base, enemies_in_base_ratio, mount_offense)
 
-        await self.harass(newest_enemy_base, rush_detected_types)
+        await self.harass(newest_enemy_base, detected_enemy_builds)
 
         if self.main_army.units:
             self.main_army.draw_debug_box()
@@ -142,7 +142,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                     if target_position:
                         await self.main_army.move(target_position) # slow, 50%+ of command time
             else:
-                await self.move_army_to_staging_location(newest_enemy_base, rush_detected_types, blueprints)
+                await self.move_army_to_staging_location(newest_enemy_base, detected_enemy_builds, blueprints)
 
     @timed_async
     async def get_enemies_in_base(self) -> Units:
@@ -172,7 +172,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         return enemies_in_base
     
     @timed_async
-    async def counter_enemies_in_base(self, rush_detected_types: set[RushType]) -> tuple[bool, Dict[int, FormationSquad]]:
+    async def counter_enemies_in_base(self, detected_enemy_builds: Dict[BuildType, float]) -> tuple[bool, Dict[int, FormationSquad]]:
         defend_with_main_army = False
         countered_enemies: Dict[int, FormationSquad] = {}
         # clear existing defense squads
@@ -187,7 +187,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 # cannon rush response
                 self.workers.attack_enemy(enemy)
                 continue
-            if len(rush_detected_types) > 0 and len(self.main_army.units) < 10:
+            if len(detected_enemy_builds) > 0 and len(self.main_army.units) < 10:
                 # don't send out units if getting rushed and army is small
                 defend_with_main_army = True
                 break
@@ -286,8 +286,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         bunker.empty()
 
     @timed_async
-    async def harass(self, newest_enemy_base: Point2 | None, rush_detected_types: set[RushType]):
-        if RushType.PROXY in rush_detected_types and self.bot.enemy_units(UnitTypeId.REAPER) and self.bot.time < 300:
+    async def harass(self, newest_enemy_base: Point2 | None, detected_enemy_builds: Dict[BuildType, float]):
+        if BuildType.PROXY in detected_enemy_builds and self.bot.enemy_units(UnitTypeId.REAPER) and self.bot.time < 300:
             # stop harass during proxy reaper rush
             self.transfer_all(self.reaper_harass, self.main_army)
         elif not self.reaper_harass.units:
@@ -296,7 +296,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             if reapers:
                 self.transfer(reapers[0], self.main_army, self.reaper_harass)
 
-        if self.banshee_harass.units.amount < 2 and (self.bot.enemy_race != Race.Terran or len(rush_detected_types) > 0): # type: ignore
+        if self.banshee_harass.units.amount < 2 and (self.bot.enemy_race != Race.Terran or len(detected_enemy_builds) > 0): # type: ignore
             if not self.anti_banshee_units:
                 self.anti_banshee_units = self.bot.enemy_units((UnitTypeId.VIKINGFIGHTER, UnitTypeId.PHOENIX, UnitTypeId.MUTALISK))
             if not self.anti_banshee_units:
@@ -348,13 +348,13 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         return target_position
     
     @timed_async
-    async def move_army_to_staging_location(self, newest_enemy_base: Point2 | None, rush_detected_types: set[RushType], blueprints: List[BuildStep]):
+    async def move_army_to_staging_location(self, newest_enemy_base: Point2 | None, detected_enemy_builds: Dict[BuildType, float], blueprints: List[BuildStep]):
         # generally a retreat due to being outnumbered
         LogHelper.add_log(f"squad {self.main_army} staging at {self.main_army.staging_location}")
         enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
-        if len(rush_detected_types) > 0 and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
+        if len(detected_enemy_builds) > 0 and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
             self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 5) # type: ignore
-        elif len(rush_detected_types) > 0 and len(self.bot.townhalls) <= 3 and self.army_ratio < 1.0:
+        elif len(detected_enemy_builds) > 0 and len(self.bot.townhalls) <= 3 and self.army_ratio < 1.0:
             self.main_army.staging_location = self.map.natural_position.towards(self.bot.main_base_ramp.bottom_center, 5) # type: ignore
         elif len(self.bot.townhalls) > 1:
             closest_base = self.map.get_closest_unit_by_path(self.bot.townhalls, enemy_position)

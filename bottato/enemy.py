@@ -226,9 +226,17 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                     current_squad.transfer(enemy_unit, nearby_squad)
                     self.squads_by_unit_tag[enemy_unit.tag] = nearby_squad
 
+    all_enemies_cache: Dict[float, Units] = {}
     @timed
     def threats_to_friendly_unit(self, friendly_unit: Unit, attack_range_buffer=0, visible_only=False, first_only: bool = False) -> Units:
-        enemies = self.enemies_in_view if visible_only else self.enemies_in_view + self.recent_out_of_view()
+        enemies: Units
+        if visible_only:
+            enemies = self.enemies_in_view
+        else:
+            if self.bot.time not in self.all_enemies_cache:
+                self.all_enemies_cache.clear()
+                self.all_enemies_cache[self.bot.time] = self.enemies_in_view + self.recent_out_of_view()
+            enemies = self.all_enemies_cache[self.bot.time]
         return self.threats_to(friendly_unit, enemies, attack_range_buffer, first_only=first_only)
     
     def in_friendly_attack_range(self, friendly_unit: Unit, targets: Units | None = None, attack_range_buffer:float=0) -> Units:

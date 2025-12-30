@@ -1,3 +1,4 @@
+from typing import Dict
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -12,28 +13,28 @@ from bottato.enemy import Enemy
 from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.custom_effect import CustomEffect
-from bottato.enums import RushType
+from bottato.enums import BuildType
 
 
 class StructureMicro(BaseUnitMicro, GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy) -> None:
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
-        self.command_center_destinations: dict[int, Point2 | None] = {}
+        self.command_center_destinations: Dict[int, Point2 | None] = {}
         self.last_scan_time: float = 0
 
     @timed_async
-    async def execute(self, rush_detected_types: set[RushType]):
+    async def execute(self, detected_enemy_builds: Dict[BuildType, float]):
         # logger.debug("adjust_supply_depots_for_enemies step")
-        self.adjust_supply_depots_for_enemies(rush_detected_types)
+        self.adjust_supply_depots_for_enemies(detected_enemy_builds)
         self.target_autoturrets()
         await self.move_command_centers()
         self.scan()
 
     @timed
-    def adjust_supply_depots_for_enemies(self, rush_detected_types: set[RushType]):
+    def adjust_supply_depots_for_enemies(self, detected_enemy_builds: Dict[BuildType, float]):
         # Raise depots when enemies are nearby
-        distance_threshold = 15 if rush_detected_types else 8
+        distance_threshold = 15 if detected_enemy_builds else 8
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
             for enemy_unit in self.bot.enemy_units:
                 if enemy_unit.is_flying:

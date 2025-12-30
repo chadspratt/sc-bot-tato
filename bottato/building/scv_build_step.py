@@ -1,4 +1,5 @@
 import math
+from typing import Dict
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -13,7 +14,7 @@ from sc2.protocol import ConnectionAlreadyClosedError, ProtocolError
 
 from bottato.mixins import timed, timed_async
 from bottato.log_helper import LogHelper
-from bottato.enums import BuildResponseCode, RushType, WorkerJobType
+from bottato.enums import BuildResponseCode, BuildType, WorkerJobType
 from bottato.unit_types import UnitTypes
 from bottato.map.map import Map
 from bottato.economy.workers import Workers
@@ -124,15 +125,15 @@ class SCVBuildStep(BuildStep):
     def get_position(self) -> Point2 | None:
         return self.position
 
-    async def execute(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
-        response = await self.execute_scv_build(special_locations, rush_detected_types)
+    async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
+        response = await self.execute_scv_build(special_locations, detected_enemy_builds)
             
         if response == BuildResponseCode.SUCCESS:
             self.is_in_progress = True
         return response
     
     @timed_async
-    async def execute_scv_build(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
+    async def execute_scv_build(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
         if self.unit_type_id in TECH_TREE:
             # check that all tech requirements are met
             for requirement in TECH_TREE[self.unit_type_id]:
@@ -152,7 +153,7 @@ class SCVBuildStep(BuildStep):
                 self.position = self.geysir.position
             else:
                 if self.position is None or (self.start_time is not None and self.start_time - self.bot.time > 5):
-                    self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected_types)
+                    self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds)
                 if self.position is None:
                     return BuildResponseCode.NO_LOCATION
 
@@ -182,7 +183,7 @@ class SCVBuildStep(BuildStep):
 
         return BuildResponseCode.SUCCESS if build_response else BuildResponseCode.FAILED
 
-    async def position_worker(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]):
+    async def position_worker(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]):
         if UnitTypeId.SCV in self.builder_type:
             if self.unit_type_id == UnitTypeId.REFINERYRICH:
                 self.unit_type_id = UnitTypeId.REFINERY
@@ -194,7 +195,7 @@ class SCVBuildStep(BuildStep):
                         return
                     self.position = self.geysir.position
                 else:
-                    self.position = await self.find_placement(self.unit_type_id, special_locations, rush_detected_types)
+                    self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds)
             if self.position is not None:
                 if self.unit_in_charge is None:
                     self.unit_in_charge = self.workers.get_builder(self.position)
@@ -203,9 +204,9 @@ class SCVBuildStep(BuildStep):
                     await unit_micro.move(self.unit_in_charge, self.position)
     
     attempted_expansion_positions = {}
-    async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> Point2 | None:
+    async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> Point2 | None:
         new_build_position = None
-        if unit_type_id == UnitTypeId.COMMANDCENTER and (len(rush_detected_types) == 0 or self.bot.townhalls.amount >= 2):
+        if unit_type_id == UnitTypeId.COMMANDCENTER and (len(detected_enemy_builds) == 0 or self.bot.townhalls.amount >= 2):
             # modified from bot_ai get_next_expansion
             expansions_to_check = []
             for el in self.bot.expansion_locations_list:
@@ -253,7 +254,7 @@ class SCVBuildStep(BuildStep):
 
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2
-            if len(rush_detected_types) > 0 and self.bot.structures.of_type(UnitTypeId.BARRACKS) and not self.bot.structures.of_type(UnitTypeId.BUNKER):
+            if len(detected_enemy_builds) > 0 and self.bot.structures.of_type(UnitTypeId.BARRACKS) and not self.bot.structures.of_type(UnitTypeId.BUNKER):
                 # try to build near edge of high ground towards natural
                 # high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
                 ramp_barracks = self.bot.structures.of_type(UnitTypeId.BARRACKS).closest_to(self.bot.main_base_ramp.barracks_correct_placement) # type: ignore
@@ -306,7 +307,7 @@ class SCVBuildStep(BuildStep):
                     logger.debug(f"found enemy near proposed build position {new_build_position}, rejecting")
                     return None
                 
-            if unit_type_id == UnitTypeId.COMMANDCENTER and len(rush_detected_types) == 0:
+            if unit_type_id == UnitTypeId.COMMANDCENTER and len(detected_enemy_builds) == 0:
                 if new_build_position in self.attempted_expansion_positions:
                     self.attempted_expansion_positions[new_build_position] += 1
                 else:

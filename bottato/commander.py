@@ -9,12 +9,11 @@ from sc2.units import Units
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.game_state import EffectData
 
 from bottato.building.build_order import BuildOrder
 from bottato.building.build_step import BuildStep
 from bottato.enemy import Enemy
-from bottato.enums import RushType, WorkerJobType
+from bottato.enums import BuildType, WorkerJobType
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
 from bottato.map.destructibles import BUILDING_RADIUS
@@ -23,7 +22,7 @@ from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.micro.structure_micro import StructureMicro
 from bottato.military import Military
-from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed, timed_async
+from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed_async
 from bottato.squad.scouting import Scouting
 
 
@@ -48,7 +47,7 @@ class Commander(GeometryMixin, UnitReferenceMixin):
         self.new_damage_by_position: dict[Point2, float] = {}
         self.pathable_position: Point2 | None = None
         self.stuck_units: Units = Units([], bot_object=self.bot)
-        self.rush_detected_types: set[RushType] = set()
+        self.enemy_builds_detected: dict[BuildType, float] = {}
         self.units_by_tag: dict[int, Unit] = {}
 
     async def init_map(self):
@@ -76,10 +75,10 @@ class Commander(GeometryMixin, UnitReferenceMixin):
         self.map.update_influence_maps(self.new_damage_by_position) # fast
         BaseUnitMicro.reset_tag_sets()
 
-        await self.structure_micro.execute(self.rush_detected_types) # fast
+        await self.structure_micro.execute(self.enemy_builds_detected) # fast
 
         # XXX slow, 17% of command time
-        await self.build_order.execute(self.military.army_ratio, self.rush_detected_types, self.enemy)
+        await self.build_order.execute(self.military.army_ratio, self.enemy_builds_detected, self.enemy)
 
         await self.scout() # fast
 
@@ -88,7 +87,7 @@ class Commander(GeometryMixin, UnitReferenceMixin):
         await self.military.manage_squads(iteration,
                                           blueprints,
                                           self.scouting.get_newest_enemy_base(),
-                                          self.rush_detected_types,
+                                          self.enemy_builds_detected,
                                           self.scouting.proxy_buildings)
 
         await self.my_workers.attack_nearby_enemies() # ultra fast
@@ -144,7 +143,9 @@ class Commander(GeometryMixin, UnitReferenceMixin):
     async def scout(self):
         self.scouting.update_visibility()
         await self.scouting.scout(self.new_damage_by_unit, self.units_by_tag)
-        self.rush_detected_types = self.rush_detected_types.union(await self.scouting.rush_detected_types)
+
+        for build_type, build_time in self.enemy_builds_detected.items():
+            self.enemy_builds_detected[build_type] = build_time
 
     @timed_async
     async def update_references(self, units_by_tag: dict[int, Unit]):

@@ -24,7 +24,7 @@ from bottato.building.structure_build_step import StructureBuildStep
 from bottato.building.special_locations import SpecialLocations, SpecialLocation
 from bottato.building.build_starts import BuildStarts
 from bottato.counter import Counter
-from bottato.enums import RushType, BuildResponseCode, WorkerJobType, BuildOrderChange
+from bottato.enums import BuildType, BuildResponseCode, WorkerJobType, BuildOrderChange
 
 
 class BuildOrder(UnitReferenceMixin):
@@ -41,7 +41,7 @@ class BuildOrder(UnitReferenceMixin):
     # next_unfinished_step_index: int
     tech_tree: Dict[UnitTypeId, List[UnitTypeId]] = {}
     rush_defense_enacted: bool = False
-    rush_detected_types: set[RushType] = set()
+    detected_enemy_builds: Dict[BuildType, float] = {}
 
     def __init__(self, build_name: str, bot: BotAI, workers: Workers, production: Production, map: Map):
         self.recently_completed_units: List[Unit] = []
@@ -80,9 +80,10 @@ class BuildOrder(UnitReferenceMixin):
         return self.started + self.interrupted_queue + self.priority_queue + self.static_queue + self.build_queue
 
     @timed_async
-    async def execute(self, army_ratio: float, rush_detected_types: set[RushType], enemy: Enemy):
-        self.rush_detected_types = self.rush_detected_types.union(rush_detected_types)
-        self.enact_rush_defense(self.rush_detected_types)
+    async def execute(self, army_ratio: float, detected_enemy_builds: Dict[BuildType, float], enemy: Enemy):
+        for build_type, build_time in detected_enemy_builds.items():
+            self.detected_enemy_builds[build_type] = build_time
+        self.enact_build_changes(self.detected_enemy_builds)
         if self.bot.time < 360 and (self.bot.enemy_units.filter(lambda u: u.type_id in (
                 UnitTypeId.TEMPEST, UnitTypeId.BATTLECRUISER, UnitTypeId.CARRIER,
                 UnitTypeId.WIDOWMINE, UnitTypeId.SWARMHOSTMP)) \
@@ -98,7 +99,7 @@ class BuildOrder(UnitReferenceMixin):
         self.queue_supply()
         self.queue_command_center()
         self.queue_upgrade()
-        self.queue_marines(rush_detected_types)
+        self.queue_marines(detected_enemy_builds)
         if len(self.static_queue) < 5 or self.bot.time > 300:
             self.queue_turret()
 
@@ -168,11 +169,11 @@ class BuildOrder(UnitReferenceMixin):
                     build_step = self.create_build_step(structure.type_id, structure)
                     self.interrupted_queue.insert(0, build_step)
 
-    def enact_rush_defense(self, rush_detected_types: set[RushType]) -> None:
-        if self.bot.time > 300 or self.bot.townhalls.amount > 2 or len(rush_detected_types) == 0:
+    def enact_build_changes(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
+        if self.bot.time > 300 or self.bot.townhalls.amount > 2 or len(detected_enemy_builds) == 0:
             # not a rush
             return
-        if BuildOrderChange.BATTLECRUISER not in self.changes_enacted and RushType.BATTLECRUISER in rush_detected_types:
+        if BuildOrderChange.BATTLECRUISER not in self.changes_enacted and BuildType.BATTLECRUISER_RUSH in detected_enemy_builds:
             self.changes_enacted.append(BuildOrderChange.BATTLECRUISER)
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 2, position=0, queue=self.priority_queue)
         if BuildOrderChange.REAPER not in self.changes_enacted and \
@@ -186,11 +187,11 @@ class BuildOrder(UnitReferenceMixin):
                     self.static_queue.remove(step)
                     self.add_to_build_queue([UnitTypeId.BARRACKSTECHLAB, UnitTypeId.MARAUDER], position=0, queue=self.priority_queue)
                     break
-        if BuildOrderChange.RUSH not in self.changes_enacted and RushType.BATTLECRUISER not in rush_detected_types:
+        if BuildOrderChange.RUSH not in self.changes_enacted and BuildType.BATTLECRUISER_RUSH not in detected_enemy_builds:
             self.changes_enacted.append(BuildOrderChange.RUSH)
             # prioritize bunker and first tank
             self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
-            if RushType.PROXY in rush_detected_types:
+            if BuildType.PROXY in detected_enemy_builds:
                 if self.bot.structures([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED]).amount < 2:
                     # make sure to build second depot before bunker
                     self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
@@ -203,7 +204,7 @@ class BuildOrder(UnitReferenceMixin):
             self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
             self.move_between_queues(UnitTypeId.FACTORYTECHLAB, self.static_queue, self.priority_queue)
             self.move_between_queues(UnitTypeId.SIEGETANK, self.static_queue, self.priority_queue)
-            if RushType.STANDARD in rush_detected_types:
+            if BuildType.RUSH in detected_enemy_builds:
                 if self.bot.structures([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED]).amount < 2:
                     # make sure to build second depot before bunker
                     self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
@@ -405,7 +406,7 @@ class BuildOrder(UnitReferenceMixin):
             # don't queue another expansion if current one is still in air
             # probably unsafe or it would have landed
             return
-        if self.bot.time < 100 or len(self.rush_detected_types) > 0 and (self.bot.time < 300 or self.bot.structures(UnitTypeId.STARPORT).amount == 0):
+        if self.bot.time < 100 or len(self.detected_enemy_builds) > 0 and (self.bot.time < 300 or self.bot.structures(UnitTypeId.STARPORT).amount == 0):
             # don't expand too early during rush
             return
 
@@ -451,10 +452,10 @@ class BuildOrder(UnitReferenceMixin):
         self.add_to_build_queue(extra_production, position=0, queue=self.static_queue)
 
     @timed
-    def queue_marines(self, rush_detected_types: set[RushType]) -> None:
+    def queue_marines(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
         # use excess minerals and idle barracks
         need_early_marines: bool = self.bot.time < 300 and \
-            (len(rush_detected_types) > 0 or self.bot.enemy_units.closer_than(20, self.map.natural_position).amount > 2)
+            (len(detected_enemy_builds) > 0 or self.bot.enemy_units.closer_than(20, self.map.natural_position).amount > 2)
         if need_early_marines and self.bot.minerals >= 50 and self.bot.structures(UnitTypeId.BARRACKSREACTOR):
             idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
             priority_queue_count = self.get_queued_count(UnitTypeId.MARINE, self.priority_queue)
@@ -698,22 +699,24 @@ class BuildOrder(UnitReferenceMixin):
         for idx, build_step in enumerate(self.all_steps):
             if build_step.is_same_structure(unit):
                 build_step.cancel_construction()
-                if build_step.is_unit_type(UnitTypeId.COMMANDCENTER) and len(self.bot.townhalls.ready) == 1:
-                    self.rush_detected_types.add(RushType.STANDARD)
+                if build_step.is_unit_type(UnitTypeId.COMMANDCENTER) \
+                        and len(self.bot.townhalls.ready) == 1 \
+                        and BuildType.RUSH not in self.detected_enemy_builds:
+                    self.detected_enemy_builds[BuildType.RUSH] = self.bot.time
                 break
 
     async def execute_pending_builds(self, only_build_units: bool) -> None:
         allow_skip = self.bot.time > 60
-        remaining_resources: Cost = await self.build_from_queue(self.interrupted_queue, only_build_units, self.rush_detected_types, allow_skip)
+        remaining_resources: Cost = await self.build_from_queue(self.interrupted_queue, only_build_units, self.detected_enemy_builds, allow_skip)
         if remaining_resources.minerals > 0:
-            remaining_resources: Cost = await self.build_from_queue(self.priority_queue, only_build_units, self.rush_detected_types, allow_skip, remaining_resources)
+            remaining_resources: Cost = await self.build_from_queue(self.priority_queue, only_build_units, self.detected_enemy_builds, allow_skip, remaining_resources)
         if remaining_resources.minerals > 0:
-            remaining_resources = await self.build_from_queue(self.static_queue, only_build_units, self.rush_detected_types, True, remaining_resources)
+            remaining_resources = await self.build_from_queue(self.static_queue, only_build_units, self.detected_enemy_builds, True, remaining_resources)
         if remaining_resources.minerals > 0:
-            await self.build_from_queue(self.build_queue, only_build_units, self.rush_detected_types, True, remaining_resources)
+            await self.build_from_queue(self.build_queue, only_build_units, self.detected_enemy_builds, True, remaining_resources)
 
     @timed_async
-    async def build_from_queue(self, build_queue: List[BuildStep], only_build_units: bool, rush_detected_types: set[RushType],
+    async def build_from_queue(self, build_queue: List[BuildStep], only_build_units: bool, detected_enemy_builds: Dict[BuildType, float],
                                allow_skip: bool = True, remaining_resources: Cost | None = None) -> Cost:
         build_response = BuildResponseCode.QUEUE_EMPTY
         execution_index = -1
@@ -754,13 +757,13 @@ class BuildOrder(UnitReferenceMixin):
                 build_response = BuildResponseCode.NO_RESOURCES
                 if percent_affordable >= 0.75 and isinstance(build_step, SCVBuildStep) \
                         and self.bot.tech_requirement_progress(build_step.unit_type_id) == 1.0:
-                    await build_step.position_worker(self.special_locations, rush_detected_types)
+                    await build_step.position_worker(self.special_locations, detected_enemy_builds)
                 if remaining_resources.minerals < 0:
                     break
                 continue
 
             # XXX slightly slow
-            build_response = await build_step.execute(self.special_locations, rush_detected_types)
+            build_response = await build_step.execute(self.special_locations, detected_enemy_builds)
             if build_response == BuildResponseCode.SUCCESS:
                 LogHelper.add_log(f"Started building {build_step}")
                 self.started.append(build_queue.pop(execution_index))

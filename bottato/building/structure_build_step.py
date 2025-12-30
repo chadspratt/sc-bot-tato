@@ -1,3 +1,4 @@
+from typing import Dict
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -10,7 +11,7 @@ from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 
 from bottato.mixins import timed, timed_async
 from bottato.log_helper import LogHelper
-from bottato.enums import BuildResponseCode, RushType
+from bottato.enums import BuildResponseCode, BuildType
 from bottato.unit_types import UnitTypes
 from bottato.map.map import Map
 from bottato.economy.workers import Workers
@@ -84,7 +85,7 @@ class StructureBuildStep(BuildStep):
             return self.position.manhattan_distance(point)
         return 9999
 
-    async def execute(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
+    async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
         response = await self.execute_facility_build()
         if response == BuildResponseCode.SUCCESS:
             self.is_in_progress = True

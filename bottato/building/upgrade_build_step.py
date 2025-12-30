@@ -1,3 +1,4 @@
+from typing import Dict
 from loguru import logger
 
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
@@ -14,7 +15,7 @@ from bottato.economy.production import Production
 from bottato.building.build_step import BuildStep
 from bottato.building.special_locations import SpecialLocations
 from bottato.upgrades import RESEARCH_ABILITIES
-from bottato.enums import BuildResponseCode, RushType
+from bottato.enums import BuildResponseCode, BuildType
 
 class UpgradeBuildStep(BuildStep):
     upgrade_id: UpgradeId
@@ -46,7 +47,7 @@ class UpgradeBuildStep(BuildStep):
     def is_upgrade_type(self, upgrade_id: UpgradeId) -> bool:
         return self.upgrade_id == upgrade_id
     
-    async def execute(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
+    async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
         response = None
 
         logger.debug(f"researching upgrade {self.upgrade_id}")

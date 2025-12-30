@@ -1,3 +1,4 @@
+from typing import Dict
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
@@ -9,7 +10,7 @@ from bottato.mixins import UnitReferenceMixin, GeometryMixin
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
 from bottato.building.special_locations import SpecialLocations
-from bottato.enums import BuildResponseCode, RushType
+from bottato.enums import BuildResponseCode, BuildType
 
 
 class BuildStep(UnitReferenceMixin, GeometryMixin):
@@ -81,7 +82,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
     def get_position(self) -> Point2 | None:
         return None
 
-    async def execute(self, special_locations: SpecialLocations, rush_detected_types: set[RushType]) -> BuildResponseCode:
+    async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
         # override in subclasses
         return BuildResponseCode.FAILED
 
