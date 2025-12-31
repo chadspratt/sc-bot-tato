@@ -321,7 +321,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             y_intersect = x_intersect * dest_center_slope + dest_center_b
             intersect_point = Point2((x_intersect, y_intersect))
         new_front_center = intersect_point.towards(next_waypoint, 1, limit=True)
-        self.clamp_position_to_map_bounds(new_front_center) # type: ignore
+        self.clamp_position_to_map_bounds(new_front_center, self.bot) # type: ignore
         while abs(self.bot.get_terrain_z_height(new_front_center) - closest_elevation) > 0.8 and new_front_center._distance_squared(closest_position) > 1: # type: ignore
             new_front_center = new_front_center.towards(closest_position, 1, limit=True)
         return new_front_center # type: ignore
@@ -346,10 +346,3 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
                 formation_units.remove(closest_unit)
                 unit_destinations[closest_unit.tag] = valid_position
         return unit_destinations
-
-    def clamp_position_to_map_bounds(self, position: Point2) -> Point2:
-        clamped_position = Point2((
-            max(0, min(position.x, self.bot.game_info.terrain_height.width)),
-            max(0, min(position.y, self.bot.game_info.terrain_height.height))
-        ))
-        return clamped_position

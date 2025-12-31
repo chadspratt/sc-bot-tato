@@ -37,7 +37,7 @@ class Commander(GeometryMixin, UnitReferenceMixin):
         MicroFactory.set_common_objects(self.bot, self.enemy, self.map)
         self.my_workers: Workers = Workers(self.bot, self.enemy, self.map)
         self.military: Military = Military(self.bot, self.enemy, self.map, self.my_workers)
-        self.structure_micro: StructureMicro = StructureMicro(self.bot, self.enemy)
+        self.structure_micro: StructureMicro = StructureMicro(self.bot, self.enemy, self.map)
         self.production: Production = Production(self.bot)
         self.build_order: BuildOrder = BuildOrder(
             "pig_b2gm", bot=self.bot, workers=self.my_workers, production=self.production, map=self.map

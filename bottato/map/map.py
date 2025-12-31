@@ -10,12 +10,14 @@ from sc2.unit import Unit
 from sc2.bot_ai import BotAI
 # from sc2.pixel_map import PixelMap
 from sc2.position import Point2
+from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
 
 
-from bottato.mixins import GeometryMixin, timed, timed_async
-from bottato.map.zone import Path, Zone
 from bottato.map.influence_maps import InfluenceMaps
+from bottato.map.zone import Path, Zone
+from bottato.mixins import GeometryMixin, timed, timed_async
+from bottato.unit_types import UnitTypes
 
 
 class Map(GeometryMixin):
@@ -370,22 +372,47 @@ class Map(GeometryMixin):
             return Path([], math.inf)
         return start_zone.path_to(end_zone)
 
+    @timed
     def get_pathable_position(self, position: Point2, unit: Unit) -> Point2:
-        candidates = self.influence_maps.find_lowest_cost_points(position, 3, self.ground_grid)
+        grid = self.ground_grid
+        if unit.is_cloaked:
+            grid = self.detection_grid
+        elif unit.is_flying:
+            grid = self.anti_air_grid
+        candidates = self.influence_maps.find_lowest_cost_points(position, 4, grid)
         if candidates is None:
             pathable_position = position
         else:
             # XXX maybe cache this for performance, would need to use rounded position and store a sorted list of closest positions
             # most lookups should only have to look at first few candidates
             pathable_position: Point2 = self.influence_maps.closest_towards_point(candidates, position)
-            if pathable_position._distance_squared(position) < 2.25:
+            try:
+                position_cost = grid[int(position.y), int(position.x)]
+            except IndexError:
+                position_cost = np.inf
+            try:
+                pathable_cost = grid[int(pathable_position.x), int(pathable_position.y)]
+            except IndexError:
+                pathable_position = self.clamp_position_to_map_bounds(pathable_position, self.bot)
+                pathable_cost = grid[int(pathable_position.x), int(pathable_position.y)]
+            if position_cost <= pathable_cost and pathable_position._distance_squared(position) < 2.25:
                 pathable_position = position
         if unit:
             self.influence_maps.add_cost(pathable_position, unit.radius, self.ground_grid, np.inf)
         return pathable_position
 
+    anti_air_structures: Set[UnitTypeId] = set([
+        UnitTypeId.MISSILETURRET,
+        UnitTypeId.BUNKER,
+        UnitTypeId.PHOTONCANNON,
+        UnitTypeId.SPORECRAWLER,
+    ])
     @timed
     def update_influence_maps(self, damage_by_position: dict[Point2, float]) -> None:
+        self.ground_grid = self.influence_maps.get_pyastar_grid()
+        self.detection_grid = self.influence_maps.get_clean_air_grid()
+        self.anti_air_grid = self.influence_maps.get_clean_air_grid()
+
         for position, damage in damage_by_position.items():
             zone = self.zone_lookup_by_coord.get((position.x, position.y))
             if zone:
@@ -393,7 +420,28 @@ class Map(GeometryMixin):
             if position not in self.all_damage_by_position:
                 self.all_damage_by_position[position] = []
             self.all_damage_by_position[position].append((damage, self.bot.time))
-        self.ground_grid = self.influence_maps.get_pyastar_grid()
+
+        cutoff_time = self.bot.time - 10
+        for position, damage_list in self.all_damage_by_position.items():
+            total_damage = 0.0
+            for damage, time in damage_list:
+                if time < cutoff_time:
+                    continue
+                total_damage += damage
+            if total_damage > 0:
+                self.influence_maps.add_cost(position, 1.5, self.ground_grid, total_damage)
+        
+        for enemy in self.bot.all_enemy_units:
+            if enemy.is_detector:
+                self.influence_maps.add_cost(enemy.position, enemy.sight_range + 1.5, self.detection_grid)
+            if enemy.type_id in self.anti_air_structures and enemy.is_ready:
+                self.influence_maps.add_cost(enemy.position, UnitTypes.air_range(enemy) + 1.5, self.anti_air_grid)
+        for effect in self.bot.state.effects:
+            if effect.id == EffectId.SCANNERSWEEP:
+                for position in effect.positions:
+                    self.influence_maps.add_cost(position, 14, self.detection_grid, np.inf)
+        
+        # self.draw_influence()
     
     async def get_natural_position(self, start_position: Point2) -> Point2:
         """Find natural location, given friendly or enemy start position"""
@@ -440,7 +488,9 @@ class Map(GeometryMixin):
         return None
 
     def draw_influence(self) -> None:
-        self.influence_maps.draw_influence_in_game(self.ground_grid, 1, 2000)
+        # self.influence_maps.draw_influence_in_game(self.ground_grid, 1, 2000)
+        self.influence_maps.draw_influence_in_game(self.detection_grid, 1, 2000)
+        return
 
     @timed
     def draw(self) -> None:

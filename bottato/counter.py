@@ -190,7 +190,8 @@ class Counter():
             UnitTypeId.VIKINGFIGHTER: 1
         },
         UnitTypeId.ZERGLING: {
-            UnitTypeId.HELLION: 0.25
+            UnitTypeId.HELLION: 0.2,
+            UnitTypeId.SIEGETANK: 0.1,
         },
     }
 

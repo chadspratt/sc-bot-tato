@@ -10,6 +10,7 @@ from sc2.position import Point2
 
 from bottato.unit_types import UnitTypes
 from bottato.enemy import Enemy
+from bottato.map.map import Map
 from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.custom_effect import CustomEffect
@@ -17,9 +18,10 @@ from bottato.enums import BuildType
 
 
 class StructureMicro(BaseUnitMicro, GeometryMixin):
-    def __init__(self, bot: BotAI, enemy: Enemy) -> None:
+    def __init__(self, bot: BotAI, enemy: Enemy, map: Map) -> None:
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
+        self.map: Map = map
         self.command_center_destinations: Dict[int, Point2 | None] = {}
         self.last_scan_time: float = 0
 

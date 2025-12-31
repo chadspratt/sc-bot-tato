@@ -496,7 +496,6 @@ class Workers(UnitReferenceMixin, GeometryMixin):
                     if worker.is_carrying_resource and self.bot.townhalls:
                         worker.smart(self.bot.townhalls.closest_to(worker))
                     else:
-                        # worker.move(assignment.gather_position)
                         worker.gather(new_target)
                 else:
                     return False

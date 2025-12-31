@@ -135,6 +135,14 @@ class GeometryMixin:
             point2 = point2.position
         height: float = max(0, bot.get_terrain_z_height(point2) + 1)
         return Point3((point2.x, point2.y, height))
+    
+    @staticmethod
+    def clamp_position_to_map_bounds(position: Point2, bot: BotAI) -> Point2:
+        clamped_position = Point2((
+            max(0, min(position.x, bot.game_info.terrain_height.width)),
+            max(0, min(position.y, bot.game_info.terrain_height.height))
+        ))
+        return clamped_position
 
     @staticmethod
     def get_facing(start_position: Unit | Point2, end_position: Unit | Point2):

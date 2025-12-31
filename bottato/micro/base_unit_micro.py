@@ -107,7 +107,7 @@ class BaseUnitMicro(GeometryMixin):
         if not action_taken and force_move:
             position_to_compare = target if unit.is_moving else unit.position
             if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-                unit.move(target)
+                unit.move(self.map.get_pathable_position(target, unit))
             action_taken = True
         if not action_taken:
             action_taken = await self._retreat(unit, health_threshold=self.retreat_health)
@@ -115,7 +115,7 @@ class BaseUnitMicro(GeometryMixin):
         if not action_taken:
             position_to_compare = target if unit.is_moving else unit.position
             if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-                unit.move(target)
+                unit.move(self.map.get_pathable_position(target, unit))
         return True
 
     @timed_async
@@ -141,7 +141,7 @@ class BaseUnitMicro(GeometryMixin):
         if not action_taken and force_move:
             position_to_compare = target if unit.is_moving else unit.position
             if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-                unit.move(target)
+                unit.move(self.map.get_pathable_position(target, unit))
             action_taken = True
         if not action_taken:
             action_taken = await self._harass_retreat(unit, health_threshold=self.retreat_health, harass_location=target)
@@ -149,7 +149,7 @@ class BaseUnitMicro(GeometryMixin):
         if not action_taken:
             position_to_compare = target if unit.is_moving else unit.position
             if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-                unit.move(target)
+                unit.move(self.map.get_pathable_position(target, unit))
         return True
 
     @timed_async
@@ -171,7 +171,7 @@ class BaseUnitMicro(GeometryMixin):
         #     pass
         else:
             logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")
-            unit.move(scouting_location)
+            unit.move(self.map.get_pathable_position(scouting_location, unit))
 
     @timed_async
     async def repair(self, unit: Unit, target: Unit) -> bool:
@@ -399,7 +399,7 @@ class BaseUnitMicro(GeometryMixin):
         # don't keep distance from structures since it prevents units in back from attacking
         # except for zerg structures that spawn broodlings when they die
         if nearest_target.is_structure and nearest_target.type_id not in UnitTypes.OFFENSIVE_STRUCTURE_TYPES and (nearest_target.race != "Zerg" or nearest_target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS):
-            unit.move(nearest_target.position)
+            unit.move(self.map.get_pathable_position(nearest_target.position, unit))
             return True
         # move away if weapon on cooldown
         if not unit.is_flying:
@@ -451,17 +451,18 @@ class BaseUnitMicro(GeometryMixin):
             # interceptors can't be targeted directly
             unit.attack(target.position)
         elif target.age > 0:
-            unit.move(self.enemy.predicted_position[target.tag])
+            unit.move(self.map.get_pathable_position(self.enemy.predicted_position[target.tag], unit))
         else:
             unit.attack(target)
         return True
     
     def _move_to_pathable_position(self, unit: Unit, position: Point2) -> bool:
         if unit.is_flying and self.bot.in_map_bounds(position) or self.bot.in_pathing_grid(position):
-            unit.move(position)
+            unit.move(self.map.get_pathable_position(position, unit))
             return True
         return False
             
+    @timed
     def _get_retreat_destination(self, unit: Unit, threats: Units) -> Point2:
         ultimate_destination: Point2 | None = None
         if unit.is_mechanical:
@@ -489,23 +490,23 @@ class BaseUnitMicro(GeometryMixin):
             ultimate_destination = self.bot.game_info.player_start_location
         
         if not threats:
-            return ultimate_destination
+            return self.map.get_pathable_position(ultimate_destination, unit)
 
         avg_threat_position = threats.center
         if unit.distance_to(ultimate_destination) < avg_threat_position.distance_to(ultimate_destination) - 2:
-            return ultimate_destination
+            return self.map.get_pathable_position(ultimate_destination, unit)
         retreat_distance = -10 if unit.is_flying else -5
         retreat_position = unit.position.towards(avg_threat_position, retreat_distance)
         # .towards(ultimate_destination, 2)
         if self._position_is_pathable(unit, retreat_position): # type: ignore
-            return retreat_position # type: ignore
+            return self.map.get_pathable_position(retreat_position, unit) # type: ignore
 
         if unit.position == avg_threat_position:
             # avoid divide by zero
-            return ultimate_destination
+            return self.map.get_pathable_position(ultimate_destination, unit)
         else:
             circle_around_position = self.get_circle_around_position(unit, avg_threat_position, ultimate_destination)
-            return circle_around_position.towards(ultimate_destination, 2) # type: ignore
+            return circle_around_position
     
     def _position_is_pathable(self, unit: Unit, position: Point2) -> bool:
         if unit.is_flying and self.bot.in_map_bounds(position) or self.bot.in_pathing_grid(position):
@@ -583,8 +584,9 @@ class BaseUnitMicro(GeometryMixin):
             return True
         return False
     
+    @timed
     def get_circle_around_position(self, unit: Unit, threat_position: Point2, destination: Point2) -> Point2:
-        if unit.distance_to_squared(destination) > 225:
+        if not unit.is_flying and unit.distance_to_squared(destination) > 225:
             path_to_destination = self.map.get_path_points(unit.position, destination)
             if len(path_to_destination) > 1:
                 for path_position in path_to_destination:
@@ -601,4 +603,5 @@ class BaseUnitMicro(GeometryMixin):
         circle_around_positions = [Point2(unit.position + tangent_vector1),
                                     Point2(unit.position + tangent_vector2)]
         circle_around_positions.sort(key=lambda pos: pos._distance_squared(destination))
-        return circle_around_positions[0].towards(threat_position, -1) # type: ignore
+        circle_around_position = circle_around_positions[0].towards(threat_position, -1)
+        return self.map.get_pathable_position(circle_around_position, unit) # type: ignore

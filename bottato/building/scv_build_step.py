@@ -176,7 +176,6 @@ class SCVBuildStep(BuildStep):
             if self.unit_type_id == UnitTypeId.REFINERY and self.geysir:
                 build_response = self.unit_in_charge.build_gas(self.geysir)
             else:
-                # self.unit_in_charge.move(self.position)
                 build_response = self.unit_in_charge.build(
                     self.unit_type_id, self.position
                 )

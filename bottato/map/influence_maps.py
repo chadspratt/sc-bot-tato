@@ -92,6 +92,12 @@ class InfluenceMaps():
         else:
             return self.default_grid_nodestr.copy()
 
+    def get_clean_air_grid(self, default_weight: float = 1) -> np.ndarray:
+        clean_air_grid = np.zeros(shape=self.default_grid.shape).astype(np.float32)
+        area = self.bot.game_info.playable_area
+        clean_air_grid[area.x:(area.x + area.width), area.y:(area.y + area.height)] = 1
+        return np.where(clean_air_grid == 1, default_weight, np.inf).astype(np.float32)
+
     def get_pyastar_grid(self, default_weight: float = 1, include_destructables: bool = True) -> np.ndarray:
         grid = self.get_base_pathing_grid(include_destructables)
         grid = self._add_non_pathables_ground(grid=grid, include_destructables=include_destructables)

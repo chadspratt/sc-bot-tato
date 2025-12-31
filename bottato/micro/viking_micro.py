@@ -50,9 +50,9 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                     nearest_distance_sq = unit.distance_to_squared(nearest_enemy)
                     if nearest_enemy.type_id == UnitTypeId.SIEGETANKSIEGED:
                         if nearest_distance_sq > 3.24:
-                            unit.move(nearest_enemy.position)
+                            unit.move(self.map.get_pathable_position(nearest_enemy.position, unit))
                         elif nearest_distance_sq < 1.21:
-                            unit.move(nearest_enemy.position.towards(unit, 1.5)) # type: ignore
+                            unit.move(self.map.get_pathable_position(nearest_enemy.position.towards(unit, 1.5), unit)) # type: ignore
                         else:
                             unit(AbilityId.MORPH_VIKINGASSAULTMODE)
                         return True

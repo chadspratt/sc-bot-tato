@@ -25,8 +25,11 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     missing_hidden_units: set[int] = set()
     last_missile_launch: Dict[int, Tuple[Unit, float, float, bool]] = {}
 
-    excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.SCV, UnitTypeId.MULE,
-                        UnitTypeId.DRONE, UnitTypeId.PROBE, UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.EGG, UnitTypeId.LARVA]
+    excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED,
+                      UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.DRONE, UnitTypeId.PROBE,
+                      UnitTypeId.OVERLORD, UnitTypeId.OVERSEER,
+                      UnitTypeId.EGG, UnitTypeId.LARVA,
+                      UnitTypeId.ZERGLING]
                         
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
@@ -55,7 +58,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                         return True
 
         enemy_unit, enemy_distance = self.enemy.get_closest_target(unit, distance_limit=20, include_structures=False, include_destructables=False,
-                                                                   include_out_of_view=False, excluded_types=self.excluded_types)
+                                                                   include_out_of_view=False)
         if enemy_unit is None:
             return False
 
@@ -83,7 +86,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             nearest_threat = threats.closest_to(unit)
             if nearest_threat.distance_to_squared(unit) < unit.sight_range ** 2:
                 target_position = nearest_threat.position.towards(unit, unit.sight_range - 1)
-                unit.move(target_position) # type: ignore
+                unit.move(self.map.get_pathable_position(target_position, unit)) # type: ignore
                 return True
         # provide detection
         need_detection = self.enemy.enemies_needing_detection()
@@ -96,7 +99,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             closest_distance = self.distance(closest_unit, unit)
             if closest_distance < 30 and closest_distance > unit.sight_range:
                 target_position = closest_unit.position.towards(unit, unit.sight_range - 1)
-                unit.move(target_position) # type: ignore
+                unit.move(self.map.get_pathable_position(target_position, unit)) # type: ignore
                 return True
             elif self.bot.is_visible(closest_unit.position) and closest_unit.age > 0:
                 self.missing_hidden_units.add(closest_unit.tag)
