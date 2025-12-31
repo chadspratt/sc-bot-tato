@@ -70,9 +70,9 @@ class HarassSquad(Squad, GeometryMixin):
                     move_position = nearest_threat.position
                     if unit.weapon_cooldown != 0:
                         move_position = nearest_threat.position.towards(unit, enemy_range + 1)
-                    self.bot.client.debug_line_out(nearest_threat, self.convert_point2_to_3(move_position, self.bot), (255, 0, 0)) # type: ignore
-                    self.bot.client.debug_sphere_out(self.convert_point2_to_3(move_position, self.bot), 0.2, (255, 0, 0)) # type: ignore
-                    await micro.harass(unit, move_position) # type: ignore
+                    self.bot.client.debug_line_out(nearest_threat, self.convert_point2_to_3(move_position, self.bot), (255, 0, 0))
+                    self.bot.client.debug_sphere_out(self.convert_point2_to_3(move_position, self.bot), 0.2, (255, 0, 0))
+                    await micro.harass(unit, move_position)
                     continue
                 else:
                     destination = self.harass_location if unit.health_percentage > 0.65 else self.bot.start_location

@@ -204,7 +204,7 @@ class BaseUnitMicro(GeometryMixin):
     ###########################################################################
     # main actions - iterated through by meta actions
     ###########################################################################
-    fixed_radius: dict[EffectId, float] = {
+    fixed_radius: Dict[EffectId | str, float] = {
         EffectId.PSISTORMPERSISTENT: 2,
         EffectId.GUARDIANSHIELDPERSISTENT: 4.5,
         EffectId.SCANNERSWEEP: 13,
@@ -226,7 +226,7 @@ class BaseUnitMicro(GeometryMixin):
                 if unit.type_id == UnitTypeId.SIEGETANKSIEGED and force_move:
                     unit(AbilityId.UNSIEGE_UNSIEGE)
                     return True
-            effect_radius = self.fixed_radius.get(effect.id, effect.radius) # type: ignore
+            effect_radius = self.fixed_radius.get(effect.id, effect.radius)
             safe_distance = (effect_radius + unit.radius + 1.5) ** 2
             for position in effect.positions:
                 if unit.position._distance_squared(position) < safe_distance:
@@ -239,7 +239,7 @@ class BaseUnitMicro(GeometryMixin):
                 self.custom_effects_to_avoid.pop(i)
             else:
                 safe_distance = (effect.radius + unit.radius + 1.5) ** 2
-                if unit.position._distance_squared(effect_position) < safe_distance: # type: ignore
+                if unit.position._distance_squared(effect_position) < safe_distance:
                     effects_to_avoid.append(effect_position)
             i -= 1
         if effects_to_avoid:
@@ -250,14 +250,14 @@ class BaseUnitMicro(GeometryMixin):
                     new_position = unit.position.towards(self.bot.start_location, 2)
                 else:
                     new_position = unit.position.towards(effects_to_avoid[0], -2)
-                unit.move(new_position) # type: ignore
+                unit.move(new_position)
                 return True
             average_x = sum(p.x for p in effects_to_avoid) / number_of_effects
             average_y = sum(p.y for p in effects_to_avoid) / number_of_effects
             average_position = Point2((average_x, average_y))
             # move out of effect radius
             new_position = unit.position.towards(average_position, -2)
-            unit.move(new_position) # type: ignore
+            unit.move(new_position)
             return True
         return False
 
@@ -417,16 +417,16 @@ class BaseUnitMicro(GeometryMixin):
                     # dive on sieged tanks
                     attack_range = 0
                     target_position = nearest_sieged_tank.position.towards(unit, attack_range)
-                    return self._move_to_pathable_position(unit, target_position) # type: ignore
+                    return self._move_to_pathable_position(unit, target_position)
                 if distance_to_tank < 15:
                     attack_range = 14
                     target_position = nearest_sieged_tank.position.towards(unit, attack_range)
-                    return self._move_to_pathable_position(unit, target_position) # type: ignore
+                    return self._move_to_pathable_position(unit, target_position)
 
         attack_range = UnitTypes.range_vs_target(unit, nearest_target)
         future_enemy_position = nearest_target.position
         target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius + 0.5)
-        return self._move_to_pathable_position(unit, target_position) # type: ignore
+        return self._move_to_pathable_position(unit, target_position)
 
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
 
@@ -484,7 +484,7 @@ class BaseUnitMicro(GeometryMixin):
             bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
             if bunkers:
                 away_from_position = threats.center if threats else self.bot.game_info.map_center
-                ultimate_destination = bunkers.closest_to(unit).position.towards(away_from_position, -4) # type: ignore
+                ultimate_destination = bunkers.closest_to(unit).position.towards(away_from_position, -4)
         
         if not ultimate_destination:
             ultimate_destination = self.bot.game_info.player_start_location
@@ -498,8 +498,8 @@ class BaseUnitMicro(GeometryMixin):
         retreat_distance = -10 if unit.is_flying else -5
         retreat_position = unit.position.towards(avg_threat_position, retreat_distance)
         # .towards(ultimate_destination, 2)
-        if self._position_is_pathable(unit, retreat_position): # type: ignore
-            return self.map.get_pathable_position(retreat_position, unit) # type: ignore
+        if self._position_is_pathable(unit, retreat_position):
+            return self.map.get_pathable_position(retreat_position, unit)
 
         if unit.position == avg_threat_position:
             # avoid divide by zero
@@ -572,13 +572,13 @@ class BaseUnitMicro(GeometryMixin):
         tank_to_enemy_distance_sq = self.distance_squared(nearest_tank, closest_enemy)
         if tank_to_enemy_distance_sq < 900 and tank_to_enemy_distance_sq > (13.5 + nearest_tank.radius + closest_enemy.radius)**2:
             optimal_distance = 13.5 - UnitTypes.ground_range(closest_enemy) - unit.radius + nearest_tank.radius - 2.0
-            unit.move(nearest_tank.position.towards(unit.position, optimal_distance)) # type: ignore
+            unit.move(nearest_tank.position.towards(unit.position, optimal_distance))
             if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
                 BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance_sq
             return True
         elif not can_attack and tank_to_enemy_distance_sq < unit.distance_to_squared(closest_enemy) * 0.3:
             # defend tank if it's closer to enemy than unit
-            unit.move(nearest_tank.position.towards(closest_enemy.position, 3)) # type: ignore
+            unit.move(nearest_tank.position.towards(closest_enemy.position, 3))
             if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
                 BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance_sq
             return True
@@ -604,4 +604,4 @@ class BaseUnitMicro(GeometryMixin):
                                     Point2(unit.position + tangent_vector2)]
         circle_around_positions.sort(key=lambda pos: pos._distance_squared(destination))
         circle_around_position = circle_around_positions[0].towards(threat_position, -1)
-        return self.map.get_pathable_position(circle_around_position, unit) # type: ignore
+        return self.map.get_pathable_position(circle_around_position, unit)

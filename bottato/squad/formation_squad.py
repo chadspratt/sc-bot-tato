@@ -155,7 +155,7 @@ class FormationSquad(Squad, GeometryMixin):
                     position = blueprint.get_position()
                     if position:
                         if self.bot.distance_math_hypot_squared(position, formation_positions[unit.tag]) < 9:
-                            formation_positions[unit.tag] = position.towards(formation_positions[unit.tag], 3) # type: ignore
+                            formation_positions[unit.tag] = position.towards(formation_positions[unit.tag], 3)
                 if formation_positions[unit.tag] is None:
                     logger.debug(f"unit {unit} has no formation position")
                     continue

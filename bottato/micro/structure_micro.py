@@ -86,7 +86,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                             if bunker:
                                 cc.move(bunker.first.position)
                             else:
-                                cc.move(self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 5)) # type: ignore
+                                cc.move(self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 5))
                         elif threats:
                             cc.move(self.bot.main_base_ramp.top_center)
                         else:

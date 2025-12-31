@@ -95,15 +95,15 @@ class Minerals(Resources):
             if townhall:
                 townhall_pos = townhall.position
             else:
-                townhall_pos = mineral_node.position.closest(self.bot.expansion_locations_list) # type: ignore
+                townhall_pos = mineral_node.position.closest(self.bot.expansion_locations_list)
             target = mineral_node.position.towards(townhall_pos, self.MINING_RADIUS)
-            close_minerals = self.bot.mineral_field.closer_than(self.MINING_RADIUS, target) # type: ignore
+            close_minerals = self.bot.mineral_field.closer_than(self.MINING_RADIUS, target)
             for close_mineral in close_minerals:
                 if close_mineral.tag != mineral_node.tag:
                     candidates = mineral_node.position.circle_intersection(close_mineral.position, self.MINING_RADIUS)
                     if len(candidates) == 2:
                         target = townhall_pos.closest(candidates)
-            resource_node.mining_position = target # type: ignore
+            resource_node.mining_position = target
 
     def add_long_distance_minerals(self, idle_worker_count: int) -> int:
         added = 0

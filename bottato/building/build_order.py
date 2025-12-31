@@ -57,9 +57,9 @@ class BuildOrder(UnitReferenceMixin):
         self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
         self.changes_enacted: List[BuildOrderChange] = []
 
-        if self.bot.enemy_race == Race.Protoss: # type: ignore
+        if self.bot.enemy_race == Race.Protoss:
             build_name += " protoss"
-        elif self.bot.enemy_race == Race.Zerg: # type: ignore
+        elif self.bot.enemy_race == Race.Zerg:
             build_name += " zerg"
         for unit_type in BuildStarts.get_build_start(build_name):
             step = self.create_build_step(unit_type, None)
@@ -177,7 +177,7 @@ class BuildOrder(UnitReferenceMixin):
             self.changes_enacted.append(BuildOrderChange.BATTLECRUISER)
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 2, position=0, queue=self.priority_queue)
         if BuildOrderChange.REAPER not in self.changes_enacted and \
-                self.bot.enemy_race == Race.Terran and self.bot.enemy_units(UnitTypeId.REAPER).amount > 1: # type: ignore
+                self.bot.enemy_race == Race.Terran and self.bot.enemy_units(UnitTypeId.REAPER).amount > 1:
             self.changes_enacted.append(BuildOrderChange.REAPER)
             # queue one hellion in case of reaper rush
             self.add_to_build_queue([UnitTypeId.HELLION] * 2, position=0, queue=self.priority_queue)
@@ -211,7 +211,7 @@ class BuildOrder(UnitReferenceMixin):
                 if self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue):
                     # add a second bunker for low ground
                     self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
-        if BuildOrderChange.BANSHEE_HARASS not in self.changes_enacted and self.bot.enemy_race == Race.Terran: # type: ignore
+        if BuildOrderChange.BANSHEE_HARASS not in self.changes_enacted and self.bot.enemy_race == Race.Terran:
             self.changes_enacted.append(BuildOrderChange.BANSHEE_HARASS)
             self.move_between_queues(UnitTypeId.STARPORT, self.static_queue, self.priority_queue)
             self.substitute_steps_in_queue(UnitTypeId.VIKINGFIGHTER, [

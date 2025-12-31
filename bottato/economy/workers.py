@@ -179,7 +179,7 @@ class Workers(UnitReferenceMixin, GeometryMixin):
                 fullest_mineral_field: Unit = max(mineral_fields, key=lambda x: x.mineral_contents)
                 nearest_townhall: Unit = self.bot.townhalls.closest_to(fullest_mineral_field)
                 orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE,
-                        target=fullest_mineral_field.position.towards(nearest_townhall), # type: ignore
+                        target=fullest_mineral_field.position.towards(nearest_townhall),
                         queue=True)
 
     def remove_mule(self, mule: Unit):
@@ -220,7 +220,7 @@ class Workers(UnitReferenceMixin, GeometryMixin):
 
         if worker.is_returning and len(worker.orders) == 1:
             return_target: Point2 = townhall.position
-            return_target = return_target.towards(worker, townhall.radius + worker.radius) # type: ignore
+            return_target = return_target.towards(worker, townhall.radius + worker.radius)
             if 0.75 < worker.distance_to(return_target) < 2:
                 worker.move(return_target)
                 worker(AbilityId.SMART, townhall, True)
@@ -331,7 +331,7 @@ class Workers(UnitReferenceMixin, GeometryMixin):
                         assignment.dropoff_target = dropoff_candidates.closest_to(worker)
                         min_distance = assignment.dropoff_target.radius + worker.radius
                         position = assignment.dropoff_target.position.towards(worker, min_distance, limit=True)
-                        assignment.dropoff_position = position # type: ignore
+                        assignment.dropoff_position = position
                 self.speed_smart(worker, assignment.dropoff_target, assignment.dropoff_position)
         elif assignment.target:
             if assignment.initial_gather_complete:
@@ -387,7 +387,7 @@ class Workers(UnitReferenceMixin, GeometryMixin):
                     continue
                 # assign closest 3 workers to attack each enemy
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first)
-                workers_per_enemy_unit = 2 if nearby_enemy_structures or self.bot.enemy_race != Race.Protoss else 3 # type: ignore
+                workers_per_enemy_unit = 2 if nearby_enemy_structures or self.bot.enemy_race != Race.Protoss else 3
                 for nearby_enemy in nearby_enemies + nearby_enemy_structures:
                     enemy_position = nearby_enemy if nearby_enemy.age == 0 else self.enemy.get_predicted_position(nearby_enemy, 0.0)
                     predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)

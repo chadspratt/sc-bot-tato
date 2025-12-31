@@ -68,7 +68,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             return False
 
         if enemy_unit.type_id == UnitTypeId.SIEGETANKSIEGED:
-            return await self.drop_turret(unit, enemy_unit.position.towards(unit, enemy_unit.radius + 1)) # type: ignore
+            return await self.drop_turret(unit, enemy_unit.position.towards(unit, enemy_unit.radius + 1))
         
         return await self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
         
@@ -86,7 +86,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             nearest_threat = threats.closest_to(unit)
             if nearest_threat.distance_to_squared(unit) < unit.sight_range ** 2:
                 target_position = nearest_threat.position.towards(unit, unit.sight_range - 1)
-                unit.move(self.map.get_pathable_position(target_position, unit)) # type: ignore
+                unit.move(self.map.get_pathable_position(target_position, unit))
                 return True
         # provide detection
         need_detection = self.enemy.enemies_needing_detection()
@@ -99,7 +99,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             closest_distance = self.distance(closest_unit, unit)
             if closest_distance < 30 and closest_distance > unit.sight_range:
                 target_position = closest_unit.position.towards(unit, unit.sight_range - 1)
-                unit.move(self.map.get_pathable_position(target_position, unit)) # type: ignore
+                unit.move(self.map.get_pathable_position(target_position, unit))
                 return True
             elif self.bot.is_visible(closest_unit.position) and closest_unit.age > 0:
                 self.missing_hidden_units.add(closest_unit.tag)
@@ -110,7 +110,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         self.bot.client.debug_line_out(unit, self.convert_point2_to_3(target, self.bot), (100, 255, 50))
         turret_position = target.towards(unit, self.turret_attack_range - 1, limit=True)
         logger.debug(f"{unit} trying to drop turret at {turret_position} to attack {target} at {target.position}")
-        return await self.drop_turret(unit, turret_position) # type: ignore
+        return await self.drop_turret(unit, turret_position)
 
     @timed_async
     async def drop_turret(self, unit: Unit, target: Point2) -> bool:

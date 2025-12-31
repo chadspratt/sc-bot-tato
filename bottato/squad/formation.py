@@ -254,7 +254,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
 
             if self.path and len(self.path) > 1:
                 logger.debug(f"following path {self.path} to {self.destination}")
-                self.destination = self.front_center.towards(self.path[1], distance=3, limit=True) # type: ignore
+                self.destination = self.front_center.towards(self.path[1], distance=3, limit=True)
             else:
                 logger.debug(f"heading directly to {self.destination}")
                 # if no path, tell all units to go to the destination. happens if already in destination zone or if reference point passes over non-pathable area
@@ -321,10 +321,10 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             y_intersect = x_intersect * dest_center_slope + dest_center_b
             intersect_point = Point2((x_intersect, y_intersect))
         new_front_center = intersect_point.towards(next_waypoint, 1, limit=True)
-        self.clamp_position_to_map_bounds(new_front_center, self.bot) # type: ignore
-        while abs(self.bot.get_terrain_z_height(new_front_center) - closest_elevation) > 0.8 and new_front_center._distance_squared(closest_position) > 1: # type: ignore
+        self.clamp_position_to_map_bounds(new_front_center, self.bot)
+        while abs(self.bot.get_terrain_z_height(new_front_center) - closest_elevation) > 0.8 and new_front_center._distance_squared(closest_position) > 1:
             new_front_center = new_front_center.towards(closest_position, 1, limit=True)
-        return new_front_center # type: ignore
+        return new_front_center
     
     @timed
     def assign_positions_to_units(self, facing: float | None, reference_point: Point2, units_by_tag: dict[int, Unit] | None) -> dict[int, Point2]:

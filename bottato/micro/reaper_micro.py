@@ -39,14 +39,14 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 grenade_target: Point2 = future_target_position
                 if target_unit.is_facing(unit, angle_error=0.15):
                     # throw towards current position to avoid cutting off own retreat when predicted position is behind
-                    grenade_target = unit.position.towards(target_unit.position, future_target_distance) # type: ignore
-                grenade_targets.append(grenade_target) # type: ignore
+                    grenade_target = unit.position.towards(target_unit.position, future_target_distance)
+                grenade_targets.append(grenade_target)
 
         if grenade_targets:
             # choose furthest to reduce chance of grenading self
             grenade_target = min(grenade_targets, key=lambda p: unit.position._distance_squared(p))
             logger.debug(f"{unit} grenading {grenade_target}")
-            self.throw_grenade(unit, grenade_target) # type: ignore
+            self.throw_grenade(unit, grenade_target)
             return True
 
         return False
@@ -144,19 +144,19 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             if retreat_to_start:
                 retreat_position = unit.position.towards(avg_threat_position, -5)
                 # .towards(destination, 2)
-                if self.bot.in_pathing_grid(retreat_position): # type: ignore
-                    unit.move(retreat_position) # type: ignore
+                if self.bot.in_pathing_grid(retreat_position):
+                    unit.move(retreat_position)
                 else:
                     if unit.position == avg_threat_position:
                         # avoid divide by zero
                         unit.move(destination)
                     else:
                         circle_around_position = self.get_circle_around_position(unit, avg_threat_position, destination)
-                        unit.move(circle_around_position.towards(destination, 2)) # type: ignore
+                        unit.move(circle_around_position.towards(destination, 2))
                 return True
             else:
                 circle_around_position = self.get_circle_around_position(unit, avg_threat_position, destination)
-                unit.move(circle_around_position) # type: ignore
+                unit.move(circle_around_position)
                 return True
 
         return False
@@ -168,8 +168,8 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             return True
         return False
 
-    def throw_grenade(self, unit: Unit, target: Point2 | Pointlike):
-        unit(AbilityId.KD8CHARGE_KD8CHARGE, target) # type: ignore
+    def throw_grenade(self, unit: Unit, target: Point2):
+        unit(AbilityId.KD8CHARGE_KD8CHARGE, target)
         self.unconfirmed_grenade_throwers.append(unit.tag)
 
     async def grenade_available(self, unit: Unit) -> bool:

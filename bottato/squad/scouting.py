@@ -197,7 +197,7 @@ class Scout(Squad, UnitReferenceMixin):
             # else:
             #     nearby_workers = self.bot.enemy_units.filter(
             #         lambda u: u.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE)
-            #         and u.distance_to(self.unit) < 15) # type: ignore
+            #         and u.distance_to(self.unit) < 15)
             #     if nearby_workers:
             #         await micro.move(self.unit, nearby_workers.closest_to(self.unit).position)
             #         return
@@ -241,7 +241,7 @@ class EnemyIntel:
         self.military_count: int = 0
         self.natural_expansion_time: float | None = None
         self.pool_start_time: float | None = None  # zerg specific
-        self.first_building_time: dict[UnitTypeId, float | None] = {}
+        self.first_building_time: dict[UnitTypeId, float] = {}
         self.enemy_race_confirmed: Race | None = None
 
     def add_type(self, unit: Unit, time: float):
@@ -276,7 +276,7 @@ class EnemyIntel:
         
         # Detect race if not already confirmed
         if not self.enemy_race_confirmed:
-            if self.bot.enemy_race != Race.Random: # type: ignore
+            if self.bot.enemy_race != Race.Random:
                 self.enemy_race_confirmed = self.bot.enemy_race
             elif self.bot.enemy_structures:
                 first_building: Unit = self.bot.enemy_structures[0]
@@ -330,11 +330,11 @@ class InitialScout(Squad, GeometryMixin):
                 y_offset = radius * math.sin(angle_radians)
                 waypoint = Point2((enemy_start.x + x_offset, enemy_start.y + y_offset))
                 retries = 0
-                while not self.bot.in_pathing_grid(waypoint) and retries < 5: # type: ignore
+                while not self.bot.in_pathing_grid(waypoint) and retries < 5:
                     waypoint = waypoint.towards(enemy_start, 1)
                     retries += 1
                 if retries != 5:
-                    self.waypoints.append(waypoint) # type: ignore
+                    self.waypoints.append(waypoint)
 
         self.original_waypoints = list(self.waypoints)
         
@@ -367,7 +367,7 @@ class InitialScout(Squad, GeometryMixin):
             target = self.waypoints[0] if self.waypoints else self.map.enemy_natural_position
             self.unit = workers.get_scout(target)
 
-        if self.intel.enemy_race_confirmed == Race.Zerg: # type: ignore
+        if self.intel.enemy_race_confirmed == Race.Zerg:
             self.initial_scout_complete_time = 100
     
     async def move_scout(self):
@@ -379,7 +379,7 @@ class InitialScout(Squad, GeometryMixin):
         if self.unit.health_percentage < 0.7 or self.do_natural_check:
             self.waypoints = [self.map.enemy_natural_position]  # check natural before leaving
             if self.unit.distance_to(self.map.enemy_natural_position) < 9:
-                if self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
+                if self.intel.enemy_race_confirmed == Race.Terran:
                     # terran takes longer to start natural?
                     self.completed = self.bot.time > 150
                 else:
@@ -443,7 +443,7 @@ class Scouting(Squad, DebugMixin):
         # assign all expansions locations to either friendly or enemy territory
         self.scouting_locations: List[ScoutingLocation] = list()
         for expansion_location in self.bot.expansion_locations_list:
-            self.scouting_locations.append(ScoutingLocation(expansion_location.towards(self.bot.game_info.map_center, -5))) # type: ignore
+            self.scouting_locations.append(ScoutingLocation(expansion_location.towards(self.bot.game_info.map_center, -5)))
         nearest_locations_temp = sorted(self.scouting_locations, key=lambda location: (location.position - self.bot.start_location).length)
         enemy_nearest_locations_temp = sorted(self.scouting_locations, key=lambda location: (location.position - self.bot.enemy_start_locations[0]).length)
         self.enemy_main = enemy_nearest_locations_temp[0]
@@ -504,8 +504,8 @@ class Scouting(Squad, DebugMixin):
         if self.proxy_detected():
             await LogHelper.add_chat("proxy suspected")
             self.add_detected_build(BuildType.PROXY)
-        if self.intel.enemy_race_confirmed == Race.Zerg: # type: ignore
-            early_pool = self.intel.first_building_time.get(UnitTypeId.SPAWNINGPOOL, 9999) < 40 # type: ignore
+        if self.intel.enemy_race_confirmed == Race.Zerg:
+            early_pool = self.intel.first_building_time.get(UnitTypeId.SPAWNINGPOOL, 9999) < 40
             no_gas = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.EXTRACTOR) == 0
             no_expansion = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.HATCHERY) == 1
             zergling_rush = self.enemy.get_total_count_of_type_seen(UnitTypeId.ZERGLING) >= 8 and self.bot.time < 180
@@ -519,7 +519,7 @@ class Scouting(Squad, DebugMixin):
                 await LogHelper.add_chat("zergling rush detected")
             if early_pool or no_gas or no_expansion or zergling_rush:
                 self.add_detected_build(BuildType.RUSH)
-        elif self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
+        elif self.intel.enemy_race_confirmed == Race.Terran:
             # no_expansion = self.intel.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
             battlecruiser = self.bot.time < 360 and \
                 (self.intel.number_seen(UnitTypeId.FUSIONCORE) > 0 or
@@ -558,10 +558,10 @@ class Scouting(Squad, DebugMixin):
             return False
         if self.proxy_buildings:
             return True
-        if self.intel.enemy_race_confirmed == Race.Zerg: # type: ignore
+        if self.intel.enemy_race_confirmed == Race.Zerg:
             # are zerg proxy a thing?
             return False
-        if self.intel.enemy_race_confirmed == Race.Terran: # type: ignore
+        if self.intel.enemy_race_confirmed == Race.Terran:
             if self.bot.enemy_units(UnitTypeId.BATTLECRUISER) and self.intel.number_seen(UnitTypeId.STARPORT) == 0:
                 return True
             return self.initial_scout.main_scouted and self.intel.number_seen(UnitTypeId.BARRACKS) == 0

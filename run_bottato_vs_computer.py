@@ -24,18 +24,18 @@ from bottato.bottato import BotTato
 bot_class: type[BotAI] = BotTato
 
 race_dict = {
-    None: Race.Random, # type: ignore
-    "protoss": Race.Protoss, # type: ignore
-    "terran": Race.Terran, # type: ignore
-    "zerg": Race.Zerg, # type: ignore
+    None: Race.Random,
+    "protoss": Race.Protoss,
+    "terran": Race.Terran,
+    "zerg": Race.Zerg,
 }
 build_dict = {
-    None: AIBuild.RandomBuild, # type: ignore
-    "rush": AIBuild.Rush, # type: ignore
-    "timing": AIBuild.Timing, # type: ignore
-    "macro": AIBuild.Macro, # type: ignore
-    "power": AIBuild.Power, # type: ignore
-    "air": AIBuild.Air, # type: ignore
+    None: AIBuild.RandomBuild,
+    "rush": AIBuild.Rush,
+    "timing": AIBuild.Timing,
+    "macro": AIBuild.Macro,
+    "power": AIBuild.Power,
+    "air": AIBuild.Air,
 }
 map_list = [
     "PersephoneAIE_v4",
@@ -51,10 +51,10 @@ def main():
     map = maps.get(random_map)
     race = os.environ.get("RACE")
     build = os.environ.get("BUILD")
-    opponent_race = race_dict.get(race)
-    opponent_build = build_dict.get(build)
-    # opponent = Computer(opponent_race, Difficulty.CheatInsane, ai_build=opponent_build) # type: ignore
-    opponent = Computer(opponent_race, Difficulty.CheatMoney, ai_build=opponent_build) # type: ignore
+    opponent_race = race_dict.get(race, Race.Random)
+    opponent_build = build_dict.get(build, AIBuild.RandomBuild)
+    # opponent = Computer(opponent_race, Difficulty.CheatInsane, ai_build=opponent_build)
+    opponent = Computer(opponent_race, Difficulty.CheatMoney, ai_build=opponent_build)
     replay_name = f"replays/{random_map}_{race}-{build}.SC2Replay"
     
     # disable logging done by LogHelper
@@ -62,7 +62,7 @@ def main():
 
     result = run_game(
         map,
-        [Bot(Race.Terran, bot_class(), "BotTato"), opponent], # type: ignore
+        [Bot(Race.Terran, bot_class(), "BotTato"), opponent],
         realtime=False,
         save_replay_as=replay_name,
         game_time_limit=3600,
@@ -70,7 +70,7 @@ def main():
     
     bottato_result = result[0] if isinstance(result, list) else result
     logger.info(f"\n================================\nResult vs {opponent}: {bottato_result}\n================================")
-    assert bottato_result == Result.Victory, f"BotTato should win against {opponent}, but got {bottato_result}" # type: ignore
+    assert bottato_result == Result.Victory, f"BotTato should win against {opponent}, but got {bottato_result}"
 
 
 if __name__ == "__main__":

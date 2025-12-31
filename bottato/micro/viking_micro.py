@@ -52,7 +52,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                         if nearest_distance_sq > 3.24:
                             unit.move(self.map.get_pathable_position(nearest_enemy.position, unit))
                         elif nearest_distance_sq < 1.21:
-                            unit.move(self.map.get_pathable_position(nearest_enemy.position.towards(unit, 1.5), unit)) # type: ignore
+                            unit.move(self.map.get_pathable_position(nearest_enemy.position.towards(unit, 1.5), unit))
                         else:
                             unit(AbilityId.MORPH_VIKINGASSAULTMODE)
                         return True

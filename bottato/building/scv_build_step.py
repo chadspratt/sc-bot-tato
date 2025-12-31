@@ -259,7 +259,7 @@ class SCVBuildStep(BuildStep):
                 ramp_barracks = self.bot.structures.of_type(UnitTypeId.BARRACKS).closest_to(self.bot.main_base_ramp.barracks_correct_placement) # type: ignore
                 candidates = [(depot_position + ramp_barracks.position) / 2 for depot_position in self.bot.main_base_ramp.corner_depots]
                 candidate = max(candidates, key=lambda p: ramp_barracks.add_on_position.distance_to(p))
-                candidate = candidate.towards(self.bot.main_base_ramp.top_center.towards(ramp_barracks.position, distance=2), distance=-1) # type: ignore
+                candidate = candidate.towards(self.bot.main_base_ramp.top_center.towards(ramp_barracks.position, distance=2), distance=-1)
             else:
                 ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
                 # enemy_start: Point2 = self.bot.enemy_start_locations[0]
@@ -287,7 +287,7 @@ class SCVBuildStep(BuildStep):
                 if not turrets or self.closest_distance_squared(base, turrets) > 100: # 10 squared
                     new_build_position = await self.bot.find_placement(
                         unit_type_id,
-                        near=base.position.towards(self.bot.game_info.map_center, distance=-4), # type: ignore
+                        near=base.position.towards(self.bot.game_info.map_center, distance=-4),
                         placement_step=2,
                     )
                     break

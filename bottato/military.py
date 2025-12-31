@@ -148,7 +148,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
     async def get_enemies_in_base(self) -> Units:
         enemies_in_base = Units([], self.bot)
         base_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET)
-        if self.bot.enemy_race in (Race.Zerg, Race.Random): # type: ignore
+        if self.bot.enemy_race in (Race.Zerg, Race.Random):
             nydus_canals = self.bot.enemy_structures.of_type(UnitTypeId.NYDUSCANAL)
             if nydus_canals and self.closest_distance_squared(nydus_canals.first, base_structures) < 625 and self.main_army.units:
                 # put massive priority on killing nydus canals near base
@@ -296,7 +296,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             if reapers:
                 self.transfer(reapers[0], self.main_army, self.reaper_harass)
 
-        if self.banshee_harass.units.amount < 2 and (self.bot.enemy_race != Race.Terran or len(detected_enemy_builds) > 0): # type: ignore
+        if self.banshee_harass.units.amount < 2 and (self.bot.enemy_race != Race.Terran or len(detected_enemy_builds) > 0):
             if not self.anti_banshee_units:
                 self.anti_banshee_units = self.bot.enemy_units((UnitTypeId.VIKINGFIGHTER, UnitTypeId.PHOENIX, UnitTypeId.MUTALISK))
             if not self.anti_banshee_units:
@@ -353,9 +353,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         LogHelper.add_log(f"squad {self.main_army} staging at {self.main_army.staging_location}")
         enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
         if len(detected_enemy_builds) > 0 and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
-            self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 5) # type: ignore
+            self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 5)
         elif len(detected_enemy_builds) > 0 and len(self.bot.townhalls) <= 3 and self.army_ratio < 1.0:
-            self.main_army.staging_location = self.map.natural_position.towards(self.bot.main_base_ramp.bottom_center, 5) # type: ignore
+            self.main_army.staging_location = self.map.natural_position.towards(self.bot.main_base_ramp.bottom_center, 5)
         elif len(self.bot.townhalls) > 1:
             closest_base = self.map.get_closest_unit_by_path(self.bot.townhalls, enemy_position)
             if closest_base is None:
@@ -368,12 +368,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             while backtrack_distance > 0 and i + 1 < len(path):
                 next_node_distance = path[i].distance_to(path[i + 1])
                 if backtrack_distance <= next_node_distance:
-                    self.main_army.staging_location = path[i].towards(path[i + 1], backtrack_distance) # type: ignore
+                    self.main_army.staging_location = path[i].towards(path[i + 1], backtrack_distance)
                     break
                 backtrack_distance -= next_node_distance
                 i += 1
         else:
-            self.main_army.staging_location = self.bot.start_location.towards(enemy_position, 5) # type: ignore
+            self.main_army.staging_location = self.bot.start_location.towards(enemy_position, 5)
         await self.main_army.move(self.main_army.staging_location, enemy_position, force_move=True, blueprints=blueprints)
 
     @timed_async

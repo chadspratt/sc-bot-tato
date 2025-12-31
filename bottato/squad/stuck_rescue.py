@@ -49,9 +49,9 @@ class StuckRescue(Squad, UnitReferenceMixin):
                 self.is_loaded = False
                 self.dropoff = None
             else:
-                self.dropoff = self.main_army.position.towards(self.bot.start_location, 8) # type: ignore
-                self.transport.move(self.dropoff) # type: ignore
-                if self.transport.distance_to_squared(self.dropoff) < 25: # type: ignore
+                self.dropoff = self.main_army.position.towards(self.bot.start_location, 8)
+                self.transport.move(self.dropoff)
+                if self.transport.distance_to_squared(self.dropoff) < 25:
                     self.transport(AbilityId.UNLOADALLAT, self.transport)
                     for tag in self.transport.passengers_tags:
                         self.pending_unload.add(tag)
