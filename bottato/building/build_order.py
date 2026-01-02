@@ -150,7 +150,7 @@ class BuildOrder(UnitReferenceMixin):
             step: BuildStep = self.started.pop(idx)
             step.interrupted_count += 1
             LogHelper.add_log(f"{step} interrupted")
-            if isinstance(step, UpgradeBuildStep) and step.upgrade_id in self.bot.state.upgrades:
+            if isinstance(step, UpgradeBuildStep) and self.bot.already_pending_upgrade(step.upgrade_id) > 0:
                 # actually finished
                 continue
             if step.is_unit() and self.get_queued_count(step.get_unit_type_id()) > 0:
@@ -229,9 +229,10 @@ class BuildOrder(UnitReferenceMixin):
                 if not self.substitute_steps_in_queue(UnitTypeId.SIEGETANK, [UnitTypeId.CYCLONE], self.static_queue):
                     self.add_to_build_queue([UnitTypeId.CYCLONE], queue=self.static_queue)
                 self.remove_step_from_queue(UpgradeId.BANSHEECLOAK, self.static_queue)
-            min_vikings = 7 if BuildType.FLEET_BEACON in detected_enemy_builds else 4
+                self.add_to_build_queue([UnitTypeId.STARPORT, UnitTypeId.STARPORTREACTOR], queue=self.static_queue, remove_duplicates=False)
+            min_vikings = 10 if BuildType.FLEET_BEACON in detected_enemy_builds else 6
             if self.bot.units(UnitTypeId.VIKINGFIGHTER).amount + self.get_queued_count(UnitTypeId.VIKINGFIGHTER) < min_vikings:
-                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.static_queue)
+                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.static_queue, )
 
     
     def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep], position: int | None = None) -> bool:
@@ -260,14 +261,22 @@ class BuildOrder(UnitReferenceMixin):
     
     def remove_step_from_queue(self, unit_type: UnitTypeId | UpgradeId, queue: List[BuildStep]) -> bool:
         for step in queue:
-            if step.is_unit_type(unit_type):
-                queue.remove(step)
-                return True
+            if isinstance(unit_type, UnitTypeId):
+                if step.is_unit_type(unit_type):
+                    queue.remove(step)
+                    return True
+            else:
+                if step.is_upgrade_type(unit_type):
+                    queue.remove(step)
+                    return True
         return False
 
     @timed
     def add_to_build_queue(self, unit_types: List[UnitTypeId | UpgradeId],
-                           position: int | None = None, queue: List[BuildStep] | None = None, add_prereqs: bool = True) -> None:
+                           position: int | None = None,
+                           queue: List[BuildStep] | None = None,
+                           add_prereqs: bool = True,
+                           remove_duplicates: bool = True) -> None:
         if queue is None:
             queue = self.build_queue
         all_prereqs: List[UnitTypeId | UpgradeId] = []
@@ -280,18 +289,19 @@ class BuildOrder(UnitReferenceMixin):
                     if prereq != unit_type and prereq not in all_prereqs:
                         all_prereqs.append(prereq)
             unit_types = all_prereqs + unit_types
-                
-        for build_step in queue:
-            if isinstance(build_step, StructureBuildStep) or isinstance(build_step, SCVBuildStep):
-                if build_step.unit_type_id in unit_types:
-                    unit_types.remove(build_step.unit_type_id)
-                    if not unit_types:
-                        break
-            elif isinstance(build_step, UpgradeBuildStep):
-                if build_step.upgrade_id in unit_types:
-                    unit_types.remove(build_step.upgrade_id)
-                    if not unit_types:
-                        break
+        
+        if remove_duplicates:
+            for build_step in queue:
+                if isinstance(build_step, StructureBuildStep) or isinstance(build_step, SCVBuildStep):
+                    if build_step.unit_type_id in unit_types:
+                        unit_types.remove(build_step.unit_type_id)
+                        if not unit_types:
+                            break
+                elif isinstance(build_step, UpgradeBuildStep):
+                    if build_step.upgrade_id in unit_types:
+                        unit_types.remove(build_step.upgrade_id)
+                        if not unit_types:
+                            break
         steps_to_add: List[BuildStep] = [self.create_build_step(unit_type) for unit_type in unit_types]
         if steps_to_add:
             if position is not None:

@@ -63,8 +63,8 @@ class Counter():
             UnitTypeId.SIEGETANK: 0.3
         },
         UnitTypeId.TEMPEST: { # 4
-            UnitTypeId.VIKINGFIGHTER: 2,
-            UnitTypeId.CYCLONE: 1
+            UnitTypeId.VIKINGFIGHTER: 3,
+            UnitTypeId.CYCLONE: 0.3
         },
         UnitTypeId.VOIDRAY: { # 4
             UnitTypeId.VIKINGFIGHTER: 2

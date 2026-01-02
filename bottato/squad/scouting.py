@@ -561,7 +561,7 @@ class Scouting(Squad, DebugMixin):
             if self.bot.enemy_units(UnitTypeId.BATTLECRUISER) and self.intel.number_seen(UnitTypeId.STARPORT) == 0:
                 return True
             return self.initial_scout.main_scouted and self.intel.number_seen(UnitTypeId.BARRACKS) == 0
-        return self.initial_scout.main_scouted and self.intel.number_seen(UnitTypeId.GATEWAY) == 0
+        return self.bot.time > 100 and self.intel.number_seen(UnitTypeId.GATEWAY) == 0
 
     def enemy_natural_is_built(self) -> bool:
         enemy_townhalls = self.bot.enemy_structures.of_type([

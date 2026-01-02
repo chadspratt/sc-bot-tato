@@ -150,6 +150,7 @@ class Production(UnitReferenceMixin):
         self.needs_tech_lab: List[UnitTypeId] = [
             UnitTypeId.MARAUDER,
             UnitTypeId.GHOST,
+            UnitTypeId.CYCLONE,
             UnitTypeId.SIEGETANK,
             UnitTypeId.THOR,
             UnitTypeId.RAVEN,
