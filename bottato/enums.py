@@ -50,8 +50,8 @@ class BuildType(enum.Enum):
     PROXY = 1
     RUSH = 2
     BATTLECRUISER_RUSH = 3
-    EARLY_STARPORT = 4
-    EARLY_FLEET_BEACON = 5
+    STARGATE = 4
+    FLEET_BEACON = 5
 
 class ScoutType(enum.Enum):
     NONE = 0
@@ -64,6 +64,7 @@ class BuildOrderChange(enum.Enum):
     BATTLECRUISER = 1
     REAPER = 2
     BANSHEE_HARASS = 3
+    ANTI_AIR = 4
 
 class AttackDirection(enum.Enum):
     OUT = 0

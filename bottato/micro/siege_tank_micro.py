@@ -7,9 +7,10 @@ from sc2.unit import Unit
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 
-from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.log_helper import LogHelper
 from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.mixins import GeometryMixin, timed, timed_async
+from bottato.unit_types import UnitTypes
 
 
 class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
@@ -59,9 +60,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             return True
 
         on_cooldown = time_since_last_transform < self.min_seconds_between_transform
-        # if time_since_last_transform < self.min_seconds_between_transform:
-        #     logger.debug(f"unit last transformed {time_since_last_transform}s ago, need to wait {self.min_seconds_between_transform}")
-        #     return False
 
         # siege if stationary for 4s
         if unit.tag not in self.stationary_positions:
@@ -110,7 +108,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         last_siege_attack = self.last_siege_attack_time.get(unit.tag, -999)
         time_since_last_siege_attack = self.bot.time - last_siege_attack
 
-        excluded_enemy_types = [UnitTypeId.LARVA, UnitTypeId.EGG] if is_sieged else [UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE, UnitTypeId.DRONEBURROWED, UnitTypeId.MULE, UnitTypeId.LARVA, UnitTypeId.EGG]
+        excluded_enemy_types = [UnitTypeId.LARVA, UnitTypeId.EGG] if is_sieged else UnitTypes.NON_THREATS
         closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
                                                                         excluded_types=excluded_enemy_types)
         closest_distance_after_siege = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
@@ -144,41 +142,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         enemy_height = self.bot.get_terrain_height(closest_enemy.position) if closest_enemy else tank_height
         has_high_ground_advantage = tank_height - 1 > enemy_height
         siege_aggressively = on_cooldown and not is_sieged or friendly_buffer_count >= 15 and len(self.unsieged_tags) < len(self.sieged_tags) - 2
-        # if is_sieged:
-        #     unsiege_range = self.sieged_range
-        #     if siege_aggressively:
-        #         unsiege_range = self.sieged_range
-        #     elif friendly_buffer_count >= 5:
-        #         unsiege_range = max(25 - min(time_since_last_transform, time_since_last_siege_attack), self.sieged_range)
-        #     if has_high_ground_advantage and closest_enemy:
-        #         closer_position = unit.position.towards(closest_enemy.position, 1)
-        #         if self.bot.get_terrain_height(closer_position) < tank_height:
-        #             # be reluctant to leave high ground
-        #             unsiege_range += 5
-        #     if closest_distance > unsiege_range and closest_structure_distance > self.sight_range - 1:
-        #         self.unsiege(unit)
-        #         return True
-        # elif closest_enemy and friendly_buffer_count >= 5 or closest_structure_distance < closest_distance:
-        #     enemy_will_be_far_enough = True if has_high_ground_advantage else closest_distance > self.sieged_minimum_range + 2
-        #     close_siege_range = closest_distance_after_siege
-        #     if structures_under_threat or siege_aggressively:
-        #         # enemy might be immobile while attacking structures, so only siege if in range now
-        #         close_siege_range = closest_distance
-        #     elif has_high_ground_advantage and closest_enemy:
-        #         close_siege_range = closest_distance
-        #         if close_siege_range > self.sieged_range:
-        #             closer_position = unit.position.towards(closest_enemy.position, 1)
-        #             closer_position = closest_enemy.position.towards(unit, self.sieged_range)
-        #             if self.bot.get_terrain_height(closer_position) == tank_height:
-        #                 unit.move(closer_position)
-        #                 return True
-        #     enemy_will_be_close_enough = close_siege_range <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
-        #     if enemy_will_be_far_enough and enemy_will_be_close_enough:
-        #         self.siege(unit)
-        #         return True
-            
 
-            
         closest_enemy_distance = closest_distance_after_siege
         if structures_under_threat or siege_aggressively or has_high_ground_advantage and closest_enemy:
             # enemy might be immobile while attacking structures, so only siege if in range now

@@ -189,18 +189,6 @@ class Scout(Squad, UnitReferenceMixin):
             if enemy_bcs:
                 await micro.scout(self.unit, enemy_bcs.closest_to(self.unit).position)
                 return
-            # land to attack workers, but too high risk
-            # nearby_enemies = self.enemy.threats_to(self.unit, 9)
-            # if nearby_enemies:
-            #     if not self.unit.is_flying:
-            #         self.unit(AbilityId.MORPH_VIKINGFIGHTERMODE)
-            # else:
-            #     nearby_workers = self.bot.enemy_units.filter(
-            #         lambda u: u.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE)
-            #         and u.distance_to(self.unit) < 15)
-            #     if nearby_workers:
-            #         await micro.move(self.unit, nearby_workers.closest_to(self.unit).position)
-            #         return
 
         distance_to_next_location = self.unit.distance_to(assignment.position)
         if distance_to_next_location < self.closest_distance_to_next_location:
@@ -538,10 +526,18 @@ class Scouting(Squad, DebugMixin):
             # Protoss
             lots_of_gateways = not self.initial_scout.completed and self.intel.number_seen(UnitTypeId.GATEWAY) > 2
             no_expansion = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.NEXUS) == 1
+            early_stargate = self.intel.number_seen(UnitTypeId.STARGATE) > 0
+            fleet_beacon = self.intel.number_seen(UnitTypeId.FLEETBEACON) > 0
             if lots_of_gateways:
                 await LogHelper.add_chat("lots of gateways detected")
             if no_expansion:
                 await LogHelper.add_chat("no expansion detected")
+            if early_stargate:
+                await LogHelper.add_chat("stargate detected")
+                self.add_detected_build(BuildType.STARGATE)
+            if fleet_beacon:
+                await LogHelper.add_chat("fleet beacon detected")
+                self.add_detected_build(BuildType.FLEET_BEACON)
             if lots_of_gateways or no_expansion:
                 self.add_detected_build(BuildType.RUSH)
             

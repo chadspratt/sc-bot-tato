@@ -8,6 +8,7 @@ from sc2.ids.upgrade_id import UpgradeId
 
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin, timed_async
+from bottato.unit_types import UnitTypes
 
 
 class MarineMicro(BaseUnitMicro, GeometryMixin):
@@ -16,14 +17,6 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     stim_researched: bool = False
     attack_range: float = 5.0
     time_in_frames_to_attack: float = 0.3 * 22.4  # 0.3 seconds
-
-    excluded_ability_unit_types: set[UnitTypeId] = set((
-        UnitTypeId.PROBE,
-        UnitTypeId.SCV,
-        UnitTypeId.DRONE,
-        UnitTypeId.DRONEBURROWED,
-        UnitTypeId.MULE,
-    ))
 
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
@@ -37,7 +30,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
         if self.is_stimmed(unit):
             return False
         
-        closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=self.excluded_ability_unit_types)
+        closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=UnitTypes.WORKER_TYPES)
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if closest_distance <= self.attack_range:
             if self._retreat_to_tank(unit, can_attack):

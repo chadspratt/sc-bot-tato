@@ -219,6 +219,19 @@ class BuildOrder(UnitReferenceMixin):
                 UnitTypeId.BANSHEE,
                 UpgradeId.BANSHEECLOAK], self.static_queue)
             self.add_to_build_queue([UnitTypeId.BANSHEE], queue=self.static_queue)
+        if BuildType.STARGATE in detected_enemy_builds:
+            if BuildOrderChange.ANTI_AIR not in self.changes_enacted:
+                self.changes_enacted.append(BuildOrderChange.ANTI_AIR)
+                self.substitute_steps_in_queue(UnitTypeId.STARPORTTECHLAB, [UnitTypeId.STARPORTREACTOR], self.static_queue)
+                self.substitute_steps_in_queue(UnitTypeId.BANSHEE, [UnitTypeId.VIKINGFIGHTER], self.static_queue)
+                self.substitute_steps_in_queue(UnitTypeId.BANSHEE, [UnitTypeId.VIKINGFIGHTER], self.static_queue)
+                self.substitute_steps_in_queue(UnitTypeId.MEDIVAC, [UnitTypeId.VIKINGFIGHTER], self.static_queue)
+                if not self.substitute_steps_in_queue(UnitTypeId.SIEGETANK, [UnitTypeId.CYCLONE], self.static_queue):
+                    self.add_to_build_queue([UnitTypeId.CYCLONE], queue=self.static_queue)
+                self.remove_step_from_queue(UpgradeId.BANSHEECLOAK, self.static_queue)
+            min_vikings = 7 if BuildType.FLEET_BEACON in detected_enemy_builds else 4
+            if self.bot.units(UnitTypeId.VIKINGFIGHTER).amount + self.get_queued_count(UnitTypeId.VIKINGFIGHTER) < min_vikings:
+                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.static_queue)
 
     
     def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep], position: int | None = None) -> bool:
@@ -242,6 +255,13 @@ class BuildOrder(UnitReferenceMixin):
                     new_step = self.create_build_step(to_unit_type)
                     queue.insert(idx, new_step)
                     idx += 1
+                return True
+        return False
+    
+    def remove_step_from_queue(self, unit_type: UnitTypeId | UpgradeId, queue: List[BuildStep]) -> bool:
+        for step in queue:
+            if step.is_unit_type(unit_type):
+                queue.remove(step)
                 return True
         return False
 

@@ -55,9 +55,6 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False):
         if unit.health_percentage < self.attack_health:
             return False
-            # threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
-            # if threats:
-            #     return False
 
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
 
@@ -72,7 +69,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         if not nearby_enemies:
             if unit.tag in self.harass_location_reached_tags:
-                nearest_worker, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE])
+                nearest_worker, _ = self.enemy.get_closest_target(unit, included_types=UnitTypes.WORKER_TYPES)
                 if nearest_worker:
                     if can_attack:
                         return self._kite(unit, nearest_worker)
@@ -81,8 +78,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                         return True
             return False
 
-        # enemy_workers = nearby_enemies.filter(lambda enemy: enemy.type_id in (UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE))
-        threats = nearby_enemies.filter(lambda enemy: enemy.type_id not in (UnitTypeId.MULE, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.LARVA, UnitTypeId.EGG))
+        threats = nearby_enemies.filter(lambda enemy: enemy.type_id not in UnitTypes.NON_THREATS)
 
         if threats:
             for threat in threats:
@@ -143,7 +139,6 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 return True
             if retreat_to_start:
                 retreat_position = unit.position.towards(avg_threat_position, -5)
-                # .towards(destination, 2)
                 if self.bot.in_pathing_grid(retreat_position):
                     unit.move(retreat_position)
                 else:

@@ -346,6 +346,27 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.PLANETARYFORTRESS,
     )
 
+    WORKER_TYPES = [
+        UnitTypeId.DRONE,
+        UnitTypeId.DRONEBURROWED,
+        UnitTypeId.PROBE,
+        UnitTypeId.SCV,
+        UnitTypeId.MULE,
+    ]
+
+    NON_THREATS = [
+        UnitTypeId.LARVA,
+        UnitTypeId.EGG,
+        UnitTypeId.OVERLORD,
+        UnitTypeId.OVERSEER,
+        UnitTypeId.CHANGELING,
+        UnitTypeId.DRONE,
+        UnitTypeId.DRONEBURROWED,
+        UnitTypeId.PROBE,
+        UnitTypeId.SCV,
+        UnitTypeId.MULE,
+    ]
+
     def get_unit_info(self, unit_type_id: UnitTypeId) -> Dict[str, Any]:
         """
         Get the unit info for a given unit type ID.
@@ -525,11 +546,11 @@ class UnitTypes(GeometryMixin):
 
         for unit in units:
             type_id = unit.unit_alias if use_common_type and unit.unit_alias else unit.type_id
-            if type_id in (UnitTypeId.SCV, UnitTypeId.MULE):
+            if type_id in UnitTypes.WORKER_TYPES:
                 continue
             if type_id in (UnitTypeId.BUNKER, UnitTypeId.MEDIVAC):
                 for passenger in unit.passengers:
-                    if passenger.type_id in (UnitTypeId.SCV, UnitTypeId.MULE):
+                    if passenger.type_id in UnitTypes.WORKER_TYPES:
                         continue
                     counts[passenger.type_id] = counts.get(passenger.type_id, 0) + 1
             counts[type_id] = counts.get(type_id, 0) + 1

@@ -434,44 +434,22 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
 
         return friendly_strength / max(enemy_strength, 0.0001)
 
+    damage_by_type_cache: Dict[UnitTypeId, Dict[UnitTypeId, float]] = {}
+    damage_by_type_cache_timestamp: float = 0.0
     @timed
     def calculate_total_damage(self, attackers: Units, targets: Units) -> float:
-        damage_by_type: Dict[UnitTypeId, Dict[UnitTypeId, float]] = {}
+        self.calculate_damage_by_type(attackers, targets)
+        
         total_damage: float = 0.0
         attacker_type_counts = UnitTypes.count_units_by_type(attackers, use_common_type=False)
         target_type_counts = UnitTypes.count_units_by_type(targets, use_common_type=False)
-        # calculate dps vs each target type if not already cached
-        for attacker in attackers:
-            if attacker.type_id not in damage_by_type:
-                damage_by_type[attacker.type_id] = {}
-            for target in targets:
-                if target.type_id not in damage_by_type[attacker.type_id]:
-                    dps = UnitTypes.dps(attacker, target)
-                    damage_by_type[attacker.type_id][target.type_id] = dps
-                if attacker.type_id in (UnitTypeId.BUNKER, UnitTypeId.MEDIVAC):
-                    for passenger in attacker.passengers:
-                        if passenger.type_id in (UnitTypeId.SCV, UnitTypeId.MULE):
-                            continue
-                        if passenger.type_id not in damage_by_type:
-                            damage_by_type[passenger.type_id] = {}
-                        if target.type_id not in damage_by_type[passenger.type_id]:
-                            dps = UnitTypes.dps(self.passenger_stand_ins[passenger.type_id], target)
-                            damage_by_type[passenger.type_id][target.type_id] = dps
-                if target.type_id in (UnitTypeId.BUNKER, UnitTypeId.MEDIVAC):
-                    for passenger in target.passengers:
-                        if passenger.type_id in (UnitTypeId.SCV, UnitTypeId.MULE):
-                            continue
-                        if passenger.type_id not in damage_by_type[attacker.type_id]:
-                            dps = UnitTypes.dps(attacker, self.passenger_stand_ins[passenger.type_id])
-                            damage_by_type[attacker.type_id][passenger.type_id] = dps
 
         # calculate average damage vs all target types
-        total_damage = 0.0
         for attacker_type, attacker_count in attacker_type_counts.items():
             total_damage_for_type = 0.0
             total_count = 0
             for target_type, target_count in target_type_counts.items():
-                dps = damage_by_type[attacker_type][target_type]
+                dps = self.damage_by_type_cache[attacker_type][target_type]
                 total_damage_for_type += dps * target_count
                 total_count += target_count
                 if attacker_type in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
@@ -480,6 +458,36 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             # add total average damage for all attackers of this type
             total_damage += average_damage * attacker_count
         return total_damage
+    
+    @timed
+    def calculate_damage_by_type(self, attackers: Units, targets: Units):
+        if self.bot.time - self.damage_by_type_cache_timestamp > 10:
+            self.damage_by_type_cache.clear()
+            self.damage_by_type_cache_timestamp = self.bot.time
+        # calculate dps vs each target type if not already cached
+        for attacker in attackers:
+            if attacker.type_id not in self.damage_by_type_cache:
+                self.damage_by_type_cache[attacker.type_id] = {}
+            for target in targets:
+                if target.type_id not in self.damage_by_type_cache[attacker.type_id]:
+                    dps = UnitTypes.dps(attacker, target)
+                    self.damage_by_type_cache[attacker.type_id][target.type_id] = dps
+                if attacker.type_id in (UnitTypeId.BUNKER, UnitTypeId.MEDIVAC):
+                    for passenger in attacker.passengers:
+                        if passenger.type_id in (UnitTypeId.SCV, UnitTypeId.MULE):
+                            continue
+                        if passenger.type_id not in self.damage_by_type_cache:
+                            self.damage_by_type_cache[passenger.type_id] = {}
+                        if target.type_id not in self.damage_by_type_cache[passenger.type_id]:
+                            dps = UnitTypes.dps(self.passenger_stand_ins[passenger.type_id], target)
+                            self.damage_by_type_cache[passenger.type_id][target.type_id] = dps
+                if target.type_id in (UnitTypeId.BUNKER, UnitTypeId.MEDIVAC):
+                    for passenger in target.passengers:
+                        if passenger.type_id in (UnitTypeId.SCV, UnitTypeId.MULE):
+                            continue
+                        if passenger.type_id not in self.damage_by_type_cache[attacker.type_id]:
+                            dps = UnitTypes.dps(attacker, self.passenger_stand_ins[passenger.type_id])
+                            self.damage_by_type_cache[attacker.type_id][passenger.type_id] = dps
 
     @timed
     def simulate_battle(self):

@@ -144,7 +144,7 @@ class Commander(GeometryMixin, UnitReferenceMixin):
         self.scouting.update_visibility()
         await self.scouting.scout(self.new_damage_by_unit, self.units_by_tag)
 
-        for build_type, build_time in self.enemy_builds_detected.items():
+        for build_type, build_time in (await self.scouting.detected_enemy_builds).items():
             self.enemy_builds_detected[build_type] = build_time
 
     @timed_async

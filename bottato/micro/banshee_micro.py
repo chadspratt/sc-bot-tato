@@ -105,7 +105,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if force_move:
             return False
         if unit.tag in self.harass_location_reached_tags:
-            nearest_worker, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE])
+            nearest_worker, _ = self.enemy.get_closest_target(unit, included_types=UnitTypes.WORKER_TYPES)
             if nearest_worker:
                 if can_attack:
                     return self._kite(unit, nearest_worker)

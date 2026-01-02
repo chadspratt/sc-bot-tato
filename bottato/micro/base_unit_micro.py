@@ -557,7 +557,7 @@ class BaseUnitMicro(GeometryMixin):
                 return False
 
         tank_targets = self.bot.enemy_units.filter(
-            lambda u: u.type_id not in self.retreat_to_tank_excluded_types
+            lambda u: u.type_id not in UnitTypes.NON_THREATS
                 and not u.is_flying
                 and UnitTypes.can_attack_ground(u)
                 and u.unit_alias != UnitTypeId.CHANGELING

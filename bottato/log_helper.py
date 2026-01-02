@@ -41,9 +41,10 @@ class LogHelper:
                 LogHelper.previous_messages[message] += 1
         to_delete = []
         for message in LogHelper.previous_messages:
-            if message not in LogHelper.new_messages and LogHelper.previous_messages[message] > 1:
-                logger.info(f"{formatted_time}: ended ({LogHelper.previous_messages[message]}x): {message}")
+            if message not in LogHelper.new_messages:
                 to_delete.append(message)
+                if LogHelper.previous_messages[message] > 1:
+                    logger.info(f"{formatted_time}: ended ({LogHelper.previous_messages[message]}x): {message}")
         for message in to_delete:
             del LogHelper.previous_messages[message]
         LogHelper.new_messages = []
