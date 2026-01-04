@@ -185,5 +185,9 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 unit.attack(closest_target)
                 return True
             return self._kite(unit, closest_target)
+        
+        # try to shut down medivac drops
+        if len(candidates) < 8 and candidates(UnitTypeId.MEDIVAC):
+            unit.attack(candidates(UnitTypeId.MEDIVAC).first)
 
         return self._stay_at_max_range(unit, candidates)

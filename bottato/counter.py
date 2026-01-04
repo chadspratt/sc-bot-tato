@@ -104,17 +104,19 @@ class Counter():
             UnitTypeId.BANSHEE: 0.3
         },
         UnitTypeId.MARINE: { # 1
-            UnitTypeId.SIEGETANK: 0.2,
-            UnitTypeId.MARINE: 0.5
+            UnitTypeId.SIEGETANK: 0.15,
+            UnitTypeId.MARINE: 0.5,
+            UnitTypeId.WIDOWMINE: 0.1
         },
         UnitTypeId.MEDIVAC: { # 2
-            UnitTypeId.VIKINGFIGHTER: 0.75
+            UnitTypeId.VIKINGFIGHTER: 1
         },
         UnitTypeId.RAVEN: { # 2
             UnitTypeId.VIKINGFIGHTER: 0.5
         },
         UnitTypeId.REAPER: { # 1
-            UnitTypeId.HELLION: 1
+            UnitTypeId.HELLION: 0.5,
+            UnitTypeId.WIDOWMINE: 0.5
         },
         UnitTypeId.SIEGETANK: { # 3
             UnitTypeId.BANSHEE: 0.8
@@ -155,8 +157,9 @@ class Counter():
             UnitTypeId.BANSHEE: 0.5
         },
         UnitTypeId.MUTALISK: { # 2
-            UnitTypeId.LIBERATOR: 0.4,
-            UnitTypeId.MARINE: 1
+            UnitTypeId.WIDOWMINE: 0.5,
+            UnitTypeId.MARINE: 0.3,
+            UnitTypeId.VIKINGFIGHTER: 0.3
         },
         UnitTypeId.OVERLORD: {
             UnitTypeId.VIKINGFIGHTER: 0.05
