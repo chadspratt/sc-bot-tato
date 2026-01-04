@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Dict, Tuple
 from loguru import logger
 
-from sc2.position import Point2, Pointlike
+from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -141,7 +141,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         tank_height = self.bot.get_terrain_height(unit.position)
         enemy_height = self.bot.get_terrain_height(closest_enemy.position) if closest_enemy else tank_height
         has_high_ground_advantage = tank_height - 1 > enemy_height
-        siege_aggressively = on_cooldown and not is_sieged or friendly_buffer_count >= 15 and len(self.unsieged_tags) < len(self.sieged_tags) - 2
+        siege_aggressively = on_cooldown and not is_sieged or friendly_buffer_count >= 15 and len(self.unsieged_tags) <= len(self.sieged_tags)
 
         closest_enemy_distance = closest_distance_after_siege
         if structures_under_threat or siege_aggressively or has_high_ground_advantage and closest_enemy:

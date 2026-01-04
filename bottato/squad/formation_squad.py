@@ -94,26 +94,39 @@ class FormationSquad(Squad, GeometryMixin):
         if reset:
             self.parent_formation.clear()
         if not self.parent_formation.formations:
-            unit_type_order = [
+            ground_unit_type_order = [
                 UnitTypeId.MARINE,
                 UnitTypeId.VIKINGASSAULT,
                 UnitTypeId.MARAUDER,
+                UnitTypeId.WIDOWMINE,
+                UnitTypeId.WIDOWMINEBURROWED,
                 UnitTypeId.HELLION,
                 UnitTypeId.REAPER,
-                UnitTypeId.BANSHEE,
+                # UnitTypeId.BANSHEE,
                 UnitTypeId.CYCLONE,
-                UnitTypeId.VIKINGFIGHTER,
-                UnitTypeId.BATTLECRUISER,
+                # UnitTypeId.VIKINGFIGHTER,
+                # UnitTypeId.BATTLECRUISER,
                 UnitTypeId.THOR,
                 UnitTypeId.GHOST,
-                UnitTypeId.RAVEN,
-                UnitTypeId.LIBERATOR,
+                # UnitTypeId.RAVEN,
+                # UnitTypeId.LIBERATOR,
                 UnitTypeId.SIEGETANK,
                 UnitTypeId.SIEGETANKSIEGED,
+                # UnitTypeId.MEDIVAC
+            ]
+            flying_unit_type_order = [
+                UnitTypeId.BANSHEE,
+                UnitTypeId.VIKINGFIGHTER,
+                UnitTypeId.BATTLECRUISER,
+                UnitTypeId.RAVEN,
+                UnitTypeId.LIBERATOR,
                 UnitTypeId.MEDIVAC
             ]
             y_offset = 0
-            for unit_type in unit_type_order:
+            for unit_type in ground_unit_type_order:
+                if self.add_unit_formation(unit_type, y_offset):
+                    y_offset -= 1
+            for unit_type in flying_unit_type_order:
                 if self.add_unit_formation(unit_type, y_offset):
                     y_offset -= 1
 

@@ -505,6 +505,7 @@ class Scouting(Squad, DebugMixin):
                 await LogHelper.add_chat("no expansion detected")
             if zergling_rush:
                 await LogHelper.add_chat("zergling rush detected")
+                self.add_detected_build(BuildType.ZERGLING_RUSH)
             if early_pool or no_gas or no_expansion or zergling_rush:
                 self.add_detected_build(BuildType.RUSH)
         elif self.intel.enemy_race_confirmed == Race.Terran:

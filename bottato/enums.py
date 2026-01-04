@@ -45,6 +45,12 @@ class SquadFormationType(enum.Enum):
     HOLLOW_HALF_CIRCLE = 5
     COLUMNS = 6
 
+class ScoutType(enum.Enum):
+    NONE = 0
+    VIKING = 1
+    GROUND = 2
+    ANY = 3
+
 class BuildType(enum.Enum):
     NONE = 0
     PROXY = 1
@@ -52,12 +58,7 @@ class BuildType(enum.Enum):
     BATTLECRUISER_RUSH = 3
     STARGATE = 4
     FLEET_BEACON = 5
-
-class ScoutType(enum.Enum):
-    NONE = 0
-    VIKING = 1
-    GROUND = 2
-    ANY = 3
+    ZERGLING_RUSH = 6
 
 class BuildOrderChange(enum.Enum):
     RUSH = 0
@@ -65,6 +66,7 @@ class BuildOrderChange(enum.Enum):
     REAPER = 2
     BANSHEE_HARASS = 3
     ANTI_AIR = 4
+    ZERGLING_RUSH = 5
 
 class AttackDirection(enum.Enum):
     OUT = 0

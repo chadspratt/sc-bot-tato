@@ -29,7 +29,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                       UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.DRONE, UnitTypeId.PROBE,
                       UnitTypeId.OVERLORD, UnitTypeId.OVERSEER,
                       UnitTypeId.EGG, UnitTypeId.LARVA,
-                      UnitTypeId.ZERGLING]
+                      UnitTypeId.ZERGLING, UnitTypeId.BROODLING]
                         
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:

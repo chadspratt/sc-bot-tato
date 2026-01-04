@@ -314,9 +314,6 @@ class BaseUnitMicro(GeometryMixin):
         elif self.valid_targets:
             return self._stay_at_max_range(unit, self.valid_targets)
 
-        # if force_move:
-        #     return False
-
         return False
     
     @timed
@@ -392,7 +389,7 @@ class BaseUnitMicro(GeometryMixin):
             if in_range:
                 return in_range.first
             
-    def _stay_at_max_range(self, unit: Unit, targets: Units) -> bool:
+    def _stay_at_max_range(self, unit: Unit, targets: Units, buffer: float = 0.5) -> bool:
         if not targets:
             return False
         nearest_target = self.closest_unit_to_unit(unit, targets)
@@ -425,7 +422,7 @@ class BaseUnitMicro(GeometryMixin):
 
         attack_range = UnitTypes.range_vs_target(unit, nearest_target)
         future_enemy_position = nearest_target.position
-        target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius + 0.5)
+        target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius + buffer)
         return self._move_to_pathable_position(unit, target_position)
 
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}

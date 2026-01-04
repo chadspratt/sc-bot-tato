@@ -211,6 +211,9 @@ class BuildOrder(UnitReferenceMixin):
                 if self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue):
                     # add a second bunker for low ground
                     self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
+        if BuildType.ZERGLING_RUSH in detected_enemy_builds and BuildOrderChange.ZERGLING_RUSH not in self.changes_enacted:
+            self.changes_enacted.append(BuildOrderChange.ZERGLING_RUSH)
+            self.add_to_build_queue([UnitTypeId.WIDOWMINE, UnitTypeId.HELLION], queue=self.priority_queue)
         if BuildOrderChange.BANSHEE_HARASS not in self.changes_enacted and self.bot.enemy_race == Race.Terran:
             self.changes_enacted.append(BuildOrderChange.BANSHEE_HARASS)
             self.move_between_queues(UnitTypeId.STARPORT, self.static_queue, self.priority_queue)

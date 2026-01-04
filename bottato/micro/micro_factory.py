@@ -20,6 +20,7 @@ from bottato.micro.reaper_micro import ReaperMicro
 from bottato.micro.scv_micro import SCVMicro
 from bottato.micro.siege_tank_micro import SiegeTankMicro
 from bottato.micro.viking_micro import VikingMicro
+from bottato.micro.widow_mine_micro import WidowMineMicro
 
 
 micro_instances: Dict[UnitTypeId, BaseUnitMicro] = {}
@@ -35,6 +36,7 @@ micro_lookup = {
     UnitTypeId.SCV: SCVMicro,
     UnitTypeId.SIEGETANK: SiegeTankMicro,
     UnitTypeId.VIKINGFIGHTER: VikingMicro,
+    UnitTypeId.WIDOWMINE: WidowMineMicro,
 }
 common_objects: dict[str, Any] = {
     "bot": None,

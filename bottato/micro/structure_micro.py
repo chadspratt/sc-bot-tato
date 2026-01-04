@@ -36,7 +36,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
     @timed
     def adjust_supply_depots_for_enemies(self, detected_enemy_builds: Dict[BuildType, float]):
         # Raise depots when enemies are nearby
-        distance_threshold = 15 if detected_enemy_builds else 8
+        distance_threshold = 8
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
             for enemy_unit in self.bot.enemy_units:
                 if enemy_unit.is_flying:

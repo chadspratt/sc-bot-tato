@@ -119,7 +119,7 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.BUNKER,                      # NATURAL choke, XXX on high ground if getting cheesed
                 UnitTypeId.STARPORT,
-                UnitTypeId.HELLION,
+                UnitTypeId.WIDOWMINE,
                 UnitTypeId.MARINE,               # begin reactor cycles,
                 UnitTypeId.MARINE,
                 UnitTypeId.STARPORTTECHLAB,
