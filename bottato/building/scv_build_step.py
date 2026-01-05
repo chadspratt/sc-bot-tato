@@ -257,7 +257,7 @@ class SCVBuildStep(BuildStep):
                 # try to build near edge of high ground towards natural
                 # high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
                 ramp_barracks = self.bot.structures.of_type(UnitTypeId.BARRACKS).closest_to(self.bot.main_base_ramp.barracks_correct_placement) # type: ignore
-                candidates = SpecialLocations.get_bunker_positions(
+                candidates = await SpecialLocations.get_bunker_positions(
                     self.bot.main_base_ramp.bottom_center,
                     ramp_barracks.position,
                     self.bot

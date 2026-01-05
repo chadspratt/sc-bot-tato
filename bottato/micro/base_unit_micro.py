@@ -34,6 +34,8 @@ class BaseUnitMicro(GeometryMixin):
     repair_started_tags: set[int] = set()
     repairer_tags: set[int] = set()
     repairer_tags_prev_frame: set[int] = set()
+    repair_targets: Dict[int, int] = {}  # target unit tag -> worker tag
+    repair_targets_prev_frame: Dict[int, int] = {}
     custom_effects_to_avoid: List[CustomEffect] = []  # position, time, radius, duration
 
     damaging_effects = [
@@ -62,28 +64,28 @@ class BaseUnitMicro(GeometryMixin):
         BaseUnitMicro.tanks_being_retreated_to = {}
         BaseUnitMicro.repairer_tags_prev_frame = BaseUnitMicro.repairer_tags
         BaseUnitMicro.repairer_tags = set()
+        BaseUnitMicro.repair_targets_prev_frame = BaseUnitMicro.repair_targets
+        BaseUnitMicro.repair_targets = {}
 
     ###########################################################################
     # meta actions - used by non-micro classes to order units
-    ###########################################################################
-    @timed_async
-    async def move_to_repairer(self, unit: Unit, target: Point2, force_move: bool = True, previous_position: Point2 | None = None) -> bool:
+    ###########################################################################        
+    def get_override_target_for_repair(self, unit: Unit, target: Point2) -> Point2:
         if unit.tag in BaseUnitMicro.repair_started_tags:
-            # already being repaired
-            target = unit.position
-        elif unit.tag not in BaseUnitMicro.repair_started_tags and unit.position.manhattan_distance(target) < 2.0 and self.bot.in_pathing_grid(unit.position):
-            LogHelper.add_log(f"move_to_repairer {unit} is close to worker")
-            BaseUnitMicro.repair_started_tags.add(unit.tag)
-        if unit.health_percentage > self.retreat_health and self.unit_is_closer_than(unit, self.bot.enemy_units, 15, self.bot):
-            # don't move to repairer if in combat and healthy
-            return False
-        if unit.tag in BaseUnitMicro.scout_tags:
-            await self.scout(unit, target)
-            return True
-        elif unit.tag in BaseUnitMicro.harass_tags:
-            return await self.harass(unit, target, force_move=force_move, previous_position=previous_position)
-        else:
-            return await self.move(unit, target, force_move=force_move, previous_position=previous_position)
+            if unit.health_percentage == 1.0 or self.closest_distance_squared(unit, self.bot.workers) > 25:
+                BaseUnitMicro.repair_started_tags.remove(unit.tag)
+            else:
+                return unit.position
+        if unit.tag in self.repair_targets_prev_frame:
+            if unit.health_percentage > self.retreat_health and self.unit_is_closer_than(unit, self.bot.enemy_units, 15, self.bot):
+                # don't move to repairer if in combat and healthy
+                return target
+            repairer = self.bot.units.find_by_tag(self.repair_targets_prev_frame[unit.tag])
+            if repairer:
+                return repairer.position
+        
+        return target
+
 
     @timed_async
     async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
@@ -99,6 +101,7 @@ class BaseUnitMicro(GeometryMixin):
             
         if unit.tag in self.bot.unit_tags_received_action:
             return True
+        target = self.get_override_target_for_repair(unit, target)
         action_taken = self._avoid_effects(unit, force_move)
         if not action_taken:
             action_taken = await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move)
@@ -125,14 +128,11 @@ class BaseUnitMicro(GeometryMixin):
             if unit.position.manhattan_distance(target) < 10:
                 BaseUnitMicro.harass_location_reached_tags.add(unit.tag)
         attack_health = self.attack_health
-        # if force_move and unit.distance_to_squared(target) < 144:
-        #     # force move is used for retreating. allow attacking and other micro when near staging location
-        #     attack_health = 0.0
-        #     force_move = False
             
         if unit.tag in self.bot.unit_tags_received_action:
             LogHelper.add_log(f"harass {unit} already has action")
             return True
+        target = self.get_override_target_for_repair(unit, target)
         action_taken = self._avoid_effects(unit, force_move)
         if not action_taken:
             action_taken = await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move)
@@ -159,6 +159,7 @@ class BaseUnitMicro(GeometryMixin):
             return
         logger.debug(f"scout {unit} health {unit.health}/{unit.health_max} ({unit.health_percentage}) health")
 
+        scouting_location = self.get_override_target_for_repair(unit, scouting_location)
         if self._avoid_effects(unit, False):
             logger.debug(f"unit {unit} avoiding effects")
         # elif await self._use_ability(unit, scouting_location, health_threshold=1.0):
@@ -167,8 +168,6 @@ class BaseUnitMicro(GeometryMixin):
             pass
         elif unit.type_id == UnitTypeId.VIKINGFIGHTER and self._attack_something(unit, health_threshold=1.0):
             pass
-        # elif await self.retreat(unit, health_threshold=0.5):
-        #     pass
         else:
             logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")
             unit.move(self.map.get_pathable_position(scouting_location, unit))
@@ -178,6 +177,10 @@ class BaseUnitMicro(GeometryMixin):
         BaseUnitMicro.repairer_tags.add(unit.tag)
         if unit.tag in self.bot.unit_tags_received_action:
             return False
+        BaseUnitMicro.repair_targets[target.tag] = unit.tag
+        if target.tag not in BaseUnitMicro.repair_started_tags and unit.distance_to_squared(target) < 4.0 and self.bot.in_pathing_grid(unit.position):
+            LogHelper.add_log(f"repair {target} is close to worker")
+            BaseUnitMicro.repair_started_tags.add(target.tag)
         if self._avoid_effects(unit, force_move=False):
             logger.debug(f"unit {unit} avoiding effects")
         elif target.type_id in (UnitTypeId.BUNKER, UnitTypeId.PLANETARYFORTRESS, UnitTypeId.MISSILETURRET, UnitTypeId.SIEGETANKSIEGED):
@@ -464,15 +467,23 @@ class BaseUnitMicro(GeometryMixin):
         ultimate_destination: Point2 | None = None
         if unit.is_mechanical:
             if not threats.filter(lambda t: t.can_attack):
-                repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags.union(BaseUnitMicro.repairer_tags_prev_frame)) or self.bot.workers
-                if repairers:
-                    repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
-                if repairers:
-                    closest_repairer = repairers.closest_to(unit)
-                    if closest_repairer.position.manhattan_distance(unit.position) < 1:
-                        ultimate_destination = unit.position
-                    else:
-                        ultimate_destination = closest_repairer.position
+                repairer: Unit | None = None
+                if unit.tag in self.repair_targets_prev_frame:
+                    try:
+                        repairer = self.bot.units.by_tag(self.repair_targets_prev_frame[unit.tag])
+                        ultimate_destination = repairer.position
+                    except KeyError:
+                        pass
+                if repairer is None:
+                    repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags.union(BaseUnitMicro.repairer_tags_prev_frame)) or self.bot.workers
+                    if repairers:
+                        repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
+                    if repairers:
+                        closest_repairer = repairers.closest_to(unit)
+                        if closest_repairer.position.manhattan_distance(unit.position) < 1:
+                            ultimate_destination = unit.position
+                        else:
+                            ultimate_destination = closest_repairer.position
         else:
             medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC)
             if medivacs:

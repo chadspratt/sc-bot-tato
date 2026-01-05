@@ -551,7 +551,7 @@ class Scouting(Squad, DebugMixin):
             self.enemy_builds_detected[build_type] = self.bot.time
     
     def proxy_detected(self) -> bool:
-        if self.intel.enemy_race_confirmed is None:
+        if self.intel.enemy_race_confirmed is None or self.bot.time > 120:
             return False
         if self.proxy_buildings:
             return True

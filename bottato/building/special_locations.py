@@ -49,7 +49,7 @@ class SpecialLocations:
         return None
     
     @staticmethod
-    def get_bunker_positions(ramp_bottom_center: Point2, barracks_position: Point2, bot: BotAI) -> List[Point2]:
+    async def get_bunker_positions(ramp_bottom_center: Point2, barracks_position: Point2, bot: BotAI) -> List[Point2]:
         candidates: List[Point2] = []
         if barracks_position.x < ramp_bottom_center.x:
             # ramp goes right
@@ -76,7 +76,7 @@ class SpecialLocations:
             else:
                 # ramp goes down
                 preferred_right = barracks_position + Point2((3, -3))
-                if bot.can_place_single(UnitTypeId.BUNKER, preferred_right):
+                if await bot.can_place_single(UnitTypeId.BUNKER, preferred_right):
                     candidates = [
                         barracks_position + Point2((-2, 3)),
                         preferred_right,

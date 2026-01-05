@@ -664,6 +664,7 @@ class Workers(UnitReferenceMixin, GeometryMixin):
     @timed_async
     async def redistribute_workers(self, needed_resources: Cost) -> int:
         await self.update_repairers()
+        self.distribute_idle()
 
         remaining_cooldown = 3 - (self.bot.time - self.last_worker_stop)
         if remaining_cooldown > 0:
@@ -671,10 +672,10 @@ class Workers(UnitReferenceMixin, GeometryMixin):
             return -1
 
         max_workers_to_move = 10
-        if needed_resources.vespene > -20:
+        if needed_resources.vespene < 20:
             logger.debug("saturate vespene")
             return self.move_workers_to_vespene(max_workers_to_move)
-        if needed_resources.minerals > 0:
+        if needed_resources.minerals < 0:
             logger.debug("saturate minerals")
             return self.move_workers_to_minerals(max_workers_to_move)
 
@@ -773,8 +774,6 @@ class Workers(UnitReferenceMixin, GeometryMixin):
                 if not repair_target.is_structure:
                     current_repairer_tag = current_repair_targets.get(repair_target.tag, repairer.tag)
                     if current_repairer_tag == repairer.tag:
-                        target_micro = MicroFactory.get_unit_micro(repair_target)
-                        await target_micro.move_to_repairer(repair_target, repairer.position)
                         if repair_target.type_id == UnitTypeId.SCV:
                             self.workers_being_repaired.add(repair_target.tag)
 
@@ -807,8 +806,6 @@ class Workers(UnitReferenceMixin, GeometryMixin):
                     if not repair_target.is_structure:
                         current_repairer_tag = current_repair_targets.get(repair_target.tag, repairer.tag)
                         if current_repairer_tag == repairer.tag:
-                            target_micro = MicroFactory.get_unit_micro(repair_target)
-                            await target_micro.move_to_repairer(repair_target, repairer.position)
                             if repair_target.type_id == UnitTypeId.SCV:
                                 self.workers_being_repaired.add(repair_target.tag)
     

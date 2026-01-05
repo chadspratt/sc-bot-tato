@@ -152,7 +152,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             nydus_canals = self.bot.enemy_structures.of_type(UnitTypeId.NYDUSCANAL)
             if nydus_canals and self.closest_distance_squared(nydus_canals.first, base_structures) < 625 and self.main_army.units:
                 # put massive priority on killing nydus canals near base
-                await self.main_army.move(nydus_canals.first.position)
+                if self.main_army.position._distance_squared(nydus_canals.first.position) > 225:
+                    await self.main_army.move(nydus_canals.first.position, force_move=True)
+                else:
+                    await self.main_army.move(nydus_canals.first.position)
                 return enemies_in_base
         
         enemy_units = self.bot.enemy_units
@@ -439,7 +442,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
     @timed
     def calculate_total_damage(self, attackers: Units, targets: Units) -> float:
         self.calculate_damage_by_type(attackers, targets)
-        
+
         total_damage: float = 0.0
         attacker_type_counts = UnitTypes.count_units_by_type(attackers, use_common_type=False)
         target_type_counts = UnitTypes.count_units_by_type(targets, use_common_type=False)

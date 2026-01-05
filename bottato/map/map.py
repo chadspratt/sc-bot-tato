@@ -398,7 +398,7 @@ class Map(GeometryMixin):
             if position_cost <= pathable_cost and pathable_position._distance_squared(position) < 2.25:
                 pathable_position = position
         if unit:
-            self.influence_maps.add_cost(pathable_position, unit.radius, self.ground_grid, np.inf)
+            self.influence_maps.add_cost((pathable_position[0], pathable_position[1]), unit.radius, self.ground_grid, np.inf)
         return pathable_position
 
     anti_air_structures: Set[UnitTypeId] = set([
@@ -429,17 +429,17 @@ class Map(GeometryMixin):
                     continue
                 total_damage += damage
             if total_damage > 0:
-                self.influence_maps.add_cost(position, 1.5, self.ground_grid, total_damage)
+                self.influence_maps.add_cost((position[0], position[1]), 1.5, self.ground_grid, total_damage)
         
         for enemy in self.bot.all_enemy_units:
             if enemy.is_detector:
-                self.influence_maps.add_cost(enemy.position, enemy.sight_range + 1.5, self.detection_grid)
+                self.influence_maps.add_cost((enemy.position[0], enemy.position[1]), enemy.sight_range + 1.5, self.detection_grid)
             if enemy.type_id in self.anti_air_structures and enemy.is_ready:
-                self.influence_maps.add_cost(enemy.position, UnitTypes.air_range(enemy) + 1.5, self.anti_air_grid)
+                self.influence_maps.add_cost((enemy.position[0], enemy.position[1]), UnitTypes.air_range(enemy) + 1.5, self.anti_air_grid)
         for effect in self.bot.state.effects:
             if effect.id == EffectId.SCANNERSWEEP:
                 for position in effect.positions:
-                    self.influence_maps.add_cost(position, 14, self.detection_grid, np.inf)
+                    self.influence_maps.add_cost((position[0], position[1]), 14, self.detection_grid, np.inf)
         
         # self.draw_influence()
     

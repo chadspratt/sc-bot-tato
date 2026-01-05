@@ -31,12 +31,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     early_game_siege_positions: Dict[int, Point2] = {}
     stationary_positions: Dict[int, Tuple[Point2, float]] = {}
 
-    async def move_to_repairer(self, unit: Unit, target: Point2, force_move: bool = True, previous_position: Point2 | None = None) -> bool:
-        is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
-        if is_sieged:
-            return False
-        return await super().move_to_repairer(unit, target, force_move, previous_position)
-
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
         if unit.tag not in self.known_tags:

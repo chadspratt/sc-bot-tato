@@ -80,7 +80,7 @@ class BuildOrder(UnitReferenceMixin):
         return self.started + self.interrupted_queue + self.priority_queue + self.static_queue + self.build_queue
 
     @timed_async
-    async def execute(self, army_ratio: float, detected_enemy_builds: Dict[BuildType, float], enemy: Enemy):
+    async def execute(self, army_ratio: float, detected_enemy_builds: Dict[BuildType, float], enemy: Enemy) -> Cost:
         for build_type, build_time in detected_enemy_builds.items():
             self.detected_enemy_builds[build_type] = build_time
         self.enact_build_changes(self.detected_enemy_builds)
@@ -118,17 +118,13 @@ class BuildOrder(UnitReferenceMixin):
             self.queue_production(only_build_units)
             self.queue_medivacs()
 
-
-        needed_resources: Cost = self.get_first_resource_shortage(only_build_units)
-
-        await self.workers.redistribute_workers(needed_resources)
-
         if len(self.static_queue) < 5 or self.bot.time > 300:
             self.queue_refinery()
 
-        await self.execute_pending_builds(only_build_units)
+        needed_resources: Cost = await self.execute_pending_builds(only_build_units)
         
         self.bot.client.debug_text_screen(self.get_build_queue_string(), (0.01, 0.1))
+        return needed_resources
     
     def get_build_queue_string(self):
         build_order_message = f"started={'\n'.join([step.friendly_name for step in self.started])}"
@@ -604,27 +600,6 @@ class BuildOrder(UnitReferenceMixin):
                     else:
                         self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
 
-    def get_first_resource_shortage(self, only_build_units: bool) -> Cost:
-        needed_resources: Cost = Cost(-self.bot.minerals, -self.bot.vespene)
-        # find first shortage
-        if self.priority_queue and needed_resources.minerals <= 0 and needed_resources.vespene <= 0:
-            needed_resources = self.count_resources_in_queue(self.priority_queue, only_build_units, needed_resources)
-        if self.static_queue and needed_resources.minerals <= 0 and needed_resources.vespene <= 0:
-            needed_resources = self.count_resources_in_queue(self.static_queue, only_build_units, needed_resources)
-        if self.build_queue and needed_resources.minerals <= 0 and needed_resources.vespene <= 0:
-            needed_resources = self.count_resources_in_queue(self.build_queue, only_build_units, needed_resources)
-        return needed_resources
-    
-    def count_resources_in_queue(self, build_queue: List[BuildStep], only_build_units: bool, needed_resources: Cost) -> Cost:
-        for build_step in build_queue:
-            if needed_resources.minerals > 0 or needed_resources.vespene > 0:
-                break
-            if only_build_units and UnitTypeId.SCV in build_step.builder_type:
-                continue
-            needed_resources.minerals += build_step.cost.minerals
-            needed_resources.vespene += build_step.cost.vespene
-        return needed_resources
-
     def get_affordable_build_list(self, only_build_units: bool) -> List[UnitTypeId]:
         affordable_items: List[UnitTypeId] = []
         needed_resources: Cost = Cost(-self.bot.minerals, -self.bot.vespene)
@@ -733,7 +708,7 @@ class BuildOrder(UnitReferenceMixin):
                     self.detected_enemy_builds[BuildType.RUSH] = self.bot.time
                 break
 
-    async def execute_pending_builds(self, only_build_units: bool) -> None:
+    async def execute_pending_builds(self, only_build_units: bool) -> Cost:
         allow_skip = self.bot.time > 60
         remaining_resources: Cost = await self.build_from_queue(self.interrupted_queue, only_build_units, self.detected_enemy_builds, allow_skip)
         if remaining_resources.minerals > 0:
@@ -741,7 +716,8 @@ class BuildOrder(UnitReferenceMixin):
         if remaining_resources.minerals > 0:
             remaining_resources = await self.build_from_queue(self.static_queue, only_build_units, self.detected_enemy_builds, True, remaining_resources)
         if remaining_resources.minerals > 0:
-            await self.build_from_queue(self.build_queue, only_build_units, self.detected_enemy_builds, True, remaining_resources)
+            remaining_resources = await self.build_from_queue(self.build_queue, only_build_units, self.detected_enemy_builds, True, remaining_resources)
+        return remaining_resources
 
     @timed_async
     async def build_from_queue(self, build_queue: List[BuildStep], only_build_units: bool, detected_enemy_builds: Dict[BuildType, float],

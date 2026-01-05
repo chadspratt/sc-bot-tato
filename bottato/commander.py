@@ -3,12 +3,13 @@ from __future__ import annotations
 from loguru import logger
 
 from sc2.bot_ai import BotAI
-from sc2.position import Point2
-from sc2.unit import Unit
-from sc2.units import Units
+from sc2.game_data import Cost
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from sc2.position import Point2
+from sc2.unit import Unit
+from sc2.units import Units
 
 from bottato.building.build_order import BuildOrder
 from bottato.building.build_step import BuildStep
@@ -78,7 +79,7 @@ class Commander(GeometryMixin, UnitReferenceMixin):
         await self.structure_micro.execute(self.enemy_builds_detected) # fast
 
         # XXX slow, 17% of command time
-        await self.build_order.execute(self.military.army_ratio, self.enemy_builds_detected, self.enemy)
+        needed_resources: Cost = await self.build_order.execute(self.military.army_ratio, self.enemy_builds_detected, self.enemy)
 
         await self.scout() # fast
 
@@ -91,7 +92,7 @@ class Commander(GeometryMixin, UnitReferenceMixin):
                                           self.scouting.proxy_buildings)
 
         await self.my_workers.attack_nearby_enemies() # ultra fast
-        self.my_workers.distribute_idle() # fast
+        await self.my_workers.redistribute_workers(needed_resources)
         await self.my_workers.speed_mine() # slow, 15% of command time
         # if self.bot.time > 240:
         #     logger.debug(f"minerals gathered: {self.bot.state.score.collected_minerals}")

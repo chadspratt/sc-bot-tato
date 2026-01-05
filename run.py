@@ -1,7 +1,7 @@
 # pylint: disable=E0401
 import sys
 
-from __init__ import run_ladder_game
+from bot.__init__ import run_ladder_game
 
 # Load bot
 from bot import BotTato # type: ignore
