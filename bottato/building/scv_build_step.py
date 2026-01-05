@@ -257,9 +257,14 @@ class SCVBuildStep(BuildStep):
                 # try to build near edge of high ground towards natural
                 # high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
                 ramp_barracks = self.bot.structures.of_type(UnitTypeId.BARRACKS).closest_to(self.bot.main_base_ramp.barracks_correct_placement) # type: ignore
-                candidates = [(depot_position + ramp_barracks.position) / 2 for depot_position in self.bot.main_base_ramp.corner_depots]
-                candidate = max(candidates, key=lambda p: ramp_barracks.add_on_position.distance_to(p))
-                candidate = candidate.towards(self.bot.main_base_ramp.top_center.towards(ramp_barracks.position, distance=2), distance=-1)
+                candidates = SpecialLocations.get_bunker_positions(
+                    self.bot.main_base_ramp.bottom_center,
+                    ramp_barracks.position,
+                    self.bot
+                )
+                # candidates = [(depot_position + ramp_barracks.position) / 2 for depot_position in self.bot.main_base_ramp.corner_depots]
+                candidate = min(candidates, key=lambda p: self.bot.start_location.distance_to(p))
+                # candidate = candidate.towards(self.bot.main_base_ramp.top_center.towards(ramp_barracks.position, distance=2), distance=-1)
             else:
                 ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
                 # enemy_start: Point2 = self.bot.enemy_start_locations[0]

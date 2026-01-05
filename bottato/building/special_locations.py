@@ -1,10 +1,12 @@
 from loguru import logger
 from typing import List
 
-from sc2.ids.unit_typeid import UnitTypeId
+from sc2.bot_ai import BotAI
 from sc2.game_info import Ramp
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
+
 
 
 
@@ -45,3 +47,43 @@ class SpecialLocations:
             if unit_type_id == ramp_blocker.unit_type_id:
                 return ramp_blocker.position
         return None
+    
+    @staticmethod
+    def get_bunker_positions(ramp_bottom_center: Point2, barracks_position: Point2, bot: BotAI) -> List[Point2]:
+        candidates: List[Point2] = []
+        if barracks_position.x < ramp_bottom_center.x:
+            # ramp goes right
+            if barracks_position.y < ramp_bottom_center.y:
+                # ramp goes up
+                candidates = [
+                    barracks_position + Point2((-2, 3)),
+                    barracks_position + Point2((3, -3)),
+                ]
+            else:
+                # ramp goes down
+                candidates = [
+                    barracks_position + Point2((4, 3)),
+                    barracks_position + Point2((-1, -3)),
+                ]
+        else:
+            # ramp goes left
+            if barracks_position.y < ramp_bottom_center.y:
+                # ramp goes up
+                candidates = [
+                    barracks_position + Point2((3, 2)),
+                    barracks_position + Point2((-1, -3)),
+                ]
+            else:
+                # ramp goes down
+                preferred_right = barracks_position + Point2((3, -3))
+                if bot.can_place_single(UnitTypeId.BUNKER, preferred_right):
+                    candidates = [
+                        barracks_position + Point2((-2, 3)),
+                        preferred_right,
+                    ]
+                else:
+                    candidates = [
+                        barracks_position + Point2((-2, 3)),
+                        barracks_position + Point2((5, -2)),
+                    ]
+        return candidates
