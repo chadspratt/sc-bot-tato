@@ -30,7 +30,7 @@ class BuildStarts():
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
+                # UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.MARINE,
@@ -66,7 +66,7 @@ class BuildStarts():
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
+                # UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.MARINE,
@@ -112,7 +112,7 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 # UnitTypeId.ORBITALCOMMAND,              # MAIN,
                 UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
+                # UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.MARINE,

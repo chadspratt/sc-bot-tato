@@ -373,11 +373,11 @@ class BuildOrder(UnitReferenceMixin):
 
     @timed
     def queue_townhall_work(self) -> None:
-        if len(self.bot.townhalls) == 1 and self.bot.workers.amount >= 19 or self.bot.time < 15:
+        if self.bot.time < 15:
             # pause workers to save for first expansion
             return
 
-        available_townhalls = self.bot.townhalls.filter(lambda cc: cc.is_ready and cc.is_idle and not cc.is_flying)
+        available_townhalls = self.bot.townhalls.filter(lambda cc: cc.is_ready and (not cc.orders or cc.orders[0].progress > 0.85) and not cc.is_flying)
         available_command_centers = available_townhalls.filter(lambda cc: cc.type_id == UnitTypeId.COMMANDCENTER)
         if available_command_centers and self.bot.time > 90:
             orbital_count = len(self.bot.townhalls.of_type(UnitTypeId.ORBITALCOMMAND))
@@ -447,8 +447,6 @@ class BuildOrder(UnitReferenceMixin):
         # adds number of townhalls to account for near-term production
         projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[WorkerJobType.MINERALS]) + len(self.bot.townhalls.ready) * 4)
         surplus_worker_count = projected_worker_count - projected_worker_capacity
-        
-        cc_count = self.get_in_progress_count(UnitTypeId.COMMANDCENTER) + self.get_queued_count(UnitTypeId.COMMANDCENTER)
         needed_cc_count = math.ceil(surplus_worker_count / 16)
 
         # expand if running out of room for workers at current bases
