@@ -373,12 +373,11 @@ class BuildOrder(UnitReferenceMixin):
 
     @timed
     def queue_townhall_work(self) -> None:
-        if len(self.bot.townhalls) == 1 and self.bot.workers.amount >= 18 or self.bot.time < 15:
+        if len(self.bot.townhalls) == 1 and self.bot.workers.amount >= 19 or self.bot.time < 15:
             # pause workers to save for first expansion
             return
 
         available_townhalls = self.bot.townhalls.filter(lambda cc: cc.is_ready and cc.is_idle and not cc.is_flying)
-        worker_build_capacity: int = len(available_townhalls)
         available_command_centers = available_townhalls.filter(lambda cc: cc.type_id == UnitTypeId.COMMANDCENTER)
         if available_command_centers and self.bot.time > 90:
             orbital_count = len(self.bot.townhalls.of_type(UnitTypeId.ORBITALCOMMAND))
@@ -393,12 +392,10 @@ class BuildOrder(UnitReferenceMixin):
                 self.add_to_build_queue([UnitTypeId.PLANETARYFORTRESS], queue=self.priority_queue, position=0)
                 return
 
+        worker_build_capacity: int = len(available_townhalls)
         desired_worker_count = self.workers.max_workers
         number_to_build = desired_worker_count - len(self.workers.assignments_by_worker)
-        if (
-            worker_build_capacity > 0
-            and number_to_build > 0
-        ):
+        if (worker_build_capacity > 0 and number_to_build > 0):
             self.add_to_build_queue([UnitTypeId.SCV] * min(number_to_build, worker_build_capacity), queue=self.priority_queue, position=0)
 
     @timed

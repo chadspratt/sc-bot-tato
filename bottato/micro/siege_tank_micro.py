@@ -140,7 +140,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
         tank_height = self.bot.get_terrain_height(unit.position)
         enemy_height = self.bot.get_terrain_height(closest_enemy.position) if closest_enemy else tank_height
-        has_high_ground_advantage = tank_height - 1 > enemy_height
+        has_high_ground_advantage = tank_height > enemy_height
         siege_aggressively = on_cooldown and not is_sieged or friendly_buffer_count >= 15 and len(self.unsieged_tags) <= len(self.sieged_tags)
 
         closest_enemy_distance = closest_distance_after_siege
@@ -161,7 +161,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             if closest_enemy_distance > unsiege_range and closest_structure_distance > self.sight_range - 1:
                 self.unsiege(unit)
                 return True
-        elif closest_enemy and friendly_buffer_count >= 5 or closest_structure_distance < closest_distance:
+        else:
+        # elif closest_enemy and friendly_buffer_count >= 5 or closest_structure_distance < closest_distance:
             if has_high_ground_advantage and closest_enemy and closest_enemy_distance > self.sieged_range:
                 closer_position = closest_enemy.position.towards(unit, self.sieged_range)
                 if self.bot.get_terrain_height(closer_position) == tank_height:

@@ -54,7 +54,9 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     @timed_async
     async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
         if unit.health_percentage < 0.7:
-            return self._retreat_to_medivac(unit)
+            if self._retreat_to_medivac(unit):
+                return True
+            return await super()._retreat(unit, health_threshold)
         elif unit.tag in self.healing_unit_tags:
             if unit.health_percentage < 0.9:
                 return self._retreat_to_medivac(unit)
