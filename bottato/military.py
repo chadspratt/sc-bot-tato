@@ -90,7 +90,11 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                             proxy_buildings: Units):
         self.main_army.draw_debug_box()
 
+        await self.harass(newest_enemy_base, detected_enemy_builds)
+
         self.enemies_in_base = await self.get_enemies_in_base()
+        if self.enemies_in_base(UnitTypeId.NYDUSCANAL):
+            return  # nydus response handled in get_enemies_in_base, don't conflict with it
         defend_with_main_army, countered_enemies = await self.counter_enemies_in_base(detected_enemy_builds)
         
         self.army_ratio = self.calculate_army_ratio()
@@ -122,8 +126,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         await self.manage_bunker(self.bunker, self.enemies_in_base, enemies_in_base_ratio, mount_offense)
         await self.manage_bunker(self.bunker2, self.enemies_in_base, enemies_in_base_ratio, mount_offense)
 
-        await self.harass(newest_enemy_base, detected_enemy_builds)
-
         if self.main_army.units:
             self.main_army.draw_debug_box()
             self.main_army.update_formation()
@@ -151,12 +153,13 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         if self.bot.enemy_race in (Race.Zerg, Race.Random):
             nydus_canals = self.bot.enemy_structures.of_type(UnitTypeId.NYDUSCANAL)
             if nydus_canals and self.closest_distance_squared(nydus_canals.first, base_structures) < 625 and self.main_army.units:
+                LogHelper.add_log(f"attacking nydus canals in base: {nydus_canals}")
                 # put massive priority on killing nydus canals near base
                 if self.main_army.position._distance_squared(nydus_canals.first.position) > 225:
                     await self.main_army.move(nydus_canals.first.position, force_move=True)
                 else:
                     await self.main_army.move(nydus_canals.first.position)
-                return enemies_in_base
+                return nydus_canals
         
         enemy_units = self.bot.enemy_units
         if self.main_army.units.amount < 3:

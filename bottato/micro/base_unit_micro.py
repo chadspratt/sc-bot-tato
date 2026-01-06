@@ -471,7 +471,9 @@ class BaseUnitMicro(GeometryMixin):
                     except KeyError:
                         pass
                 if repairer is None:
-                    repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags.union(BaseUnitMicro.repairer_tags_prev_frame)) or self.bot.workers
+                    repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags.union(BaseUnitMicro.repairer_tags_prev_frame))
+                    if not repairers:
+                        repairers = self.bot.workers.filter(lambda w: w.tag not in BaseUnitMicro.scout_tags)
                     if repairers:
                         repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
                     if repairers:

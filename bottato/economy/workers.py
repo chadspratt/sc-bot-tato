@@ -843,7 +843,7 @@ class Workers(UnitReferenceMixin, GeometryMixin):
     ])
     def units_needing_repair(self) -> Units:
         injured_mechanical_units = Units([], self.bot)
-        repair_scvs = self.bot.time > 300
+        repair_scvs = self.bot.time > 240
         injured_mechanical_units = self.bot.units.filter(lambda unit: unit.is_mechanical
                                                          and unit.type_id != UnitTypeId.MULE
                                                          and unit.health < unit.health_max
