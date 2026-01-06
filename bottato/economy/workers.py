@@ -706,7 +706,7 @@ class Workers(UnitReferenceMixin, GeometryMixin):
                         assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 2, candidates))
                     else:
                         assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 8, candidates))
-                elif injured_unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls.closest_distance_to(injured_unit) < 20:
+                elif injured_unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(injured_unit) < 20:
                     assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 3, candidates))
                 else:
                     missing_health += injured_unit.health_max - injured_unit.health

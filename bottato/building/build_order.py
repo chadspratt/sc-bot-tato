@@ -104,9 +104,10 @@ class BuildOrder(UnitReferenceMixin):
             self.queue_turret()
 
             # randomize unit queue so it doesn't get stuck on one unit type
-            # XXX this should be better, maybe put one of the unit with least in current army, then one of next least, etc
             military_queue = self.get_military_queue(enemy)
-            military_queue.sort(key=lambda step: random.randint(0,255), reverse=True)
+            military_queue.sort(key=lambda step: random.randint(0,255))
+            # prioritize building at least one of each requested unit type
+            military_queue.sort(key=lambda step: isinstance(step, UnitTypeId) and self.bot.units(step).amount > 0)
             self.queue_prereqs(military_queue)
             self.add_to_build_queue(military_queue, queue=self.build_queue)
 
@@ -303,6 +304,7 @@ class BuildOrder(UnitReferenceMixin):
                             break
         steps_to_add: List[BuildStep] = [self.create_build_step(unit_type) for unit_type in unit_types]
         if steps_to_add:
+            # LogHelper.add_log(f"Adding to build queue: {', '.join([step.friendly_name for step in steps_to_add])}")
             if position is not None:
                 steps_to_add = queue[:position] + steps_to_add + queue[position:]
                 queue.clear()
@@ -441,7 +443,7 @@ class BuildOrder(UnitReferenceMixin):
         projected_worker_capacity += cc_count * 16
 
         # adds number of townhalls to account for near-term production
-        projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[WorkerJobType.MINERALS]) + len(self.bot.townhalls.ready) * 4)
+        projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[WorkerJobType.MINERALS]) + len(self.bot.townhalls) * 4)
         surplus_worker_count = projected_worker_count - projected_worker_capacity
         needed_cc_count = math.ceil(surplus_worker_count / 16)
 

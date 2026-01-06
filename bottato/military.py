@@ -203,6 +203,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             enemy_group = [e for e in self.enemies_in_base
                             if e.tag not in countered_enemies
                             and (enemy.tag == e.tag or self.distance(enemy, e) < 8)]
+            overlords_excluded = [e for e in enemy_group if e.type_id not in (UnitTypeId.OVERLORD, UnitTypeId.OVERSEER)]
 
             defense_squad = FormationSquad(self.enemy, self.map, bot=self.bot, name=f"defense{len(countered_enemies.keys())}")
 
@@ -216,7 +217,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 else:
                     # a full composition was not assigned, disband the squad and defend with main army
                     self.transfer_all(defense_squad, self.main_army)
-                    defend_with_main_army = True
+                    if len(overlords_excluded) > 0:
+                        # respond to overlords but don't dedicate entire army
+                        defend_with_main_army = True
                     break
             else:
                 # a full composition was assigned
@@ -377,7 +380,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 i += 1
         else:
             self.main_army.staging_location = self.bot.start_location.towards(enemy_position, 5)
-        await self.main_army.move(self.main_army.staging_location, enemy_position, force_move=True, blueprints=blueprints)
+        # force move is used for retreating. don't use if already near staging location
+        force_move = self.main_army.position._distance_squared(self.main_army.staging_location) >= 225
+        await self.main_army.move(self.main_army.staging_location, enemy_position, force_move=force_move, blueprints=blueprints)
 
     @timed_async
     async def regroup(self, target_position: Point2, blueprints: List[BuildStep]):

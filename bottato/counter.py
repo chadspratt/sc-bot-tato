@@ -162,10 +162,10 @@ class Counter():
             UnitTypeId.VIKINGFIGHTER: 0.3
         },
         UnitTypeId.OVERLORD: {
-            UnitTypeId.VIKINGFIGHTER: 0.05
+            UnitTypeId.VIKINGFIGHTER: 0.1
         },
         UnitTypeId.OVERSEER: {
-            UnitTypeId.VIKINGFIGHTER: 0.05
+            UnitTypeId.VIKINGFIGHTER: 0.2
         },
         UnitTypeId.QUEEN: { # 2
             UnitTypeId.MARINE: 2,

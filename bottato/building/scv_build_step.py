@@ -3,14 +3,15 @@ from typing import Dict
 from loguru import logger
 
 from sc2.bot_ai import BotAI
-from sc2.unit import Unit
-from sc2.units import Units
+from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.unit_command import UnitCommand
 from sc2.position import Point2
 from sc2.protocol import ConnectionAlreadyClosedError, ProtocolError
+from sc2.unit import Unit
+from sc2.units import Units
+from sc2.unit_command import UnitCommand
 
 from bottato.mixins import timed, timed_async
 from bottato.log_helper import LogHelper
@@ -296,7 +297,7 @@ class SCVBuildStep(BuildStep):
                         placement_step=2,
                     )
                     break
-        elif unit_type_id == UnitTypeId.SUPPLYDEPOT and self.bot.supply_cap < 45:
+        elif unit_type_id == UnitTypeId.SUPPLYDEPOT and self.bot.supply_cap < 45 and self.bot.enemy_race != Race.Terran:
             if not special_locations.is_blocked:
                 new_build_position = special_locations.find_placement(unit_type_id)
             if new_build_position is None:

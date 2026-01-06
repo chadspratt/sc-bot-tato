@@ -94,10 +94,6 @@ class BaseUnitMicro(GeometryMixin):
         elif unit.tag in BaseUnitMicro.harass_tags:
             BaseUnitMicro.harass_tags.remove(unit.tag)
         attack_health = self.attack_health
-        # if force_move and unit.distance_to_squared(target) < 144:
-        #     # force move is used for retreating. allow attacking and other micro when near staging location
-        #     attack_health = 0.0
-        #     force_move = False
             
         if unit.tag in self.bot.unit_tags_received_action:
             return True
