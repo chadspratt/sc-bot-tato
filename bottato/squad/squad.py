@@ -14,7 +14,6 @@ class Squad(UnitReferenceMixin):
     def __init__(
         self,
         *,
-        type: SquadType = SquadTypeDefinitions['none'],
         bot: BotAI,
         color: tuple[int, int, int] = (0, 255, 0),
         name: str = "",

@@ -700,6 +700,10 @@ class Workers(UnitReferenceMixin, GeometryMixin):
                 if injured_unit.type_id == UnitTypeId.BUNKER:
                     assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 5, candidates))
                 elif injured_unit.type_id == UnitTypeId.MISSILETURRET:
+                    flying_enemies = self.bot.enemy_units.filter(lambda u: u.is_flying)
+                    if self.closest_distance_squared(injured_unit, flying_enemies) > 121:
+                        # don't waste repairers on missile turrets that don't have targets
+                        continue
                     assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 3, candidates))
                 elif injured_unit.type_id == UnitTypeId.PLANETARYFORTRESS:
                     if injured_unit.health_max - injured_unit.health < 50:

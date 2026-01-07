@@ -434,7 +434,7 @@ class BuildOrder(UnitReferenceMixin):
             # don't queue another expansion if current one is still in air
             # probably unsafe or it would have landed
             return
-        if self.bot.time < 100 or len(self.detected_enemy_builds) > 0 and (self.bot.time < 300 or self.bot.structures(UnitTypeId.STARPORT).amount == 0):
+        if self.bot.time < 100 or len(self.detected_enemy_builds) > 0 and (self.bot.time < 180 or self.bot.structures(UnitTypeId.STARPORT).amount == 0):
             # don't expand too early during rush
             return
 

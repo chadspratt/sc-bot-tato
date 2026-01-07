@@ -1,6 +1,4 @@
 from __future__ import annotations
-from typing import List
-# import traceback
 
 from sc2.position import Point2, Point3
 
@@ -20,7 +18,7 @@ class HarassSquad(Squad, GeometryMixin):
         self.arrived = False
         self.harass_location: Point2 = self.bot.enemy_start_locations[0]
     def __repr__(self):
-        return f"FormationSquad({self.name},{len(self.units)})"
+        return f"HarassSquad({self.name},{len(self.units)})"
 
     @timed
     def draw_debug_box(self):

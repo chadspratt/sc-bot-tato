@@ -13,10 +13,10 @@ from sc2.units import Units
 
 from bottato.building.build_order import BuildOrder
 from bottato.building.build_step import BuildStep
+from bottato.economy.production import Production
+from bottato.economy.workers import Workers
 from bottato.enemy import Enemy
 from bottato.enums import BuildType, WorkerJobType
-from bottato.economy.workers import Workers
-from bottato.economy.production import Production
 from bottato.map.destructibles import BUILDING_RADIUS
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -24,6 +24,7 @@ from bottato.micro.micro_factory import MicroFactory
 from bottato.micro.structure_micro import StructureMicro
 from bottato.military import Military
 from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed_async
+from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.scouting import Scouting
 
 
@@ -32,18 +33,17 @@ class Commander(GeometryMixin, UnitReferenceMixin):
         self.bot = bot
 
         self.map = Map(self.bot)
-        # for loc in self.expansion_locations_list:
-        #     self.map.get_path(self.game_info.player_start_location, loc)
         self.enemy: Enemy = Enemy(self.bot)
         MicroFactory.set_common_objects(self.bot, self.enemy, self.map)
         self.my_workers: Workers = Workers(self.bot, self.enemy, self.map)
-        self.military: Military = Military(self.bot, self.enemy, self.map, self.my_workers)
+        self.intel = EnemyIntel(self.bot, self.map)
+        self.military: Military = Military(self.bot, self.enemy, self.map, self.my_workers, self.intel)
         self.structure_micro: StructureMicro = StructureMicro(self.bot, self.enemy, self.map)
         self.production: Production = Production(self.bot)
         self.build_order: BuildOrder = BuildOrder(
             "pig_b2gm", bot=self.bot, workers=self.my_workers, production=self.production, map=self.map
         )
-        self.scouting = Scouting(self.bot, self.enemy, self.map, self.my_workers, self.military)
+        self.scouting = Scouting(self.bot, self.enemy, self.map, self.my_workers, self.military, self.intel)
         self.new_damage_by_unit: dict[int, float] = {}
         self.new_damage_by_position: dict[Point2, float] = {}
         self.pathable_position: Point2 | None = None
@@ -87,7 +87,7 @@ class Commander(GeometryMixin, UnitReferenceMixin):
         # very slow, 70% of command time
         await self.military.manage_squads(iteration,
                                           blueprints,
-                                          self.scouting.get_newest_enemy_base(),
+                                          self.intel.get_newest_enemy_base(),
                                           self.enemy_builds_detected,
                                           self.scouting.proxy_buildings)
 
@@ -126,7 +126,6 @@ class Commander(GeometryMixin, UnitReferenceMixin):
                 furthest_miner = miners.furthest_to(self.pathable_position)
                 if await self.bot.client.query_pathing(furthest_miner, self.pathable_position) is None:
                     self.pathable_position = await self.bot.find_placement(UnitTypeId.MISSILETURRET,self.bot.game_info.map_center, 25, placement_step = 5)
-            # pathable_destination: Point2 = miners.furthest_to(self.bot.start_location).position
             if self.pathable_position is not None:
                 paths_to_check = [[unit, self.pathable_position] for unit in self.bot.units
                                   if unit.type_id != UnitTypeId.SIEGETANKSIEGED and not unit.is_flying
@@ -209,7 +208,7 @@ class Commander(GeometryMixin, UnitReferenceMixin):
         self.enemy.record_death(unit_tag)
         self.military.record_death(unit_tag)
         self.my_workers.record_death(unit_tag)
-        if destroyed_unit and destroyed_unit.type_id == UnitTypeId.BUNKER:
+        if destroyed_unit and destroyed_unit.type_id == UnitTypeId.BUNKER and destroyed_unit.build_progress == 1.0:
             self.build_order.add_to_build_queue([UnitTypeId.BUNKER], queue=self.build_order.priority_queue)
 
     def add_upgrade(self, upgrade: UpgradeId):

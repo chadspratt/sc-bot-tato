@@ -30,7 +30,6 @@ class BuildStarts():
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
-                # UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.MARINE,
@@ -66,7 +65,6 @@ class BuildStarts():
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
-                # UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.MARINE,
@@ -100,19 +98,12 @@ class BuildStarts():
                 UnitTypeId.SCV,
                 UnitTypeId.SCV,
                 UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,
-                # UnitTypeId.SCV,
-                # UnitTypeId.SCV,
                 UnitTypeId.REFINERY,
                 UnitTypeId.BARRACKS,
-                # UnitTypeId.SCV,
-                # UnitTypeId.SCV,
-                # UnitTypeId.SCV,
                 UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
-                # UnitTypeId.ORBITALCOMMAND,              # MAIN,
                 UnitTypeId.SUPPLYDEPOT,
-                # UnitTypeId.COMMANDCENTER,               # NATURAL, on location if safe, pause SCVs to pay for this
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.MARINE,
@@ -123,7 +114,7 @@ class BuildStarts():
                 UnitTypeId.MARINE,               # begin reactor cycles,
                 UnitTypeId.MARINE,
                 UnitTypeId.STARPORTTECHLAB,
-                UnitTypeId.RAVEN,   
+                UnitTypeId.RAVEN,
                 UnitTypeId.BANSHEE,
 # from here, keep SCV and MULE production constant until ~45 workers (author logic)
                 UnitTypeId.MARINE,
@@ -132,14 +123,14 @@ class BuildStarts():
                 UnitTypeId.MEDIVAC, # early medivac good?
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
-                # UnitTypeId.SIEGETANK,
                 UnitTypeId.BARRACKS,
                 UnitTypeId.MARINE, # supply blocked until depot finishes
                 UnitTypeId.MARINE,
                 UnitTypeId.REFINERY,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,            # safer baseline scout vs all races (LIBERATOR optional),
-                UnitTypeId.BANSHEE, 
+                UnitTypeId.VIKINGFIGHTER,
+                UnitTypeId.VIKINGFIGHTER,
             ]
         elif build_name == "tvt1":
             # https://lotv.spawningtool.com/build/171779/

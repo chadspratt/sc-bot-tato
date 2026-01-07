@@ -98,23 +98,23 @@ class BaseUnitMicro(GeometryMixin):
         if unit.tag in self.bot.unit_tags_received_action:
             return True
         target = self.get_override_target_for_repair(unit, target)
-        action_taken = self._avoid_effects(unit, force_move)
-        if not action_taken:
-            action_taken = await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move)
-        if not action_taken:
-            action_taken = self._attack_something(unit, health_threshold=attack_health, force_move=force_move)
-        if not action_taken and force_move:
+        if self._avoid_effects(unit, force_move):
+            return False
+        if await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
+            return True
+        if self._attack_something(unit, health_threshold=attack_health, force_move=force_move):
+            return True
+        if force_move:
             position_to_compare = target if unit.is_moving else unit.position
             if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
                 unit.move(self.map.get_pathable_position(target, unit))
-            action_taken = True
-        if not action_taken:
-            action_taken = await self._retreat(unit, health_threshold=self.retreat_health)
+            return True
+        if await self._retreat(unit, health_threshold=self.retreat_health):
+            return False
         
-        if not action_taken:
-            position_to_compare = target if unit.is_moving else unit.position
-            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-                unit.move(self.map.get_pathable_position(target, unit))
+        position_to_compare = target if unit.is_moving else unit.position
+        if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
+            unit.move(self.map.get_pathable_position(target, unit))
         return True
 
     @timed_async
@@ -129,23 +129,23 @@ class BaseUnitMicro(GeometryMixin):
             LogHelper.add_log(f"harass {unit} already has action")
             return True
         target = self.get_override_target_for_repair(unit, target)
-        action_taken = self._avoid_effects(unit, force_move)
-        if not action_taken:
-            action_taken = await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move)
-        if not action_taken:
-            action_taken = self._harass_attack_something(unit, attack_health, target, force_move=force_move)
-        if not action_taken and force_move:
+        if self._avoid_effects(unit, force_move):
+            return False
+        if await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
+            return True
+        if self._harass_attack_something(unit, attack_health, target, force_move=force_move):
+            return True
+        if force_move:
             position_to_compare = target if unit.is_moving else unit.position
             if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
                 unit.move(self.map.get_pathable_position(target, unit))
-            action_taken = True
-        if not action_taken:
-            action_taken = await self._harass_retreat(unit, health_threshold=self.retreat_health, harass_location=target)
+            return True
+        if await self._harass_retreat(unit, health_threshold=self.retreat_health, harass_location=target):
+            return True
         
-        if not action_taken:
-            position_to_compare = target if unit.is_moving else unit.position
-            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-                unit.move(self.map.get_pathable_position(target, unit))
+        position_to_compare = target if unit.is_moving else unit.position
+        if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
+            unit.move(self.map.get_pathable_position(target, unit))
         return True
 
     @timed_async
@@ -173,13 +173,15 @@ class BaseUnitMicro(GeometryMixin):
         BaseUnitMicro.repairer_tags.add(unit.tag)
         if unit.tag in self.bot.unit_tags_received_action:
             return False
+        distance_sq = unit.distance_to_squared(target)
         BaseUnitMicro.repair_targets[target.tag] = unit.tag
-        if target.tag not in BaseUnitMicro.repair_started_tags and unit.distance_to_squared(target) < 4.0 and self.bot.in_pathing_grid(unit.position):
+        if target.tag not in BaseUnitMicro.repair_started_tags and distance_sq < 4.0 and self.bot.in_pathing_grid(unit.position):
             LogHelper.add_log(f"repair {target} is close to worker")
             BaseUnitMicro.repair_started_tags.add(target.tag)
         if self._avoid_effects(unit, force_move=False):
             logger.debug(f"unit {unit} avoiding effects")
-        elif target.type_id in (UnitTypeId.BUNKER, UnitTypeId.PLANETARYFORTRESS, UnitTypeId.MISSILETURRET, UnitTypeId.SIEGETANKSIEGED):
+        elif target.type_id in (UnitTypeId.BUNKER, UnitTypeId.PLANETARYFORTRESS, UnitTypeId.MISSILETURRET, UnitTypeId.SIEGETANKSIEGED) \
+                and (distance_sq < 16 or distance_sq < self.closest_distance_squared(unit, self.bot.enemy_units)):
             # repair defensive structures regardless of risk
             unit.repair(target)
             return True

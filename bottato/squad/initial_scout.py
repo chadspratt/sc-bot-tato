@@ -1,0 +1,152 @@
+
+
+from typing import List
+from loguru import logger
+
+from sc2.bot_ai import BotAI
+from sc2.data import Race
+from sc2.position import Point2
+from sc2.unit import Unit
+
+from bottato.economy.workers import Workers
+from bottato.enemy import Enemy
+from bottato.map.map import Map
+from bottato.mixins import GeometryMixin
+from bottato.squad.squad import Squad
+from bottato.squad.enemy_intel import EnemyIntel
+
+
+class InitialScout(Squad, GeometryMixin):
+    def __init__(self, bot: BotAI, map: Map, enemy: Enemy, intel: EnemyIntel):
+        super().__init__(bot=bot, name="initial_scout")
+        self.bot = bot
+        self.map = map
+        self.enemy = enemy
+        self.intel = intel
+        self.unit: Unit | None = None
+        self.completed: bool = False
+        self.enemy_natural_delayed: bool = False
+        self.extra_production_detected: bool = False
+        self.main_scouted: bool = False
+        self.last_waypoint: Point2 | None = None
+        self.do_natural_check: bool = False
+        
+        # Timing parameters
+        self.start_time = 30
+        self.initial_scout_complete_time = 120  # Extended time for full scouting
+        
+        # Scouting waypoints for systematic main base exploration
+        self.waypoints: List[Point2] = []
+        self.current_waypoint_index: int = 0
+        self.waypoints_completed: bool = False
+        
+        # Initialize waypoints around enemy main
+        self._generate_main_base_waypoints()
+
+    def _generate_main_base_waypoints(self):
+        """Generate systematic waypoints to explore the enemy main base"""
+        enemy_start = self.bot.enemy_start_locations[0]
+        
+        # Create a systematic grid pattern around the enemy main base
+        # Cover the main base area thoroughly
+        # base_radius = 15  # Radius around main base to scout
+        
+        # Add the main base center
+        # self.waypoints.append(enemy_start)
+        
+        # Add waypoints in expanding rings around the main base
+        # for radius in [6, 10, 14]:
+        for radius in [13]:
+            for angle_degrees in range(0, 360, 15):
+                import math
+                angle_radians = math.radians(angle_degrees)
+                x_offset = radius * math.cos(angle_radians)
+                y_offset = radius * math.sin(angle_radians)
+                waypoint = Point2((enemy_start.x + x_offset, enemy_start.y + y_offset))
+                retries = 0
+                while not self.bot.in_pathing_grid(waypoint) and retries < 5:
+                    waypoint = waypoint.towards(enemy_start, 1)
+                    retries += 1
+                if retries != 5:
+                    self.waypoints.append(waypoint)
+
+        self.original_waypoints = list(self.waypoints)
+        
+        # Add natural expansion as final waypoint
+        # self.waypoints.append(self.map.enemy_natural_position)
+        
+        logger.debug(f"Generated {len(self.waypoints)} scouting waypoints for enemy main base")
+
+    def update_scout(self, workers: Workers, units_by_tag: dict[int, Unit]):
+        if self.bot.time < self.start_time:
+            # too early to scout
+            return
+            
+        if self.unit:
+            try:
+                self.unit = self.get_updated_unit_reference(self.unit, self.bot, units_by_tag)
+            except self.UnitNotFound:
+                self.unit = None
+                # scout lost, don't send another
+                self.completed = True
+                return
+
+            if self.completed:
+                workers.set_as_idle(self.unit)
+                self.unit = None
+                return
+                
+        if not self.unit and not self.completed:
+            # Get the first waypoint as initial target
+            target = self.waypoints[0] if self.waypoints else self.map.enemy_natural_position
+            self.unit = workers.get_scout(target)
+
+        if self.intel.enemy_race_confirmed == Race.Zerg:
+            self.initial_scout_complete_time = 100
+    
+    async def move_scout(self):
+        if self.bot.time > self.initial_scout_complete_time + 20:
+            self.completed = True
+        if not self.unit or self.completed:
+            return
+        
+        if self.unit.health_percentage < 0.7 or self.do_natural_check:
+            self.waypoints = [self.map.enemy_natural_position]  # check natural before leaving
+            if self.unit.distance_to(self.map.enemy_natural_position) < 9:
+                if self.intel.enemy_race_confirmed == Race.Terran:
+                    # terran takes longer to start natural?
+                    self.completed = self.bot.time > 150
+                else:
+                    self.completed = True
+        elif self.last_waypoint:
+            if self.unit.distance_to(self.waypoints[0]) <= 5:
+                if self.waypoints[0] == self.last_waypoint and self.bot.time > self.initial_scout_complete_time:
+                    self.do_natural_check = True
+                else:
+                    self.waypoints.pop(0)
+                    # Check if we've completed all waypoints
+                    if len(self.waypoints) == 0:
+                        self.waypoints_completed = True
+                        self.main_scouted = True
+                        self.waypoints = list(self.original_waypoints)  # reset to keep scouting
+        else:
+            # find initial waypoint
+            i = 0
+            while i < len(self.waypoints):
+                # remove waypoints as they are checked
+                if self.unit.distance_to(self.waypoints[i]) <= 5:
+                    if not self.waypoints_completed and len(self.waypoints) == len(self.original_waypoints):
+                        # first waypoint reached, reorder original waypoints to start from this one
+                        self.original_waypoints = self.original_waypoints[i:] + self.original_waypoints[:i]
+                        self.waypoints = list(self.original_waypoints)
+                        self.waypoints.pop(0)
+                        self.last_waypoint = self.waypoints[-1]
+                        break
+                i += 1
+            
+        # for waypoint in self.waypoints:
+        #     self.bot.client.debug_box2_out(self.convert_point2_to_3(waypoint))
+            
+        # Move to current waypoint
+        if self.waypoints:
+            self.unit.move(self.waypoints[0])

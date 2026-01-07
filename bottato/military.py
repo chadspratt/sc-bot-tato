@@ -2,37 +2,38 @@ from typing import List, Dict
 from loguru import logger
 
 from sc2.bot_ai import BotAI
+from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from sc2.data import Race
 
-from bottato.log_helper import LogHelper
-from bottato.counter import Counter
-from bottato.unit_types import UnitTypes
 from bottato.building.build_step import BuildStep
+from bottato.counter import Counter
 from bottato.economy.workers import Workers
-from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
-from bottato.squad.squad import Squad
+from bottato.enemy import Enemy
+from bottato.enums import BuildType
+from bottato.log_helper import LogHelper
+from bottato.map.map import Map
+from bottato.micro.micro_factory import MicroFactory
+from bottato.mixins import GeometryMixin, DebugMixin, UnitReferenceMixin, timed, timed_async
+from bottato.squad.bunker import Bunker
+from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.formation_squad import FormationSquad
 from bottato.squad.harass_squad import HarassSquad
+from bottato.squad.hunting_squad import HuntingSquad
+from bottato.squad.squad import Squad
 from bottato.squad.stuck_rescue import StuckRescue
-from bottato.squad.bunker import Bunker
-from bottato.micro.micro_factory import MicroFactory
-from bottato.enemy import Enemy
-from bottato.map.map import Map
-from bottato.mixins import GeometryMixin, DebugMixin, UnitReferenceMixin, timed, timed_async
-from bottato.enums import BuildType
+from bottato.unit_types import UnitTypes
 
 
 class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
-    def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers) -> None:
+    def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers, intel: EnemyIntel) -> None:
         self.bot: BotAI = bot
         self.enemy = enemy
         self.map = map
         self.workers = workers
+        self.intel = intel
         self.squads: List[Squad] = []
         self.squads_by_unit_tag: Dict[int, Squad | None] = {}
         self.created_squad_type_counts: Dict[int, int] = {}
@@ -48,7 +49,6 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             bot=bot,
             enemy=enemy,
             map=map,
-            type=SquadTypeDefinitions['none'],
             color=self.random_color(),
             name='main'
         )
@@ -57,6 +57,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         self.stuck_rescue = StuckRescue(self.bot, self.main_army, self.squads_by_unit_tag)
         self.reaper_harass = HarassSquad(bot=self.bot, name="reaper harass", color=(0, 255, 255))
         self.banshee_harass = HarassSquad(bot=self.bot, name="banshee harass", color=(0, 255, 255))
+        self.hunting_squad: HuntingSquad | None = None
         self.squads.append(self.main_army)
         self.squads.append(self.bunker)
         self.squads.append(self.bunker2)
@@ -91,6 +92,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         self.main_army.draw_debug_box()
 
         await self.harass(newest_enemy_base, detected_enemy_builds)
+        await self.manage_special_squads()
 
         self.enemies_in_base = await self.get_enemies_in_base()
         if self.enemies_in_base(UnitTypeId.NYDUSCANAL):
@@ -316,6 +318,27 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             
         await self.reaper_harass.harass(newest_enemy_base)
         await self.banshee_harass.harass(newest_enemy_base)
+
+    @timed_async
+    async def manage_special_squads(self):
+        hunter_types: List[UnitTypeId] = []
+        prey_types: List[UnitTypeId] = []
+        if self.intel.enemy_race_confirmed == Race.Zerg:
+            hunter_types = [UnitTypeId.VIKINGFIGHTER, UnitTypeId.VIKINGASSAULT]
+            prey_types = [UnitTypeId.OVERLORD, UnitTypeId.OVERSEER]
+        elif self.intel.enemy_race_confirmed == Race.Terran:
+            hunter_types = [UnitTypeId.VIKINGFIGHTER, UnitTypeId.VIKINGASSAULT]
+            prey_types = [UnitTypeId.MEDIVAC]
+        if hunter_types:
+            if self.hunting_squad is None:
+                self.hunting_squad = HuntingSquad(self.bot, self.enemy, self.intel, "overlord hunt", (255, 0, 255))
+                self.squads.append(self.hunting_squad)
+            if not self.hunting_squad.units:
+                hunters = self.main_army.units(hunter_types)
+                if hunters:
+                    self.transfer(hunters.first, self.main_army, self.hunting_squad)
+            if self.hunting_squad.units:
+                await self.hunting_squad.hunt(prey_types)
 
     @timed
     def get_offense_target_position(self, newest_enemy_base: Point2 | None, countered_enemies: Dict[int, FormationSquad]) -> Point2:

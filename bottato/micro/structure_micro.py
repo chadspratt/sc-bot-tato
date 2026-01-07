@@ -102,8 +102,10 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     if cc.position.distance_to(expansion_location) < 5:
                         break
                 else:
-                    cc(AbilityId.LIFT)
-                    return
+                    if cc.type_id == UnitTypeId.ORBITALCOMMAND:
+                        # upgrade to orbital first so it can generate energy while flying
+                        cc(AbilityId.LIFT)
+                        return
                 if cc.health_percentage < 0.8 and self.bot.enemy_units:
                     nearby_enemies = self.enemy.threats_to_friendly_unit(cc, attack_range_buffer=2)
                     if nearby_enemies:
