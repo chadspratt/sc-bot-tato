@@ -350,7 +350,7 @@ class SCVBuildStep(BuildStep):
             try:
                 if self.bot.townhalls:
                     preferred_townhalls = self.bot.townhalls
-                    if prefer_earlier_bases and retry_count == 0:
+                    if prefer_earlier_bases and retry_count < 2:
                         ready_townhalls = self.bot.townhalls.ready
                         if len(ready_townhalls) == 1:
                             preferred_townhalls = ready_townhalls

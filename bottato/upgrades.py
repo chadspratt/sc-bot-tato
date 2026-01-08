@@ -113,6 +113,11 @@ class Upgrades:
         ],
     }
 
+    required_unit_counts: dict[UpgradeId, int] = {
+        UpgradeId.BANSHEECLOAK: 1,
+        UpgradeId.BANSHEESPEED: 2,
+    }
+
     prereqs: dict[UpgradeId, UpgradeId] = {
         UpgradeId.TERRANINFANTRYWEAPONSLEVEL2: UpgradeId.TERRANINFANTRYWEAPONSLEVEL1,
         UpgradeId.TERRANINFANTRYWEAPONSLEVEL3: UpgradeId.TERRANINFANTRYWEAPONSLEVEL2,
@@ -133,7 +138,8 @@ class Upgrades:
     
     def next_upgrade(self, facility_type: UnitTypeId) -> UpgradeId | None:
         for upgrade_type in self.upgrades_by_facility[facility_type]:
-            if upgrade_type != UpgradeId.TERRANBUILDINGARMOR and not self.bot.units(self.affected_unit_types[upgrade_type]):
+            if upgrade_type != UpgradeId.TERRANBUILDINGARMOR \
+                 and self.bot.units(self.affected_unit_types[upgrade_type]).amount < self.required_unit_counts.get(upgrade_type, 4):
                 # don't research if no units benefit
                 continue
             if self.already_pending_upgrade(facility_type, upgrade_type) > 0:

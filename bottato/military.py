@@ -91,7 +91,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                             proxy_buildings: Units):
         self.main_army.draw_debug_box()
 
-        await self.harass(newest_enemy_base, detected_enemy_builds)
+        await self.harass(detected_enemy_builds)
         await self.manage_special_squads()
 
         self.enemies_in_base = await self.get_enemies_in_base()
@@ -297,7 +297,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         bunker.empty()
 
     @timed_async
-    async def harass(self, newest_enemy_base: Point2 | None, detected_enemy_builds: Dict[BuildType, float]):
+    async def harass(self, detected_enemy_builds: Dict[BuildType, float]):
         if BuildType.PROXY in detected_enemy_builds and self.bot.enemy_units(UnitTypeId.REAPER) and self.bot.time < 300:
             # stop harass during proxy reaper rush
             self.transfer_all(self.reaper_harass, self.main_army)
@@ -316,8 +316,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 if banshees:
                     self.transfer(banshees[0], self.main_army, self.banshee_harass)
             
-        await self.reaper_harass.harass(newest_enemy_base)
-        await self.banshee_harass.harass(newest_enemy_base)
+        await self.reaper_harass.harass(self.intel)
+        await self.banshee_harass.harass(self.intel)
 
     @timed_async
     async def manage_special_squads(self):

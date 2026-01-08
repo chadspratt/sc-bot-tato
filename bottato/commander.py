@@ -79,7 +79,7 @@ class Commander(GeometryMixin, UnitReferenceMixin):
         await self.structure_micro.execute(self.enemy_builds_detected) # fast
 
         # XXX slow, 17% of command time
-        needed_resources: Cost = await self.build_order.execute(self.military.army_ratio, self.enemy_builds_detected, self.enemy)
+        needed_resources: Cost = await self.build_order.execute(self.military.army_ratio, self.enemy_builds_detected, self.enemy, self.intel)
 
         await self.scout() # fast
 

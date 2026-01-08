@@ -1,4 +1,5 @@
 from __future__ import annotations
+import random
 
 from sc2.position import Point2, Point3
 
@@ -6,6 +7,7 @@ from bottato.unit_types import UnitTypes
 from bottato.mixins import GeometryMixin, timed
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
+from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.squad import Squad
 
 
@@ -26,7 +28,7 @@ class HarassSquad(Squad, GeometryMixin):
             destination3: Point3 = self.convert_point2_to_3(self.harass_location, self.bot)
             self.bot.client.debug_sphere_out(destination3, 0.5, (255, 50, 50))
 
-    async def harass(self, newest_enemy_base: Point2 | None = None):
+    async def harass(self, intel: EnemyIntel):
         if not self.units:
             return
         
@@ -35,10 +37,8 @@ class HarassSquad(Squad, GeometryMixin):
             self.arrived = distance_to_harass_location < 15
         elif distance_to_harass_location > 15:
             self.arrived = False
-            if self.harass_location == self.bot.enemy_start_locations[0] and newest_enemy_base:
-                self.harass_location = newest_enemy_base
-            else:
-                self.harass_location = self.bot.enemy_start_locations[0]
+            other_enemy_bases = [loc for loc in intel.enemy_base_built_times.keys() if loc.manhattan_distance(self.harass_location) > 15]
+            self.harass_location = random.choice(other_enemy_bases) if other_enemy_bases else self.harass_location
 
         for unit in self.units:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)

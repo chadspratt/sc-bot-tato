@@ -3,28 +3,29 @@ import random
 from typing import Dict, List
 
 from sc2.bot_ai import BotAI
+from sc2.data import Race
+from sc2.game_data import Cost
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
-from sc2.game_data import Cost
-from sc2.data import Race
 
-from bottato.log_helper import LogHelper
-from bottato.enemy import Enemy
-from bottato.unit_types import UnitTypes
-from bottato.economy.workers import Workers
-from bottato.economy.production import Production
-from bottato.mixins import UnitReferenceMixin, timed, timed_async
-from bottato.upgrades import Upgrades
-from bottato.map.map import Map
+from bottato.building.build_starts import BuildStarts
 from bottato.building.build_step import BuildStep
 from bottato.building.scv_build_step import SCVBuildStep
-from bottato.building.upgrade_build_step import UpgradeBuildStep
-from bottato.building.structure_build_step import StructureBuildStep
 from bottato.building.special_locations import SpecialLocations, SpecialLocation
-from bottato.building.build_starts import BuildStarts
+from bottato.building.structure_build_step import StructureBuildStep
+from bottato.building.upgrade_build_step import UpgradeBuildStep
 from bottato.counter import Counter
+from bottato.economy.production import Production
+from bottato.economy.workers import Workers
+from bottato.enemy import Enemy
 from bottato.enums import BuildType, BuildResponseCode, WorkerJobType, BuildOrderChange
+from bottato.log_helper import LogHelper
+from bottato.map.map import Map
+from bottato.mixins import UnitReferenceMixin, timed, timed_async
+from bottato.squad.enemy_intel import EnemyIntel
+from bottato.unit_types import UnitTypes
+from bottato.upgrades import Upgrades
 
 
 class BuildOrder(UnitReferenceMixin):
@@ -80,7 +81,10 @@ class BuildOrder(UnitReferenceMixin):
         return self.started + self.interrupted_queue + self.priority_queue + self.static_queue + self.build_queue
 
     @timed_async
-    async def execute(self, army_ratio: float, detected_enemy_builds: Dict[BuildType, float], enemy: Enemy) -> Cost:
+    async def execute(self, army_ratio: float,
+                      detected_enemy_builds: Dict[BuildType, float],
+                      enemy: Enemy,
+                      intel: EnemyIntel) -> Cost:
         for build_type, build_time in detected_enemy_builds.items():
             self.detected_enemy_builds[build_type] = build_time
         self.enact_build_changes(self.detected_enemy_builds)
@@ -101,7 +105,7 @@ class BuildOrder(UnitReferenceMixin):
         self.queue_upgrade()
         self.queue_marines(detected_enemy_builds)
         if len(self.static_queue) < 5 or self.bot.time > 300:
-            self.queue_turret()
+            self.queue_turret(intel)
 
             # randomize unit queue so it doesn't get stuck on one unit type
             military_queue = self.get_military_queue(enemy)
@@ -583,7 +587,10 @@ class BuildOrder(UnitReferenceMixin):
             self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.PLANETARYFORTRESS))
 
     @timed
-    def queue_turret(self) -> None:
+    def queue_turret(self, intel: EnemyIntel) -> None:
+        if intel.enemy_race_confirmed == Race.Protoss and UnitTypeId.STARGATE not in intel.first_building_time:
+            # protoss without stargate likely adepts or zealots, don't build turrets
+            return
         if self.bot.time > 300:
             turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
             turret_count = len(turrets.ready)

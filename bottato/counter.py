@@ -58,9 +58,10 @@ class Counter():
             UnitTypeId.MARINE: 2
         },
         UnitTypeId.STALKER: { # 2
-            UnitTypeId.MARAUDER: 0.7,
+            UnitTypeId.MARAUDER: 0.5,
             # UnitTypeId.MARINE: 1.5,
-            UnitTypeId.SIEGETANK: 0.3
+            UnitTypeId.WIDOWMINE: 0.3,
+            UnitTypeId.SIEGETANK: 0.2
         },
         UnitTypeId.TEMPEST: { # 4
             UnitTypeId.VIKINGFIGHTER: 3,
@@ -75,7 +76,7 @@ class Counter():
         UnitTypeId.ZEALOT: { # 2
             UnitTypeId.SIEGETANK: 0.2, # 1
             UnitTypeId.MARINE: 1,
-            UnitTypeId.HELLION: 0.3
+            UnitTypeId.WIDOWMINE: 0.2
         },
         # Terran units
         UnitTypeId.BANSHEE: { # 3
