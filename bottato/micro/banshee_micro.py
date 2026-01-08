@@ -78,16 +78,6 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 return False
         if unit.health_percentage <= self.harass_retreat_health:
             return False
-        if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
-            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
-            if threats:
-                if unit.health_percentage < self.harass_attack_health:
-                    return False
-                for threat in threats:
-                    if threat.is_flying or UnitTypes.air_range(threat) >= unit.ground_range:
-                        # don't attack enemies that outrange
-                        unit.move(self.get_circle_around_position(unit, threats.center, harass_location))
-                        return True
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if force_move and not can_attack:
             return False
@@ -99,6 +89,22 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if not nearby_enemy:
             enemy_candidates = self.enemy.get_candidates(include_structures=False, include_out_of_view=False).sorted(lambda u: u.health + u.shield)
             nearby_enemy = self.enemy.in_attack_range(unit, enemy_candidates, attack_range_buffer, first_only=True)
+
+        if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
+            buffer = 3 if nearby_enemy and can_attack else 5
+            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=buffer)
+            if threats:
+                if nearby_enemy and can_attack and min([u.is_structure or u.type_id in UnitTypes.NON_THREAT_DETECTORS for u in threats]) == True:
+                    return self._kite(unit, nearby_enemy.first)
+                if unit.health_percentage < self.harass_attack_health:
+                    return False
+                for threat in threats:
+                    if threat.is_structure and self.distance_squared(unit, threat) > self.enemy.get_attack_range_with_buffer(threat, unit, 2):
+                        continue
+                    if threat.is_flying or UnitTypes.air_range(threat) >= unit.ground_range:
+                        # don't attack enemies that outrange
+                        unit.move(self.get_circle_around_position(unit, threats.center, harass_location))
+                        return True
 
         if nearby_enemy:
             return self._kite(unit, nearby_enemy.first)
@@ -119,14 +125,13 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if unit.tag in self.bot.unit_tags_received_action:
             return False        
 
-        do_retreat = False
+        do_retreat = unit.health_percentage <= self.harass_retreat_health
 
-        if unit.health_percentage <= self.harass_retreat_health:
-            if not UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
+        can_be_attacked = UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies())
+        if not can_be_attacked:
+            if do_retreat:
                 unit.move(self._get_retreat_destination(unit, Units([], self.bot)))
                 return True
-            do_retreat = True
-        elif not UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
             return False
         
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
@@ -137,7 +142,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 do_retreat = True
             else:
                 # retreat if there is nothing this unit can attack
-                visible_threats = threats.filter(lambda t: t.age == 0)
+                visible_threats = threats.filter(lambda t: t.age == 0 and t.is_visible)
                 target = self.enemy.in_attack_range(unit, visible_threats, 3, first_only=True)
                 if not target:
                     do_retreat = True

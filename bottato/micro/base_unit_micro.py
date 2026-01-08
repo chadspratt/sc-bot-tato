@@ -436,7 +436,17 @@ class BaseUnitMicro(GeometryMixin):
         if do_kite:
             # can attack while staying out of range
             target_distance = self.distance(unit, target) - target.radius - unit.radius
-            if target_distance < attack_range - 1.0:
+            if target.type_id in UnitTypes.WORKER_TYPES:
+                if target_distance < target_range + 2.0:
+                    buffer = 0.5
+                    if not target.is_facing(unit, angle_error=0.2):
+                        # stay target_range + 2.5 away instead of attack_range + 0.5
+                        buffer = target_range - attack_range + 2.5
+                    if self._stay_at_max_range(unit, Units([target], bot_object=self.bot), buffer=buffer):
+                        return True
+                    unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
+                    return True
+            elif target_distance < attack_range - 1.0 or target_distance < target_range + 0.5:
                 if self._stay_at_max_range(unit, Units([target], bot_object=self.bot)):
                     return True
                 unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
@@ -594,6 +604,8 @@ class BaseUnitMicro(GeometryMixin):
     
     @timed
     def get_circle_around_position(self, unit: Unit, threat_position: Point2, destination: Point2) -> Point2:
+        if destination == unit.position:
+            return destination
         if not unit.is_flying and unit.distance_to_squared(destination) > 225:
             path_to_destination = self.map.get_path_points(unit.position, destination)
             if len(path_to_destination) > 1:
@@ -605,6 +617,11 @@ class BaseUnitMicro(GeometryMixin):
                         # if no enemies along path, go to first node
                         return path_to_destination[1]
         threat_to_unit_vector = (unit.position - threat_position).normalized
+        unit_to_destination_vector = (destination - unit.position).normalized
+        same_direction = threat_to_unit_vector.x * unit_to_destination_vector.x + threat_to_unit_vector.y * unit_to_destination_vector.y > 0
+        if same_direction:
+            # on same side, go directly to destination
+            return destination
         tangent_vector1 = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
         tangent_vector2 = Point2((-tangent_vector1.x, -tangent_vector1.y))
         # away_from_enemy_position = unit.position.towards(threat_position, -1)

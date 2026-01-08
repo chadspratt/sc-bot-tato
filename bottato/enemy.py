@@ -278,10 +278,11 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
         in_range = Units([], self.bot)
 
         attackers = attackers.filter(lambda u: UnitTypes.can_attack_target(u, unit)
-                                    and (u.age == 0 or u.type_id in self.unseen_threat_types))
+                                    and (attack_range_buffer > 0 or u.age == 0 or u.type_id in self.unseen_threat_types))
 
         for enemy_unit in attackers:
-            attack_range_squared = self.get_attack_range_with_buffer(enemy_unit, unit, attack_range_buffer)
+            buffer = 1 if enemy_unit.is_structure else attack_range_buffer
+            attack_range_squared = self.get_attack_range_with_buffer(enemy_unit, unit, buffer)
             distance_squared = self.distance_squared(unit, enemy_unit, self.predicted_position)
 
             if distance_squared <= attack_range_squared:

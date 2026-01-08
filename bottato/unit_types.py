@@ -367,6 +367,12 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.MULE,
     ]
 
+    NON_THREAT_DETECTORS = [
+        UnitTypeId.OVERSEER,
+        UnitTypeId.RAVEN,
+        UnitTypeId.OBSERVER,
+    ]
+
     def get_unit_info(self, unit_type_id: UnitTypeId) -> Dict[str, Any]:
         """
         Get the unit info for a given unit type ID.

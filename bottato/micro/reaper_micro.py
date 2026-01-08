@@ -58,16 +58,32 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
 
-        nearby_enemies: Units
-        if can_attack:
-            candidates = self.enemy.get_candidates(include_structures=False)
-            nearby_enemies = self.enemy.in_attack_range(unit, candidates)
-            if not nearby_enemies:
-                nearby_enemies = self.enemy.in_attack_range(unit, candidates, 5)
-        else:
-            nearby_enemies = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
+        # nearby_enemies: Units
+        candidates = self.enemy.get_candidates(included_types=[UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE])
+        worker_buffer = 0 if can_attack else 5
+        nearby_workers = self.enemy.in_attack_range(unit, candidates, worker_buffer)
+        if not nearby_workers and worker_buffer == 0:
+            nearby_workers = self.enemy.in_attack_range(unit, candidates, 5)
 
-        if not nearby_enemies:
+        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
+        threats = threats.filter(lambda enemy: enemy.type_id not in UnitTypes.NON_THREATS)
+
+        target = None
+        if nearby_workers:
+            target = nearby_workers.sorted(key=lambda t: t.shield + t.health).first
+        if threats:
+            closest_distance: float = float('inf')
+            for threat in threats:
+                threat_range = UnitTypes.ground_range(threat)
+                if threat_range > unit.ground_range:
+                    # don't attack enemies that outrange
+                    return False
+                threat_distance = self.distance_squared(unit, threat) - threat_range
+                if threat_distance < closest_distance:
+                    closest_distance = threat_distance
+                    target = threat
+
+        if not target:
             if unit.tag in self.harass_location_reached_tags:
                 nearest_worker, _ = self.enemy.get_closest_target(unit, included_types=UnitTypes.WORKER_TYPES)
                 if nearest_worker:
@@ -78,20 +94,12 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                         return True
             return False
 
-        threats = nearby_enemies.filter(lambda enemy: enemy.type_id not in UnitTypes.NON_THREATS)
-
-        if threats:
-            for threat in threats:
-                if UnitTypes.ground_range(threat) > unit.ground_range:
-                    # don't attack enemies that outrange
-                    return False
-        weakest_enemy = nearby_enemies.sorted(key=lambda t: t.shield + t.health).first
-        if weakest_enemy.age > 0:
-            height_difference = weakest_enemy.position3d.z - self.bot.get_terrain_z_height(unit)
+        if target.age > 0:
+            height_difference = target.position3d.z - self.bot.get_terrain_z_height(unit)
             if height_difference > 0.5:
                 # don't attack enemies significantly higher than us
                 return False
-        return self._kite(unit, weakest_enemy)
+        return self._kite(unit, target)
 
     @timed_async
     async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> bool:
@@ -110,7 +118,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         for threat in threats:
             if UnitTypes.ground_range(threat) > unit.ground_range:
-                # just run the fuck away from threats
+                # just run away from threats
                 do_retreat = True
                 break
 
@@ -129,7 +137,8 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         if do_retreat:
             destination = harass_location
-            retreat_to_start =  unit.health_percentage < health_threshold or unit.distance_to_squared(harass_location) < 400
+            # retreat_to_start =  unit.health_percentage < health_threshold or unit.distance_to_squared(harass_location) < 400
+            retreat_to_start =  True
             if retreat_to_start:
                 destination = self.bot.start_location
             avg_threat_position = threats.center

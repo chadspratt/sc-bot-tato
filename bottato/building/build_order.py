@@ -97,7 +97,7 @@ class BuildOrder(UnitReferenceMixin):
 
         self.queue_townhall_work()
         self.queue_supply()
-        self.queue_command_center()
+        self.queue_command_center(army_ratio)
         self.queue_upgrade()
         self.queue_marines(detected_enemy_builds)
         if len(self.static_queue) < 5 or self.bot.time > 300:
@@ -429,7 +429,7 @@ class BuildOrder(UnitReferenceMixin):
         return count
 
     @timed
-    def queue_command_center(self) -> None:
+    def queue_command_center(self, army_ratio: float) -> None:
         if self.bot.townhalls.amount == 2 and self.bot.townhalls.flying:
             # don't queue another expansion if current one is still in air
             # probably unsafe or it would have landed
@@ -446,6 +446,9 @@ class BuildOrder(UnitReferenceMixin):
         projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[WorkerJobType.MINERALS]) + len(self.bot.townhalls) * 4)
         surplus_worker_count = projected_worker_count - projected_worker_capacity
         needed_cc_count = math.ceil(surplus_worker_count / 16)
+        if army_ratio < 0.8 and self.bot.townhalls.amount >= 3:
+            # delay expansion if army low and already have 3 bases
+            needed_cc_count -= 1
 
         # expand if running out of room for workers at current bases
         if needed_cc_count > cc_count:
