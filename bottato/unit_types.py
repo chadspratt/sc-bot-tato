@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, List, Tuple
 
 from sc2.bot_ai import BotAI
 from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
@@ -8,7 +8,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
 
-from bottato.mixins import GeometryMixin
+from bottato.mixins import GeometryMixin, timed
 from bottato.enums import UnitAttribute
 
 class UnitTypes(GeometryMixin):
@@ -449,6 +449,7 @@ class UnitTypes(GeometryMixin):
         return max(UnitTypes.ground_range(unit), UnitTypes.air_range(unit))
         
     @staticmethod
+    @timed
     def dps(attacker: Unit, target: Unit) -> float:
         """
         Get the DPS of the attacker unit against the target unit.
@@ -547,8 +548,8 @@ class UnitTypes(GeometryMixin):
         return False
 
     @staticmethod
-    def count_units_by_type(units: Units, use_common_type: bool = True) -> dict[UnitTypeId, int]:
-        counts: dict[UnitTypeId, int] = {}
+    def count_units_by_type(units: Units, use_common_type: bool = True) -> Dict[UnitTypeId, int]:
+        counts: Dict[UnitTypeId, int] = {}
 
         for unit in units:
             type_id = unit.unit_alias if use_common_type and unit.unit_alias else unit.type_id
@@ -564,8 +565,25 @@ class UnitTypes(GeometryMixin):
         return counts
 
     @staticmethod
-    def count_units_by_property(units: Units) -> dict[str, int]:
-        counts: dict[str, int] = {
+    def group_units_by_type(units: Units, use_common_type: bool = True) -> Dict[UnitTypeId, List[Unit]]:
+        counts: Dict[UnitTypeId, List[Unit]] = {}
+
+        for unit in units:
+            type_id = unit.unit_alias if use_common_type and unit.unit_alias else unit.type_id
+            if type_id in UnitTypes.WORKER_TYPES:
+                continue
+            if type_id in (UnitTypeId.BUNKER, UnitTypeId.MEDIVAC):
+                for passenger in unit.passengers:
+                    if passenger.type_id in UnitTypes.WORKER_TYPES:
+                        continue
+                    counts.setdefault(passenger.type_id, []).append(passenger)
+            counts.setdefault(type_id, []).append(unit)
+
+        return counts
+
+    @staticmethod
+    def count_units_by_property(units: Units) -> Dict[str, int]:
+        counts: Dict[str, int] = {
             'flying': 0,
             'ground': 0,
             'armored': 0,
