@@ -99,7 +99,7 @@ class BuildOrder(UnitReferenceMixin):
 
         only_build_units = False
 
-        self.queue_townhall_work()
+        self.queue_townhall_work(self.detected_enemy_builds)
         self.queue_supply()
         self.queue_command_center(army_ratio)
         self.queue_upgrade()
@@ -177,6 +177,10 @@ class BuildOrder(UnitReferenceMixin):
         if self.bot.time > 300 or self.bot.townhalls.amount > 2 or len(detected_enemy_builds) == 0:
             # not a rush
             return
+        if BuildType.WORKER_RUSH in detected_enemy_builds and BuildOrderChange.WORKER_RUSH not in self.changes_enacted:
+            self.changes_enacted.append(BuildOrderChange.WORKER_RUSH)
+            # prioritize blocking ramp
+            self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue, position=0)
         if BuildOrderChange.BATTLECRUISER not in self.changes_enacted and BuildType.BATTLECRUISER_RUSH in detected_enemy_builds:
             self.changes_enacted.append(BuildOrderChange.BATTLECRUISER)
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 2, position=0, queue=self.priority_queue)
@@ -379,9 +383,12 @@ class BuildOrder(UnitReferenceMixin):
         return queue
 
     @timed
-    def queue_townhall_work(self) -> None:
+    def queue_townhall_work(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
         if self.bot.time < 15:
             # pause workers to save for first expansion
+            return
+        if BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount < 2:
+            # hold off on workers during worker rush until depots are up
             return
 
         available_townhalls = self.bot.townhalls.filter(lambda cc: cc.is_ready and (not cc.orders or cc.orders[0].progress > 0.85) and not cc.is_flying)
@@ -455,7 +462,7 @@ class BuildOrder(UnitReferenceMixin):
         projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[WorkerJobType.MINERALS]) + len(self.bot.townhalls) * 4)
         surplus_worker_count = projected_worker_count - projected_worker_capacity
         needed_cc_count = math.ceil(surplus_worker_count / 16)
-        if army_ratio < 0.8 and self.bot.townhalls.amount >= 3:
+        if army_ratio < 0.65 and self.bot.townhalls.amount >= 3:
             # delay expansion if army low and already have 3 bases
             needed_cc_count -= 1
 

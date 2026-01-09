@@ -59,6 +59,7 @@ class BuildType(enum.Enum):
     STARGATE = 4
     FLEET_BEACON = 5
     ZERGLING_RUSH = 6
+    WORKER_RUSH = 7
 
 class BuildOrderChange(enum.Enum):
     RUSH = 0
@@ -67,6 +68,7 @@ class BuildOrderChange(enum.Enum):
     BANSHEE_HARASS = 3
     ANTI_AIR = 4
     ZERGLING_RUSH = 5
+    WORKER_RUSH = 6
 
 class AttackDirection(enum.Enum):
     OUT = 0

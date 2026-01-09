@@ -32,7 +32,7 @@ class InitialScout(Squad, GeometryMixin):
         self.do_natural_check: bool = False
         
         # Timing parameters
-        self.start_time = 30
+        self.start_time = 20
         self.initial_scout_complete_time = 120  # Extended time for full scouting
         
         # Scouting waypoints for systematic main base exploration

@@ -70,6 +70,12 @@ class Scouting(Squad, DebugMixin):
         if self.proxy_detected():
             await LogHelper.add_chat("proxy suspected")
             self.add_detected_build(BuildType.PROXY)
+        if self.bot.time < 60:
+            rushing_enemy_workers = self.bot.enemy_units.filter(
+                lambda u: u.distance_to(self.bot.start_location) - 15 < u.distance_to(self.bot.enemy_start_locations[0]))
+            if rushing_enemy_workers.amount >= 3:
+                await LogHelper.add_chat("worker rush detected")
+                self.add_detected_build(BuildType.WORKER_RUSH)
         if self.intel.enemy_race_confirmed == Race.Zerg:
             early_pool = self.intel.first_building_time.get(UnitTypeId.SPAWNINGPOOL, 9999) < 40
             no_gas = self.initial_scout.completed and self.intel.number_seen(UnitTypeId.EXTRACTOR) == 0

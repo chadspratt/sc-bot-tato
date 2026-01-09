@@ -62,8 +62,8 @@ class EnemyIntel:
             if self.bot.enemy_race != Race.Random:
                 self.enemy_race_confirmed = self.bot.enemy_race
             elif self.bot.enemy_structures:
-                first_building: Unit = self.bot.enemy_structures[0]
-                self.enemy_race_confirmed = first_building.race
+                first_enemy: Unit = self.bot.all_enemy_units[0]
+                self.enemy_race_confirmed = first_enemy.race
 
     def update_location_visibility(self, scout_units: List[Unit]):
         enemy_townhalls = self.bot.enemy_structures.of_type(race_townhalls[self.bot.enemy_race])
