@@ -33,6 +33,9 @@ class Counter():
             UnitTypeId.BANSHEE: 0.5, # 1.5
             UnitTypeId.THOR: 0.4 # 2.4
         },
+        UnitTypeId.FLEETBEACON: {
+            UnitTypeId.VIKINGFIGHTER: 8
+        },
         UnitTypeId.HIGHTEMPLAR: { # 2
             UnitTypeId.GHOST: 0.7, # 2.1
             UnitTypeId.SIEGETANK: 0.1
@@ -62,6 +65,9 @@ class Counter():
             # UnitTypeId.MARINE: 1.5,
             UnitTypeId.WIDOWMINE: 0.3,
             UnitTypeId.SIEGETANK: 0.2
+        },
+        UnitTypeId.STARGATE: {
+            UnitTypeId.VIKINGFIGHTER: 5
         },
         UnitTypeId.TEMPEST: { # 4
             UnitTypeId.VIKINGFIGHTER: 3,
@@ -182,6 +188,12 @@ class Counter():
             UnitTypeId.BANSHEE: 0.5,
             UnitTypeId.SIEGETANK: 0.25,
             UnitTypeId.RAVEN: 0.1
+        },
+        UnitTypeId.SPINECRAWLER: { # 1
+            UnitTypeId.SIEGETANK: 0.5,
+        },
+        UnitTypeId.SPIRE: { # 1
+            UnitTypeId.VIKINGFIGHTER: 4,
         },
         UnitTypeId.SWARMHOSTMP: { # 3
             UnitTypeId.BANSHEE: 1

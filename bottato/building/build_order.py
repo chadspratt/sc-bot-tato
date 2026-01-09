@@ -154,6 +154,9 @@ class BuildOrder(UnitReferenceMixin):
             if isinstance(step, UpgradeBuildStep) and self.bot.already_pending_upgrade(step.upgrade_id) > 0:
                 # actually finished
                 continue
+            if isinstance(step, SCVBuildStep) and step.is_unit_type(UnitTypeId.BUNKER) and step.no_position_count > 10:
+                # give up on blocked bunker
+                continue
             if step.is_unit() and self.get_queued_count(step.get_unit_type_id()) > 0:
                 self.build_queue.insert(0, step)
             else:
@@ -203,8 +206,10 @@ class BuildOrder(UnitReferenceMixin):
             self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue)
             self.move_between_queues(UnitTypeId.BARRACKSREACTOR, self.static_queue, self.priority_queue)
             self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
-            self.move_between_queues(UnitTypeId.FACTORYTECHLAB, self.static_queue, self.priority_queue)
-            self.move_between_queues(UnitTypeId.SIEGETANK, self.static_queue, self.priority_queue)
+            if not self.move_between_queues(UnitTypeId.FACTORYTECHLAB, self.static_queue, self.priority_queue):
+                self.add_to_build_queue([UnitTypeId.FACTORYTECHLAB], queue=self.priority_queue)
+            if not self.move_between_queues(UnitTypeId.SIEGETANK, self.static_queue, self.priority_queue):
+                self.add_to_build_queue([UnitTypeId.SIEGETANK], queue=self.priority_queue)
             if BuildType.RUSH in detected_enemy_builds:
                 if self.bot.structures([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED]).amount < 2:
                     # make sure to build second depot before bunker

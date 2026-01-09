@@ -33,6 +33,7 @@ class SCVBuildStep(BuildStep):
     position: Point2 | None = None
     geysir: Unit | None = None
     worker_in_position_time: float | None = None
+    no_position_count: int = 0
 
     def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers, production: Production, map: Map):
         super().__init__(unit_type_id, bot, workers, production, map)
@@ -156,6 +157,7 @@ class SCVBuildStep(BuildStep):
                 if self.position is None or (self.start_time is not None and self.start_time - self.bot.time > 5):
                     self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds)
                 if self.position is None:
+                    self.no_position_count += 1
                     return BuildResponseCode.NO_LOCATION
 
         if self.unit_in_charge is None:
@@ -254,7 +256,9 @@ class SCVBuildStep(BuildStep):
 
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2
-            if len(detected_enemy_builds) > 0 and self.bot.structures.of_type(UnitTypeId.BARRACKS) and not self.bot.structures.of_type(UnitTypeId.BUNKER):
+            if len(detected_enemy_builds) > 0 and self.bot.structures.of_type(UnitTypeId.BARRACKS) \
+                    and not self.bot.structures.of_type(UnitTypeId.BUNKER) \
+                    and self.no_position_count == 0:
                 # try to build near edge of high ground towards natural
                 # high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
                 ramp_barracks = self.bot.structures.of_type(UnitTypeId.BARRACKS).closest_to(self.bot.main_base_ramp.barracks_correct_placement) # type: ignore

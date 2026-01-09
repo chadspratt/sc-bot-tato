@@ -385,7 +385,12 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         LogHelper.add_log(f"squad {self.main_army} staging at {self.main_army.staging_location}")
         enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
         if len(detected_enemy_builds) > 0 and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
-            self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 5)
+            ramp_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOT).filter(lambda depot: depot.position.manhattan_distance(self.bot.main_base_ramp.top_center) < 5)
+            if len(ramp_depots) >= 2:
+                # depots are raised, crowd around ramp to defend
+                self.main_army.staging_location = self.bot.main_base_ramp.top_center
+            else:
+                self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 5)
         elif len(detected_enemy_builds) > 0 and len(self.bot.townhalls) <= 3 and self.army_ratio < 1.0:
             self.main_army.staging_location = self.map.natural_position.towards(self.bot.main_base_ramp.bottom_center, 5)
         elif len(self.bot.townhalls) > 1:
@@ -440,7 +445,9 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
     @timed
     def calculate_army_ratio(self, enemies_in_base: Units | None = None) -> float:
         seconds_since_killed = min(60, 60 - (self.bot.time - 300) // 2)
-        enemies = enemies_in_base if enemies_in_base is not None else self.enemy.get_army(seconds_since_killed=seconds_since_killed)
+        enemies = enemies_in_base
+        if enemies is None:
+            enemies = self.enemy.get_army(seconds_since_killed=seconds_since_killed).filter(lambda unit: not unit.is_structure)
         friendlies = self.main_army.units.copy()
         for friendly in friendlies:
             self.passenger_stand_ins[friendly.type_id] = friendly

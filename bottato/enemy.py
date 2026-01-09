@@ -394,7 +394,7 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 else:
                     break
             enemies += killed_units
-        return enemies.filter(lambda unit: not unit.is_structure and unit.type_id not in excluded_types)
+        return enemies.filter(lambda unit: unit.type_id not in excluded_types)
 
     @timed
     def get_closest_target(self, friendly_unit: Unit, distance_limit=999999,
