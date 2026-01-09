@@ -249,6 +249,7 @@ class Workers(UnitReferenceMixin, GeometryMixin):
 
     TOWNHALL_RADIUS: float = 2.75
     DISTANCE_TO_TOWNHALL_FACTOR: float = 1.08
+    @timed
     def ares_speed_mine(self, assignment: WorkerAssignment) -> bool:
         worker = assignment.unit
         len_orders: int = len(worker.orders)
