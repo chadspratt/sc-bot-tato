@@ -1,8 +1,6 @@
-from typing import Dict, List
-from loguru import logger
+from typing import Dict
 
 from sc2.bot_ai import BotAI
-from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.ids.unit_typeid import UnitTypeId
@@ -16,9 +14,8 @@ from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.squad import Squad
 from bottato.squad.initial_scout import InitialScout
 from bottato.squad.scout import Scout
-from bottato.squad.scouting_location import ScoutingLocation
 from bottato.enemy import Enemy
-from bottato.mixins import DebugMixin
+from bottato.mixins import DebugMixin, timed_async
 from bottato.economy.workers import Workers
 from bottato.enums import BuildType, ScoutType
 
@@ -145,6 +142,7 @@ class Scouting(Squad, DebugMixin):
             return self.initial_scout.main_scouted and self.intel.number_seen(UnitTypeId.BARRACKS) == 0
         return self.bot.time > 100 and self.intel.number_seen(UnitTypeId.GATEWAY) == 0
 
+    @timed_async
     async def scout(self, new_damage_taken: dict[int, float], units_by_tag: dict[int, Unit]):
         # Update scout unit references
         friendly_scout_type = ScoutType.ANY if BuildType.PROXY in self.enemy_builds_detected or self.bot.time > 120 else ScoutType.NONE
@@ -172,10 +170,11 @@ class Scouting(Squad, DebugMixin):
                     self.proxy_buildings.remove(self.proxy_buildings[i])
             i -= 1
 
-        if self.friendly_territory.unit:
-            friendly_scout = self.friendly_territory.unit
-            scouted_structures = self.bot.enemy_structures.filter(lambda s: s.is_visible and s.position.manhattan_distance(friendly_scout.position) < 13)
+        if self.bot.time < 420:
+            scouted_structures = self.bot.enemy_structures.filter(lambda s: s.is_visible)
             for structure in scouted_structures:
+                if structure.position.manhattan_distance(self.bot.start_location) > structure.position.manhattan_distance(self.enemy_main.position):
+                    continue
                 for proxy_structure in self.proxy_buildings:
                     if structure.type_id == proxy_structure.type_id and structure.position.manhattan_distance(proxy_structure.position) < 1:
                         break
