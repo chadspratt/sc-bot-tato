@@ -7,7 +7,6 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from s2clientprotocol.raw_pb2 import PassengerUnit
 
 from bottato.building.build_step import BuildStep
 from bottato.counter import Counter
@@ -17,7 +16,7 @@ from bottato.enums import BuildType
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.micro_factory import MicroFactory
-from bottato.mixins import GeometryMixin, DebugMixin, UnitReferenceMixin, timed, timed_async
+from bottato.mixins import GeometryMixin, DebugMixin, timed, timed_async
 from bottato.squad.bunker import Bunker
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.formation_squad import FormationSquad
@@ -26,15 +25,17 @@ from bottato.squad.hunting_squad import HuntingSquad
 from bottato.squad.squad import Squad
 from bottato.squad.stuck_rescue import StuckRescue
 from bottato.unit_types import UnitTypes
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 
-class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
+class Military(GeometryMixin, DebugMixin):
     def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers, intel: EnemyIntel) -> None:
-        self.bot: BotAI = bot
+        self.bot = bot
         self.enemy = enemy
         self.map = map
         self.workers = workers
         self.intel = intel
+
         self.squads: List[Squad] = []
         self.squads_by_unit_tag: Dict[int, Squad | None] = {}
         self.created_squad_type_counts: Dict[int, int] = {}
@@ -51,13 +52,13 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             enemy=enemy,
             map=map,
             color=self.random_color(),
-            name='main'
+            name='main',
         )
         self.bunker = Bunker(self.bot, 1)
         self.bunker2 = Bunker(self.bot, 2)
         self.stuck_rescue = StuckRescue(self.bot, self.main_army, self.squads_by_unit_tag)
-        self.reaper_harass = HarassSquad(bot=self.bot, name="reaper harass", color=(0, 255, 255))
-        self.banshee_harass = HarassSquad(bot=self.bot, name="banshee harass", color=(0, 255, 255))
+        self.reaper_harass = HarassSquad(self.bot, name="reaper harass")
+        self.banshee_harass = HarassSquad(self.bot, name="banshee harass")
         self.hunting_squad: HuntingSquad | None = None
         self.squads.append(self.main_army)
         self.squads.append(self.bunker)
@@ -103,7 +104,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         self.army_ratio = self.calculate_army_ratio()
         enemies_in_base_ratio = self.calculate_army_ratio(self.enemies_in_base)
 
-        army_is_big_enough = self.army_ratio > 1.3 or self.bot.supply_used > 160 or self.offense_started == True and self.army_ratio > 0.9
+        army_is_big_enough = self.army_ratio > 1.3 or self.bot.supply_used > 160 or self.offense_started and self.army_ratio > 0.9
         army_is_grouped = self.main_army.is_grouped()
         mount_offense = army_is_big_enough and not defend_with_main_army
 
@@ -190,6 +191,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 self.transfer_all(squad, self.main_army)
                 self.squads.remove(squad)
 
+        defense_squad_count = 0
+
         # assign squads to counter enemies that are alone or in small groups
         for enemy in self.enemies_in_base:
             if not self.main_army.units and enemy.type_id == UnitTypeId.PROBE:
@@ -211,7 +214,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                             and (enemy.tag == e.tag or self.distance(enemy, e) < 8)]
             overlords_excluded = [e for e in enemy_group if e.type_id not in (UnitTypeId.OVERLORD, UnitTypeId.OVERSEER)]
 
-            defense_squad = FormationSquad(self.enemy, self.map, bot=self.bot, name=f"defense{len(countered_enemies.keys())}")
+            defense_squad = FormationSquad(self.bot, self.enemy, self.map, name=f"defense{defense_squad_count}")
+            defense_squad_count += 1
 
             desired_counters = Counter.get_counter_list(Units(enemy_group, self.bot))
             if not desired_counters:
@@ -266,7 +270,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         # add units to bunker
         for unit in bunker.units:
             try:
-                unit = self.get_updated_unit_reference(unit, self.bot, self.units_by_tag)
+                unit = UnitReferenceHelper.get_updated_unit_reference(unit)
                 # unit didn't enter bunker, maybe got stuck behind wall
                 if unit.distance_to_squared(bunker.structure) <= 6.25:
                     unit.smart(bunker.structure)
@@ -332,7 +336,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             prey_types = [UnitTypeId.MEDIVAC]
         if hunter_types:
             if self.hunting_squad is None:
-                self.hunting_squad = HuntingSquad(self.bot, self.enemy, self.intel, "overlord hunt", (255, 0, 255))
+                self.hunting_squad = HuntingSquad(self.bot, self.enemy, self.intel, f"{prey_types[0].name} hunt", (255, 0, 255))
+                LogHelper.add_log(f"created hunting squad {self.hunting_squad.name}")
                 self.squads.append(self.hunting_squad)
             if not self.hunting_squad.units:
                 hunters = self.main_army.units(hunter_types)
@@ -464,7 +469,8 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
             self.passenger_stand_ins[friendly.type_id] = friendly
         for bunker in [self.bunker, self.bunker2]:
             if bunker.structure and bunker.structure.passengers:
-                friendlies.append(bunker.structure)
+                for passenger in bunker.structure.passengers:
+                    friendlies.append(passenger)
                     
         if not enemies:
             return 10.0
@@ -518,6 +524,7 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
                 if target_type not in damage_by_type_cache[attacker_type]:
                     attacker = attacker_list[0]
                     target = target_list[0]
+                    # passengers always have base_build -1, use stand-in unit for calculations
                     if attacker.base_build == -1:
                         attacker = self.passenger_stand_ins.get(attacker.type_id, attacker)
                     if target.base_build == -1:
@@ -611,11 +618,10 @@ class Military(GeometryMixin, DebugMixin, UnitReferenceMixin):
         return (unmatched_friendlies, unmatched_enemies)
 
     @timed
-    def update_references(self, units_by_tag: Dict[int, Unit]):
-        self.units_by_tag = units_by_tag
+    def update_references(self):
         self.squads_by_unit_tag.clear()
         for squad in self.squads:
-            squad.update_references(units_by_tag)
+            squad.update_references()
             for unit in squad.units:
                 self.squads_by_unit_tag[unit.tag] = squad
         for unit in self.bot.units:

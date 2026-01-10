@@ -1,4 +1,5 @@
 from __future__ import annotations
+from typing import Dict, Tuple
 
 from loguru import logger
 from sc2.bot_ai import BotAI
@@ -6,24 +7,21 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2
 
-from bottato.mixins import UnitReferenceMixin
-from bottato.squad.squad_type import SquadType, SquadTypeDefinitions
+from bottato.unit_reference_helper import UnitReferenceHelper
 
-
-class Squad(UnitReferenceMixin):
+class Squad():
     def __init__(
         self,
-        *,
         bot: BotAI,
-        color: tuple[int, int, int] = (0, 255, 0),
         name: str = "",
+        color: Tuple[int, int, int] = (0, 255, 0),
     ):
         self.bot = bot
         self.color = color
         self.name = name
+
         self.units: Units = Units([], bot_object=bot)
         self.staging_location: Point2 = self.bot.start_location
-        self.units_by_tag: dict[int, Unit] | None = None
 
     def draw_debug_box(self):
         return
@@ -31,9 +29,8 @@ class Squad(UnitReferenceMixin):
     def __repr__(self) -> str:
         return f"BaseSquad({self.name},{len(self.units)})"
 
-    def update_references(self, units_by_tag: dict[int, Unit]):
-        self.units_by_tag = units_by_tag
-        self.units = self.get_updated_unit_references(self.units, self.bot, units_by_tag)
+    def update_references(self):
+        self.units = UnitReferenceHelper.get_updated_unit_references(self.units)
 
     @property
     def is_empty(self) -> bool:

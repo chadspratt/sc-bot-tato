@@ -1,32 +1,35 @@
 from __future__ import annotations
-from typing import List
+from loguru import logger
+from typing import Dict, List, Tuple
 # import traceback
 
-from loguru import logger
+from sc2.bot_ai import BotAI
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
-from sc2.position import Point2, Point3
-from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.building.build_step import BuildStep
-from bottato.mixins import GeometryMixin, timed, timed_async
-from bottato.squad.formation import ParentFormation
+from bottato.enemy import Enemy
+from bottato.enums import SquadFormationType
+from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
+from bottato.mixins import GeometryMixin, timed, timed_async
+from bottato.squad.formation import ParentFormation
 from bottato.squad.squad import Squad
-from bottato.enemy import Enemy
-from bottato.map.map import Map
-from bottato.enums import SquadFormationType
 
 
 class FormationSquad(Squad, GeometryMixin):
     def __init__(
         self,
+        bot: BotAI,
         enemy: Enemy,
         map: Map,
-        **kwargs,
+        name: str,
+        color: Tuple[int, int, int] = (0, 255, 0),
     ):
-        super().__init__(**kwargs)
+        super().__init__(bot, name, color)
         self.enemy = enemy
         self.map = map
         self.orders = []
@@ -36,7 +39,7 @@ class FormationSquad(Squad, GeometryMixin):
         self.parent_formation: ParentFormation = ParentFormation(self.bot, self.map)
         self.destination_facing: float | None = None
         self.last_ungrouped_time: float = -5
-        self.executed_positions: dict[int, Point2] = {}
+        self.executed_positions: Dict[int, Point2] = {}
 
     def __repr__(self):
         return f"FormationSquad({self.name},{len(self.units)}, {self.parent_formation})"
@@ -154,7 +157,7 @@ class FormationSquad(Squad, GeometryMixin):
         self.destination_facing = self.get_facing(destination, facing_position)
 
         # 1/3 of total command execution time
-        formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.units, grouped_units, self.destination_facing, self.units_by_tag)
+        formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.units, grouped_units, self.destination_facing)
 
         logger.debug(f"squad {self.name} moving from {self.position} to {self._destination} with {formation_positions.values()}")
         for unit in self.units:

@@ -5,24 +5,26 @@ import random
 
 from sc2.bot_ai import BotAI
 from sc2.data import Result
-from sc2.ids.upgrade_id import UpgradeId
-from sc2.ids.ability_id import AbilityId
-from sc2.unit import Unit
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.game_data import AbilityData
+from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
+from sc2.unit import Unit
 
-from bottato.log_helper import LogHelper
 from bottato.commander import Commander
-from bottato.mixins import print_decorator_timers, timed, timed_async
-from bottato.micro.micro_factory import MicroFactory
 from bottato.enums import ActionErrorCode
+from bottato.log_helper import LogHelper
+from bottato.mixins import print_decorator_timers, timed_async
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 
 class BotTato(BotAI):
+    @timed_async
     async def on_start(self):
         # self.disable_logging()
         self.last_timer_print = 0
         self.last_build_order_print = 0
+        self.units_by_tag: Dict[int, Unit] = {}
         self.commander = Commander(self)
         await self.commander.init_map()
         # await self.client.debug_fast_build()
@@ -32,15 +34,16 @@ class BotTato(BotAI):
         #         [UnitTypeId.CARRIER, 1, self.game_info.map_center, 2],
         #     ]
         # )
-        LogHelper.testing = os.environ.get("LOG_TESTING") == "1"
         self.replay_saved = False
         logger.debug(os.getcwd())
         logger.debug(f"vision blockers: {self.game_info.vision_blockers}")
         logger.debug(f"destructibles: {self.destructables}")
         self.draw_map = False
         self.patch_game_data()
-        LogHelper.bot = self
+        LogHelper.init(self)
+        UnitReferenceHelper.init(self, self.units_by_tag)
 
+    @timed_async
     async def on_step(self, iteration: int):
         logger.debug(f"======starting step {iteration} ({self.time}s)======")
 
@@ -84,10 +87,8 @@ class BotTato(BotAI):
 
     @timed_async
     async def update_unit_references(self):
-        units_by_tag: Dict[int, Unit] = {}
-        for unit in self.all_units:
-            units_by_tag[unit.tag] = unit
-        await self.commander.update_references(units_by_tag)
+        UnitReferenceHelper.update()
+        await self.commander.update_references()
 
     def print_all_timers(self, interval: int = 0):
         if self.time - self.last_timer_print > interval:

@@ -1,7 +1,5 @@
-
-
-from typing import List
 from loguru import logger
+from typing import Dict, List
 
 from sc2.bot_ai import BotAI
 from sc2.data import Race
@@ -14,15 +12,16 @@ from bottato.map.map import Map
 from bottato.mixins import GeometryMixin
 from bottato.squad.squad import Squad
 from bottato.squad.enemy_intel import EnemyIntel
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 
 class InitialScout(Squad, GeometryMixin):
     def __init__(self, bot: BotAI, map: Map, enemy: Enemy, intel: EnemyIntel):
         super().__init__(bot=bot, name="initial_scout")
-        self.bot = bot
         self.map = map
         self.enemy = enemy
         self.intel = intel
+
         self.unit: Unit | None = None
         self.completed: bool = False
         self.enemy_natural_delayed: bool = False
@@ -77,15 +76,15 @@ class InitialScout(Squad, GeometryMixin):
         
         logger.debug(f"Generated {len(self.waypoints)} scouting waypoints for enemy main base")
 
-    def update_scout(self, workers: Workers, units_by_tag: dict[int, Unit]):
+    def update_scout(self, workers: Workers):
         if self.bot.time < self.start_time:
             # too early to scout
             return
             
         if self.unit:
             try:
-                self.unit = self.get_updated_unit_reference(self.unit, self.bot, units_by_tag)
-            except self.UnitNotFound:
+                self.unit = UnitReferenceHelper.get_updated_unit_reference(self.unit)
+            except UnitReferenceHelper.UnitNotFound:
                 self.unit = None
                 # scout lost, don't send another
                 self.completed = True

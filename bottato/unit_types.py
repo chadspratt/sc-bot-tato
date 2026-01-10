@@ -373,6 +373,14 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.OBSERVER,
     ]
 
+    @staticmethod
+    def is_worker(unit_type_id: UnitTypeId) -> bool:
+        """
+        Check if a unit type ID is a worker.
+        """
+        common_id = UNIT_UNIT_ALIAS.get(unit_type_id, unit_type_id)
+        return common_id in UnitTypes.WORKER_TYPES
+
     def get_unit_info(self, unit_type_id: UnitTypeId) -> Dict[str, Any]:
         """
         Get the unit info for a given unit type ID.
@@ -395,14 +403,27 @@ class UnitTypes(GeometryMixin):
         """
         Check if a unit type can attack air units.
         """
-        return unit.can_attack_air or unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BUNKER}
+        return unit.can_attack_air or unit.type_id in {
+            UnitTypeId.BUNKER,
+            UnitTypeId.BATTLECRUISER, 
+            UnitTypeId.SENTRY, 
+            UnitTypeId.VOIDRAY, 
+            UnitTypeId.WIDOWMINE,
+        }
     
     @staticmethod
     def can_attack_ground(unit: Unit) -> bool:
         """
         Check if a unit type can attack air units.
         """
-        return unit.can_attack_ground or unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BANELING, UnitTypeId.BUNKER}
+        return unit.can_attack_ground or unit.type_id in {
+            UnitTypeId.BANELING,
+            UnitTypeId.BATTLECRUISER,
+            UnitTypeId.BUNKER,
+            UnitTypeId.SENTRY,
+            UnitTypeId.VOIDRAY,
+            UnitTypeId.WIDOWMINE,
+        }
 
     @staticmethod
     def can_attack(unit: Unit) -> bool:
@@ -434,7 +455,7 @@ class UnitTypes(GeometryMixin):
         """
         if unit.can_attack_air:
             return unit.air_range
-        elif unit.type_id == UnitTypeId.SENTRY:
+        elif unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED}:
             return 5.0
         elif unit.type_id in {UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY}:
             return 6.0
@@ -464,6 +485,8 @@ class UnitTypes(GeometryMixin):
             return 49.8
         if attacker.type_id == UnitTypeId.SENTRY:
             return 8.4
+        if attacker.type_id == UnitTypeId.WIDOWMINE:
+            return 45.0
         return attacker.calculate_dps_vs_target(target)
         
     @staticmethod

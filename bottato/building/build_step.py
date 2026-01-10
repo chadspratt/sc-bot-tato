@@ -6,14 +6,14 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 
 from bottato.map.map import Map
-from bottato.mixins import UnitReferenceMixin, GeometryMixin
+from bottato.mixins import GeometryMixin
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
 from bottato.building.special_locations import SpecialLocations
 from bottato.enums import BuildResponseCode, BuildType
 
 
-class BuildStep(UnitReferenceMixin, GeometryMixin):
+class BuildStep(GeometryMixin):
     unit_in_charge: Unit | None = None
     check_idle: bool = False
     last_cancel_time: float = -10
@@ -22,11 +22,12 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
     is_in_progress: bool = False
     interrupted_count: int = 0
 
-    def __init__(self, unit_type: UnitTypeId | UpgradeId, bot: BotAI, workers: Workers, production: Production, map: Map):
-        self.bot: BotAI = bot
-        self.workers: Workers = workers
-        self.production: Production = production
-        self.map: Map = map
+    def __init__(self, unit_type: UnitTypeId | UpgradeId, bot: BotAI, workers: Workers,
+                 production: Production, map: Map) -> None:
+        self.bot = bot
+        self.workers = workers
+        self.production = production
+        self.map = map
 
         self.friendly_name = unit_type.name
         self.builder_type: set[UnitTypeId] = self.production.get_builder_type(unit_type)
@@ -43,7 +44,7 @@ class BuildStep(UnitReferenceMixin, GeometryMixin):
     # def __repr__(self) -> str:
     #     return ""
 
-    def update_references(self, units_by_tag: dict[int, Unit]):
+    def update_references(self):
         pass
 
     def draw_debug_box(self):

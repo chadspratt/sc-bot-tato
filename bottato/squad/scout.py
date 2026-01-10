@@ -12,13 +12,13 @@ from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.military import Military
-from bottato.mixins import UnitReferenceMixin
 from bottato.squad.scouting_location import ScoutingLocation
 from bottato.squad.squad import Squad
 from bottato.economy.workers import Workers, WorkerJobType
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 
-class Scout(Squad, UnitReferenceMixin):
+class Scout(Squad):
     def __init__(self, name, bot: BotAI, enemy: Enemy):
         self.name: str = name
         self.bot: BotAI = bot
@@ -94,7 +94,7 @@ class Scout(Squad, UnitReferenceMixin):
     def needs(self, unit: Unit) -> bool:
         return unit.type_id in (UnitTypeId.SCV, UnitTypeId.MARINE, UnitTypeId.REAPER)
 
-    def update_scout(self, military: Military, workers: Workers, units_by_tag: dict[int, Unit], scout_type: ScoutType = ScoutType.NONE):
+    def update_scout(self, military: Military, workers: Workers, scout_type: ScoutType = ScoutType.NONE):
         """Update unit reference for this scout"""
         if self.unit and self.unit.type_id == UnitTypeId.SCV:
             if self.unit.tag in workers.assignments_by_worker:
@@ -120,9 +120,9 @@ class Scout(Squad, UnitReferenceMixin):
                         self.complete = True
                         return
             try:
-                self.unit = self.get_updated_unit_reference(self.unit, self.bot, units_by_tag)
+                self.unit = UnitReferenceHelper.get_updated_unit_reference(self.unit)
                 logger.debug(f"{self.name} scout {self.unit}")
-            except self.UnitNotFound:
+            except UnitReferenceHelper.UnitNotFound:
                 self.unit = None
                 pass
         elif self.bot.time < 500 and scout_type == ScoutType.VIKING:

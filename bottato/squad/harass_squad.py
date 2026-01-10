@@ -1,22 +1,20 @@
 from __future__ import annotations
 import random
 
+from sc2.bot_ai import BotAI
 from sc2.position import Point2, Point3
 
-from bottato.unit_types import UnitTypes
-from bottato.mixins import GeometryMixin, timed
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
+from bottato.mixins import GeometryMixin, timed
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.squad import Squad
+from bottato.unit_types import UnitTypes
 
 
 class HarassSquad(Squad, GeometryMixin):
-    def __init__(
-        self,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)
+    def __init__(self, bot: BotAI, name: str):
+        super().__init__(bot, name, color=(0, 255, 255))
         self.arrived = False
         self.harass_location: Point2 = self.bot.enemy_start_locations[0]
     def __repr__(self):
@@ -26,7 +24,7 @@ class HarassSquad(Squad, GeometryMixin):
     def draw_debug_box(self):
         if self.harass_location:
             destination3: Point3 = self.convert_point2_to_3(self.harass_location, self.bot)
-            self.bot.client.debug_sphere_out(destination3, 0.5, (255, 50, 50))
+            self.bot.client.debug_sphere_out(destination3, 0.5, self.color)
 
     async def harass(self, intel: EnemyIntel):
         if not self.units:

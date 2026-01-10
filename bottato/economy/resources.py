@@ -1,6 +1,6 @@
 from __future__ import annotations
-from typing import List
 from loguru import logger
+from typing import List
 
 from sc2.bot_ai import BotAI
 from sc2.units import Units
@@ -9,9 +9,10 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
 
-from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed
+from bottato.mixins import GeometryMixin, timed
+from bottato.unit_reference_helper import UnitReferenceHelper
 
-class ResourceNode(UnitReferenceMixin):
+class ResourceNode():
     def __init__(self, node: Unit, max_workers: int, max_mules: int, is_long_distance: bool = False):
         self.node = node
         self.max_workers = max_workers
@@ -29,9 +30,10 @@ class ResourceNode(UnitReferenceMixin):
             return 0
         return self.max_workers - len(self.worker_tags)
 
-class Resources(UnitReferenceMixin, GeometryMixin):
+class Resources(GeometryMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
+
         self.nodes: List[ResourceNode] = []
         self.nodes_by_tag: dict[int, ResourceNode] = {}
         self.max_workers_per_node = 0
@@ -147,12 +149,12 @@ class Resources(UnitReferenceMixin, GeometryMixin):
         return False
 
     @timed
-    def update_references(self, units_by_tag: dict[int, Unit] | None = None):
+    def update_references(self):
         nodes_to_remove = []
         
         for resource_node in self.nodes:
             try:
-                resource_node.node = self.get_updated_unit_reference(resource_node.node, self.bot, units_by_tag)
+                resource_node.node = UnitReferenceHelper.get_updated_unit_reference(resource_node.node)
             except Exception as e:
                 logger.debug(f"Node {resource_node.node.tag} failed to update reference: {e}")
                 if not resource_node.node.is_mineral_field:

@@ -20,8 +20,9 @@ from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
-from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed, timed_async
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.unit_types import UnitTypes
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 
 class WorkerAssignment():
@@ -42,11 +43,12 @@ class WorkerAssignment():
         return f"WorkerAssignment({self.unit}({self.unit_available}), {self.job_type.name}, {self.target})"
 
 
-class Workers(UnitReferenceMixin, GeometryMixin):
+class Workers(GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy, map: Map) -> None:
         self.bot: BotAI = bot
         self.enemy = enemy
         self.map = map
+
         self.last_worker_stop = -1000
         self.assignments_by_worker: dict[int, WorkerAssignment] = {}
         self.assignments_by_job: dict[WorkerJobType, List[WorkerAssignment]] = {
@@ -71,9 +73,9 @@ class Workers(UnitReferenceMixin, GeometryMixin):
         self.workers_being_repaired: Set[int] = set()
 
     @timed
-    def update_references(self, units_by_tag: dict[int, Unit], builder_tags: List[int]):
-        self.minerals.update_references(units_by_tag)
-        self.vespene.update_references(units_by_tag)
+    def update_references(self, builder_tags: List[int]):
+        self.minerals.update_references()
+        self.vespene.update_references()
         self.workers_being_repaired.clear()
 
         self.assignments_by_job[WorkerJobType.IDLE].clear()
@@ -85,20 +87,20 @@ class Workers(UnitReferenceMixin, GeometryMixin):
         self.assignments_by_job[WorkerJobType.SCOUT].clear()
         for assignment in self.assignments_by_worker.values():
             try:
-                assignment.unit = self.get_updated_unit_reference(assignment.unit, self.bot, units_by_tag)
+                assignment.unit = UnitReferenceHelper.get_updated_unit_reference(assignment.unit)
                 assignment.unit_available = True
-            except UnitReferenceMixin.UnitNotFound:
+            except UnitReferenceHelper.UnitNotFound:
                 # unit is inside a structure
                 assignment.unit_available = False
 
             try:
-                assignment.target = self.get_updated_unit_reference(assignment.target, self.bot, units_by_tag)
-            except UnitReferenceMixin.UnitNotFound:
+                assignment.target = UnitReferenceHelper.get_updated_unit_reference(assignment.target)
+            except UnitReferenceHelper.UnitNotFound:
                 assignment.target = None
 
             try:
-                assignment.dropoff_target = self.get_updated_unit_reference(assignment.dropoff_target, self.bot, units_by_tag)
-            except UnitReferenceMixin.UnitNotFound:
+                assignment.dropoff_target = UnitReferenceHelper.get_updated_unit_reference(assignment.dropoff_target)
+            except UnitReferenceHelper.UnitNotFound:
                 assignment.dropoff_target = None
                 assignment.dropoff_position = None
 
@@ -174,7 +176,7 @@ class Workers(UnitReferenceMixin, GeometryMixin):
             available_energy += orbital.energy
             if available_energy - reserve_for_scan < 50:
                 continue
-            mineral_fields: Units = self.minerals.nodes_with_mule_capacity()
+            mineral_fields: Units = self.minerals.nodes_with_mule_capacity().filter(lambda mf: self.closest_distance_squared(mf, self.bot.enemy_units) > 225)
             if mineral_fields:
                 fullest_mineral_field: Unit = max(mineral_fields, key=lambda x: x.mineral_contents)
                 nearest_townhall: Unit = self.bot.townhalls.closest_to(fullest_mineral_field)

@@ -1,6 +1,6 @@
 import math
-from typing import List
 from loguru import logger
+from typing import List
 
 from sc2.bot_ai import BotAI
 from sc2.units import Units
@@ -11,6 +11,7 @@ from sc2.position import Point2
 from bottato.map.map import Map
 from bottato.mixins import timed
 from bottato.economy.resources import ResourceNode, Resources
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 
 class Minerals(Resources):
@@ -27,6 +28,7 @@ class Minerals(Resources):
     def __init__(self, bot: BotAI, map: Map) -> None:
         super().__init__(bot)
         self.map = map
+
         self.known_townhall_tags: List[int] = []
         self.max_workers_per_node = 2
         self.max_mules_per_node = 1
@@ -34,16 +36,15 @@ class Minerals(Resources):
         # self.mining_positions: dict[int, Point2] = {}
 
     @timed
-    def update_references(self, units_by_tag: dict[int, Unit] | None = None):
-        super().update_references(units_by_tag)
+    def update_references(self):
+        super().update_references()
         # remove missing tags
-        if units_by_tag:
-            for node in self.nodes:
-                i = len(node.worker_tags) - 1
-                while i >= 0:
-                    if node.worker_tags[i] not in units_by_tag:
-                        node.worker_tags.pop(i)
-                    i -= 1
+        for node in self.nodes:
+            i = len(node.worker_tags) - 1
+            while i >= 0:
+                if node.worker_tags[i] not in UnitReferenceHelper.units_by_tag:
+                    node.worker_tags.pop(i)
+                i -= 1
                     
         self.add_mineral_fields_for_townhalls()
         for node in self.nodes:
@@ -64,7 +65,8 @@ class Minerals(Resources):
                     resource_node.is_long_distance = True
                     # node no longer exists? maybe tag changed
                     continue
-                if not self.bot.townhalls or self.bot.townhalls.closest_distance_to(updated_node) > 15:
+                landed_townhalls = self.bot.townhalls.filter(lambda th: not th.is_flying)
+                if not landed_townhalls or landed_townhalls.closest_distance_to(updated_node) > 15:
                     resource_node.is_long_distance = True
 
     def add_mineral_fields_for_townhalls(self):

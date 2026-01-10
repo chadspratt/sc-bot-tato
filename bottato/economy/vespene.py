@@ -1,25 +1,25 @@
 from loguru import logger
 
 from sc2.bot_ai import BotAI
-from sc2.unit import Unit
 
-from bottato.mixins import UnitReferenceMixin, timed
 from bottato.economy.resources import Resources
+from bottato.mixins import timed
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 
-class Vespene(Resources, UnitReferenceMixin):
+class Vespene(Resources):
     def __init__(self, bot: BotAI) -> None:
         super().__init__(bot)
         self.max_workers_per_node = 3
 
     @timed
-    def update_references(self, units_by_tag: dict[int, Unit] | None = None):
-        super().update_references(units_by_tag)
+    def update_references(self):
+        super().update_references()
         for resource_node in self.nodes:
             for worker_tag in resource_node.worker_tags:
                 try:
-                    worker = self.get_updated_unit_reference_by_tag(worker_tag, self.bot, units_by_tag)
-                except self.UnitNotFound:
+                    worker = UnitReferenceHelper.get_updated_unit_reference_by_tag(worker_tag)
+                except UnitReferenceHelper.UnitNotFound:
                     continue
                 self.bot.client.debug_box2_out(worker, color=(128, 0, 128))
                 self.bot.client.debug_line_out(worker, resource_node.node, color=(128, 0, 128))

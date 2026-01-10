@@ -1,11 +1,12 @@
-from bottato.squad.squad import Squad
 from sc2.bot_ai import BotAI
 from sc2.ids.ability_id import AbilityId
 
+from bottato.squad.squad import Squad
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 class Bunker(Squad):
     def __init__(self, bot: BotAI, number: int):
-        super().__init__(bot=bot, name=f"bunker{number}", color=(255, 255, 0))
+        super().__init__(bot, name=f"bunker{number}", color=(255, 255, 0))
         self.structure = None
     
     def empty(self):
@@ -30,9 +31,9 @@ class Bunker(Squad):
     def has_space(self):
         return self.structure and len(self.units) < 4
     
-    def update_references(self, units_by_tag):
+    def update_references(self):
         if self.structure:
             try:
-                self.structure = self.get_updated_unit_reference(self.structure, self.bot, units_by_tag)
-            except self.UnitNotFound:
+                self.structure = UnitReferenceHelper.get_updated_unit_reference(self.structure)
+            except UnitReferenceHelper.UnitNotFound:
                 self.structure = None

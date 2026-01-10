@@ -22,13 +22,14 @@ from bottato.enemy import Enemy
 from bottato.enums import BuildType, BuildResponseCode, WorkerJobType, BuildOrderChange
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
-from bottato.mixins import UnitReferenceMixin, timed, timed_async
+from bottato.mixins import timed, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
+from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 from bottato.upgrades import Upgrades
 
 
-class BuildOrder(UnitReferenceMixin):
+class BuildOrder():
     # gets processed first, for supply depots and workers
     interrupted_queue: List[BuildStep] = []
     priority_queue: List[BuildStep] = []
@@ -44,14 +45,12 @@ class BuildOrder(UnitReferenceMixin):
     rush_defense_enacted: bool = False
     detected_enemy_builds: Dict[BuildType, float] = {}
 
-    def __init__(self, build_name: str, bot: BotAI, workers: Workers, production: Production, map: Map):
-        self.recently_completed_units: List[Unit] = []
-        # self.recently_completed_transformations: List[UnitTypeId] = []
-        self.recently_started_units: List[Unit] = []
-        self.bot: BotAI = bot
-        self.workers: Workers = workers
-        self.production: Production = production
-        self.map: Map = map
+    def __init__(self, build_name: str, bot: BotAI, workers: Workers, production: Production, map: Map) -> None:
+        self.bot = bot
+        self.workers = workers
+        self.production = production
+        self.map = map
+
         self.counter = Counter()
         self.unit_types = UnitTypes()
         self.upgrades = Upgrades(bot)
@@ -65,14 +64,11 @@ class BuildOrder(UnitReferenceMixin):
         for unit_type in BuildStarts.get_build_start(build_name):
             step = self.create_build_step(unit_type, None)
             self.static_queue.append(step)
-        # self.build_a_worker: BuildStep = None
-        # self.supply_build_step: BuildStep = None
-        # self.queue_unit_type(UnitTypeId.BATTLECRUISER)
 
     @timed_async
-    async def update_references(self, units_by_tag: dict[int, Unit]) -> None:
+    async def update_references(self) -> None:
         for build_step in self.all_steps:
-            build_step.update_references(units_by_tag)
+            build_step.update_references()
             build_step.draw_debug_box()
         await self.move_interupted_to_pending()
 
@@ -672,8 +668,8 @@ class BuildOrder(UnitReferenceMixin):
             if in_progress_step.is_unit_type(started_structure.type_id):
                 if in_progress_step.unit_in_charge and in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
                     try:
-                        in_progress_step.unit_in_charge = self.get_updated_unit_reference(in_progress_step.unit_in_charge, self.bot)
-                    except self.UnitNotFound:
+                        in_progress_step.unit_in_charge = UnitReferenceHelper.get_updated_unit_reference(in_progress_step.unit_in_charge)
+                    except UnitReferenceHelper.UnitNotFound:
                         continue
                     if not in_progress_step.unit_in_charge.is_constructing_scv:
                         # wrong worker
@@ -698,13 +694,13 @@ class BuildOrder(UnitReferenceMixin):
                 in_progress_step.completed_time = self.bot.time
                 if builder and builder.type_id == UnitTypeId.SCV:
                     try:
-                        builder = self.get_updated_unit_reference(builder, self.bot)
+                        builder = UnitReferenceHelper.get_updated_unit_reference(builder)
                         if in_progress_step.is_unit_type(UnitTypeId.REFINERY):
                             self.workers.vespene.add_node(completed_structure)
                             self.workers.update_assigment(builder, WorkerJobType.VESPENE, completed_structure)
                         else:
                             self.workers.set_as_idle(builder)
-                    except self.UnitNotFound:
+                    except UnitReferenceHelper.UnitNotFound:
                         pass
                 self.move_to_complete(self.started.pop(idx))
                 break

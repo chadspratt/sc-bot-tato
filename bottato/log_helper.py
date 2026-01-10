@@ -1,3 +1,4 @@
+import os
 from loguru import logger
 from typing import List
 
@@ -12,6 +13,10 @@ class LogHelper:
     bot: BotAI
 
     testing: bool = False
+    @staticmethod
+    def init(bot: BotAI):
+        LogHelper.bot = bot
+        LogHelper.testing = os.environ.get("LOG_TESTING") == "1"
 
     @staticmethod
     def add_log(message: str):

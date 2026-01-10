@@ -71,63 +71,6 @@ def print_decorator_timers():
     logger.info(timing_message)
 
 
-class UnitReferenceMixin:
-    class UnitNotFound(Exception):
-        pass
-
-    def get_updated_unit_reference(self, unit: Unit | None, bot: BotAI, units_by_tag: dict[int, Unit] | None = None) -> Unit:
-        if unit is None:
-            raise self.UnitNotFound(
-                "unit is None"
-            )
-        return self.get_updated_unit_reference_by_tag(unit.tag, bot, units_by_tag)
-
-    def get_updated_unit_reference_by_tag(self, tag: int, bot: BotAI, units_by_tag: dict[int, Unit] | None = None) -> Unit:
-        try:
-            if units_by_tag is None:
-                # used for events outside of on_step
-                return bot.all_units.by_tag(tag)
-            return units_by_tag[tag]
-        except KeyError:
-            raise self.UnitNotFound(
-                f"Cannot find unit with tag {tag}; maybe they died"
-            )
-
-    def get_updated_unit_references(self, units: Units, bot: BotAI, units_by_tag: dict[int, Unit] | None = None) -> Units:
-        _units = Units([], bot_object=bot)
-        for unit in units:
-            try:
-                _units.append(self.get_updated_unit_reference(unit, bot, units_by_tag))
-            except self.UnitNotFound:
-                logger.debug(f"Couldn't find unit {unit}!")
-        return _units
-
-    def get_updated_unit_references_by_tags(self, tags: List[int], bot: BotAI, units_by_tag: dict[int, Unit] | None = None) -> Units:
-        _units = Units([], bot_object=bot)
-        for tag in tags:
-            try:
-                _units.append(self.get_updated_unit_reference_by_tag(tag, bot, units_by_tag))
-            except self.UnitNotFound:
-                logger.debug(f"Couldn't find unit {tag}!")
-        return _units
-
-    def get_army_value(self, units: Units, bot: BotAI) -> float:
-        army_value: float = 0
-        type_costs: Dict[UnitTypeId, float] = {}
-        for unit in units:
-            if unit.is_structure:
-                continue
-            if unit.type_id not in type_costs:
-                try:
-                    cost: Cost = bot.calculate_cost(unit.type_id)
-                except AttributeError:
-                    continue
-                supply = bot.calculate_supply_cost(unit.type_id)
-                type_costs[unit.type_id] = ((cost.minerals * 0.9) + cost.vespene) * supply
-            army_value += type_costs[unit.type_id]
-        return army_value
-
-
 class GeometryMixin:
     @staticmethod
     def convert_point2_to_3(point2: Point2 | Unit, bot: BotAI) -> Point3:

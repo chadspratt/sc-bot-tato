@@ -1,6 +1,6 @@
 from __future__ import annotations
-
 from loguru import logger
+
 
 from sc2.bot_ai import BotAI
 from sc2.game_data import Cost
@@ -23,33 +23,33 @@ from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.micro.structure_micro import StructureMicro
 from bottato.military import Military
-from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed_async
+from bottato.mixins import GeometryMixin, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.scouting import Scouting
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 
-class Commander(GeometryMixin, UnitReferenceMixin):
+class Commander(GeometryMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
 
-        self.map = Map(self.bot)
-        self.enemy: Enemy = Enemy(self.bot)
-        MicroFactory.set_common_objects(self.bot, self.enemy, self.map)
-        self.my_workers: Workers = Workers(self.bot, self.enemy, self.map)
-        self.intel = EnemyIntel(self.bot, self.map)
-        self.military: Military = Military(self.bot, self.enemy, self.map, self.my_workers, self.intel)
-        self.structure_micro: StructureMicro = StructureMicro(self.bot, self.enemy, self.map)
-        self.production: Production = Production(self.bot)
+        self.map = Map(bot)
+        self.enemy: Enemy = Enemy(bot)
+        MicroFactory.set_common_objects(bot, self.enemy, self.map)
+        self.my_workers: Workers = Workers(bot, self.enemy, self.map)
+        self.intel = EnemyIntel(bot, self.map)
+        self.military: Military = Military(bot, self.enemy, self.map, self.my_workers, self.intel)
+        self.structure_micro: StructureMicro = StructureMicro(bot, self.enemy, self.map)
+        self.production: Production = Production(bot)
         self.build_order: BuildOrder = BuildOrder(
-            "pig_b2gm", bot=self.bot, workers=self.my_workers, production=self.production, map=self.map
+            "pig_b2gm", bot=bot, workers=self.my_workers, production=self.production, map=self.map
         )
-        self.scouting = Scouting(self.bot, self.enemy, self.map, self.my_workers, self.military, self.intel)
+        self.scouting = Scouting(bot, self.enemy, self.map, self.my_workers, self.military, self.intel)
         self.new_damage_by_unit: dict[int, float] = {}
         self.new_damage_by_position: dict[Point2, float] = {}
         self.pathable_position: Point2 | None = None
-        self.stuck_units: Units = Units([], bot_object=self.bot)
+        self.stuck_units: Units = Units([], bot_object=bot)
         self.enemy_builds_detected: dict[BuildType, float] = {}
-        self.units_by_tag: dict[int, Unit] = {}
 
     async def init_map(self):
         await self.map.init()
@@ -142,20 +142,19 @@ class Commander(GeometryMixin, UnitReferenceMixin):
     @timed_async
     async def scout(self):
         self.scouting.update_visibility()
-        await self.scouting.scout(self.new_damage_by_unit, self.units_by_tag)
+        await self.scouting.scout(self.new_damage_by_unit)
 
         for build_type, build_time in (await self.scouting.detected_enemy_builds).items():
             self.enemy_builds_detected[build_type] = build_time
 
     @timed_async
-    async def update_references(self, units_by_tag: dict[int, Unit]):
-        self.units_by_tag = units_by_tag
-        self.my_workers.update_references(units_by_tag, self.build_order.get_assigned_worker_tags())
-        self.military.update_references(units_by_tag)
-        self.enemy.update_references(units_by_tag)
-        await self.build_order.update_references(units_by_tag)
-        await self.production.update_references(units_by_tag)
-        self.stuck_units = self.get_updated_unit_references(self.stuck_units, self.bot, units_by_tag)
+    async def update_references(self):
+        self.my_workers.update_references(self.build_order.get_assigned_worker_tags())
+        self.military.update_references()
+        self.enemy.update_references()
+        await self.build_order.update_references()
+        await self.production.update_references()
+        self.stuck_units = UnitReferenceHelper.get_updated_unit_references(self.stuck_units)
 
     def update_started_structure(self, unit: Unit):
         self.build_order.update_started_structure(unit)
@@ -198,7 +197,7 @@ class Commander(GeometryMixin, UnitReferenceMixin):
             self.build_order.cancel_damaged_structure(unit, self.new_damage_by_unit[unit.tag])
 
     def remove_destroyed_unit(self, unit_tag: int):
-        destroyed_unit = self.units_by_tag.get(unit_tag)
+        destroyed_unit = UnitReferenceHelper.units_by_tag.get(unit_tag)
         if destroyed_unit and destroyed_unit.is_mine and not destroyed_unit.is_structure and destroyed_unit.type_id != UnitTypeId.MULE:
             rounded_position = destroyed_unit.position.rounded
             if rounded_position not in self.new_damage_by_position:

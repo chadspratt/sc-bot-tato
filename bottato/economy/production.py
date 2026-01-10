@@ -14,11 +14,12 @@ from sc2.constants import abilityid_to_unittypeid
 from sc2.position import Point2
 
 from bottato.log_helper import LogHelper
-from bottato.mixins import UnitReferenceMixin, timed, timed_async
+from bottato.mixins import timed, timed_async
 from bottato.tech_tree import TECH_TREE
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 
-class Facility(UnitReferenceMixin):
+class Facility():
     def __init__(self, bot: BotAI, unit: Unit) -> None:
         self.bot = bot
         self.unit = unit
@@ -33,12 +34,12 @@ class Facility(UnitReferenceMixin):
     def __repr__(self) -> str:
         return f"facility {self.unit}-{self.add_on_type}"
 
-    async def update_references(self, units_by_tag: dict[int, Unit]) -> None:
+    async def update_references(self) -> None:
         logger.debug(f"updating reference for facility {self}")
         try:
-            updated_unit: Unit = self.get_updated_unit_reference(self.unit, self.bot, units_by_tag)
-        except UnitReferenceMixin.UnitNotFound:
-            raise UnitReferenceMixin.UnitNotFound
+            updated_unit: Unit = UnitReferenceHelper.get_updated_unit_reference(self.unit)
+        except UnitReferenceHelper.UnitNotFound:
+            raise UnitReferenceHelper.UnitNotFound
             # addon_type.remove(facility)
 
         logger.debug(f"updated reference for facility {updated_unit}-{updated_unit.orders}")
@@ -127,7 +128,7 @@ class Facility(UnitReferenceMixin):
                 return True
         return False
 
-class Production(UnitReferenceMixin):
+class Production():
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
         self.facilities: dict[UnitTypeId, dict[UnitTypeId, List[Facility]]] = {
@@ -181,14 +182,14 @@ class Production(UnitReferenceMixin):
         }
 
     @timed_async
-    async def update_references(self, units_by_tag: dict[int, Unit]) -> None:
+    async def update_references(self) -> None:
         for facility_type in self.facilities.values():
             for addon_type in facility_type.values():
                 facility: Facility
                 for facility in addon_type:
                     try:
-                        await facility.update_references(units_by_tag)
-                    except UnitReferenceMixin.UnitNotFound:
+                        await facility.update_references()
+                    except UnitReferenceHelper.UnitNotFound:
                         addon_type.remove(facility)
                     # check if add-on was destroyed
                     if not facility.unit.has_add_on and facility.add_on_type != UnitTypeId.NOTAUNIT:
@@ -446,11 +447,11 @@ class Production(UnitReferenceMixin):
                 logger.debug(f"checking facilities with no addon {self.facilities[facility_type][UnitTypeId.NOTAUNIT]}")
                 for facility in self.facilities[facility_type][UnitTypeId.NOTAUNIT]:
                     try:
-                        facility.unit = self.get_updated_unit_reference(facility.unit, self.bot)
-                    except UnitReferenceMixin.UnitNotFound:
+                        facility.unit = UnitReferenceHelper.get_updated_unit_reference(facility.unit)
+                    except UnitReferenceHelper.UnitNotFound:
                         continue
                     if facility.unit.add_on_tag:
-                        add_on = self.get_updated_unit_reference_by_tag(facility.unit.add_on_tag, self.bot)
+                        add_on = UnitReferenceHelper.get_updated_unit_reference_by_tag(facility.unit.add_on_tag)
                         generic_type = list(UNIT_TECH_ALIAS[add_on.type_id])[0]
                         self.facilities[facility_type][generic_type].append(facility)
                         self.facilities[facility_type][UnitTypeId.NOTAUNIT].remove(facility)

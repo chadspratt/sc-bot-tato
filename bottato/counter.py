@@ -172,11 +172,12 @@ class Counter():
             UnitTypeId.VIKINGFIGHTER: 0.1
         },
         UnitTypeId.OVERSEER: {
-            UnitTypeId.VIKINGFIGHTER: 0.2
+            UnitTypeId.VIKINGFIGHTER: 0.1
         },
         UnitTypeId.QUEEN: { # 2
             UnitTypeId.MARINE: 2,
-            UnitTypeId.SIEGETANK: 0.3
+            UnitTypeId.SIEGETANK: 0.3,
+            UnitTypeId.WIDOWMINE: 0.2,
         },
         UnitTypeId.RAVAGER: { # 3
             UnitTypeId.MARAUDER: 0.5,
@@ -206,8 +207,7 @@ class Counter():
             UnitTypeId.VIKINGFIGHTER: 1
         },
         UnitTypeId.ZERGLING: {
-            UnitTypeId.HELLION: 0.2,
-            UnitTypeId.WIDOWMINE: 0.2,
+            UnitTypeId.WIDOWMINE: 0.3,
             UnitTypeId.MARINE: 0.2
         },
     }

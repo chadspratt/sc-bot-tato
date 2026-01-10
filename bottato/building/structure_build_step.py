@@ -19,6 +19,7 @@ from bottato.economy.production import Production
 from bottato.building.build_step import BuildStep
 from bottato.building.special_locations import SpecialLocations
 from bottato.tech_tree import TECH_TREE
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 class StructureBuildStep(BuildStep):
     unit_type_id: UnitTypeId
@@ -35,12 +36,12 @@ class StructureBuildStep(BuildStep):
 
         return f"{target}-built by {builder}"
 
-    def update_references(self, units_by_tag: dict[int, Unit]):
+    def update_references(self):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
         if self.unit_in_charge:
             try:
-                self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge, self.bot, units_by_tag)
-            except self.UnitNotFound:
+                self.unit_in_charge = UnitReferenceHelper.get_updated_unit_reference(self.unit_in_charge)
+            except UnitReferenceHelper.UnitNotFound:
                 self.unit_in_charge = None
 
     @timed

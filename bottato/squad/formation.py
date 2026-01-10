@@ -9,9 +9,10 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.unit_types import UnitTypes
-from bottato.mixins import GeometryMixin, UnitReferenceMixin, timed
+from bottato.mixins import GeometryMixin, timed
 from bottato.map.map import Map
 from bottato.enums import SquadFormationType
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 
 class UnitDemographics:
@@ -189,7 +190,7 @@ class Formation:
         return unit_positions
 
 
-class ParentFormation(GeometryMixin, UnitReferenceMixin):
+class ParentFormation(GeometryMixin):
     """Collection of formations which are offset from each other. Translates between formation coords and game coords"""
 
     def __init__(self, bot: BotAI, map: Map):
@@ -220,7 +221,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
 
     @timed
     def get_unit_destinations(
-        self, formation_destination: Point2, units: Units, grouped_units: Units, destination_facing: float | None = None, units_by_tag: dict[int, Unit] | None = None
+        self, formation_destination: Point2, units: Units, grouped_units: Units, destination_facing: float | None = None
     ) -> dict[int, Point2]:
         reference_point: Point2 = Point2((0, 0))
         facing = None
@@ -273,7 +274,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
                     reference_point = formation.offset
                     break
 
-        unit_destinations: dict[int, Point2] = self.assign_positions_to_units(facing, reference_point, units_by_tag)
+        unit_destinations: dict[int, Point2] = self.assign_positions_to_units(facing, reference_point)
 
         return unit_destinations
 
@@ -328,7 +329,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
         return new_front_center
     
     @timed
-    def assign_positions_to_units(self, facing: float | None, reference_point: Point2, units_by_tag: dict[int, Unit] | None) -> dict[int, Point2]:
+    def assign_positions_to_units(self, facing: float | None, reference_point: Point2) -> dict[int, Point2]:
         unit_destinations: dict[int, Point2] = {}
         for formation in self.formations:
             # create list of positions to fill
@@ -338,7 +339,7 @@ class ParentFormation(GeometryMixin, UnitReferenceMixin):
             positions = [self.destination + offset for offset in formation_offsets]
 
             # match positions to closest units
-            formation_units = self.get_updated_unit_references_by_tags(list(formation.unit_tags), self.bot, units_by_tag)
+            formation_units = UnitReferenceHelper.get_updated_unit_references_by_tags(list(formation.unit_tags))
             for position in positions:
                 if not formation_units:
                     break

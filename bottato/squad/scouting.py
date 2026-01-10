@@ -18,11 +18,12 @@ from bottato.enemy import Enemy
 from bottato.mixins import DebugMixin, timed_async
 from bottato.economy.workers import Workers
 from bottato.enums import BuildType, ScoutType
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 class Scouting(Squad, DebugMixin):
-    def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers, military: Military, intel: EnemyIntel):
+    def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers,
+                 military: Military, intel: EnemyIntel):
         super().__init__(bot=bot, color=self.random_color(), name="scouting")
-        self.bot = bot
         self.enemy = enemy
         self.map = map
         self.workers = workers
@@ -149,14 +150,14 @@ class Scouting(Squad, DebugMixin):
         return self.bot.time > 100 and self.intel.number_seen(UnitTypeId.GATEWAY) == 0
 
     @timed_async
-    async def scout(self, new_damage_taken: dict[int, float], units_by_tag: dict[int, Unit]):
+    async def scout(self, new_damage_taken: dict[int, float]):
         # Update scout unit references
         friendly_scout_type = ScoutType.ANY if BuildType.PROXY in self.enemy_builds_detected or self.bot.time > 120 else ScoutType.NONE
-        self.friendly_territory.update_scout(self.military, self.workers, units_by_tag, friendly_scout_type)
-        self.enemy_territory.update_scout(self.military, self.workers, units_by_tag, ScoutType.VIKING)
+        self.friendly_territory.update_scout(self.military, self.workers, friendly_scout_type)
+        self.enemy_territory.update_scout(self.military, self.workers, ScoutType.VIKING)
         if self.enemy_builds_detected:
             self.initial_scout.completed = True
-        self.initial_scout.update_scout(self.workers, units_by_tag)
+        self.initial_scout.update_scout(self.workers)
 
         self.update_visibility()
 
@@ -170,7 +171,7 @@ class Scouting(Squad, DebugMixin):
         while i >= 0:
             if self.bot.is_visible(self.proxy_buildings[i].position):
                 try:
-                    self.proxy_buildings[i] = self.get_updated_unit_reference(self.proxy_buildings[i], self.bot, units_by_tag)
+                    self.proxy_buildings[i] = UnitReferenceHelper.get_updated_unit_reference(self.proxy_buildings[i])
                 except Exception as e:
                     LogHelper.add_log(f"proxy building no longer detected: {self.proxy_buildings[i]}")
                     self.proxy_buildings.remove(self.proxy_buildings[i])

@@ -6,16 +6,16 @@ from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit_command import UnitCommand
-from sc2.unit import Unit
 
-from bottato.mixins import timed, timed_async
-from bottato.map.map import Map
-from bottato.economy.workers import Workers
-from bottato.economy.production import Production
 from bottato.building.build_step import BuildStep
 from bottato.building.special_locations import SpecialLocations
-from bottato.upgrades import RESEARCH_ABILITIES
+from bottato.economy.production import Production
+from bottato.economy.workers import Workers
 from bottato.enums import BuildResponseCode, BuildType
+from bottato.map.map import Map
+from bottato.mixins import timed, timed_async
+from bottato.upgrades import RESEARCH_ABILITIES
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 class UpgradeBuildStep(BuildStep):
     upgrade_id: UpgradeId
@@ -30,12 +30,12 @@ class UpgradeBuildStep(BuildStep):
 
         return f"{target}-built by {builder}"
 
-    def update_references(self, units_by_tag: dict[int, Unit]):
+    def update_references(self):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
         if self.unit_in_charge:
             try:
-                self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge, self.bot, units_by_tag)
-            except self.UnitNotFound:
+                self.unit_in_charge = UnitReferenceHelper.get_updated_unit_reference(self.unit_in_charge)
+            except UnitReferenceHelper.UnitNotFound:
                 self.unit_in_charge = None
 
     @timed

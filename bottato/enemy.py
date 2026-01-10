@@ -1,5 +1,4 @@
-from functools import cache, cached_property
-from typing import Dict, List, Tuple
+from typing import Dict, List
 from loguru import logger
 from collections import deque
 
@@ -10,13 +9,13 @@ from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 
-from bottato.enums import AttackDirection
-from bottato.mixins import UnitReferenceMixin, GeometryMixin, timed
+from bottato.mixins import GeometryMixin, timed
 from bottato.squad.enemy_squad import EnemySquad
 from bottato.unit_types import UnitTypes
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 
-class Enemy(UnitReferenceMixin, GeometryMixin):
+class Enemy(GeometryMixin):
     unit_probably_moved_seconds = 10
     unit_may_not_exist_seconds = 600
     enemy_squad_counter = 0
@@ -36,34 +35,30 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
         self.last_seen_positions: Dict[int, deque] = {}
         self.predicted_position: Dict[int, Point2] = {}
         self.predicted_frame_vector: Dict[int, Point2] = {}
-        self.enemy_squads: List[EnemySquad] = []
         self.squads_by_unit_tag: Dict[int, EnemySquad] = {}
         self.all_seen: Dict[UnitTypeId, set[int]] = {}
         self.attack_range_squared_cache: Dict[UnitTypeId, Dict[float, Dict[UnitTypeId, float]]] = {}
         self.unit_distance_squared_cache: Dict[int, Dict[int, float]] = {}
 
     @timed
-    def update_references(self, units_by_tag: Dict[int, Unit]):
+    def update_references(self):
         self.unit_distance_squared_cache.clear()
-        for squad in self.enemy_squads:
-            squad.update_references(units_by_tag)
 
         new_visible_enemies: Units = self.bot.enemy_units + self.bot.enemy_structures
-        visible_tags = new_visible_enemies.tags
         
-        self.update_out_of_view(visible_tags)
+        self.update_out_of_view()
         self.set_last_seen_for_visible(new_visible_enemies)
-        self.add_new_out_of_view(visible_tags)
+        self.add_new_out_of_view()
 
         self.enemies_in_view = new_visible_enemies
 
     @timed
-    def update_out_of_view(self, visible_tags: set[int]):
+    def update_out_of_view(self):
         for enemy_unit in self.enemies_out_of_view:
             time_since_last_seen = self.bot.time - self.last_seen[enemy_unit.tag]
             if enemy_unit.is_structure and self.is_visible(enemy_unit.position, enemy_unit.radius):
                 self.enemies_out_of_view.remove(enemy_unit)
-            elif enemy_unit.tag in visible_tags or time_since_last_seen > self.unit_may_not_exist_seconds:
+            elif enemy_unit.tag in UnitReferenceHelper.units_by_tag or time_since_last_seen > self.unit_may_not_exist_seconds:
                 self.enemies_out_of_view.remove(enemy_unit)
             else:
                 # assume unit continues in same direction
@@ -109,10 +104,10 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
                 self.all_seen.setdefault(enemy_unit.type_id, set()).add(enemy_unit.tag)
 
     @timed
-    def add_new_out_of_view(self, visible_tags: set[int]):
+    def add_new_out_of_view(self):
         # add not visible to out_of_view
         for enemy_unit in self.enemies_in_view:
-            if enemy_unit.tag not in visible_tags:
+            if enemy_unit.tag not in UnitReferenceHelper.units_by_tag:
                 if enemy_unit.type_id not in (UnitTypeId.LARVA, UnitTypeId.EGG):
                     added = False
                     if enemy_unit.is_structure:
@@ -197,34 +192,6 @@ class Enemy(UnitReferenceMixin, GeometryMixin):
             # del self.last_seen_position[unit_tag]
             if unit_tag in self.predicted_position:
                 del self.predicted_position[unit_tag]
-            # enemy_squad = self.squads_by_unit_tag[unit_tag]
-            # enemy_squad.remove_by_tag(unit_tag)
-            # del self.squads_by_unit_tag[unit_tag]
-            # if enemy_squad.is_empty:
-            #     self.enemy_squads.remove(enemy_squad)
-
-    def _find_nearby_squad(self, enemy_unit: Unit) -> EnemySquad:
-        for enemy_squad in self.enemy_squads:
-            if enemy_squad.near(enemy_unit, self.predicted_position):
-                return enemy_squad
-        new_squad = EnemySquad(bot=self.bot, number=self.enemy_squad_counter)
-        self.enemy_squad_counter += 1
-        self.enemy_squads.append(new_squad)
-        return new_squad
-
-    def update_squads(self):
-        for enemy_unit in self.enemies_in_view:
-            if enemy_unit.tag not in self.squads_by_unit_tag.keys():
-                nearby_squad: EnemySquad = self._find_nearby_squad(enemy_unit)
-                nearby_squad.recruit(enemy_unit)
-                self.squads_by_unit_tag[enemy_unit.tag] = nearby_squad
-            else:
-                current_squad = self.squads_by_unit_tag[enemy_unit.tag]
-                if not current_squad.near(enemy_unit, self.predicted_position):
-                    # reassign
-                    nearby_squad: EnemySquad = self._find_nearby_squad(enemy_unit)
-                    current_squad.transfer(enemy_unit, nearby_squad)
-                    self.squads_by_unit_tag[enemy_unit.tag] = nearby_squad
 
     all_enemies_cache: Dict[float, Units] = {}
     @timed

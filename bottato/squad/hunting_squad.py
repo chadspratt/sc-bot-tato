@@ -23,11 +23,9 @@ class HuntingSquad(Squad, GeometryMixin):
         name: str,
         color: tuple[int, int, int]
     ):
-        self.bot = bot
+        super().__init__(bot, name, color)
         self.enemy = enemy
         self.intel = intel
-        self.name = name
-        self.color = color
         self.units: Units = Units([], bot_object=bot)
 
         self.next_location: ScoutingLocation | None = None
@@ -48,13 +46,14 @@ class HuntingSquad(Squad, GeometryMixin):
         if not safe_targets:     
             safe_targets = targets.filter(lambda u: u.tag not in self.unsafe_targets or self.bot.time - self.unsafe_targets[u.tag] > 5)
         safe_targets_near_base = safe_targets.filter(lambda u: self.closest_distance_squared(u, self.bot.structures) < 1600)
+        candidates = safe_targets_near_base if safe_targets_near_base else safe_targets
 
         for unit in self.units:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
-            if safe_targets_near_base:
+            if candidates:
                 self.next_location = None
                 self.closest_distance_to_next_location = float('inf')
-                target = self.closest_unit_to_unit(unit, safe_targets_near_base)
+                target = self.closest_unit_to_unit(unit, candidates)
                 is_huntable = await micro.move(unit, target.position)
                 if not is_huntable:
                     self.unsafe_targets[target.tag] = self.bot.time

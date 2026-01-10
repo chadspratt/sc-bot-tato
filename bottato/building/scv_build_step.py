@@ -13,18 +13,19 @@ from sc2.unit import Unit
 from sc2.units import Units
 from sc2.unit_command import UnitCommand
 
-from bottato.mixins import timed, timed_async
-from bottato.log_helper import LogHelper
-from bottato.enums import BuildResponseCode, BuildType, WorkerJobType
-from bottato.unit_types import UnitTypes
-from bottato.map.map import Map
-from bottato.economy.workers import Workers
-from bottato.economy.production import Production
 from bottato.building.build_step import BuildStep
 from bottato.building.special_locations import SpecialLocations
-from bottato.tech_tree import TECH_TREE
-from bottato.micro.micro_factory import MicroFactory
+from bottato.economy.workers import Workers
+from bottato.economy.production import Production
+from bottato.enums import BuildResponseCode, BuildType, WorkerJobType
+from bottato.log_helper import LogHelper
+from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.micro.micro_factory import MicroFactory
+from bottato.mixins import timed, timed_async
+from bottato.tech_tree import TECH_TREE
+from bottato.unit_reference_helper import UnitReferenceHelper
+from bottato.unit_types import UnitTypes
 
 class SCVBuildStep(BuildStep):
     unit_type_id: UnitTypeId
@@ -35,7 +36,7 @@ class SCVBuildStep(BuildStep):
     worker_in_position_time: float | None = None
     no_position_count: int = 0
 
-    def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers, production: Production, map: Map):
+    def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers, production: Production, map: Map) -> None:
         super().__init__(unit_type_id, bot, workers, production, map)
         self.unit_type_id = unit_type_id
 
@@ -49,22 +50,22 @@ class SCVBuildStep(BuildStep):
 
         return f"{target}-built by {builder}"
 
-    def update_references(self, units_by_tag: dict[int, Unit]):
+    def update_references(self):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
         if self.unit_in_charge:
             try:
-                self.unit_in_charge = self.get_updated_unit_reference(self.unit_in_charge, self.bot, units_by_tag)
-            except self.UnitNotFound:
+                self.unit_in_charge = UnitReferenceHelper.get_updated_unit_reference(self.unit_in_charge)
+            except UnitReferenceHelper.UnitNotFound:
                 self.unit_in_charge = None
         if self.geysir:
             try:
-                self.geysir = self.get_updated_unit_reference(self.geysir, self.bot, units_by_tag)
-            except self.UnitNotFound:
+                self.geysir = UnitReferenceHelper.get_updated_unit_reference(self.geysir)
+            except UnitReferenceHelper.UnitNotFound:
                 self.geysir = None
         if self.unit_being_built:
             try:
-                self.unit_being_built = self.get_updated_unit_reference(self.unit_being_built, self.bot, units_by_tag)
-            except self.UnitNotFound:
+                self.unit_being_built = UnitReferenceHelper.get_updated_unit_reference(self.unit_being_built)
+            except UnitReferenceHelper.UnitNotFound:
                 self.unit_being_built = None
 
     @timed
@@ -507,7 +508,7 @@ class SCVBuildStep(BuildStep):
         logger.debug(f"canceling build of {self.unit_being_built}")
         if self.unit_being_built:
             if self.unit_being_built.age != 0:
-                self.unit_being_built = self.get_updated_unit_reference(self.unit_being_built, self.bot, None)
+                self.unit_being_built = UnitReferenceHelper.get_updated_unit_reference(self.unit_being_built)
             self.unit_being_built(AbilityId.CANCEL_BUILDINPROGRESS)
         self.last_cancel_time = self.bot.time
         self.unit_being_built = None

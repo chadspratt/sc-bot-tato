@@ -7,14 +7,14 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from bottato.mixins import UnitReferenceMixin
 from bottato.squad.formation_squad import FormationSquad
 from bottato.squad.squad import Squad
+from bottato.unit_reference_helper import UnitReferenceHelper
 
 
-class StuckRescue(Squad, UnitReferenceMixin):
+class StuckRescue(Squad):
     def __init__(self, bot: BotAI, main_army: FormationSquad, squads_by_unit_tag: Dict[int, Squad | None]):
-        super().__init__(bot=bot, name="stuck rescue", color=(255, 0, 255))
+        super().__init__(bot, name="stuck rescue", color=(255, 0, 255))
         self.main_army = main_army
         self.squads_by_unit_tag = squads_by_unit_tag
 
@@ -24,11 +24,11 @@ class StuckRescue(Squad, UnitReferenceMixin):
 
         self.pending_unload: set[int] = set()
 
-    def update_references(self, units_by_tag: Dict[int, Unit]):
+    def update_references(self):
         if self.transport:
             try:
-                self.transport = self.get_updated_unit_reference(self.transport, self.bot, units_by_tag)
-            except self.UnitNotFound:
+                self.transport = UnitReferenceHelper.get_updated_unit_reference(self.transport)
+            except UnitReferenceHelper.UnitNotFound:
                 self.transport = None
                 self.is_loaded = False
                 self.dropoff = None
@@ -38,11 +38,11 @@ class StuckRescue(Squad, UnitReferenceMixin):
             tags_to_check = list(self.pending_unload)
             for tag in tags_to_check:
                 try:
-                    unit = self.get_updated_unit_reference_by_tag(tag, self.bot, None)
+                    unit = UnitReferenceHelper.get_updated_unit_reference_by_tag(tag)
                     self.main_army.recruit(unit)
                     self.squads_by_unit_tag[unit.tag] = self.main_army
                     self.pending_unload.remove(tag)
-                except self.UnitNotFound:
+                except UnitReferenceHelper.UnitNotFound:
                     pass
         if self.transport and self.is_loaded:
             if not self.transport.passengers_tags:
