@@ -1,5 +1,6 @@
 from sc2.bot_ai import BotAI
 from sc2.ids.ability_id import AbilityId
+from sc2.unit import Unit
 
 from bottato.squad.squad import Squad
 from bottato.unit_reference_helper import UnitReferenceHelper
@@ -7,7 +8,7 @@ from bottato.unit_reference_helper import UnitReferenceHelper
 class Bunker(Squad):
     def __init__(self, bot: BotAI, number: int):
         super().__init__(bot, name=f"bunker{number}", color=(255, 255, 0))
-        self.structure = None
+        self.structure: Unit | None = None
     
     def empty(self):
         # command units to exit

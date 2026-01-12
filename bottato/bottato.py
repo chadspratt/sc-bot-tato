@@ -101,6 +101,7 @@ class BotTato(BotAI):
     def print_build_order(self, interval: int = 0):
         if self.time - self.last_build_order_print > interval:
             self.last_build_order_print = self.time
+            LogHelper.add_log(self.commander.military.status_message)
             LogHelper.add_log(f"{self.commander.build_order.get_build_queue_string()}")
 
     def disable_logging(self):

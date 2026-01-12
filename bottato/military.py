@@ -252,18 +252,19 @@ class Military(GeometryMixin, DebugMixin):
                 self.empty_bunker(bunker)
                 break
         
-        enemy_distance_to_bunker = 10000
         current_enemies = enemies_in_base.filter(lambda unit: unit.age == 0)
+        closest_enemy: Unit | None = None
+        enemy_distance_to_bunker = 10000
         if current_enemies:
-            enemy_distance_to_bunker = self.closest_distance_squared(bunker.structure, current_enemies)
+            closest_enemy = self.closest_unit_to_unit(bunker.structure, current_enemies)
+            enemy_distance_to_bunker = closest_enemy.distance_to_squared(bunker.structure)
 
-        if enemies_in_base_ratio >= 1.0:
+        if enemies_in_base_ratio >= 1.0 and closest_enemy:
             enemy_distance_to_main = self.closest_distance_squared(self.bot.start_location, current_enemies) if current_enemies else 10000
             buffer = 2 if enemy_distance_to_main > 300 else 0
-            bunker_range = (max([passenger.ground_range
-                                for passenger in bunker.structure.passengers], default=6) + buffer + bunker.structure.radius
-                        ) ** 2
-            if enemy_distance_to_bunker < 10000 and enemy_distance_to_bunker > bunker_range:
+
+            bunker_range = self.enemy.get_attack_range_with_buffer(bunker.structure, closest_enemy, buffer)
+            if bunker_range < enemy_distance_to_bunker < 10000:
                 self.empty_bunker(bunker)
                 return
 

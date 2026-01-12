@@ -70,9 +70,10 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                     if unit.distance_to_squared(current_target) > self.enemy.get_attack_range_with_buffer(unit, current_target, 1):
                         # lost target
                         self.last_lockon_time[unit.tag] = None
+                        self.current_targets[unit.tag] = None
                         current_target = None
 
-            if not current_target and cooldown_remaining == 0:
+            if (not current_target or current_target.type_id == UnitTypeId.BROODLING) and cooldown_remaining == 0:
                 # target new unit, if any in range
                 targets_in_range = self.enemy.in_attack_range(unit, self.bot.enemy_units)
                 if targets_in_range:
@@ -93,8 +94,8 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
             return True
 
         if self.bot.time < 300:
-            if is_burrowed:
-                if not self.drilling_claws_researched and cooldown_remaining > 3:
+            if not self.drilling_claws_researched and cooldown_remaining > 3:
+                if is_burrowed:
                     self.unburrow(unit)
                     return True
                 return False

@@ -26,7 +26,7 @@ class BuildStarts():
                 UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,
                 UnitTypeId.REFINERY,
                 UnitTypeId.BARRACKS,
-                UnitTypeId.REFINERY,                    # 2ND GAS,
+                # UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
@@ -49,9 +49,7 @@ class BuildStarts():
                 UnitTypeId.BARRACKS,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
-                UnitTypeId.REFINERY,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
+                # UnitTypeId.REFINERY,
                 # UnitTypeId.MEDIVAC,
             ]
         elif build_name == "pig_b2gm protoss":
@@ -61,7 +59,7 @@ class BuildStarts():
                 UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,
                 UnitTypeId.REFINERY,
                 UnitTypeId.BARRACKS,
-                UnitTypeId.REFINERY,                    # 2ND GAS,
+                # UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
@@ -84,14 +82,11 @@ class BuildStarts():
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
-                UnitTypeId.MEDIVAC, # early medivac good?
                 UnitTypeId.BARRACKS,
                 UnitTypeId.MARINE, # supply blocked until depot finishes
                 UnitTypeId.MARINE,
-                UnitTypeId.REFINERY,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
-                UnitTypeId.VIKINGFIGHTER, 
+                # UnitTypeId.REFINERY,
+                # UnitTypeId.VIKINGFIGHTER, 
             ]
         elif build_name == "pig_b2gm zerg":
             return [
@@ -100,7 +95,7 @@ class BuildStarts():
                 UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,
                 UnitTypeId.REFINERY,
                 UnitTypeId.BARRACKS,
-                UnitTypeId.REFINERY,                    # 2ND GAS,
+                # UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
@@ -114,23 +109,17 @@ class BuildStarts():
                 UnitTypeId.MARINE,               # begin reactor cycles,
                 UnitTypeId.MARINE,
                 UnitTypeId.STARPORTTECHLAB,
-                UnitTypeId.RAVEN,
                 UnitTypeId.BANSHEE,
+                UnitTypeId.RAVEN,
 # from here, keep SCV and MULE production constant until ~45 workers (author logic)
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.MEDIVAC, # early medivac good?
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
                 UnitTypeId.BARRACKS,
                 UnitTypeId.MARINE, # supply blocked until depot finishes
                 UnitTypeId.MARINE,
-                UnitTypeId.REFINERY,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,            # safer baseline scout vs all races (LIBERATOR optional),
-                UnitTypeId.VIKINGFIGHTER,
-                UnitTypeId.VIKINGFIGHTER,
+                # UnitTypeId.REFINERY,
+                # UnitTypeId.VIKINGFIGHTER,
             ]
         elif build_name == "tvt1":
             # https://lotv.spawningtool.com/build/171779/
@@ -140,7 +129,7 @@ class BuildStarts():
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.BARRACKS,
                 UnitTypeId.REFINERY,
-                UnitTypeId.REFINERY,
+                # UnitTypeId.REFINERY,
                 UnitTypeId.REAPER,
                 UnitTypeId.ORBITALCOMMAND,
                 UnitTypeId.SUPPLYDEPOT,
@@ -153,7 +142,7 @@ class BuildStarts():
                 UnitTypeId.STARPORT,
                 UnitTypeId.HELLION,
                 UnitTypeId.BARRACKSREACTOR,
-                UnitTypeId.REFINERY,
+                # UnitTypeId.REFINERY,
                 UnitTypeId.FACTORYTECHLAB,
                 UnitTypeId.ORBITALCOMMAND,
                 UnitTypeId.CYCLONE,

@@ -151,7 +151,8 @@ class Counter():
         },
         UnitTypeId.HYDRALISK: { # 2
             UnitTypeId.SIEGETANK: 0.5,
-            UnitTypeId.MARINE: 1
+            UnitTypeId.MARINE: 1,
+            UnitTypeId.WIDOWMINE: 0.2
         },
         UnitTypeId.INFESTOR: { # 2
             UnitTypeId.GHOST: 0.5,
@@ -185,10 +186,11 @@ class Counter():
             UnitTypeId.BANSHEE: 0.5
         },
         UnitTypeId.ROACH: {
-            UnitTypeId.MARAUDER: 0.75,
-            UnitTypeId.BANSHEE: 0.5,
-            UnitTypeId.SIEGETANK: 0.25,
-            UnitTypeId.RAVEN: 0.1
+            UnitTypeId.MARAUDER: 0.3,
+            UnitTypeId.BANSHEE: 0.15,
+            UnitTypeId.SIEGETANK: 0.2,
+            UnitTypeId.WIDOWMINE: 0.15,
+            UnitTypeId.RAVEN: 0.05
         },
         UnitTypeId.SPINECRAWLER: { # 1
             UnitTypeId.SIEGETANK: 0.5,
@@ -208,7 +210,7 @@ class Counter():
         },
         UnitTypeId.ZERGLING: {
             UnitTypeId.WIDOWMINE: 0.3,
-            UnitTypeId.MARINE: 0.2
+            UnitTypeId.MARINE: 0.25
         },
     }
 
