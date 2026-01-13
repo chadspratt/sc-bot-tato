@@ -354,29 +354,32 @@ class BuildOrder():
             supply_cost: int = self.unit_types.get_unit_info(unit_type)["supply"]
             ideal_supply += supply_cost * count
         # scale composition to fit military cap
-        buildable_percentage = min(1.0, military_cap / ideal_supply) if ideal_supply > 0 else 0
+        
         queue: List[UnitTypeId | UpgradeId] = []
         if UnitTypeId.RAVEN not in ideal_composition:
             # have at least one raven for detection
-            ideal_composition[UnitTypeId.RAVEN] = 0.1
+            ideal_composition[UnitTypeId.RAVEN] = 0.01
         if UnitTypeId.VIKINGFIGHTER not in ideal_composition:
             # have at least one viking for scouting
-            ideal_composition[UnitTypeId.VIKINGFIGHTER] = 0.1
-        queued_supply = 0
+            ideal_composition[UnitTypeId.VIKINGFIGHTER] = 0.01
+        # queued_supply = 0
 
-        while queued_supply < self.bot.supply_left and len(queue) < 10:
-            for unit_type, count in ideal_composition.items():
-                if unit_type in (UnitTypeId.MULE, UnitTypeId.SCV):
-                    continue
-                ideal_count = math.ceil(count * buildable_percentage)
-                existing_count = current_composition.get(unit_type, 0)
-                in_progress_count = self.get_in_progress_count(unit_type)
+        # buildable_percentage = min(1.0, military_cap / ideal_supply) if ideal_supply > 0 else 0
+        buildable_percentage = military_cap / ideal_supply if ideal_supply > 0 else 0
+        # while queued_supply < self.bot.supply_left and len(queue) < 10:
+        for unit_type, count in ideal_composition.items():
+            if unit_type in (UnitTypeId.MULE, UnitTypeId.SCV):
+                continue
+            ideal_count = math.ceil(count * buildable_percentage)
+            existing_count = current_composition.get(unit_type, 0)
+            in_progress_count = self.get_in_progress_count(unit_type)
+            queued_count = self.get_queued_count(unit_type, self.priority_queue + self.static_queue)
 
-                queue_count = ideal_count - existing_count - in_progress_count
-                if queue_count > 0:
-                    queued_supply += queue_count * self.unit_types.get_unit_info(unit_type)["supply"]
-                    queue.extend([unit_type] * queue_count)
-            buildable_percentage += 0.5
+            needed_count = ideal_count - existing_count - in_progress_count - queued_count
+            if needed_count > 0:
+                # queued_supply += needed_count * self.unit_types.get_unit_info(unit_type)["supply"]
+                queue.extend([unit_type] * needed_count)
+        # buildable_percentage += 0.5
         return queue
 
     @timed
@@ -384,6 +387,12 @@ class BuildOrder():
         in_static_queue = self.get_queued_count(UnitTypeId.SUPPLYDEPOT) > 0
         if 0 < self.bot.supply_cap < 200 and not in_static_queue:
             in_progress_count = self.get_in_progress_count(UnitTypeId.SUPPLYDEPOT)
+            in_progress_ccs = self.bot.townhalls.filter(lambda cc: not cc.is_ready)
+            for cc in in_progress_ccs:
+                # a complete cc is worth 2 depots so multiply progress by 2
+                in_progress_count += (cc.build_progress + 0.15) * 2
+            in_progress_count = math.floor(in_progress_count)
+            
             supply_percent_remaining = self.bot.supply_left / self.bot.supply_cap
             if self.bot.supply_left < 10 or supply_percent_remaining <= 0.2:
                 needed_count = 1

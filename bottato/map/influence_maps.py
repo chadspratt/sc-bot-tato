@@ -277,7 +277,7 @@ class InfluenceMaps():
             iter = chain.from_iterable(nodes)
             nodes = np.fromiter(iter, dtype=type(nodes[0][0]), count=len(nodes) * 2).reshape((-1, 2))
 
-        closest_index = distance.cdist([node], nodes, "sqeuclidean").argmin()
+        closest_index = distance.cdist([node], nodes, "sqeuclidean").argmin() # type: ignore
         return int(closest_index)
 
     def closest_towards_point(
@@ -309,7 +309,7 @@ class InfluenceMaps():
         return points[self.closest_node_idx(node=target, nodes=points)]
 
     def set_position_unpathable(self, position: Point2, grid: np.ndarray, unit: Unit):
-        self.add_cost(position, unit.radius, grid, np.inf)
+        self.add_cost(position, unit.radius, grid, np.inf) # type: ignore
 
     def add_cost(self, position: Tuple[float, float], radius: float, grid: np.ndarray, weight: float = 100,
                  safe: bool = True,
