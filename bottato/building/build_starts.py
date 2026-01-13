@@ -38,6 +38,7 @@ class BuildStarts():
                 UnitTypeId.BUNKER,                      # NATURAL choke, XXX on high ground if getting cheesed
                 UnitTypeId.FACTORYTECHLAB,              # fast SIEGETANK access,
                 UnitTypeId.STARPORT,
+                UnitTypeId.COMMANDCENTER,
                 UnitTypeId.SIEGETANK,                   # start as soon as TECHLAB is ready,
                 UnitTypeId.MARINE,               # begin reactor cycles,
                 UnitTypeId.MARINE,
@@ -71,6 +72,7 @@ class BuildStarts():
                 UnitTypeId.BUNKER,                      # NATURAL choke, XXX on high ground if getting cheesed
                 UnitTypeId.FACTORYTECHLAB,              # fast SIEGETANK access,
                 UnitTypeId.STARPORT,
+                UnitTypeId.COMMANDCENTER,
                 UnitTypeId.SIEGETANK,                   # start as soon as TECHLAB is ready,
                 UnitTypeId.MARINE,               # begin reactor cycles,
                 UnitTypeId.MARINE,
@@ -107,6 +109,7 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.BUNKER,                      # NATURAL choke, XXX on high ground if getting cheesed
                 UnitTypeId.STARPORT,
+                UnitTypeId.COMMANDCENTER,
                 UnitTypeId.WIDOWMINE,
                 UnitTypeId.MARINE,               # begin reactor cycles,
                 UnitTypeId.MARINE,

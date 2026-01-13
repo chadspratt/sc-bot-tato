@@ -21,6 +21,7 @@ from bottato.micro.scv_micro import SCVMicro
 from bottato.micro.siege_tank_micro import SiegeTankMicro
 from bottato.micro.viking_micro import VikingMicro
 from bottato.micro.widow_mine_micro import WidowMineMicro
+from bottato.squad.enemy_intel import EnemyIntel
 
 
 micro_instances: Dict[UnitTypeId, BaseUnitMicro] = {}
@@ -43,15 +44,17 @@ common_objects: dict[str, Any] = {
     "enemy": None,
     "map": None,
     "my_workers": None,
+    "intel": None
 }
 
 
 class MicroFactory:
     @staticmethod
-    def set_common_objects(bot: BotAI, enemy: Enemy, map: Map):
+    def set_common_objects(bot: BotAI, enemy: Enemy, map: Map, intel: EnemyIntel):
         common_objects["bot"] = bot
         common_objects["enemy"] = enemy
         common_objects["map"] = map
+        common_objects["intel"] = intel
 
     @staticmethod
     def get_unit_micro(unit: Unit) -> BaseUnitMicro:
@@ -62,13 +65,15 @@ class MicroFactory:
                 micro_class = micro_lookup[type_id]
                 micro_instances[type_id] = micro_class(common_objects["bot"],
                                                        common_objects["enemy"],
-                                                       common_objects["map"])
+                                                       common_objects["map"],
+                                                       common_objects["intel"])
             else:
                 logger.debug(f"creating generic micro for {unit}")
                 if UnitTypeId.NOTAUNIT not in micro_instances:
                     micro_instances[UnitTypeId.NOTAUNIT] = BaseUnitMicro(common_objects["bot"],
                                                                          common_objects["enemy"],
-                                                                         common_objects["map"])
+                                                                         common_objects["map"],
+                                                                         common_objects["intel"])
                 micro_instances[type_id] = micro_instances[UnitTypeId.NOTAUNIT]
 
         return micro_instances[type_id]

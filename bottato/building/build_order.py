@@ -193,6 +193,7 @@ class BuildOrder():
                     break
         if BuildOrderChange.RUSH not in self.changes_enacted and BuildType.BATTLECRUISER_RUSH not in detected_enemy_builds:
             self.changes_enacted.append(BuildOrderChange.RUSH)
+            self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.static_queue)
             # prioritize bunker and first tank
             self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
             if BuildType.PROXY in detected_enemy_builds:
@@ -409,15 +410,16 @@ class BuildOrder():
                 count += 1
         return count
 
-    def get_queued_count(self, unit_type: UnitTypeId | None, queue: List[BuildStep] | None = None) -> int:
+    def get_queued_count(self, unit_types: UnitTypeId | List[UnitTypeId], queue: List[BuildStep] | None = None) -> int:
         count = 0
-        if unit_type is None:
-            return 0
+        if isinstance(unit_types, UnitTypeId):
+            unit_types = [unit_types]
         if queue is None:
             queue = self.priority_queue + self.static_queue + self.build_queue
         for build_step in queue:
-            if build_step.is_unit_type(unit_type):
-                count += 1
+            for unit_type in unit_types:
+                if build_step.is_unit_type(unit_type):
+                    count += 1
         return count
 
     @timed
@@ -476,6 +478,9 @@ class BuildOrder():
                 return
 
         worker_build_capacity: int = len(available_townhalls)
+        cc_queued_upgrade_count = self.get_queued_count([UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS],
+                                                        self.interrupted_queue + self.priority_queue)
+        worker_build_capacity -= cc_queued_upgrade_count
         desired_worker_count = min(self.workers.max_workers, self.bot.townhalls.amount * 25)
         number_to_build = desired_worker_count - len(self.workers.assignments_by_worker)
         if (worker_build_capacity > 0 and number_to_build > 0):
@@ -646,7 +651,7 @@ class BuildOrder():
             if not self.subtract_and_can_afford(needed_resources, build_step.cost):
                 break
             unit_type_id = build_step.get_unit_type_id()
-            if unit_type_id:
+            if unit_type_id != UnitTypeId.NOTAUNIT:
                 affordable_items.append(unit_type_id)
         return affordable_items
 

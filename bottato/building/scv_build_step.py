@@ -100,7 +100,7 @@ class SCVBuildStep(BuildStep):
             UnitTypeId.STARPORTTECHLAB,
         )
 
-    def get_unit_type_id(self) -> UnitTypeId | None:
+    def get_unit_type_id(self) -> UnitTypeId:
         return self.unit_type_id
     
     def get_structure_being_built(self) -> Unit | None:
@@ -233,9 +233,9 @@ class SCVBuildStep(BuildStep):
 
             LogHelper.add_log(f"Expansions to check: {expansions_to_check}")
             sorted_expansions = self.map.get_expansion_order(expansions_to_check,
-                                                             ExpansionSelection.AWAY_FROM_ENEMY,
                                                              self.bot.enemy_start_locations[0],
-                                                             self.bot.start_location)
+                                                             self.bot.start_location,
+                                                             ExpansionSelection.AWAY_FROM_ENEMY)
             used_expansion_count = len(self.bot.expansion_locations_list) - len(expansions_to_check)
             next_expansion_index = self.bot.townhalls.amount - used_expansion_count
             new_build_position = sorted_expansions[next_expansion_index].position

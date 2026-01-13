@@ -10,9 +10,10 @@ from sc2.unit import Unit
 from bottato.enums import ExpansionSelection
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
+from bottato.mixins import GeometryMixin
 from bottato.squad.scouting_location import ScoutingLocation
 
-class EnemyIntel:
+class EnemyIntel(GeometryMixin):
     def __init__(self, bot: BotAI, map: Map):
         self.bot = bot
         self.map = map
@@ -31,14 +32,6 @@ class EnemyIntel:
             "closest": [],
             "away_from_enemy": []
         }
-        self.enemy_expansion_orders["closest"] = map.get_expansion_order(self.scouting_locations,
-                                                                         ExpansionSelection.CLOSEST,
-                                                                         self.bot.enemy_start_locations[0],
-                                                                         self.bot.start_location)
-        self.enemy_expansion_orders["away_from_enemy"] = map.get_expansion_order(self.scouting_locations,
-                                                                                 ExpansionSelection.AWAY_FROM_ENEMY,
-                                                                                 self.bot.enemy_start_locations[0],
-                                                                                 self.bot.start_location)
 
     def add_type(self, unit: Unit, time: float):
         if unit.type_id not in self.type_positions_seen:
@@ -120,6 +113,28 @@ class EnemyIntel:
                 max_time = build_time
                 self.newest_enemy_base = position
         return self.newest_enemy_base
+    
+    def get_next_enemy_expansion_scout_locations(self) -> List[ScoutingLocation]:
+        if not self.enemy_expansion_orders["closest"]:
+            self.enemy_expansion_orders["closest"] = self.map.get_expansion_order(self.scouting_locations,
+                                                                                  self.bot.enemy_start_locations[0],
+                                                                                  self.bot.start_location,
+                                                                                  ExpansionSelection.CLOSEST)
+            self.enemy_expansion_orders["away_from_enemy"] = self.map.get_expansion_order(self.scouting_locations,
+                                                                                          self.bot.enemy_start_locations[0],
+                                                                                          self.bot.start_location,
+                                                                                          ExpansionSelection.AWAY_FROM_ENEMY)
+        next_locations: List[ScoutingLocation] = []
+        # return next location in each order since they may differ
+        for location in self.enemy_expansion_orders["closest"]:
+            if not location.is_occupied_by_enemy:
+                next_locations.append(location)
+                break
+        for location in self.enemy_expansion_orders["away_from_enemy"]:
+            if not location.is_occupied_by_enemy:
+                next_locations.append(location)
+                break
+        return next_locations
 
     def enemy_natural_is_built(self) -> bool:
         enemy_townhalls = self.bot.enemy_structures.of_type([

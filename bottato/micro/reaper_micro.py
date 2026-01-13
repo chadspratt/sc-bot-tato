@@ -1,10 +1,11 @@
 from __future__ import annotations
+import random
 from typing import List
 from loguru import logger
 
 from sc2.unit import Unit
 from sc2.units import Units
-from sc2.position import Point2, Pointlike
+from sc2.position import Point2
 from sc2.protocol import ProtocolError
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
@@ -12,6 +13,7 @@ from sc2.ids.ability_id import AbilityId
 from bottato.unit_types import UnitTypes
 from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.squad.scouting_location import ScoutingLocation
 
 
 class ReaperMicro(BaseUnitMicro, GeometryMixin):
@@ -22,6 +24,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
     grenade_cooldowns: dict[int, float] = {}
     unconfirmed_grenade_throwers: List[int] = []
+    retreat_scout_location: Point2 | None = None
 
     excluded_types = [UnitTypeId.EGG, UnitTypeId.LARVA]
     @timed_async
@@ -76,7 +79,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             for threat in threats:
                 threat_range = UnitTypes.ground_range(threat)
                 if threat_range > unit.ground_range:
-                    # don't attack enemies that outrange
+                    # don't attack enemies that outrange or have more health
                     return False
                 threat_distance = self.distance_squared(unit, threat) - threat_range
                 if threat_distance < closest_distance:
@@ -111,16 +114,24 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         if not threats:
             if unit.health_percentage >= health_threshold:
+                self.retreat_scout_location = None
                 return False
-            # just stop and wait for regen
-            unit.stop()
+            # scout next enemy expansion location
+            if self.retreat_scout_location is None or self.bot.is_visible(self.retreat_scout_location):
+                scout_locations = self.intel.get_next_enemy_expansion_scout_locations()
+                # pick a location that isn't visible
+                self.retreat_scout_location = min(scout_locations, key=lambda loc: self.bot.is_visible(loc.position)).position
+            path = self.map.get_path(unit.position, self.retreat_scout_location)
+            if path.zones:
+                # follow path to avoid hopping back up a cliff
+                unit.move(path.zones[1].midpoint)
+            else:
+                # might be on a double ledge with no pathing
+                unit.move(self.bot.start_location)
             return True
-
-        for threat in threats:
-            if UnitTypes.ground_range(threat) > unit.ground_range:
-                # just run away from threats
-                do_retreat = True
-                break
+            # # just stop and wait for regen
+            # unit.stop()
+            # return True
 
         # check if incoming damage will bring unit below health threshold
         if not do_retreat:
@@ -130,13 +141,17 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             hp_threshold = unit.health_max * health_threshold
             current_health = unit.health
             for threat in threats:
+                if UnitTypes.ground_range(threat) > unit.ground_range:
+                    # just run away from threats that outrange
+                    do_retreat = True
+                    break
                 current_health -= threat.calculate_damage_vs_target(unit)[0]
                 if current_health < hp_threshold:
                     do_retreat = True
                     break
 
         if do_retreat:
-            destination = harass_location
+            destination = self.retreat_scout_location if self.retreat_scout_location else harass_location
             # retreat_to_start =  unit.health_percentage < health_threshold or unit.distance_to_squared(harass_location) < 400
             retreat_to_start =  True
             if retreat_to_start:
@@ -163,6 +178,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 unit.move(circle_around_position)
                 return True
 
+        self.retreat_scout_location = None
         return False
 
     async def grenade_jump(self, unit: Unit, target: Unit) -> bool:

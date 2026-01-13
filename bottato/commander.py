@@ -33,18 +33,20 @@ class Commander(GeometryMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
 
-        self.map = Map(bot)
         self.enemy: Enemy = Enemy(bot)
-        MicroFactory.set_common_objects(bot, self.enemy, self.map)
-        self.my_workers: Workers = Workers(bot, self.enemy, self.map)
-        self.intel = EnemyIntel(bot, self.map)
-        self.military: Military = Military(bot, self.enemy, self.map, self.my_workers, self.intel)
-        self.structure_micro: StructureMicro = StructureMicro(bot, self.enemy, self.map)
+        self.map = Map(bot)
         self.production: Production = Production(bot)
+
+        self.intel = EnemyIntel(bot, self.map)
+        MicroFactory.set_common_objects(bot, self.enemy, self.map, self.intel)
+        self.structure_micro: StructureMicro = StructureMicro(bot, self.enemy, self.map)
+        self.my_workers: Workers = Workers(bot, self.enemy, self.map)
+        self.military: Military = Military(bot, self.enemy, self.map, self.my_workers, self.intel)
         self.build_order: BuildOrder = BuildOrder(
             "pig_b2gm", bot=bot, workers=self.my_workers, production=self.production, map=self.map
         )
         self.scouting = Scouting(bot, self.enemy, self.map, self.my_workers, self.military, self.intel)
+
         self.new_damage_by_unit: dict[int, float] = {}
         self.new_damage_by_position: dict[Point2, float] = {}
         self.pathable_position: Point2 | None = None

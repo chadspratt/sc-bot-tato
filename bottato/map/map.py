@@ -459,16 +459,16 @@ class Map(GeometryMixin):
 
         return closest
     
-    def _distance_from_enemy(self, location: ScoutingLocation, start_position: Point2, enemy_start_position: Point2) -> float:
+    def _distance_minus_enemy_distance(self, location: ScoutingLocation, start_position: Point2, enemy_start_position: Point2) -> float:
         """Helper function for sorting expansions by distance from enemy."""
         path = self.get_path(start_position, location.position)
         return path.distance - location.position.distance_to(enemy_start_position)
 
     def get_expansion_order(self,
                             expansions: List[ScoutingLocation],
-                            selection_method: ExpansionSelection,
                             start_position: Point2,
-                            enemy_start_position: Point2) -> List[ScoutingLocation]:
+                            enemy_start_position: Point2,
+                            selection_method: ExpansionSelection = ExpansionSelection.AWAY_FROM_ENEMY) -> List[ScoutingLocation]:
         if selection_method == ExpansionSelection.CLOSEST:
             return sorted(
                 expansions,
@@ -477,8 +477,7 @@ class Map(GeometryMixin):
         elif selection_method == ExpansionSelection.AWAY_FROM_ENEMY:
             return sorted(
                 expansions,
-                key=lambda loc: self._distance_from_enemy(loc, start_position, enemy_start_position),
-                reverse=True  # Furthest from enemy first
+                key=lambda loc: self._distance_minus_enemy_distance(loc, start_position, enemy_start_position)
             )
 
 

@@ -94,8 +94,10 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             buffer = 3 if nearby_enemy and can_attack else 5
             threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=buffer)
             if threats:
-                if nearby_enemy and can_attack and min([u.is_structure or u.type_id in UnitTypes.NON_THREAT_DETECTORS for u in threats]) == True:
-                    return self._kite(unit, nearby_enemy.first)
+                if nearby_enemy and can_attack:
+                    threats_are_just_detectors = min([u.is_structure or u.type_id in UnitTypes.NON_THREAT_DETECTORS for u in threats])
+                    if threats_are_just_detectors or unit.distance_to_squared(harass_location) < 25:
+                        return self._kite(unit, nearby_enemy.first)
                 if unit.health_percentage < self.harass_attack_health:
                     return False
                 for threat in threats:

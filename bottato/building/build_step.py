@@ -62,8 +62,8 @@ class BuildStep(GeometryMixin):
     def is_unit(self) -> bool:
         return False
     
-    def get_unit_type_id(self) -> UnitTypeId | None:
-        return None
+    def get_unit_type_id(self) -> UnitTypeId:
+        return UnitTypeId.NOTAUNIT
     
     def get_structure_being_built(self) -> Unit | None:
         return None

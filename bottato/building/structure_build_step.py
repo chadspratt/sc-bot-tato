@@ -58,7 +58,7 @@ class StructureBuildStep(BuildStep):
     def is_unit(self) -> bool:
         return self.unit_type_id in UnitTypes.TERRAN
     
-    def get_unit_type_id(self) -> UnitTypeId | None:
+    def get_unit_type_id(self) -> UnitTypeId:
         return self.unit_type_id
     
     def get_structure_being_built(self) -> Unit | None:

@@ -65,22 +65,18 @@ class StuckRescue(Squad):
                     self.transport = None
                     self.is_loaded = False
             return
-        if self.transport is None or self.transport.cargo_used == 0:
+        if self.transport is None:
             medivacs = self.bot.units(UnitTypeId.MEDIVAC)
             if not medivacs:
                 return
             medivacs_with_space = medivacs.filter(lambda unit: unit.cargo_left > 0)
             if not medivacs_with_space:
                 return
-            closest_medivac = medivacs_with_space.closest_to(stuck_units[0])
-            if self.transport is None or self.transport != closest_medivac:
-                if self.transport:
-                    self.main_army.recruit(self.transport)
-                    self.squads_by_unit_tag[self.transport.tag] = self.main_army
-                self.transport = closest_medivac
-                if self.transport.tag in self.squads_by_unit_tag and self.squads_by_unit_tag[self.transport.tag] is not None:
-                    self.squads_by_unit_tag[self.transport.tag].remove(self.transport) # type: ignore
-                    self.squads_by_unit_tag[self.transport.tag] = None
+            # use medivac with least energy
+            self.transport = medivacs_with_space.sorted(lambda u: u.energy)[0]
+            if self.transport.tag in self.squads_by_unit_tag and self.squads_by_unit_tag[self.transport.tag] is not None:
+                self.squads_by_unit_tag[self.transport.tag].remove(self.transport) # type: ignore
+                self.squads_by_unit_tag[self.transport.tag] = None
 
         cargo_left = self.transport.cargo_left
         for unit in stuck_units:

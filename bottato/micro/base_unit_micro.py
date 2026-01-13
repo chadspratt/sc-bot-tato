@@ -17,6 +17,7 @@ from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.custom_effect import CustomEffect
 from bottato.mixins import GeometryMixin, timed, timed_async
+from bottato.squad.enemy_intel import EnemyIntel
 from bottato.unit_types import UnitTypes
 
 
@@ -53,10 +54,11 @@ class BaseUnitMicro(GeometryMixin):
         EffectId.LURKERMP,
         'KD8CHARGE',
     ]
-    def __init__(self, bot: BotAI, enemy: Enemy, map: Map):
+    def __init__(self, bot: BotAI, enemy: Enemy, map: Map, intel: EnemyIntel):
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
         self.map: Map = map
+        self.intel: EnemyIntel = intel
 
     @staticmethod
     def reset_tag_sets():
