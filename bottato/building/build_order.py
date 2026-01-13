@@ -422,12 +422,17 @@ class BuildOrder():
 
     @timed
     def queue_command_center(self, army_ratio: float) -> None:
+        if self.bot.time < 100:
+            return
         if self.bot.townhalls.amount == 2 and self.bot.townhalls.flying:
             # don't queue another expansion if current one is still in air
             # probably unsafe or it would have landed
             return
-        if self.bot.time < 100 or len(self.detected_enemy_builds) > 0 and (self.bot.time < 180 or self.bot.structures(UnitTypeId.STARPORT).amount == 0):
+        if len(self.detected_enemy_builds) > 0 and self.bot.time < 160:
             # don't expand too early during rush
+            return
+        if len(self.detected_enemy_builds) == 0 and self.bot.structures(UnitTypeId.STARPORT).amount == 0:
+            # wait for starport if not getting rushed
             return
 
         projected_worker_capacity = self.workers.get_mineral_capacity()

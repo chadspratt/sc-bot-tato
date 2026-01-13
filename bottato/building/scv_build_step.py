@@ -219,7 +219,7 @@ class SCVBuildStep(BuildStep):
                 if any(map(is_near_to_expansion, self.bot.townhalls)):
                     # already taken
                     continue
-                
+
                 # check that position hasn't already been attempted too many times
                 if el not in self.attempted_expansion_positions:
                     self.attempted_expansion_positions[el] = 0
@@ -236,8 +236,10 @@ class SCVBuildStep(BuildStep):
                                                              ExpansionSelection.AWAY_FROM_ENEMY,
                                                              self.bot.enemy_start_locations[0],
                                                              self.bot.start_location)
-            new_build_position = sorted_expansions[0].position
-            
+            used_expansion_count = len(self.bot.expansion_locations_list) - len(expansions_to_check)
+            next_expansion_index = self.bot.townhalls.amount - used_expansion_count
+            new_build_position = sorted_expansions[next_expansion_index].position
+
             if self.attempted_expansion_positions[new_build_position] > 3:
                 # build it wherever and fly it there later
                 LogHelper.add_log(f"Too many attempts to build cc at {new_build_position}, finding generic placement")

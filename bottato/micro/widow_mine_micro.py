@@ -77,7 +77,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                 # target new unit, if any in range
                 targets_in_range = self.enemy.in_attack_range(unit, self.bot.enemy_units)
                 if targets_in_range:
-                    new_target = max(targets_in_range, key=lambda t: t.health + t.shield)
+                    new_target = max(targets_in_range, key=lambda t: t.health + t.shield - self.get_targeting_count(t) * 125)
                     self.current_targets[unit.tag] = new_target
                     unit.smart(new_target)
                     self.last_lockon_time[unit.tag] = self.bot.time
@@ -168,6 +168,9 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                         self.burrow(unit)
                     return True
         return False
+    
+    def get_targeting_count(self, enemy_unit: Unit) -> int:
+        return sum(1 for target in self.current_targets.values() if target and target.tag == enemy_unit.tag)
 
     def burrow(self, unit: Unit, update_last_transform_time: bool = True):
         unit(AbilityId.BURROWDOWN_WIDOWMINE)

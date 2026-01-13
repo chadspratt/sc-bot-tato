@@ -77,8 +77,9 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     # spot was taken, find a new one
                     self.command_center_destinations[cc.tag] = await self.bot.get_next_expansion()
 
-                if self.bot.all_enemy_units:
-                    nearby_enemies = self.bot.all_enemy_units.closer_than(15, cc)
+                threats = self.bot.enemy_units.filter(lambda enemy: enemy.type_id not in UnitTypes.NON_THREATS)
+                if threats:
+                    nearby_enemies = threats.closer_than(15, cc)
                     if nearby_enemies:
                         threats = nearby_enemies.filter(lambda enemy: UnitTypes.can_attack_air(enemy))
                         if cc.health_percentage < 0.9:
