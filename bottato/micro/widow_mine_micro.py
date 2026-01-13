@@ -117,6 +117,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                     else:
                         unit.move(burrow_position)
                         return True
+            return False
                     
         excluded_enemy_types = [UnitTypeId.LARVA, UnitTypeId.EGG] if is_burrowed else UnitTypes.NON_THREATS
         new_target, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,

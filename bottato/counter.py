@@ -206,11 +206,12 @@ class Counter():
             UnitTypeId.GHOST: 1.5
         },
         UnitTypeId.VIPER: { # 3
-            UnitTypeId.VIKINGFIGHTER: 1
+            UnitTypeId.VIKINGFIGHTER: 1.5
         },
         UnitTypeId.ZERGLING: {
-            UnitTypeId.WIDOWMINE: 0.3,
-            UnitTypeId.MARINE: 0.25
+            UnitTypeId.WIDOWMINE: 0.2, # 0.4
+            UnitTypeId.MARINE: 0.25, # 0.25
+            UnitTypeId.SIEGETANK: 0.15, # 0.45
         },
     }
 
