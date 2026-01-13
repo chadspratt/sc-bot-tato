@@ -39,7 +39,7 @@ class HarassSquad(Squad, GeometryMixin):
                 self.arrived[unit.tag] = False
             else:
                 enemy_townhalls = self.bot.enemy_structures(race_townhalls[self.bot.enemy_race]).filter(lambda u: u.is_ready)
-                if enemy_townhalls.closest_distance_to(self.harass_locations[unit.tag]) > 10:
+                if enemy_townhalls and enemy_townhalls.closest_distance_to(self.harass_locations[unit.tag]) > 10:
                     # enemy base destroyed, pick new
                     self.harass_locations[unit.tag] = enemy_townhalls.random.position
                     self.arrived[unit.tag] = False
