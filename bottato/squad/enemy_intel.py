@@ -1,4 +1,4 @@
-from typing import List
+from typing import Dict, List
 
 from sc2.bot_ai import BotAI
 from sc2.data import Race
@@ -7,6 +7,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
+from bottato.enums import ExpansionSelection
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.squad.scouting_location import ScoutingLocation
@@ -15,27 +16,37 @@ class EnemyIntel:
     def __init__(self, bot: BotAI, map: Map):
         self.bot = bot
         self.map = map
-        self.types_seen: dict[UnitTypeId, List[Point2]] = {}
+        self.type_positions_seen: Dict[UnitTypeId, List[Point2]] = {}
         self.worker_count: int = 0
         self.military_count: int = 0
         self.natural_expansion_time: float | None = None
         self.pool_start_time: float | None = None  # zerg specific
-        self.first_building_time: dict[UnitTypeId, float] = {}
+        self.first_building_time: Dict[UnitTypeId, float] = {}
         self.enemy_race_confirmed: Race | None = None
         self.scouting_locations: List[ScoutingLocation] = list()
         for expansion_location in self.bot.expansion_locations_list:
             self.scouting_locations.append(ScoutingLocation(expansion_location.towards(self.bot.game_info.map_center, -5)))
-        self.enemy_base_built_times: dict[Point2, float] = {self.bot.enemy_start_locations[0]: 0.0}
+        self.enemy_base_built_times: Dict[Point2, float] = {self.bot.enemy_start_locations[0]: 0.0}
+        self.enemy_expansion_orders: Dict[str, List[ScoutingLocation]] = {
+            "closest": [],
+            "away_from_enemy": []
+        }
+        self.enemy_expansion_orders["closest"] = map.get_expansion_order(self.scouting_locations,
+                                                                         ExpansionSelection.CLOSEST,
+                                                                         self.bot.enemy_start_locations[0],
+                                                                         self.bot.start_location)
+        self.enemy_expansion_orders["away_from_enemy"] = map.get_expansion_order(self.scouting_locations,
+                                                                                 ExpansionSelection.AWAY_FROM_ENEMY,
+                                                                                 self.bot.enemy_start_locations[0],
+                                                                                 self.bot.start_location)
 
     def add_type(self, unit: Unit, time: float):
-        if unit.is_structure:
-            if unit.type_id not in self.types_seen:
-                self.types_seen[unit.type_id] = []
-            if unit.position not in self.types_seen[unit.type_id]:
-                self.types_seen[unit.type_id].append(unit.position)
-        elif unit.type_id not in self.types_seen:
-            self.types_seen[unit.type_id] = [unit.position]
+        if unit.type_id not in self.type_positions_seen:
+            self.type_positions_seen[unit.type_id] = [unit.position]
             LogHelper.add_log(f"EnemyIntel: first seen {unit.type_id} at time {time:.1f}")
+        elif unit.is_structure and unit.position not in self.type_positions_seen[unit.type_id]:
+            # store position for every structure
+            self.type_positions_seen[unit.type_id].append(unit.position)
         
         if unit.type_id not in self.first_building_time:
             start_time = time - unit.build_progress * unit._type_data.cost.time / 22.4 # type: ignore
@@ -44,12 +55,12 @@ class EnemyIntel:
         
     def get_summary(self) -> str:
         return (f"Intel: Race={self.enemy_race_confirmed}, "
-                f"Buildings={dict(self.types_seen)}, "
+                f"Buildings={dict(self.type_positions_seen)}, "
                 # f"Units={dict(self.units_seen)}, "
                 f"Workers={self.worker_count}, Military={self.military_count}, ")
     
     def number_seen(self, unit_type: UnitTypeId) -> int:
-        return len(self.types_seen.get(unit_type, []))
+        return len(self.type_positions_seen.get(unit_type, []))
 
     def catalog_visible_units(self):
         """Catalog all visible enemy units and buildings"""

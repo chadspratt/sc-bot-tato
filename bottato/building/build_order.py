@@ -380,36 +380,6 @@ class BuildOrder():
         return queue
 
     @timed
-    def queue_townhall_work(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
-        if self.bot.time < 15:
-            # pause workers to save for first expansion
-            return
-        if BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount < 2:
-            # hold off on workers during worker rush until depots are up
-            return
-
-        available_townhalls = self.bot.townhalls.filter(lambda cc: cc.is_ready and (not cc.orders or cc.orders[0].progress > 0.85) and not cc.is_flying)
-        available_command_centers = available_townhalls.filter(lambda cc: cc.type_id == UnitTypeId.COMMANDCENTER)
-        if available_command_centers and self.bot.time > 90:
-            orbital_count = len(self.bot.townhalls.of_type(UnitTypeId.ORBITALCOMMAND))
-            in_progress_orbital_count = self.get_in_progress_count(UnitTypeId.ORBITALCOMMAND)
-            if orbital_count == 0 and in_progress_orbital_count == 0:
-                self.add_to_build_queue([UnitTypeId.ORBITALCOMMAND], queue=self.priority_queue, position=0)
-            elif orbital_count < 3 and in_progress_orbital_count == 0 and self.bot.structures(UnitTypeId.STARPORT):
-                # wait on starport before second orbital
-                self.add_to_build_queue([UnitTypeId.ORBITALCOMMAND], queue=self.priority_queue, position=0)
-                return
-            elif self.bot.minerals >= 150 and self.bot.vespene >= 150 and self.bot.structures(UnitTypeId.ENGINEERINGBAY).ready:
-                self.add_to_build_queue([UnitTypeId.PLANETARYFORTRESS], queue=self.priority_queue, position=0)
-                return
-
-        worker_build_capacity: int = len(available_townhalls)
-        desired_worker_count = self.workers.max_workers
-        number_to_build = desired_worker_count - len(self.workers.assignments_by_worker)
-        if (worker_build_capacity > 0 and number_to_build > 0):
-            self.add_to_build_queue([UnitTypeId.SCV] * min(number_to_build, worker_build_capacity), queue=self.priority_queue, position=0)
-
-    @timed
     def queue_supply(self) -> None:
         in_static_queue = self.get_queued_count(UnitTypeId.SUPPLYDEPOT) > 0
         if 0 < self.bot.supply_cap < 200 and not in_static_queue:
@@ -459,13 +429,43 @@ class BuildOrder():
         projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[WorkerJobType.MINERALS]) + len(self.bot.townhalls) * 4)
         surplus_worker_count = projected_worker_count - projected_worker_capacity
         needed_cc_count = math.ceil(surplus_worker_count / 16)
-        if army_ratio < 0.65 and self.bot.townhalls.amount >= 3:
-            # delay expansion if army low and already have 3 bases
+        if army_ratio < 0.65 and self.bot.townhalls.amount >= 2:
+            # delay expansion if army low and already have 2 bases
             needed_cc_count -= 1
 
         # expand if running out of room for workers at current bases
         if needed_cc_count > cc_count:
             self.add_to_build_queue([UnitTypeId.COMMANDCENTER] * (needed_cc_count - cc_count), queue=self.priority_queue)
+
+    @timed
+    def queue_townhall_work(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
+        if self.bot.time < 15:
+            # pause workers to save for first expansion
+            return
+        if BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount < 2:
+            # hold off on workers during worker rush until depots are up
+            return
+
+        available_townhalls = self.bot.townhalls.filter(lambda cc: cc.is_ready and (not cc.orders or cc.orders[0].progress > 0.85) and not cc.is_flying)
+        available_command_centers = available_townhalls.filter(lambda cc: cc.type_id == UnitTypeId.COMMANDCENTER)
+        if available_command_centers and self.bot.time > 90:
+            orbital_count = len(self.bot.townhalls.of_type(UnitTypeId.ORBITALCOMMAND))
+            in_progress_orbital_count = self.get_in_progress_count(UnitTypeId.ORBITALCOMMAND)
+            if orbital_count == 0 and in_progress_orbital_count == 0:
+                self.add_to_build_queue([UnitTypeId.ORBITALCOMMAND], queue=self.priority_queue, position=0)
+            elif orbital_count < 3 and in_progress_orbital_count == 0 and self.bot.structures(UnitTypeId.STARPORT):
+                # wait on starport before second orbital
+                self.add_to_build_queue([UnitTypeId.ORBITALCOMMAND], queue=self.priority_queue, position=0)
+                return
+            elif self.bot.minerals >= 150 and self.bot.vespene >= 150 and self.bot.structures(UnitTypeId.ENGINEERINGBAY).ready:
+                self.add_to_build_queue([UnitTypeId.PLANETARYFORTRESS], queue=self.priority_queue, position=0)
+                return
+
+        worker_build_capacity: int = len(available_townhalls)
+        desired_worker_count = min(self.workers.max_workers, self.bot.townhalls.amount * 25)
+        number_to_build = desired_worker_count - len(self.workers.assignments_by_worker)
+        if (worker_build_capacity > 0 and number_to_build > 0):
+            self.add_to_build_queue([UnitTypeId.SCV] * min(number_to_build, worker_build_capacity), queue=self.priority_queue, position=0)
 
     @timed
     def queue_refinery(self) -> None:
@@ -751,6 +751,8 @@ class BuildOrder():
 
         while execution_index < len(build_queue):
             execution_index += 1
+            if execution_index > 10:
+                break
             try:
                 build_step = build_queue[execution_index]
             except IndexError:

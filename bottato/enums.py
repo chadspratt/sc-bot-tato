@@ -70,10 +70,9 @@ class BuildOrderChange(enum.Enum):
     ZERGLING_RUSH = 5
     WORKER_RUSH = 6
 
-class AttackDirection(enum.Enum):
-    OUT = 0
-    IN = 1
-    BOTH = 2
+class ExpansionSelection(enum.Enum):
+    CLOSEST = 0
+    AWAY_FROM_ENEMY = 1
 
 class ActionErrorCode(enum.Enum):
   Success = 1

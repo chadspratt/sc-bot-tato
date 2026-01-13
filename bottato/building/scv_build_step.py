@@ -17,7 +17,7 @@ from bottato.building.build_step import BuildStep
 from bottato.building.special_locations import SpecialLocations
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
-from bottato.enums import BuildResponseCode, BuildType, WorkerJobType
+from bottato.enums import BuildResponseCode, BuildType, ExpansionSelection, WorkerJobType
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -232,14 +232,11 @@ class SCVBuildStep(BuildStep):
                 return None
 
             LogHelper.add_log(f"Expansions to check: {expansions_to_check}")
-            expansion_distances = self.map.get_distances_by_path(self.bot.start_location, expansions_to_check)
-            closest_distance = math.inf
-            new_build_position = expansions_to_check[0]
-            for expansion, distance in expansion_distances.items():
-                adjusted_distance = distance - expansion.distance_to(self.bot.enemy_start_locations[0])
-                if adjusted_distance < closest_distance:
-                    closest_distance = adjusted_distance
-                    new_build_position = expansion
+            sorted_expansions = self.map.get_expansion_order(expansions_to_check,
+                                                             ExpansionSelection.AWAY_FROM_ENEMY,
+                                                             self.bot.enemy_start_locations[0],
+                                                             self.bot.start_location)
+            new_build_position = sorted_expansions[0].position
             
             if self.attempted_expansion_positions[new_build_position] > 3:
                 # build it wherever and fly it there later

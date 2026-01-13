@@ -8,15 +8,16 @@ import numpy as np
 from sc2.units import Units
 from sc2.unit import Unit
 from sc2.bot_ai import BotAI
-# from sc2.pixel_map import PixelMap
 from sc2.position import Point2
 from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
 
 
+from bottato.enums import ExpansionSelection
 from bottato.map.influence_maps import InfluenceMaps
 from bottato.map.zone import Path, Zone
 from bottato.mixins import GeometryMixin, timed, timed_async
+from bottato.squad.scouting_location import ScoutingLocation
 from bottato.unit_types import UnitTypes
 
 
@@ -457,6 +458,29 @@ class Map(GeometryMixin):
                 closest = el
 
         return closest
+    
+    def _distance_from_enemy(self, location: ScoutingLocation, start_position: Point2, enemy_start_position: Point2) -> float:
+        """Helper function for sorting expansions by distance from enemy."""
+        path = self.get_path(start_position, location.position)
+        return path.distance - location.position.distance_to(enemy_start_position)
+
+    def get_expansion_order(self,
+                            expansions: List[ScoutingLocation],
+                            selection_method: ExpansionSelection,
+                            start_position: Point2,
+                            enemy_start_position: Point2) -> List[ScoutingLocation]:
+        if selection_method == ExpansionSelection.CLOSEST:
+            return sorted(
+                expansions,
+                key=lambda loc: loc.position.distance_to(start_position)
+            )
+        elif selection_method == ExpansionSelection.AWAY_FROM_ENEMY:
+            return sorted(
+                expansions,
+                key=lambda loc: self._distance_from_enemy(loc, start_position, enemy_start_position),
+                reverse=True  # Furthest from enemy first
+            )
+
 
     checked_zones = set()
     zones_to_check: List[Zone] = []

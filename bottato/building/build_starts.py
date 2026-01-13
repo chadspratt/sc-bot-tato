@@ -29,6 +29,7 @@ class BuildStarts():
                 # UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
+                UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
@@ -47,8 +48,8 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.BARRACKS,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
+                # UnitTypeId.MARINE,
+                # UnitTypeId.MARINE,
                 # UnitTypeId.REFINERY,
                 # UnitTypeId.MEDIVAC,
             ]
@@ -59,9 +60,9 @@ class BuildStarts():
                 UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,
                 UnitTypeId.REFINERY,
                 UnitTypeId.BARRACKS,
-                # UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
+                UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
@@ -80,11 +81,11 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
+                # UnitTypeId.MARINE,
+                # UnitTypeId.MARINE,
                 UnitTypeId.BARRACKS,
-                UnitTypeId.MARINE, # supply blocked until depot finishes
-                UnitTypeId.MARINE,
+                # UnitTypeId.MARINE, # supply blocked until depot finishes
+                # UnitTypeId.MARINE,
                 # UnitTypeId.REFINERY,
                 # UnitTypeId.VIKINGFIGHTER, 
             ]
@@ -98,6 +99,7 @@ class BuildStarts():
                 # UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
+                UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
@@ -112,12 +114,12 @@ class BuildStarts():
                 UnitTypeId.BANSHEE,
                 UnitTypeId.RAVEN,
 # from here, keep SCV and MULE production constant until ~45 workers (author logic)
-                UnitTypeId.MARINE,
-                UnitTypeId.MARINE,
+                # UnitTypeId.MARINE,
+                # UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.BARRACKS,
-                UnitTypeId.MARINE, # supply blocked until depot finishes
-                UnitTypeId.MARINE,
+                # UnitTypeId.MARINE, # supply blocked until depot finishes
+                # UnitTypeId.MARINE,
                 # UnitTypeId.REFINERY,
                 # UnitTypeId.VIKINGFIGHTER,
             ]
