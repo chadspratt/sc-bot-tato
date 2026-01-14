@@ -54,7 +54,7 @@ class Commander(GeometryMixin):
         self.enemy_builds_detected: dict[BuildType, float] = {}
 
     async def init_map(self):
-        await self.map.init()
+        await self.map.init(self.intel.scouting_locations)
         self.scouting.init_scouting_routes()
 
     @timed_async

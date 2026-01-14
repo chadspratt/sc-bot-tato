@@ -26,7 +26,7 @@ class EnemyIntel(GeometryMixin):
         self.enemy_race_confirmed: Race | None = None
         self.scouting_locations: List[ScoutingLocation] = list()
         for expansion_location in self.bot.expansion_locations_list:
-            self.scouting_locations.append(ScoutingLocation(expansion_location.towards(self.bot.game_info.map_center, -5)))
+            self.scouting_locations.append(ScoutingLocation(expansion_location, expansion_location.towards(self.bot.game_info.map_center, -5)))
         self.enemy_base_built_times: Dict[Point2, float] = {self.bot.enemy_start_locations[0]: 0.0}
         self.enemy_expansion_orders: Dict[str, List[ScoutingLocation]] = {
             "closest": [],
@@ -79,10 +79,11 @@ class EnemyIntel(GeometryMixin):
                 self.newest_enemy_base = townhall.position
 
         for location in self.scouting_locations:
-            if self.bot.is_visible(location.position):
+            if self.bot.is_visible(location.scouting_position):
                 location.last_seen = self.bot.time
+
             for townhall in enemy_townhalls:
-                if location.position.manhattan_distance(townhall.position) < 10:
+                if location.expansion_position.manhattan_distance(townhall.position) < 10:
                     location.is_occupied_by_enemy = True
                     break
             else:
@@ -90,10 +91,10 @@ class EnemyIntel(GeometryMixin):
                 if location.is_occupied_by_enemy:
                     location.is_occupied_by_enemy = False
                     for position in self.enemy_base_built_times:
-                        if position.manhattan_distance(location.position) < 10:
+                        if position.manhattan_distance(location.expansion_position) < 10:
                             del self.enemy_base_built_times[position]
                             break
-                    if self.newest_enemy_base and location.position.manhattan_distance(self.newest_enemy_base) < 10:
+                    if self.newest_enemy_base and location.expansion_position.manhattan_distance(self.newest_enemy_base) < 10:
                         self.newest_enemy_base = None
                         max_time = -1
                         for position, build_time in self.enemy_base_built_times.items():
@@ -102,7 +103,7 @@ class EnemyIntel(GeometryMixin):
                                 self.newest_enemy_base = position
             
             for scout in scout_units:
-                if scout.position.manhattan_distance(location.position) < 1:
+                if scout.position.manhattan_distance(location.scouting_position) < 1:
                     location.last_visited = self.bot.time
                     break
 
@@ -115,22 +116,13 @@ class EnemyIntel(GeometryMixin):
         return self.newest_enemy_base
     
     def get_next_enemy_expansion_scout_locations(self) -> List[ScoutingLocation]:
-        if not self.enemy_expansion_orders["closest"]:
-            self.enemy_expansion_orders["closest"] = self.map.get_expansion_order(self.scouting_locations,
-                                                                                  self.bot.enemy_start_locations[0],
-                                                                                  self.bot.start_location,
-                                                                                  ExpansionSelection.CLOSEST)
-            self.enemy_expansion_orders["away_from_enemy"] = self.map.get_expansion_order(self.scouting_locations,
-                                                                                          self.bot.enemy_start_locations[0],
-                                                                                          self.bot.start_location,
-                                                                                          ExpansionSelection.AWAY_FROM_ENEMY)
         next_locations: List[ScoutingLocation] = []
         # return next location in each order since they may differ
-        for location in self.enemy_expansion_orders["closest"]:
+        for location in self.map.enemy_expansion_orders[ExpansionSelection.CLOSEST]:
             if not location.is_occupied_by_enemy:
                 next_locations.append(location)
                 break
-        for location in self.enemy_expansion_orders["away_from_enemy"]:
+        for location in self.map.enemy_expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY]:
             if not location.is_occupied_by_enemy:
                 next_locations.append(location)
                 break

@@ -1,5 +1,4 @@
 from __future__ import annotations
-import random
 from typing import List
 from loguru import logger
 
@@ -13,7 +12,6 @@ from sc2.ids.ability_id import AbilityId
 from bottato.unit_types import UnitTypes
 from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.squad.scouting_location import ScoutingLocation
 
 
 class ReaperMicro(BaseUnitMicro, GeometryMixin):
@@ -120,7 +118,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             if self.retreat_scout_location is None or self.bot.is_visible(self.retreat_scout_location):
                 scout_locations = self.intel.get_next_enemy_expansion_scout_locations()
                 # pick a location that isn't visible
-                self.retreat_scout_location = min(scout_locations, key=lambda loc: self.bot.is_visible(loc.position)).position
+                self.retreat_scout_location = min(scout_locations, key=lambda loc: self.bot.is_visible(loc.expansion_position)).expansion_position
             path = self.map.get_path(unit.position, self.retreat_scout_location)
             if path.zones:
                 # follow path to avoid hopping back up a cliff

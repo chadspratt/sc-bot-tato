@@ -5,13 +5,12 @@ from typing import List, Dict, Set, Tuple
 from loguru import logger
 import numpy as np
 
-from sc2.units import Units
-from sc2.unit import Unit
 from sc2.bot_ai import BotAI
-from sc2.position import Point2
 from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
-
+from sc2.position import Point2
+from sc2.unit import Unit
+from sc2.units import Units
 
 from bottato.enums import ExpansionSelection
 from bottato.map.influence_maps import InfluenceMaps
@@ -37,11 +36,43 @@ class Map(GeometryMixin):
         self.natural_position: Point2 = self.bot.start_location
         self.enemy_natural_position: Point2 = self.bot.enemy_start_locations[0]
         self.all_damage_by_position: dict[Point2, List[Tuple[float, float]]] = {}
+        self.expansion_orders: Dict[ExpansionSelection, List[ScoutingLocation]] = {
+            ExpansionSelection.CLOSEST: [],
+            ExpansionSelection.AWAY_FROM_ENEMY: []
+        }
+        self.enemy_expansion_orders: Dict[ExpansionSelection, List[ScoutingLocation]] = {
+            ExpansionSelection.CLOSEST: [],
+            ExpansionSelection.AWAY_FROM_ENEMY: []
+        }
 
-    async def init(self):
+    async def init(self, scouting_locations: List[ScoutingLocation]):
+        self.scouting_locations = scouting_locations
         self.zones: Dict[int, Zone] = await self.init_zones(self.distance_from_edge)
         self.natural_position = await self.get_natural_position(self.bot.start_location)
         self.enemy_natural_position = await self.get_natural_position(self.bot.enemy_start_locations[0])
+        self.init_expansion_orders()
+
+    def init_expansion_orders(self):
+        # uses pathing so has to be called after map is initialized
+        self.expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY] = sorted(
+            self.scouting_locations,
+                key=lambda loc: self._distance_minus_enemy_distance(
+                    loc,
+                    self.bot.start_location,
+                    self.bot.enemy_start_locations[0])
+        )
+        # compute both for enemy because we don't know which they use
+        self.enemy_expansion_orders[ExpansionSelection.CLOSEST] = sorted(
+            self.scouting_locations,
+            key=lambda loc: loc.expansion_position.distance_to(self.bot.enemy_start_locations[0])
+        )
+        self.enemy_expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY] = sorted(
+            self.scouting_locations,
+                key=lambda loc: self._distance_minus_enemy_distance(
+                    loc,
+                    self.bot.enemy_start_locations[0],
+                    self.bot.start_location)
+        )
 
     @timed_async
     async def refresh_map(self):
@@ -461,25 +492,8 @@ class Map(GeometryMixin):
     
     def _distance_minus_enemy_distance(self, location: ScoutingLocation, start_position: Point2, enemy_start_position: Point2) -> float:
         """Helper function for sorting expansions by distance from enemy."""
-        path = self.get_path(start_position, location.position)
-        return path.distance - location.position.distance_to(enemy_start_position)
-
-    def get_expansion_order(self,
-                            expansions: List[ScoutingLocation],
-                            start_position: Point2,
-                            enemy_start_position: Point2,
-                            selection_method: ExpansionSelection = ExpansionSelection.AWAY_FROM_ENEMY) -> List[ScoutingLocation]:
-        if selection_method == ExpansionSelection.CLOSEST:
-            return sorted(
-                expansions,
-                key=lambda loc: loc.position.distance_to(start_position)
-            )
-        elif selection_method == ExpansionSelection.AWAY_FROM_ENEMY:
-            return sorted(
-                expansions,
-                key=lambda loc: self._distance_minus_enemy_distance(loc, start_position, enemy_start_position)
-            )
-
+        path = self.get_path(start_position, location.expansion_position)
+        return path.distance - location.expansion_position.distance_to(enemy_start_position)
 
     checked_zones = set()
     zones_to_check: List[Zone] = []

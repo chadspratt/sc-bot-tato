@@ -467,7 +467,8 @@ class Military(GeometryMixin, DebugMixin):
             enemies = self.enemy.get_army(seconds_since_killed=seconds_since_killed).filter(lambda unit: not unit.is_structure)
         friendlies = self.main_army.units.copy()
         for friendly in friendlies:
-            self.passenger_stand_ins[friendly.type_id] = friendly
+            if friendly.base_build != -1:
+                self.passenger_stand_ins[friendly.type_id] = friendly
         for bunker in [self.bunker, self.bunker2]:
             if bunker.structure and bunker.structure.passengers:
                 for passenger in bunker.structure.passengers:

@@ -44,7 +44,7 @@ class Scout(Squad):
         sorted_locations: List[ScoutingLocation] = []
         best_distance = float('inf')
         current_position = self.scouting_locations[0]
-        sorted_unvisited = sorted(self.scouting_locations, key=lambda loc: current_position.position._distance_squared(loc.position))
+        sorted_unvisited = sorted(self.scouting_locations, key=lambda loc: current_position.scouting_position._distance_squared(loc.scouting_position))
         last_position = sorted_unvisited[-1]
         possible_routes: List[List[ScoutingLocation]] = self.get_routes([current_position], sorted_unvisited[1:-1])
 
@@ -55,11 +55,11 @@ class Scout(Squad):
             for location in route[1:]:
                 if map:
                     # add distance to nearest pathing grid point
-                    path_points = map.get_path_points(previous_location.position, location.position)
+                    path_points = map.get_path_points(previous_location.scouting_position, location.scouting_position)
                     for i in range(1, len(path_points)):
                         total_distance += path_points[i-1].distance_to(path_points[i])
                 else:
-                    total_distance += previous_location.position.distance_to(location.position)
+                    total_distance += previous_location.scouting_position.distance_to(location.scouting_position)
                 if total_distance > best_distance:
                     break
                 previous_location = location
@@ -73,7 +73,7 @@ class Scout(Squad):
             return [current_route]
         routes: List[List[ScoutingLocation]] = []
         previous_location = current_route[-1]
-        sorted_unvisited = sorted(unvisited, key=lambda loc: previous_location.position._distance_squared(loc.position))
+        sorted_unvisited = sorted(unvisited, key=lambda loc: previous_location.scouting_position._distance_squared(loc.scouting_position))
         for i in range(len(sorted_unvisited)):
             if i > 2:
                 # limit branching factor for performance
@@ -170,7 +170,7 @@ class Scout(Squad):
                 await micro.scout(self.unit, enemy_bcs.closest_to(self.unit).position)
                 return
 
-        distance_to_next_location = self.unit.distance_to(assignment.position)
+        distance_to_next_location = self.unit.distance_to(assignment.scouting_position)
         if distance_to_next_location < self.closest_distance_to_next_location:
             self.closest_distance_to_next_location = distance_to_next_location
             self.time_of_closest_distance = self.bot.time
@@ -199,4 +199,4 @@ class Scout(Squad):
         self.scouting_locations_index = next_index
         LogHelper.add_log(f"scout {self.unit} new assignment: {assignment}")
 
-        await micro.scout(self.unit, assignment.position)
+        await micro.scout(self.unit, assignment.scouting_position)

@@ -43,9 +43,9 @@ class Scouting(Squad, DebugMixin):
 
         # assign all expansions locations to either friendly or enemy territory
         nearest_locations_temp = sorted(self.intel.scouting_locations,
-                                        key=lambda location: (location.position - self.bot.start_location).length)
+                                        key=lambda location: (location.scouting_position - self.bot.start_location).length)
         enemy_nearest_locations_temp = sorted(self.intel.scouting_locations,
-                                              key=lambda location: (location.position - self.bot.enemy_start_locations[0]).length)
+                                              key=lambda location: (location.scouting_position - self.bot.enemy_start_locations[0]).length)
         self.enemy_main = enemy_nearest_locations_temp[0]
         for i in range(len(nearest_locations_temp)):
             if not self.enemy_territory.contains_location(nearest_locations_temp[i]):
@@ -180,7 +180,7 @@ class Scouting(Squad, DebugMixin):
         if self.bot.time < 420:
             scouted_structures = self.bot.enemy_structures.filter(lambda s: s.is_visible)
             for structure in scouted_structures:
-                if structure.position.manhattan_distance(self.bot.start_location) > structure.position.manhattan_distance(self.enemy_main.position):
+                if structure.position.manhattan_distance(self.bot.start_location) > structure.position.manhattan_distance(self.enemy_main.expansion_position):
                     continue
                 for proxy_structure in self.proxy_buildings:
                     if structure.type_id == proxy_structure.type_id and structure.position.manhattan_distance(proxy_structure.position) < 1:
@@ -194,7 +194,7 @@ class Scouting(Squad, DebugMixin):
     async def detected_enemy_builds(self) -> Dict[BuildType, float]:
         if not self.initial_scan_done and 165 < self.bot.time < 210:
             reaper = self.bot.units(UnitTypeId.REAPER)
-            if not reaper or reaper.first.distance_to(self.enemy_main.position) > 25:
+            if not reaper or reaper.first.distance_to(self.enemy_main.scouting_position) > 25:
                 if self.enemy_main.needs_fresh_scouting(self.bot.time, skip_occupied=False):
                     for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND).ready:
                         if orbital.energy >= 50:

@@ -6,16 +6,17 @@ This script makes sure to run all bots in the examples folder to check if they c
 
 from __future__ import annotations
 
-import asyncio
 import os
-from random import random
+import sqlite3
+from datetime import datetime
+import random
 
 from loguru import logger
 
 from sc2 import maps
 from sc2.bot_ai import BotAI
 from sc2.data import AIBuild, Difficulty, Race, Result
-from sc2.main import GameMatch, maintain_SCII_count, run_match, run_game
+from sc2.main import run_game
 from sc2.player import Bot, Computer
 
 from bottato.bottato import BotTato
@@ -46,8 +47,53 @@ map_list = [
     "MagannathaAIE_v2"
 ]
 
+def init_database():
+    """Initialize the SQLite database and create the matches table if it doesn't exist."""
+    conn = sqlite3.connect('db/match_data.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS match (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT NOT NULL,
+            map_name TEXT NOT NULL,
+            opponent_race TEXT NOT NULL,
+            opponent_difficulty TEXT NOT NULL,
+            opponent_build TEXT NOT NULL,
+            result TEXT NOT NULL,
+            replay_path TEXT
+        )
+    ''')
+    
+    conn.commit()
+    conn.close()
+
+def save_match_result(map_name: str, opponent_race: Race, opponent_difficulty: Difficulty, opponent_build: AIBuild, result: Result, replay_path: str):
+    """Save match result to the database."""
+    conn = sqlite3.connect('db/match_data.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        INSERT INTO match (timestamp, map_name, opponent_race, opponent_difficulty, opponent_build, result, replay_path)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    ''', (
+        datetime.now().isoformat(),
+        map_name,
+        opponent_race.name,
+        opponent_difficulty.name,
+        opponent_build.name,
+        result.name,
+        replay_path
+    ))
+    
+    conn.commit()
+    conn.close()
+
 def main():
-    random_map = map_list[int(random() * len(map_list))]
+    # Initialize database
+    init_database()
+    
+    random_map = random.choice(map_list)
     map = maps.get(random_map)
     race = os.environ.get("RACE")
     build = os.environ.get("BUILD")
@@ -70,6 +116,17 @@ def main():
     
     bottato_result = result[0] if isinstance(result, list) else result
     logger.info(f"\n================================\nResult vs {opponent}: {bottato_result}\n================================")
+    
+    # Save result to database
+    save_match_result(
+        random_map,
+        opponent_race,
+        Difficulty.CheatMoney,
+        opponent_build,
+        bottato_result,
+        replay_name
+    )
+    
     assert bottato_result == Result.Victory, f"BotTato should win against {opponent}, but got {bottato_result}"
 
 
