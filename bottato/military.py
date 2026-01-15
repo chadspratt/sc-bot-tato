@@ -434,15 +434,16 @@ class Military(GeometryMixin, DebugMixin):
             army_center = self.main_army.units.closest_to(target_position).position
             # back off if too close to enemy
             closest_enemy = army_center.closest(self.bot.enemy_units) if self.bot.enemy_units else None
-            closest_distance = closest_enemy.distance_to(army_center) if closest_enemy else 100
-            if closest_distance < 15:
+            remaining_distance = 15 - closest_enemy.distance_to(army_center) if closest_enemy else 0
+            if remaining_distance > 0:
                 path = self.map.get_path_points(army_center, self.bot.start_location)
                 i = 0
                 while i + 1 < len(path):
                     army_center = path[i + 1]
                     next_node_distance = path[i].distance_to(path[i + 1])
-                    closest_distance += next_node_distance
-                    if closest_distance >= 15:
+                    remaining_distance -= next_node_distance
+                    if remaining_distance < 0:
+                        army_center = path[i + 1].towards(path[i], -remaining_distance)
                         break
                     i += 1
         await self.main_army.move(army_center, target_position, blueprints=blueprints)
@@ -467,7 +468,7 @@ class Military(GeometryMixin, DebugMixin):
             enemies = self.enemy.get_army(seconds_since_killed=seconds_since_killed).filter(lambda unit: not unit.is_structure)
         friendlies = self.main_army.units + self.bunker.units + self.bunker2.units
         for friendly in friendlies:
-            if friendly.base_build != -1:
+            if hasattr(friendly, "build_progress"):
                 self.passenger_stand_ins[friendly.type_id] = friendly
         for bunker in [self.bunker, self.bunker2]:
             if bunker.structure and bunker.structure.passengers:
@@ -528,9 +529,15 @@ class Military(GeometryMixin, DebugMixin):
                     target = target_list[0]
                     # passengers always have base_build -1, use stand-in unit for calculations
                     if attacker.base_build == -1:
-                        attacker = self.passenger_stand_ins.get(attacker.type_id, attacker)
+                        try:
+                            attacker = self.passenger_stand_ins[attacker.type_id]
+                        except KeyError:
+                            continue
                     if target.base_build == -1:
-                        target = self.passenger_stand_ins.get(target.type_id, target)
+                        try:
+                            target = self.passenger_stand_ins[target.type_id]
+                        except KeyError:
+                            continue
                     dps = UnitTypes.dps(attacker, target)
                     damage_by_type_cache[attacker_type][target_type] = dps
 

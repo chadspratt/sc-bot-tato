@@ -195,12 +195,13 @@ class Workers(GeometryMixin):
         for assignment in self.assignments_by_worker.values():
             if assignment.unit.tag in self.workers_being_repaired:
                 repairers = Units([a.unit for a in self.assignments_by_job[WorkerJobType.REPAIR]], self.bot)
-                closest_repairer = repairers.closest_to(assignment.unit)
-                if closest_repairer.health_percentage < 1.0:
-                    await self.worker_micro.repair(assignment.unit, closest_repairer)
-                else:
-                    await self.worker_micro.move(assignment.unit, closest_repairer.position)
-                continue
+                if repairers:
+                    closest_repairer = repairers.closest_to(assignment.unit)
+                    if closest_repairer.health_percentage < 1.0:
+                        await self.worker_micro.repair(assignment.unit, closest_repairer)
+                    else:
+                        await self.worker_micro.move(assignment.unit, closest_repairer.position)
+                    continue
             if assignment.on_attack_break \
                     or not assignment.unit_available \
                     or assignment.job_type not in [WorkerJobType.MINERALS, WorkerJobType.VESPENE] \

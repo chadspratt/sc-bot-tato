@@ -475,7 +475,10 @@ class UnitTypes(GeometryMixin):
         """
         Get the DPS of the attacker unit against the target unit.
         """
-        if not UnitTypes.can_attack_target(attacker, target):
+        try:
+            if not UnitTypes.can_attack_target(attacker, target):
+                return 0.0
+        except AttributeError:
             return 0.0
         if attacker.type_id == UnitTypeId.VOIDRAY:
             return 16.8
