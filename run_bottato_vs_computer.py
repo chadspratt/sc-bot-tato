@@ -51,7 +51,7 @@ def init_database():
     """Initialize the SQLite database and create the matches table if it doesn't exist."""
     conn = sqlite3.connect('db/match_data.db')
     cursor = conn.cursor()
-    
+
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS match (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,15 +64,15 @@ def init_database():
             replay_path TEXT
         )
     ''')
-    
+
     conn.commit()
     conn.close()
 
-def save_match_result(map_name: str, opponent_race: Race, opponent_difficulty: Difficulty, opponent_build: AIBuild, result: Result, replay_path: str):
+def save_match_result(map_name: str, opponent_race: Race, opponent_difficulty: Difficulty, opponent_build: AIBuild, result: str, replay_path: str):
     """Save match result to the database."""
     conn = sqlite3.connect('db/match_data.db')
     cursor = conn.cursor()
-    
+
     cursor.execute('''
         INSERT INTO match (timestamp, map_name, opponent_race, opponent_difficulty, opponent_build, result, replay_path)
         VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -82,51 +82,62 @@ def save_match_result(map_name: str, opponent_race: Race, opponent_difficulty: D
         opponent_race.name,
         opponent_difficulty.name,
         opponent_build.name,
-        result.name,
+        result,
         replay_path
     ))
-    
+
     conn.commit()
     conn.close()
 
 def main():
     # Initialize database
     init_database()
-    
+
     random_map = random.choice(map_list)
     map = maps.get(random_map)
     race = os.environ.get("RACE")
     build = os.environ.get("BUILD")
     opponent_race = race_dict.get(race, Race.Random)
     opponent_build = build_dict.get(build, AIBuild.RandomBuild)
-    # opponent = Computer(opponent_race, Difficulty.CheatInsane, ai_build=opponent_build)
-    opponent = Computer(opponent_race, Difficulty.CheatMoney, ai_build=opponent_build)
+    diff: Difficulty = Difficulty.CheatInsane
+    opponent = Computer(opponent_race, diff, ai_build=opponent_build)
     replay_name = f"replays/{random_map}_{race}-{build}.SC2Replay"
-    
+
     # disable logging done by LogHelper
     os.environ["LOG_TESTING"] = "1"
 
-    result = run_game(
-        map,
-        [Bot(Race.Terran, bot_class(), "BotTato"), opponent],
-        realtime=False,
-        save_replay_as=replay_name,
-        game_time_limit=3600,
-    )
-    
-    bottato_result = result[0] if isinstance(result, list) else result
-    logger.info(f"\n================================\nResult vs {opponent}: {bottato_result}\n================================")
-    
-    # Save result to database
-    save_match_result(
-        random_map,
-        opponent_race,
-        Difficulty.CheatMoney,
-        opponent_build,
-        bottato_result,
-        replay_name
-    )
-    
+    try:
+        result = run_game(
+            map,
+            [Bot(Race.Terran, bot_class(), "BotTato"), opponent],
+            realtime=False,
+            save_replay_as=replay_name,
+            game_time_limit=3600,
+        )
+
+        bottato_result = result[0] if isinstance(result, list) else result
+        logger.info(f"\n================================\nResult vs {opponent}: {bottato_result}\n================================")
+
+        # Save result to database
+        save_match_result(
+            random_map,
+            opponent_race,
+            diff,
+            opponent_build,
+            bottato_result.name,
+            replay_name
+        )
+    except Exception as e:
+        logger.info(f"\n================================\nResult vs {opponent}: Crash\n================================")
+        save_match_result(
+            random_map,
+            opponent_race,
+            diff,
+            opponent_build,
+            "Crash",
+            replay_name
+        )
+        raise e
     assert bottato_result == Result.Victory, f"BotTato should win against {opponent}, but got {bottato_result}"
 
 

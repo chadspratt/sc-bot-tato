@@ -236,6 +236,9 @@ class SCVBuildStep(BuildStep):
             used_expansion_count = len(self.bot.expansion_locations_list) - len(available_expansions)
             # skip past spots that are reserved for a cc that is out of position (flying)
             next_expansion_index = self.bot.townhalls.amount - used_expansion_count
+            if next_expansion_index >= len(available_expansions):
+                # already have enough CCs for every base
+                return None
             new_build_position = available_expansions[next_expansion_index]
 
             if self.attempted_expansion_positions[new_build_position] > 3:

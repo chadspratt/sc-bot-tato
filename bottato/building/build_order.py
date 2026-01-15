@@ -232,10 +232,14 @@ class BuildOrder():
         if BuildType.STARGATE in detected_enemy_builds:
             if BuildOrderChange.ANTI_AIR not in self.changes_enacted:
                 self.changes_enacted.append(BuildOrderChange.ANTI_AIR)
-                self.substitute_steps_in_queue(UnitTypeId.STARPORTTECHLAB, [UnitTypeId.STARPORTREACTOR], self.static_queue)
-                self.substitute_steps_in_queue(UnitTypeId.BANSHEE, [UnitTypeId.VIKINGFIGHTER], self.static_queue)
-                self.substitute_steps_in_queue(UnitTypeId.BANSHEE, [UnitTypeId.VIKINGFIGHTER], self.static_queue)
-                self.substitute_steps_in_queue(UnitTypeId.MEDIVAC, [UnitTypeId.VIKINGFIGHTER], self.static_queue)
+                self.remove_step_from_queue(UnitTypeId.STARPORTTECHLAB, self.static_queue)
+                self.add_to_build_queue([UnitTypeId.STARPORTREACTOR], queue=self.priority_queue)
+                self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue)
+                self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue)
+                self.remove_step_from_queue(UnitTypeId.MEDIVAC, self.static_queue)
+                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.priority_queue)
+                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.priority_queue)
+                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.priority_queue)
                 if not self.substitute_steps_in_queue(UnitTypeId.SIEGETANK, [UnitTypeId.CYCLONE], self.static_queue):
                     self.add_to_build_queue([UnitTypeId.CYCLONE], queue=self.static_queue)
                 self.remove_step_from_queue(UpgradeId.BANSHEECLOAK, self.static_queue)

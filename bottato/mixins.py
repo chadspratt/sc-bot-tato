@@ -61,7 +61,7 @@ def log_decorator_timer(*args, func, elapsed: float):
 
 def print_decorator_timers():
     """Print all accumulated timer data from @timed decorators."""
-    timing_message = "Decorator Timing Results:"
+    timing_message = "Timing Results:"
     for func_name, total_time in sorted(_decorator_timers.items(), key=lambda x: x[1], reverse=True):
         timing_message += f"\n{func_name},{total_time:.4f},{_decorator_timer_counts[func_name]}"
     logger.info(timing_message)
@@ -228,12 +228,12 @@ class GeometryMixin:
         return False
 
     @staticmethod
-    def closest_unit_to_unit(unit1: Unit, units: Units) -> Unit:
+    def closest_unit_to_unit(unit1: Unit, units: Units, predicted_positions: Dict[int, Point2] | None = None) -> Unit:
         assert units, "units list is empty"
         closest_distance = 9999
         closest_unit: Unit = units[0]
         for unit in units:
-            new_distance = GeometryMixin.distance(unit1, unit)
+            new_distance = GeometryMixin.distance(unit1, unit, predicted_positions)
             if new_distance < closest_distance:
                 closest_distance = new_distance
                 closest_unit = unit
