@@ -6,13 +6,9 @@ from time import perf_counter
 from functools import wraps
 
 from sc2.bot_ai import BotAI
-from sc2.game_data import Cost
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 from sc2.units import Units
 from sc2.position import Point2, Point3
-
-from bottato.log_helper import LogHelper
 
 
 # Global timer storage for decorator
@@ -173,10 +169,10 @@ class GeometryMixin:
                 return future_position
 
     @staticmethod
-    def distance(unit1: Unit, unit2: Unit) -> float:
+    def distance(unit1: Unit, unit2: Unit, predicted_positions: Dict[int, Point2] | None = None) -> float:
         if unit1.age == 0 and unit2.age == 0:
             return unit1.distance_to(unit2)
-        return unit1.distance_to(unit2.position)
+        return GeometryMixin.distance_squared(unit1, unit2, predicted_positions) ** 0.5
         
     @staticmethod
     def distance_squared(unit1: Unit | Point2, unit2: Unit | Point2, predicted_positions: Dict[int, Point2] | None = None) -> float:

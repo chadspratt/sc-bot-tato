@@ -437,7 +437,7 @@ class BaseUnitMicro(GeometryMixin):
             and attack_range > target_range > 0 and unit.movement_speed > target.movement_speed
         if do_kite:
             # can attack while staying out of range
-            target_distance = self.distance(unit, target) - target.radius - unit.radius
+            target_distance = self.distance(unit, target, self.enemy.predicted_position) - target.radius - unit.radius
             if target.type_id in UnitTypes.WORKER_TYPES:
                 if target_distance < target_range + 2.0:
                     buffer = 0.5

@@ -127,8 +127,8 @@ class Military(GeometryMixin, DebugMixin):
         self.status_message = f"army ratio {self.army_ratio:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
 
-        await self.manage_bunker(self.bunker, self.enemies_in_base, enemies_in_base_ratio, mount_offense)
         await self.manage_bunker(self.bunker2, self.enemies_in_base, enemies_in_base_ratio, mount_offense)
+        await self.manage_bunker(self.bunker, self.enemies_in_base, enemies_in_base_ratio, mount_offense)
 
         if self.main_army.units:
             self.main_army.draw_debug_box()
@@ -211,7 +211,7 @@ class Military(GeometryMixin, DebugMixin):
 
             enemy_group = [e for e in self.enemies_in_base
                             if e.tag not in countered_enemies
-                            and (enemy.tag == e.tag or self.distance(enemy, e) < 8)]
+                            and (enemy.tag == e.tag or self.distance(enemy, e, self.enemy.predicted_position) < 8)]
             overlords_excluded = [e for e in enemy_group if e.type_id not in (UnitTypeId.OVERLORD, UnitTypeId.OVERSEER)]
 
             defense_squad = FormationSquad(self.bot, self.enemy, self.map, name=f"defense{defense_squad_count}")
@@ -273,7 +273,7 @@ class Military(GeometryMixin, DebugMixin):
             try:
                 unit = UnitReferenceHelper.get_updated_unit_reference(unit)
                 # unit didn't enter bunker, maybe got stuck behind wall
-                if unit.distance_to_squared(bunker.structure) <= 6.25:
+                if unit.distance_to_squared(bunker.structure) <= 20:
                     unit.smart(bunker.structure)
                 else:
                     micro = MicroFactory.get_unit_micro(unit)
@@ -368,7 +368,7 @@ class Military(GeometryMixin, DebugMixin):
             if enemy.tag in ignored_enemy_tags or enemy_distance > closest_structure_distance:
                 continue
             enemy_group = attackable_enemies.filter(lambda e: e.tag not in ignored_enemy_tags
-                            and self.distance_squared(enemy, e) < 64)
+                            and self.distance_squared(enemy, e, self.enemy.predicted_position) < 64)
             if len(enemy_group) >= 3:
                 enemy_army = enemy_group
                 enemy_army_distance = enemy_distance
@@ -425,7 +425,7 @@ class Military(GeometryMixin, DebugMixin):
     @timed_async
     async def regroup(self, target_position: Point2, blueprints: List[BuildStep]):
         LogHelper.add_log(f"main_army regrouping")
-        sieged_tanks = self.bot.units.of_type(UnitTypeId.SIEGETANKSIEGED)
+        sieged_tanks = self.bot.units.of_type(UnitTypeId.SIEGETANKSIEGED).filter(lambda u: u.distance_to_squared(self.main_army.position) < 225)
         army_center: Point2
         if sieged_tanks:
             # regroup on sieged tanks so as not to abandon them
@@ -461,11 +461,11 @@ class Military(GeometryMixin, DebugMixin):
             self.damage_by_type_cache_timestamp = self.bot.time
 
         # account for rebuilt units earlier in game when they make up a bigger portion
-        seconds_since_killed = min(60, 60 - (self.bot.time - 300) // 2)
         enemies = enemies_in_base
         if enemies is None:
+            seconds_since_killed = min(60, 60 - (self.bot.time - 300) // 2)
             enemies = self.enemy.get_army(seconds_since_killed=seconds_since_killed).filter(lambda unit: not unit.is_structure)
-        friendlies = self.main_army.units.copy()
+        friendlies = self.main_army.units + self.bunker.units + self.bunker2.units
         for friendly in friendlies:
             if friendly.base_build != -1:
                 self.passenger_stand_ins[friendly.type_id] = friendly

@@ -64,16 +64,27 @@ class Enemy(GeometryMixin):
                 # assume unit continues in same direction
                 self.last_seen_positions[enemy_unit.tag].append(None)
                 new_prediction = self.get_predicted_position(enemy_unit, 0)
-                # back the projection up to edge of visibility we can see that it isn't there
-                reverse_vector = None
-                while self.is_visible(new_prediction, enemy_unit.radius):
-                    if self.last_seen_position[enemy_unit.tag] == new_prediction:
-                        # seems to be some fuzziness where building pos is visible but building is not in enemy_structures
-                        break
-                    logger.debug(f"enemy not where predicted {enemy_unit}")
-                    if reverse_vector is None:
-                        reverse_vector = (self.last_seen_position[enemy_unit.tag] - new_prediction).normalized
-                    new_prediction += reverse_vector
+                # move projection to edge of visibility
+                if self.is_visible(new_prediction, enemy_unit.radius) and self.last_seen_position[enemy_unit.tag] != new_prediction:
+                    predicted_vector = (new_prediction - self.last_seen_position[enemy_unit.tag]).normalized
+                    position_found = False
+                    # check both directions along predicted vector
+                    # checking forward is useful when enemy unit is running away
+                    # checking backward is useful when friendly unit is running away
+                    # use whichever direction gets out of vision first
+                    new_prediction1 = new_prediction + predicted_vector
+                    new_prediction2 = new_prediction - predicted_vector
+                    while not position_found:
+                        if not self.is_visible(new_prediction1, enemy_unit.radius):
+                            position_found = True
+                            new_prediction = new_prediction1
+                            break
+                        if not self.is_visible(new_prediction2, enemy_unit.radius):
+                            position_found = True
+                            new_prediction = new_prediction2
+                            break
+                        new_prediction1 += predicted_vector
+                        new_prediction2 -= predicted_vector
                 self.predicted_position[enemy_unit.tag] = new_prediction
 
                 if time_since_last_seen <= self.unit_probably_moved_seconds:
@@ -119,6 +130,12 @@ class Enemy(GeometryMixin):
                     if not added:
                         self.enemies_out_of_view.append(enemy_unit)
                         self.predicted_position[enemy_unit.tag] = self.get_predicted_position(enemy_unit, 0)
+                        self.last_seen_positions[enemy_unit.tag].append(None)
+                        self.bot.client.debug_box2_out(
+                            enemy_unit,
+                            half_vertex_length=enemy_unit.radius,
+                            color=(255, 0, 0)
+                        )
 
     def is_visible(self, position: Point2, radius: float) -> bool:
         positions_to_check = [
@@ -419,7 +436,7 @@ class Enemy(GeometryMixin):
         enemies_in_range: Units = Units([], self.bot)
         candidates = self.get_candidates(include_structures, include_units, include_destructables, excluded_types=excluded_types)
         for candidate in candidates:
-            range = self.distance(friendly_unit, candidate) - friendly_unit.radius - candidate.radius
+            range = self.distance(friendly_unit, candidate, self.predicted_position) - friendly_unit.radius - candidate.radius
             attack_range = UnitTypes.range_vs_target(friendly_unit, candidate)
             if range <= attack_range:
                 enemies_in_range.append(candidate)

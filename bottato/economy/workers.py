@@ -193,6 +193,14 @@ class Workers(GeometryMixin):
     async def speed_mine(self):
         assignment: WorkerAssignment
         for assignment in self.assignments_by_worker.values():
+            if assignment.unit.tag in self.workers_being_repaired:
+                repairers = Units([a.unit for a in self.assignments_by_job[WorkerJobType.REPAIR]], self.bot)
+                closest_repairer = repairers.closest_to(assignment.unit)
+                if closest_repairer.health_percentage < 1.0:
+                    await self.worker_micro.repair(assignment.unit, closest_repairer)
+                else:
+                    await self.worker_micro.move(assignment.unit, closest_repairer.position)
+                continue
             if assignment.on_attack_break \
                     or not assignment.unit_available \
                     or assignment.job_type not in [WorkerJobType.MINERALS, WorkerJobType.VESPENE] \
@@ -720,7 +728,7 @@ class Workers(GeometryMixin):
                     if self.bot.time < 300:
                         units_with_no_repairer.append(injured_unit)
 
-            if missing_health > 0 and self.bot.time < 300:
+            if missing_health > 0 and self.bot.time < 180:
                 # early game, just assign a bunch so wall isn't broken by a rush
                 needed_repairers = max(needed_repairers, 5)
             else:
@@ -850,11 +858,11 @@ class Workers(GeometryMixin):
     ])
     def units_needing_repair(self) -> Units:
         injured_mechanical_units = Units([], self.bot)
-        repair_scvs = self.bot.time > 240
+        # repair_scvs = self.bot.time > 240
         injured_mechanical_units = self.bot.units.filter(lambda unit: unit.is_mechanical
                                                          and unit.type_id != UnitTypeId.MULE
                                                          and unit.health < unit.health_max
-                                                         and (repair_scvs or unit.type_id != UnitTypeId.SCV)
+                                                        #  and (repair_scvs or unit.type_id != UnitTypeId.SCV)
                                                          and (
                                                              unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(unit) < 20
                                                             or len(self.enemy.threats_to_repairer(unit, attack_range_buffer=0)) == 0))

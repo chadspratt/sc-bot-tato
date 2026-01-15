@@ -59,7 +59,7 @@ class Commander(GeometryMixin):
 
     @timed_async
     async def command(self, iteration: int):
-        # self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.bot.main_base_ramp.bottom_center), 1, (255, 0, 0))
+        # self.bot.client.debug_sphere_out(self.convert_point2_to_3(nearest_worker.position), 3, (255, 0, 0))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.bot.game_info.map_center), 1, (255, 255, 255))
         # ramp_to_natural_vector = (self.map.natural_position - self.bot.main_base_ramp.bottom_center).normalized
         # ramp_to_natural_perp_vector = Point2((-ramp_to_natural_vector.y, ramp_to_natural_vector.x))
@@ -70,6 +70,7 @@ class Commander(GeometryMixin):
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(candidates[0]), 1, (255, 255, 255))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(candidates[1]), 1, (255, 255, 0))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(toward_natural.towards(self.bot.game_info.map_center, 3)), 1, (0, 0, 255))
+        # self.bot.client.debug_sphere_out(self.convert_point2_to_3(nearest_worker.position, self.bot), 3, (255, 0, 0))
 
         await self.map.refresh_map() # fast
         # check for stuck units

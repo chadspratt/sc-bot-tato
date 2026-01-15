@@ -54,10 +54,10 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
     @timed
     def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False):
-        if unit.health_percentage < self.attack_health:
-            return False
-
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+
+        if unit.health_percentage < self.attack_health and not can_attack:
+            return False
 
         # nearby_enemies: Units
         candidates = self.enemy.get_candidates(included_types=[UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE])
@@ -74,12 +74,18 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             target = nearby_workers.sorted(key=lambda t: t.shield + t.health).first
         if threats:
             closest_distance: float = float('inf')
+            if target:
+                closest_distance = self.distance(unit, target, self.enemy.predicted_position) - UnitTypes.ground_range(target)
             for threat in threats:
                 threat_range = UnitTypes.ground_range(threat)
                 if threat_range > unit.ground_range:
                     # don't attack enemies that outrange or have more health
                     return False
-                threat_distance = self.distance_squared(unit, threat) - threat_range
+                threat_distance = self.distance(unit, threat, self.enemy.predicted_position) - threat_range
+                
+                if unit.health_percentage < self.attack_health and threat_distance < 2:
+                    return False
+
                 if threat_distance < closest_distance:
                     closest_distance = threat_distance
                     target = threat
