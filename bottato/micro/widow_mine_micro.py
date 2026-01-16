@@ -52,7 +52,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
             last_lockon = self.last_lockon_time.get(unit.tag, None)
             if last_lockon:
                 time_since_lockon = self.bot.time - last_lockon
-                if time_since_lockon > 1.08:
+                if time_since_lockon > 1.1:
                     self.last_fire_time[unit.tag] = self.bot.time - 0.4
                     self.last_lockon_time[unit.tag] = None
                     self.current_targets[unit.tag] = None
@@ -128,7 +128,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
         if force_move:
             self.last_force_move_time[unit.tag] = self.bot.time
         if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
-            if is_burrowed and closest_distance > self.attack_range + 1:
+            if is_burrowed and closest_distance > self.attack_range + 4:
                 # and friendly_buffer_count < 5:
                 self.unburrow(unit)
                 return True
@@ -136,21 +136,24 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                 return False
             
         if is_burrowed:
+            # unburrow if exposed
             if not self.drilling_claws_researched and cooldown_remaining > 3:
                 self.unburrow(unit)
                 return True
-            if closest_distance <= self.attack_range + 2:
+            # stay burrowed if within 6 of attacking range
+            if closest_distance <= self.attack_range + 6:
                 return False  # keep burrowed to attack/hide
             else:
                 sieged_tanks = self.bot.units.of_type(UnitTypeId.SIEGETANKSIEGED)
                 closest_tank_to_enemy = self.closest_unit_to_unit(new_target, sieged_tanks) if new_target and sieged_tanks else None
                 if closest_tank_to_enemy is None or closest_tank_to_enemy.distance_to_squared(unit) > 36:
-                    # reposition to guard tank closest to enemy
+                    # reposition to guard tank closest to enemy or to find enemies
                     self.unburrow(unit)
                     return True
             return False
         else:
-            if closest_distance <= self.attack_range + 3 and cooldown_remaining < 2:
+            # burrow if within 4 of attacking range
+            if closest_distance <= self.attack_range + 4 and cooldown_remaining < 2:
                 # burrow to attack
                 self.burrow(unit)
                 return True
@@ -158,6 +161,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                 unit.move(new_target)
                 return True
             sieged_tanks = self.bot.units.of_type(UnitTypeId.SIEGETANKSIEGED)
+            # or burrow near a sieged tank
             if new_target and sieged_tanks:
                 closest_tank_to_enemy = self.closest_unit_to_unit(new_target, sieged_tanks)
                 if closest_tank_to_enemy:

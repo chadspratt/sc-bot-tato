@@ -66,6 +66,8 @@ class Facility():
                     logger.debug(f"key error, is this an addon?: {new_order}")
                     self.queued_unit_ids.clear()
 
+        self.unit = updated_unit
+
         if self.add_on_type == UnitTypeId.NOTAUNIT and not self.addon_blocked:
             closest_candidates = self.bot.structures.filter(lambda s: s.tag != updated_unit.tag and s.type_id not in (
                 UnitTypeId.BARRACKSTECHLAB,
@@ -101,8 +103,6 @@ class Facility():
                     updated_unit(AbilityId.LAND, self.new_position)
                     self.addon_blocked = False
                     self.new_position = None
-
-        self.unit = updated_unit
 
     @property
     def has_capacity(self) -> bool:

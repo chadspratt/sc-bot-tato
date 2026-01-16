@@ -813,6 +813,11 @@ class Workers(GeometryMixin):
                 repairer: Unit = candidates.closest_to(unit_to_repair)
                 if not repairer:
                     break
+                if not unit_to_repair.is_structure:
+                    repairer_distance = repairer.distance_to(unit_to_repair)
+                    if unit_to_repair.type_id == UnitTypeId.SCV and repairer_distance > 10 or repairer_distance > 60 and self.bot.time < 600:
+                        # don't send repairer too far to repair
+                        continue
 
                 candidates.remove(repairer)
                 repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
