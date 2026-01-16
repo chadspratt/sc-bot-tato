@@ -19,6 +19,7 @@ from bottato.micro.raven_micro import RavenMicro
 from bottato.micro.reaper_micro import ReaperMicro
 from bottato.micro.scv_micro import SCVMicro
 from bottato.micro.siege_tank_micro import SiegeTankMicro
+from bottato.micro.structure_micro import StructureMicro
 from bottato.micro.viking_micro import VikingMicro
 from bottato.micro.widow_mine_micro import WidowMineMicro
 from bottato.squad.enemy_intel import EnemyIntel
@@ -26,6 +27,7 @@ from bottato.squad.enemy_intel import EnemyIntel
 
 micro_instances: Dict[UnitTypeId, BaseUnitMicro] = {}
 micro_lookup = {
+    UnitTypeId.COMMANDCENTER: StructureMicro,
     UnitTypeId.BANSHEE: BansheeMicro,
     UnitTypeId.GHOST: GhostMicro,
     UnitTypeId.HELLION: HellionMicro,

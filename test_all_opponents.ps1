@@ -1,32 +1,40 @@
 $workDir = $PSScriptRoot
+$logsDir = "C:\Users\inter\Documents\StarCraft II\Replays\Multiplayer\docker"
 $jobs = @()
+
+# Create logs directory if it doesn't exist
+if (-not (Test-Path $logsDir)) {
+    New-Item -ItemType Directory -Path $logsDir
+}
 
 docker container prune -f
 
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=protoss -e BUILD=rush bot } -ArgumentList $workDir
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=protoss -e BUILD=timing bot } -ArgumentList $workDir
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=protoss -e BUILD=macro bot } -ArgumentList $workDir
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=protoss -e BUILD=power bot } -ArgumentList $workDir
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=protoss -e BUILD=air bot } -ArgumentList $workDir
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=protoss -e BUILD=rush bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "protoss_rush.log")
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=protoss -e BUILD=timing bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "protoss_timing.log")
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=protoss -e BUILD=macro bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "protoss_macro.log")
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=protoss -e BUILD=power bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "protoss_power.log")
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=protoss -e BUILD=air bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "protoss_air.log")
 
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=terran -e BUILD=rush bot } -ArgumentList $workDir
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=terran -e BUILD=timing bot } -ArgumentList $workDir
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=terran -e BUILD=macro bot } -ArgumentList $workDir
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=terran -e BUILD=power bot } -ArgumentList $workDir
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=terran -e BUILD=air bot } -ArgumentList $workDir
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=terran -e BUILD=rush bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "terran_rush.log")
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=terran -e BUILD=timing bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "terran_timing.log")
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=terran -e BUILD=macro bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "terran_macro.log")
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=terran -e BUILD=power bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "terran_power.log")
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=terran -e BUILD=air bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "terran_air.log")
 
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=zerg -e BUILD=rush bot } -ArgumentList $workDir
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=zerg -e BUILD=timing bot } -ArgumentList $workDir
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=zerg -e BUILD=macro bot } -ArgumentList $workDir
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=zerg -e BUILD=power bot } -ArgumentList $workDir
-$jobs += Start-Job -ScriptBlock { param($dir) Set-Location $dir; docker compose run --rm -e RACE=zerg -e BUILD=air bot } -ArgumentList $workDir
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=zerg -e BUILD=rush bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "zerg_rush.log")
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=zerg -e BUILD=timing bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "zerg_timing.log")
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=zerg -e BUILD=macro bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "zerg_macro.log")
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=zerg -e BUILD=power bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "zerg_power.log")
+$jobs += Start-Job -ScriptBlock { param($dir, $logFile) Set-Location $dir; docker compose run --rm -e RACE=zerg -e BUILD=air bot *>&1 | Tee-Object -FilePath $logFile } -ArgumentList $workDir, (Join-Path $logsDir "zerg_air.log")
+
+Write-Host "Started $($jobs.Count) test jobs. Logs will be written to: $logsDir" -ForegroundColor Yellow
 
 # Wait for jobs to complete and show their output as they finish
 while ($jobs | Where-Object { $_.State -eq 'Running' }) {
     $completed = $jobs | Where-Object { $_.State -eq 'Completed' }
     foreach ($job in $completed) {
         Write-Host "`n=== Job $($job.Id) finished ===" -ForegroundColor Green
-        Receive-Job $job
+        # Receive-Job $job
         Remove-Job $job
         $jobs = $jobs | Where-Object { $_.Id -ne $job.Id }
     }
@@ -34,5 +42,7 @@ while ($jobs | Where-Object { $_.State -eq 'Running' }) {
 }
 
 # Handle any remaining jobs
-$jobs | Receive-Job
+# $jobs | Receive-Job
 $jobs | Remove-Job
+
+Write-Host "`nAll tests completed. Check log files in: $logsDir" -ForegroundColor Green

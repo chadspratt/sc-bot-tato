@@ -37,9 +37,9 @@ class Commander(GeometryMixin):
         self.map = Map(bot)
         self.production: Production = Production(bot)
 
-        self.intel = EnemyIntel(bot, self.map)
+        self.intel = EnemyIntel(bot, self.map, self.enemy)
         MicroFactory.set_common_objects(bot, self.enemy, self.map, self.intel)
-        self.structure_micro: StructureMicro = StructureMicro(bot, self.enemy, self.map)
+        self.structure_micro: StructureMicro = StructureMicro(bot, self.enemy, self.map, self.intel)
         self.my_workers: Workers = Workers(bot, self.enemy, self.map)
         self.military: Military = Military(bot, self.enemy, self.map, self.my_workers, self.intel)
         self.build_order: BuildOrder = BuildOrder(
@@ -51,7 +51,6 @@ class Commander(GeometryMixin):
         self.new_damage_by_position: dict[Point2, float] = {}
         self.pathable_position: Point2 | None = None
         self.stuck_units: Units = Units([], bot_object=bot)
-        self.enemy_builds_detected: dict[BuildType, float] = {}
 
     async def init_map(self):
         await self.map.init(self.intel.scouting_locations)
@@ -79,10 +78,10 @@ class Commander(GeometryMixin):
         self.map.update_influence_maps(self.new_damage_by_position) # fast
         BaseUnitMicro.reset_tag_sets()
 
-        await self.structure_micro.execute(self.enemy_builds_detected) # fast
+        await self.structure_micro.execute(self.intel.enemy_builds_detected) # fast
 
         # XXX slow, 17% of command time
-        needed_resources: Cost = await self.build_order.execute(self.military.army_ratio, self.enemy_builds_detected, self.enemy, self.intel)
+        needed_resources: Cost = await self.build_order.execute(self.military.army_ratio, self.intel.enemy_builds_detected, self.enemy, self.intel)
 
         await self.scout() # fast
 
@@ -91,8 +90,8 @@ class Commander(GeometryMixin):
         await self.military.manage_squads(iteration,
                                           blueprints,
                                           self.intel.get_newest_enemy_base(),
-                                          self.enemy_builds_detected,
-                                          self.scouting.proxy_buildings)
+                                          self.intel.enemy_builds_detected,
+                                          self.intel.proxy_buildings)
 
         await self.my_workers.attack_nearby_enemies() # ultra fast
         await self.my_workers.redistribute_workers(needed_resources)
@@ -146,9 +145,7 @@ class Commander(GeometryMixin):
     async def scout(self):
         self.scouting.update_visibility()
         await self.scouting.scout(self.new_damage_by_unit)
-
-        for build_type, build_time in (await self.scouting.detected_enemy_builds).items():
-            self.enemy_builds_detected[build_type] = build_time
+        await self.intel.update()
 
     @timed_async
     async def update_references(self):

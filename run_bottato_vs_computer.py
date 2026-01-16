@@ -1,5 +1,3 @@
-
-
 """
 This script makes sure to run all bots in the examples folder to check if they can launch.
 """
@@ -55,7 +53,9 @@ def init_database():
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS match (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp TEXT NOT NULL,
+            test_group_id INTEGER,
+            start_timestamp TEXT NOT NULL,
+            end_timestamp TEXT,
             map_name TEXT NOT NULL,
             opponent_race TEXT NOT NULL,
             opponent_difficulty TEXT NOT NULL,
@@ -68,22 +68,66 @@ def init_database():
     conn.commit()
     conn.close()
 
-def save_match_result(map_name: str, opponent_race: Race, opponent_difficulty: Difficulty, opponent_build: AIBuild, result: str, replay_path: str):
-    """Save match result to the database."""
+def get_next_test_group_id() -> int:
+    """Get the next test group ID by incrementing the highest completed test group ID."""
+    conn = sqlite3.connect('db/match_data.db')
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+        SELECT MAX(test_group_id) FROM match WHERE end_timestamp IS NOT NULL
+    ''')
+    
+    result = cursor.fetchone()[0]
+    conn.close()
+    
+    # If no completed matches exist, start at 0, otherwise increment by 1
+    return 0 if result is None else result + 1
+
+def create_pending_match(
+        test_group_id: int,
+        start_timestamp: str,
+        map_name: str,
+        opponent_race: Race,
+        opponent_difficulty: Difficulty,
+        opponent_build: AIBuild,
+    ) -> int | None:
+    """Create a pending match entry and return the match ID."""
     conn = sqlite3.connect('db/match_data.db')
     cursor = conn.cursor()
 
     cursor.execute('''
-        INSERT INTO match (timestamp, map_name, opponent_race, opponent_difficulty, opponent_build, result, replay_path)
+        INSERT INTO match (test_group_id, start_timestamp, map_name, opponent_race, opponent_difficulty, opponent_build, result)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     ''', (
-        datetime.now().isoformat(),
+        test_group_id,
+        start_timestamp,
         map_name,
         opponent_race.name,
         opponent_difficulty.name,
         opponent_build.name,
+        "Pending"
+    ))
+
+    match_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    
+    return match_id
+
+def update_match_result(match_id: int, result: str, replay_path: str):
+    """Update match result in the database."""
+    conn = sqlite3.connect('db/match_data.db')
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        UPDATE match 
+        SET end_timestamp = ?, result = ?, replay_path = ?
+        WHERE id = ?
+    ''', (
+        datetime.now().isoformat(),
         result,
-        replay_path
+        replay_path,
+        match_id
     ))
 
     conn.commit()
@@ -102,9 +146,20 @@ def main():
     diff: Difficulty = Difficulty.CheatInsane
     opponent = Computer(opponent_race, diff, ai_build=opponent_build)
     replay_name = f"replays/{random_map}_{race}-{build}.SC2Replay"
+    start_time = datetime.now().isoformat()
+
+    # Get the next test group ID
+    test_group_id = get_next_test_group_id()
+
+    # Create pending match entry and get match ID
+    match_id = create_pending_match(test_group_id, start_time, random_map, opponent_race, diff, opponent_build)
+    assert match_id is not None, "Failed to create match entry in the database."
+
+    # Set match ID as environment variable for the bot
+    os.environ["TEST_MATCH_ID"] = str(match_id)
 
     # disable logging done by LogHelper
-    os.environ["LOG_TESTING"] = "1"
+    # os.environ["SC_BOT_AUTOMATED_TEST"] = "1"
 
     try:
         result = run_game(
@@ -118,26 +173,14 @@ def main():
         bottato_result = result[0] if isinstance(result, list) else result
         logger.info(f"\n================================\nResult vs {opponent}: {bottato_result}\n================================")
 
-        # Save result to database
-        save_match_result(
-            random_map,
-            opponent_race,
-            diff,
-            opponent_build,
-            bottato_result.name,
-            replay_name
-        )
+        # Update the existing match entry with the result
+        update_match_result(match_id, bottato_result.name, replay_name)
+        
     except Exception as e:
         logger.info(f"\n================================\nResult vs {opponent}: Crash\n================================")
-        save_match_result(
-            random_map,
-            opponent_race,
-            diff,
-            opponent_build,
-            "Crash",
-            replay_name
-        )
+        update_match_result(match_id, "Crash", replay_name)
         raise e
+    
     assert bottato_result == Result.Victory, f"BotTato should win against {opponent}, but got {bottato_result}"
 
 

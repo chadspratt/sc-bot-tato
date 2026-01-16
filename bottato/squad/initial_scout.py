@@ -26,7 +26,6 @@ class InitialScout(Squad, GeometryMixin):
         self.completed: bool = False
         self.enemy_natural_delayed: bool = False
         self.extra_production_detected: bool = False
-        self.main_scouted: bool = False
         self.last_waypoint: Point2 | None = None
         self.do_natural_check: bool = False
         
@@ -80,6 +79,9 @@ class InitialScout(Squad, GeometryMixin):
         if self.bot.time < self.start_time:
             # too early to scout
             return
+        if self.intel.enemy_builds_detected:
+            self.completed = True
+            self.intel.mark_initial_scout_complete()
             
         if self.unit:
             try:
@@ -88,6 +90,7 @@ class InitialScout(Squad, GeometryMixin):
                 self.unit = None
                 # scout lost, don't send another
                 self.completed = True
+                self.intel.mark_initial_scout_complete()
                 return
 
             if self.completed:
@@ -106,6 +109,7 @@ class InitialScout(Squad, GeometryMixin):
     async def move_scout(self):
         if self.bot.time > self.initial_scout_complete_time + 20:
             self.completed = True
+            self.intel.mark_initial_scout_complete()
         if not self.unit or self.completed:
             return
         
@@ -117,6 +121,7 @@ class InitialScout(Squad, GeometryMixin):
                     self.completed = self.bot.time > 150
                 else:
                     self.completed = True
+                    self.intel.mark_initial_scout_complete()
         elif self.last_waypoint:
             if self.unit.distance_to(self.waypoints[0]) <= 5:
                 if self.waypoints[0] == self.last_waypoint and self.bot.time > self.initial_scout_complete_time:
@@ -126,7 +131,7 @@ class InitialScout(Squad, GeometryMixin):
                     # Check if we've completed all waypoints
                     if len(self.waypoints) == 0:
                         self.waypoints_completed = True
-                        self.main_scouted = True
+                        self.intel.mark_enemy_main_scouted()
                         self.waypoints = list(self.original_waypoints)  # reset to keep scouting
         else:
             # find initial waypoint

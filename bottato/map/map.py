@@ -54,6 +54,10 @@ class Map(GeometryMixin):
 
     def init_expansion_orders(self):
         # uses pathing so has to be called after map is initialized
+        self.expansion_orders[ExpansionSelection.CLOSEST] = sorted(
+            self.scouting_locations,
+            key=lambda loc: loc.expansion_position.distance_to(self.bot.start_location)
+        )
         self.expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY] = sorted(
             self.scouting_locations,
                 key=lambda loc: self._distance_minus_enemy_distance(

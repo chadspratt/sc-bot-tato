@@ -1,4 +1,5 @@
 import os
+import sqlite3
 from loguru import logger
 from typing import List
 
@@ -13,10 +14,13 @@ class LogHelper:
     bot: BotAI
 
     testing: bool = False
+    test_match_id: str | None = None
     @staticmethod
     def init(bot: BotAI):
         LogHelper.bot = bot
-        LogHelper.testing = os.environ.get("LOG_TESTING") == "1"
+        LogHelper.testing = os.environ.get("SC_BOT_AUTOMATED_TEST") == "1"
+        LogHelper.test_match_id = os.environ.get("TEST_MATCH_ID")
+        LogHelper.add_log(f"LogHelper initialized. Testing mode: {LogHelper.testing}, Test Match ID: {LogHelper.test_match_id}")
 
     @staticmethod
     def add_log(message: str):
@@ -53,3 +57,21 @@ class LogHelper:
         for message in to_delete:
             del LogHelper.previous_messages[message]
         LogHelper.new_messages = []
+
+    @staticmethod
+    def update_match_duration(duration_seconds: int):
+        """Update the match duration in the database if we're in testing mode."""
+        if LogHelper.test_match_id is None:
+            return
+            
+        conn = sqlite3.connect('db/match_data.db')
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            UPDATE match 
+            SET duration_in_game_time = ?
+            WHERE id = ?
+        ''', (duration_seconds, int(LogHelper.test_match_id)))
+        
+        conn.commit()
+        conn.close()

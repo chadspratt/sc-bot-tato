@@ -191,13 +191,14 @@ class BuildOrder():
                     self.static_queue.remove(step)
                     self.add_to_build_queue([UnitTypeId.BARRACKSTECHLAB, UnitTypeId.MARAUDER], position=0, queue=self.priority_queue)
                     break
-        if BuildOrderChange.RUSH not in self.changes_enacted and BuildType.BATTLECRUISER_RUSH not in detected_enemy_builds:
+        if BuildOrderChange.RUSH not in self.changes_enacted and BuildType.RUSH in detected_enemy_builds and BuildType.BATTLECRUISER_RUSH not in detected_enemy_builds:
             self.changes_enacted.append(BuildOrderChange.RUSH)
             self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.static_queue)
             # prioritize bunker and first tank
             self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
+            in_progress_depots = self.get_in_progress_count(UnitTypeId.SUPPLYDEPOT)
             if BuildType.PROXY in detected_enemy_builds:
-                if self.bot.structures([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED]).amount < 2:
+                if self.bot.structures([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED]).amount + in_progress_depots< 2:
                     # make sure to build second depot before bunker
                     self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
                 # proxy will hit earlier, really need bunker
@@ -211,8 +212,8 @@ class BuildOrder():
                 self.add_to_build_queue([UnitTypeId.FACTORYTECHLAB], queue=self.priority_queue)
             if not self.move_between_queues(UnitTypeId.SIEGETANK, self.static_queue, self.priority_queue):
                 self.add_to_build_queue([UnitTypeId.SIEGETANK], queue=self.priority_queue)
-            if BuildType.RUSH in detected_enemy_builds:
-                if self.bot.structures([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED]).amount < 2:
+            if BuildType.PROXY not in detected_enemy_builds:
+                if self.bot.structures([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED]).amount + in_progress_depots < 2:
                     # make sure to build second depot before bunker
                     self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
                 if self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue):

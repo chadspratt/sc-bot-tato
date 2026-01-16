@@ -2,26 +2,29 @@ from typing import Dict
 from loguru import logger
 
 from sc2.bot_ai import BotAI
-from sc2.ids.unit_typeid import UnitTypeId
+from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from sc2.position import Point2
 
-from bottato.unit_types import UnitTypes
 from bottato.enemy import Enemy
+from bottato.enums import BuildType
 from bottato.map.map import Map
-from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.custom_effect import CustomEffect
-from bottato.enums import BuildType
+from bottato.mixins import GeometryMixin, timed, timed_async
+from bottato.squad.enemy_intel import EnemyIntel
+from bottato.unit_types import UnitTypes
 
 
 class StructureMicro(BaseUnitMicro, GeometryMixin):
-    def __init__(self, bot: BotAI, enemy: Enemy, map: Map) -> None:
+    def __init__(self, bot: BotAI, enemy: Enemy, map: Map, intel: EnemyIntel) -> None:
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
         self.map: Map = map
+        self.intel: EnemyIntel = intel
         self.command_center_destinations: Dict[int, Point2 | None] = {}
         self.last_scan_time: float = 0
 
@@ -31,6 +34,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         self.adjust_supply_depots_for_enemies(detected_enemy_builds)
         self.target_autoturrets()
         await self.move_command_centers()
+        self.move_ramp_barracks()
         self.scan()
 
     @timed
@@ -118,6 +122,37 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                             self.command_center_destinations[cc.tag] = cc.position
                             cc(AbilityId.CANCEL_LAST)
                             cc(AbilityId.LIFT)
+
+    @timed
+    def move_ramp_barracks(self):
+        if self.bot.structures(UnitTypeId.BARRACKSREACTOR):
+            # reactor already started, don't move barracks
+            return
+        if self.intel.enemy_race_confirmed != Race.Zerg \
+                or BuildType.RUSH not in self.intel.enemy_builds_detected:
+            return
+        desired_position = self.bot.main_base_ramp.barracks_in_middle
+        if desired_position is None:
+            return
+        barracks = self.bot.structures([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING]).ready
+        if barracks.amount != 1:
+            return
+        ramp_barracks = barracks.first
+        is_in_position = ramp_barracks.position == desired_position
+        if ramp_barracks.is_flying:
+            if is_in_position:
+                BaseUnitMicro.add_custom_effect(ramp_barracks.position, ramp_barracks.radius, self.bot.time, 0.5)
+                ramp_barracks(AbilityId.LAND, desired_position)
+            else:
+                ramp_barracks.move(desired_position)
+        elif not is_in_position:
+            if ramp_barracks.orders:
+                if ramp_barracks.orders[0].progress < 0.2:
+                    ramp_barracks(AbilityId.CANCEL_LAST)
+                    ramp_barracks(AbilityId.LIFT, queue=True)
+            else:
+                ramp_barracks(AbilityId.LIFT)
+
 
     @timed
     def scan(self):

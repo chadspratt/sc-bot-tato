@@ -82,6 +82,11 @@ class Facility():
                 self.addon_blocked = closest_structure_to_addon.radius > closest_structure_to_addon.distance_to(updated_unit.add_on_position)
                 # not (await self.bot.can_place_single(UnitTypeId.SUPPLYDEPOT, updated_unit.add_on_position))
         if self.addon_blocked or updated_unit.is_flying:
+            if updated_unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING) \
+                    and self.bot.main_base_ramp.barracks_in_middle \
+                    and updated_unit.position.manhattan_distance(self.bot.main_base_ramp.barracks_in_middle) < 3:
+                # blocking main base ramp, don't move
+                return
             logger.debug(f"addon blocked for {updated_unit}")
             # move facility to an unblocked position
             if not updated_unit.is_flying:
