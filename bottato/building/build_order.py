@@ -155,8 +155,11 @@ class BuildOrder():
                 continue
             if step.is_unit() and self.get_queued_count(step.get_unit_type_id()) > 0:
                 self.build_queue.insert(0, step)
-            else:
+            elif isinstance(step, SCVBuildStep) and step.unit_being_built:
+                # put buildings that are already started at the front of the queue since they're already paid for
                 self.interrupted_queue.insert(0, step)
+            else:
+                self.priority_queue.append(step)
         for structure in self.bot.structures_without_construction_SCVs:
             if structure.health_percentage > 0.05:
                 for step in self.all_steps:
