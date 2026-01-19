@@ -484,8 +484,9 @@ class BaseUnitMicro(GeometryMixin):
                 if unit.tag in self.repair_targets_prev_frame:
                     try:
                         repairers: Units = self.bot.units.filter(lambda w: w.tag in BaseUnitMicro.repair_targets_prev_frame[unit.tag])
-                        repairer = repairers.closest_to(unit)
-                        ultimate_destination = repairer.position
+                        if repairers:
+                            repairer = repairers.closest_to(unit)
+                            ultimate_destination = repairer.position
                     except KeyError:
                         pass
                 if repairer is None:

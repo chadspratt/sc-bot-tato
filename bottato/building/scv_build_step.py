@@ -256,7 +256,7 @@ class SCVBuildStep(BuildStep):
 
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2
-            if len(detected_enemy_builds) > 0 and self.bot.structures.of_type(UnitTypeId.BARRACKS) \
+            if BuildType.RUSH in detected_enemy_builds and self.bot.structures.of_type(UnitTypeId.BARRACKS) \
                     and not self.bot.structures.of_type(UnitTypeId.BUNKER) \
                     and self.no_position_count == 0:
                 # try to build near edge of high ground towards natural

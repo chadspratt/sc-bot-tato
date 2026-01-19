@@ -1,5 +1,6 @@
+from collections import defaultdict
 import math
-from typing import List, Set
+from typing import Dict, List, Set
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -374,11 +375,26 @@ class Workers(GeometryMixin):
 
     @timed_async
     async def attack_nearby_enemies(self) -> None:
-        attacker_tags = set()
+        defender_tags = set()
         if self.bot.townhalls and self.bot.time < 200:
             available_workers = self.bot.workers.filter(lambda u: self.assignments_by_worker[u.tag].job_type in {WorkerJobType.MINERALS, WorkerJobType.VESPENE})
             healthy_workers = available_workers.filter(lambda u: u.health_percentage > 0.5)
             unhealthy_workers = available_workers.filter(lambda u: u.health_percentage <= 0.5)
+
+            for worker in self.bot.workers:
+                assignment = self.assignments_by_worker[worker.tag]
+                targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
+                nearby_enemies = targetable_enemies.closer_than(4, worker)
+                if nearby_enemies:
+                    if worker.health_percentage < 0.6 and assignment.job_type == WorkerJobType.BUILD:
+                        # stop building if getting attacked
+                        worker(AbilityId.HALT)
+
+                    if len(nearby_enemies) >= len(available_workers):
+                        continue
+                    for nearby_enemy in nearby_enemies:
+                        predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
+                        defender_tags.update(await self.send_defenders(nearby_enemy, healthy_workers, unhealthy_workers, 2))
 
             for townhall in self.bot.townhalls:
                 nearby_enemy_structures = self.bot.enemy_structures.closer_than(23, townhall).filter(lambda u: not u.is_flying)
@@ -398,59 +414,65 @@ class Workers(GeometryMixin):
                     # don't suicide workers if outnumbered
                     continue
                 # assign closest 3 workers to attack each enemy
-                micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first)
                 workers_per_enemy_unit = 2 if nearby_enemy_structures or self.bot.enemy_race != Race.Protoss else 3
                 for nearby_enemy in nearby_enemies + nearby_enemy_structures:
-                    enemy_position = nearby_enemy if nearby_enemy.age == 0 else self.enemy.get_predicted_position(nearby_enemy, 0.0)
                     predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
-                    attackers = []
                     number_of_attackers = 4 if nearby_enemy.is_structure else workers_per_enemy_unit
-                    if len(healthy_workers) > number_of_attackers:
-                        attackers = healthy_workers.closest_n_units(predicted_position, number_of_attackers)
-                        for attacker in attackers:
-                            healthy_workers.remove(attacker)
-                    else:
-                        attackers = [worker for worker in healthy_workers]
-                        healthy_workers.clear()
-                        if unhealthy_workers:
-                            remainder = number_of_attackers - len(healthy_workers)
-
-                            if len(unhealthy_workers) > remainder:
-                                unhealthy_attackers = unhealthy_workers.closest_n_units(enemy_position, remainder)
-                                for attacker in unhealthy_attackers:
-                                    unhealthy_workers.remove(attacker)
-                                attackers.extend(unhealthy_attackers)
-                            else:
-                                attackers.extend([worker for worker in unhealthy_workers])
-                                unhealthy_workers.clear()
-                    if not attackers:
+                    townhall_defenders = await self.send_defenders(nearby_enemy, healthy_workers, unhealthy_workers, number_of_attackers)
+                    if not townhall_defenders:
                         logger.debug(f"no attackers available for enemy {nearby_enemy}")
                         break
-                    for attacker in attackers:
-                        if attacker.distance_to_squared(enemy_position) > 625 or abs(self.bot.get_terrain_height(attacker.position) - self.bot.get_terrain_height(enemy_position)) > 5:
-                            # don't pull workers from far away or go down a ramp
-                            logger.debug(f"worker {attacker} too far from enemy {nearby_enemy}")
-                            continue
-                        if nearby_enemy.is_structure:
-                            attacker.attack(nearby_enemy)
-                        elif nearby_enemy.is_facing(attacker, angle_error=0.15):
-                            # in front of enemy, turn to attack it
-                            await micro.move(attacker, nearby_enemy.position)
-                        else:
-                            # try to head off units instead of trailing after them
-                            await micro.move(attacker, predicted_position)
-                        attacker_tags.add(attacker.tag)
-                        self.assignments_by_worker[attacker.tag].on_attack_break = True
+                    defender_tags.update(townhall_defenders)
+
         # put any leftover workers back to work
         for worker in self.bot.workers:
             assignment = self.assignments_by_worker[worker.tag]
-            if assignment.on_attack_break and worker.tag not in attacker_tags:
+            if assignment.on_attack_break and worker.tag not in defender_tags:
                 assignment.on_attack_break = False
                 if assignment.target:
                     if assignment.unit.is_carrying_resource and self.bot.townhalls:
                         assignment.unit.smart(self.bot.townhalls.closest_to(assignment.unit))
                     else:
                         assignment.unit.smart(assignment.target)
+
+    async def send_defenders(self, nearby_enemy: Unit, healthy_workers: Units, unhealthy_workers: Units, number_of_attackers: int) -> set[int]:
+        enemy_position = nearby_enemy if nearby_enemy.age == 0 else self.enemy.get_predicted_position(nearby_enemy, 0.0)
+        if len(healthy_workers) >= number_of_attackers:
+            defenders = healthy_workers.closest_n_units(enemy_position, number_of_attackers)
+            for defender in defenders:
+                healthy_workers.remove(defender)
+        else:
+            defenders = Units([worker for worker in healthy_workers], self.bot)
+            healthy_workers.clear()
+            if unhealthy_workers:
+                remainder = number_of_attackers - len(defenders)
+
+                if len(unhealthy_workers) >= remainder:
+                    unhealthy_defenders = unhealthy_workers.closest_n_units(enemy_position, remainder)
+                    for defender in unhealthy_defenders:
+                        unhealthy_workers.remove(defender)
+                    defenders.extend(unhealthy_defenders)
+                else:
+                    defenders.extend([worker for worker in unhealthy_workers])
+                    unhealthy_workers.clear()
+
+        micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first)
+        for defender in defenders:
+            if defender.distance_to_squared(enemy_position) > 625 or abs(self.bot.get_terrain_height(defender.position) - self.bot.get_terrain_height(enemy_position)) > 5:
+                # don't pull workers from far away or go down a ramp
+                logger.debug(f"worker {defender} too far from enemy {nearby_enemy}")
+                continue
+            if nearby_enemy.is_structure:
+                defender.attack(nearby_enemy)
+            elif nearby_enemy.is_facing(defender, angle_error=0.15):
+                # in front of enemy, turn to attack it
+                await micro.move(defender, nearby_enemy.position)
+            else:
+                # try to head off units instead of trailing after them
+                await micro.move(defender, enemy_position.position)
+            self.assignments_by_worker[defender.tag].on_attack_break = True
+
+        return defenders.tags
 
     def attack_enemy(self, enemy: Unit):
         for existing_enemy in self.units_to_attack:

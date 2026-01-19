@@ -137,12 +137,14 @@ class EnemyIntel(GeometryMixin):
         if self.proxy_detected():
             await LogHelper.add_chat("proxy suspected")
             self.add_detected_build(BuildType.PROXY)
+            self.add_detected_build(BuildType.RUSH)
         if self.bot.time < 60:
             rushing_enemy_workers = self.bot.enemy_units.filter(
                 lambda u: u.distance_to(self.bot.start_location) - 15 < u.distance_to(self.bot.enemy_start_locations[0]))
             if rushing_enemy_workers.amount >= 3:
                 await LogHelper.add_chat("worker rush detected")
                 self.add_detected_build(BuildType.WORKER_RUSH)
+                self.add_detected_build(BuildType.RUSH)
         if self.enemy_race_confirmed == Race.Zerg:
             early_pool = self.first_building_time.get(UnitTypeId.SPAWNINGPOOL, 9999) < 40
             no_gas = self.initial_scout_completed and self.number_seen(UnitTypeId.EXTRACTOR) == 0
@@ -157,7 +159,6 @@ class EnemyIntel(GeometryMixin):
             if zergling_rush:
                 await LogHelper.add_chat("zergling rush detected")
                 self.add_detected_build(BuildType.ZERGLING_RUSH)
-                self.add_detected_build(BuildType.RUSH)
             if early_pool or no_gas or no_expansion or zergling_rush:
                 self.add_detected_build(BuildType.RUSH)
         elif self.enemy_race_confirmed == Race.Terran:
