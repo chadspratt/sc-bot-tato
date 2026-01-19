@@ -7,6 +7,7 @@ from sc2.unit import Unit
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 
+from bottato.enums import UnitMicroType
 from bottato.log_helper import LogHelper
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin, timed, timed_async
@@ -32,14 +33,14 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     stationary_positions: Dict[int, Tuple[Point2, float]] = {}
 
     @timed_async
-    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
         if unit.tag not in self.known_tags:
             self.known_tags.add(unit.tag)
             self.unsieged_tags.add(unit.tag)
 
         # skip currently or recently transformed
         if unit.is_transforming:
-            return False
+            return UnitMicroType.NONE
 
         last_transform = self.last_transform_time.get(unit.tag, -999)
         time_since_last_transform = self.bot.time - last_transform
@@ -51,7 +52,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     self.siege(unit, update_last_transform_time=False)
                 else:
                     self.unsiege(unit, update_last_transform_time=False)
-            return True
+            return UnitMicroType.USE_ABILITY
 
         on_cooldown = time_since_last_transform < self.min_seconds_between_transform
 
@@ -64,7 +65,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 and target.manhattan_distance(self.stationary_positions[unit.tag][0]) < 4:
             if not is_sieged:
                 self.siege(unit)
-            return False
+            return UnitMicroType.NONE
         
         enemy_distance = None
         if unit.tag in BaseUnitMicro.tanks_being_retreated_to:
@@ -73,10 +74,10 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             enemy_distance = BaseUnitMicro.tanks_being_retreated_to_prev_frame[unit.tag]
         if enemy_distance:
             if is_sieged:
-                return False
+                return UnitMicroType.NONE
             if enemy_distance < 18:
                 self.siege(unit)
-                return True
+                return UnitMicroType.USE_ABILITY
 
         # siege tanks near main base early game
         natural_in_place = len(self.bot.townhalls) > 2
@@ -128,9 +129,9 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             if is_sieged and (closest_distance > self.sieged_range - 2 or not closest_enemy_is_visible):
                 # and friendly_buffer_count < 5:
                 self.unsiege(unit)
-                return True
+                return UnitMicroType.USE_ABILITY
             else:
-                return False
+                return UnitMicroType.NONE
 
         tank_height = self.bot.get_terrain_height(unit.position)
         enemy_height = self.bot.get_terrain_height(closest_enemy.position) if closest_enemy else tank_height
@@ -154,21 +155,21 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     unsiege_range += 5
             if closest_enemy_distance > unsiege_range and closest_structure_distance > self.sight_range - 1:
                 self.unsiege(unit)
-                return True
+                return UnitMicroType.USE_ABILITY
         else:
         # elif closest_enemy and friendly_buffer_count >= 5 or closest_structure_distance < closest_distance:
             if has_high_ground_advantage and closest_enemy and closest_enemy_distance > self.sieged_range:
                 closer_position = closest_enemy.position.towards(unit, self.sieged_range)
                 if self.bot.get_terrain_height(closer_position) == tank_height:
                     unit.move(closer_position)
-                    return True
+                    return UnitMicroType.MOVE
             enemy_will_be_close_enough = closest_enemy_distance <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
             enemy_will_be_far_enough = True if has_high_ground_advantage else closest_distance > self.sieged_minimum_range + 3
             if enemy_will_be_far_enough and enemy_will_be_close_enough:
                 self.siege(unit)
-                return True
+                return UnitMicroType.USE_ABILITY
 
-        return False
+        return UnitMicroType.NONE
 
     # def attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False) -> bool:
     #     # prefer grouped enemies
@@ -196,22 +197,22 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             logger.debug(f"{unit.tag} not in sieged_tags")
 
     @timed
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
+    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
         if unit.type_id == UnitTypeId.SIEGETANK:
             if force_move:
-                return False
+                return UnitMicroType.NONE
             return super()._attack_something(unit, health_threshold, force_move)
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if not can_attack:
-            return False
+            return UnitMicroType.NONE
         targets = self.enemy.in_attack_range(unit, self.bot.enemy_units)
         if not targets:
-            return False
+            return UnitMicroType.NONE
         target = self.get_most_grouped_unit(targets, self.bot, range=1.25)[0]
         unit.attack(target)
-        return True
+        return UnitMicroType.ATTACK
     
-    def _early_game_siege_tank_micro(self, unit: Unit, is_sieged: bool) -> bool:
+    def _early_game_siege_tank_micro(self, unit: Unit, is_sieged: bool) -> UnitMicroType:
         enemies_near_ramp = self.bot.all_enemy_units.closer_than(20, self.bot.main_base_ramp.bottom_center)
         closest_enemy_to_ramp = enemies_near_ramp.closest_to(unit) if enemies_near_ramp else None
         enemy_out_of_range = False
@@ -222,7 +223,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             enemy_out_of_range = unit.distance_to_squared(closest_enemy_to_ramp) >= in_range_distance_sq
             if is_sieged and enemy_out_of_range and closest_enemy_to_ramp.is_structure:
                 self.unsiege(unit)
-                return True
+                return UnitMicroType.USE_ABILITY
         if unit.tag not in self.previous_positions:
             self.previous_positions[unit.tag] = unit.position
         if not is_sieged:
@@ -230,11 +231,11 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 if enemy_out_of_range:
                     if closest_enemy_to_ramp.is_structure:
                         unit.move(closest_enemy_to_ramp.position)
-                        return True
+                        return UnitMicroType.MOVE
                 else:
                     self.siege(unit)
                     LogHelper.add_log(f"Early game siege tank sieging to cover ramp against {closest_enemy_to_ramp}, range {unit.distance_to(closest_enemy_to_ramp)}")
-                    return True
+                    return UnitMicroType.USE_ABILITY
             if unit.tag in self.early_game_siege_positions:
                 tank_position = self.early_game_siege_positions[unit.tag]
             else:
@@ -265,7 +266,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                         if addon_distance < 2:
                             tank_position = barracks_addon_position.towards(unit.position, 1)
                             unit.move(tank_position)
-                            return True
+                            return UnitMicroType.MOVE
                     self.siege(unit)
                     LogHelper.add_log(f"Early game siege tank sieging to cover ramp at desired position")
                 elif current_distance < 3 and (unit.position.manhattan_distance(self.previous_positions[unit.tag]) < 0.1 or current_distance > previous_distance):
@@ -287,4 +288,4 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 self.siege(unit)
                 LogHelper.add_log(f"Early game siege tank sieging to cover ramp at default position")
         self.previous_positions[unit.tag] = unit.position
-        return True
+        return UnitMicroType.USE_ABILITY

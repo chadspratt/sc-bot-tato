@@ -507,6 +507,9 @@ class Military(GeometryMixin, DebugMixin):
             total_damage_for_type = 0.0
             total_count = 0
             for target_type, target_list in targets_by_type.items():
+                if target_type not in damage_by_type_cache[attacker_type]:
+                    logger.warning(f"missing dps for {attacker_type} vs {target_type}")
+                    logger.warning(f"damage_by_type_cache: {damage_by_type_cache}")
                 dps = damage_by_type_cache[attacker_type][target_type]
                 total_damage_for_type += dps * len(target_list)
                 total_count += len(target_list) 
@@ -525,21 +528,32 @@ class Military(GeometryMixin, DebugMixin):
                 damage_by_type_cache[attacker_type] = {}
             for target_type, target_list in targets.items():
                 if target_type not in damage_by_type_cache[attacker_type]:
-                    attacker = attacker_list[0]
-                    target = target_list[0]
+                    attacker = next((attacker for attacker in attacker_list if hasattr(attacker, 'build_progress')), attacker_list[0])
+                    target = next((target for target in target_list if hasattr(target, 'build_progress')), target_list[0])
                     # passengers always have base_build -1, use stand-in unit for calculations
-                    if attacker.base_build == -1:
+                    if not hasattr(attacker, 'build_progress'):
                         try:
-                            attacker = self.passenger_stand_ins[attacker.type_id]
+                            attacker = self.passenger_stand_ins[attacker_type]
                         except KeyError:
+                            logger.warning(f"missing stand-in for passenger attacker type {attacker_type}")
+                            logger.warning(f" stand-ins {self.passenger_stand_ins}")
+                            damage_by_type_cache[attacker_type][target_type] = 5.0
                             continue
-                    if target.base_build == -1:
+                    if not hasattr(target, 'build_progress'):
                         try:
-                            target = self.passenger_stand_ins[target.type_id]
+                            target = self.passenger_stand_ins[target_type]
                         except KeyError:
+                            logger.warning(f"missing stand-in for passenger target type {target_type}")
+                            damage_by_type_cache[attacker_type][target_type] = 5.0
                             continue
                     dps = UnitTypes.dps(attacker, target)
                     damage_by_type_cache[attacker_type][target_type] = dps
+    
+    def get_non_passenger_from_list(self, unit_list: List[Unit]) -> Unit | None:
+        for unit in unit_list:
+            if hasattr(unit, "build_progress"):
+                return unit
+        return None
 
     @timed
     def simulate_battle(self):

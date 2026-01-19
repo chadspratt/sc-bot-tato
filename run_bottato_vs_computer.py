@@ -36,6 +36,19 @@ build_dict = {
     "power": AIBuild.Power,
     "air": AIBuild.Air,
 }
+
+difficulty_dict = {
+    None: Difficulty.CheatInsane,
+    "Easy": Difficulty.Easy,
+    "Medium": Difficulty.Medium,
+    "MediumHard": Difficulty.MediumHard,
+    "Hard": Difficulty.Hard,
+    "Harder": Difficulty.Harder,
+    "VeryHard": Difficulty.VeryHard,
+    "CheatVision": Difficulty.CheatVision,
+    "CheatMoney": Difficulty.CheatMoney,
+    "CheatInsane": Difficulty.CheatInsane,
+}
 map_list = [
     "PersephoneAIE_v4",
     "IncorporealAIE_v4",
@@ -141,19 +154,23 @@ def main():
     map = maps.get(random_map)
     race = os.environ.get("RACE")
     build = os.environ.get("BUILD")
+    difficulty_env = os.environ.get("DIFFICULTY")
+    
     opponent_race = race_dict.get(race, Race.Random)
     opponent_build = build_dict.get(build, AIBuild.RandomBuild)
-    diff: Difficulty = Difficulty.CheatInsane
-    opponent = Computer(opponent_race, diff, ai_build=opponent_build)
-    replay_name = f"replays/{random_map}_{race}-{build}.SC2Replay"
+    difficulty: Difficulty = difficulty_dict.get(difficulty_env, Difficulty.CheatInsane)
+    
+    opponent = Computer(opponent_race, difficulty, ai_build=opponent_build)
     start_time = datetime.now().isoformat()
 
     # Get the next test group ID
     test_group_id = get_next_test_group_id()
 
     # Create pending match entry and get match ID
-    match_id = create_pending_match(test_group_id, start_time, random_map, opponent_race, diff, opponent_build)
+    match_id = create_pending_match(test_group_id, start_time, random_map, opponent_race, difficulty, opponent_build)
     assert match_id is not None, "Failed to create match entry in the database."
+
+    replay_name = f"replays/[{match_id}]_{random_map}_{race}-{build}.SC2Replay"
 
     # Set match ID as environment variable for the bot
     os.environ["TEST_MATCH_ID"] = str(match_id)
@@ -162,7 +179,7 @@ def main():
     # os.environ["SC_BOT_AUTOMATED_TEST"] = "1"
 
     try:
-        result = run_game(
+        result: Result | list[Result] = run_game(
             map,
             [Bot(Race.Terran, bot_class(), "BotTato"), opponent],
             realtime=False,

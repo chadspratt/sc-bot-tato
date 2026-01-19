@@ -6,6 +6,7 @@ from sc2.units import Units
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 
+from bottato.enums import UnitMicroType
 from bottato.unit_types import UnitTypes
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin, timed, timed_async
@@ -30,7 +31,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     threat_damage: dict[UnitTypeId, float] = {}
 
     @timed_async
-    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
         threats = self.enemy.threats_to_friendly_unit(unit, 4)
         if unit.health_percentage < self.health_threshold_for_healing:
             if threats:
@@ -39,9 +40,9 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                     self.last_afterburner_time[unit.tag] = self.bot.time
                 elif unit.cargo_used > 0 and unit.health_percentage < 0.3:
                     unit(AbilityId.UNLOADALLAT, unit)
-                return False
+                return UnitMicroType.NONE
             elif force_move:
-                return False
+                return UnitMicroType.NONE
         target_distance_to_start = target._distance_squared(self.bot.start_location)
         enemy_distance_to_target = self.closest_distance_squared(target, self.bot.enemy_units) if self.bot.enemy_units else 999999
         # only ferry units on retreat
@@ -80,14 +81,14 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                     unit(AbilityId.LOAD, passenger)
                     passenger.move(unit.position) # possible passenger already received an order, but shouldn't hurt
                     self.units_to_pick_up.remove(passenger)
-                    return True
+                    return UnitMicroType.USE_ABILITY
         if unit.cargo_used > 0 and (unit.distance_to_squared(target) < 100 or enemy_distance_to_target <= 400):
             unit(AbilityId.UNLOADALLAT, unit)
-            return True
+            return UnitMicroType.USE_ABILITY
         if not self.heal_available(unit):
-            return False
+            return UnitMicroType.NONE
         if force_move and threats:
-            return False
+            return UnitMicroType.NONE
         
         # refresh list of injured bio once per iteration
         if self.injured_bio_last_update != self.bot._total_steps_iterations:
@@ -107,14 +108,15 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                     if unit.tag in self.stopped_for_healing:
                         self.stopped_for_healing.remove(unit.tag)
 
-        return unit.tag in self.bot.unit_tags_received_action
+        return UnitMicroType.USE_ABILITY if unit.tag in self.bot.unit_tags_received_action else UnitMicroType.NONE
 
     @timed
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
+    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
         # doesn't have an attack
         if unit.health_percentage > self.health_threshold_for_healing:
-            return self._retreat_to_tank(unit, can_attack=False)
-        return False
+            if self._retreat_to_tank(unit, can_attack=False):
+                return UnitMicroType.RETREAT
+        return UnitMicroType.NONE
 
     def heal_available(self, unit: Unit) -> bool:
         if unit.tag in self.stopped_for_healing:

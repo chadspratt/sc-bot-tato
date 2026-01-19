@@ -11,7 +11,7 @@ from sc2.units import Units
 
 from bottato.building.build_step import BuildStep
 from bottato.enemy import Enemy
-from bottato.enums import SquadFormationType
+from bottato.enums import SquadFormationType, UnitMicroType
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
@@ -180,9 +180,9 @@ class FormationSquad(Squad, GeometryMixin):
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
                 logger.debug(f"unit {unit} using micro {micro}")
                 # 1/3 of total command execution time
-                if await micro.move(unit, formation_positions[unit.tag], force_move, previous_position=previous_position):
+                if await micro.move(unit, formation_positions[unit.tag], force_move, previous_position=previous_position) == UnitMicroType.MOVE:
                     self.executed_positions[unit.tag] = formation_positions[unit.tag]
-                elif unit.tag in  self.executed_positions:
+                elif unit.tag in self.executed_positions:
                     del self.executed_positions[unit.tag]
 
     @timed

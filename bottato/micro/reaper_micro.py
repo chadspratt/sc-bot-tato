@@ -1,17 +1,18 @@
 from __future__ import annotations
-from typing import List
+from typing import Dict, List, Tuple
 from loguru import logger
 
-from sc2.unit import Unit
-from sc2.units import Units
+from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.protocol import ProtocolError
-from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.ability_id import AbilityId
+from sc2.unit import Unit
+from sc2.units import Units
 
-from bottato.unit_types import UnitTypes
-from bottato.mixins import GeometryMixin, timed, timed_async
+from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.mixins import GeometryMixin, timed, timed_async
+from bottato.unit_types import UnitTypes
 
 
 class ReaperMicro(BaseUnitMicro, GeometryMixin):
@@ -23,10 +24,11 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     grenade_cooldowns: dict[int, float] = {}
     unconfirmed_grenade_throwers: List[int] = []
     retreat_scout_location: Point2 | None = None
+    bad_harass_experience_locations: Dict[Point2, Tuple[int, float]] = {}
 
     excluded_types = [UnitTypeId.EGG, UnitTypeId.LARVA]
     @timed_async
-    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
         targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False, excluded_types=self.excluded_types)
         grenade_targets: List[Point2] = []
         if targets and await self.grenade_available(unit):
@@ -48,17 +50,16 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             grenade_target = min(grenade_targets, key=lambda p: unit.position._distance_squared(p))
             logger.debug(f"{unit} grenading {grenade_target}")
             self.throw_grenade(unit, grenade_target)
-            return True
+            return UnitMicroType.USE_ABILITY
 
-        return False
+        return UnitMicroType.NONE
 
     @timed
-    def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False):
+    def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
 
         if unit.health_percentage < self.attack_health and not can_attack:
-            return False
-
+            return UnitMicroType.NONE
         # nearby_enemies: Units
         candidates = self.enemy.get_candidates(included_types=[UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE])
         worker_buffer = 0 if can_attack else 5
@@ -78,14 +79,15 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 closest_distance = self.distance(unit, target, self.enemy.predicted_position) - UnitTypes.ground_range(target)
             for threat in threats:
                 threat_range = UnitTypes.ground_range(threat)
-                if threat_range > unit.ground_range:
+                if threat_range > unit.ground_range or threat_range == unit.ground_range and threat.health > unit.health:
                     # don't attack enemies that outrange or have more health
-                    return False
+                    self.add_bad_harass_experience_location(unit, harass_location)
+                    return UnitMicroType.NONE
                 threat_distance = self.distance(unit, threat, self.enemy.predicted_position) - threat_range
                 
                 if unit.health_percentage < self.attack_health and threat_distance < 2:
-                    return False
-
+                    self.add_bad_harass_experience_location(unit, harass_location)
+                    return UnitMicroType.NONE
                 if threat_distance < closest_distance:
                     closest_distance = threat_distance
                     target = threat
@@ -98,20 +100,52 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                         return self._kite(unit, nearest_worker)
                     else:
                         unit.move(nearest_worker.position)
-                        return True
-            return False
+                        return UnitMicroType.MOVE
+            return UnitMicroType.NONE
 
         if target.age > 0:
             height_difference = target.position3d.z - self.bot.get_terrain_z_height(unit)
             if height_difference > 0.5:
                 # don't attack enemies significantly higher than us
-                return False
+                self.add_bad_harass_experience_location(unit, harass_location)
+                return UnitMicroType.NONE
         return self._kite(unit, target)
+    
+    def add_bad_harass_experience_location(self, unit: Unit, location: Point2):
+        if unit.distance_to_squared(location) <= 225:
+            # must be at spot to give bad review
+            try:
+                curval = self.bad_harass_experience_locations[location]
+                experience_count, last_time = curval
+                if self.bot.time - last_time > 15:
+                    self.bad_harass_experience_locations[location] = (experience_count + 1, self.bot.time)
+            except KeyError:
+                self.bad_harass_experience_locations[location] = (0, 0.0)
+
+    # def _harass_move_unit(self, unit: Unit, target: Point2, previous_position: Point2 | None = None) -> UnitMicroType:
+    #     if target not in self.bad_harass_experience_locations:
+    #         self.bad_harass_experience_locations[target] = (0, 0.0)
+    #     curval = self.bad_harass_experience_locations[target]
+    #     target_exp_count, target_exp_time = curval
+    #     preferred_target = target
+    #     if target_exp_count > 0:
+    #         for loc in list(self.bad_harass_experience_locations.keys()):
+    #             exp_count, exp_time = self.bad_harass_experience_locations[loc]
+    #             # go somewhere with fewer and less recent bad experiences
+    #             if exp_count < target_exp_count and exp_time < target_exp_time:
+    #                 preferred_target = loc
+    #                 target_exp_count = exp_count
+    #                 target_exp_time = exp_time
+    #     position_to_compare = preferred_target if unit.is_moving else unit.position
+    #     if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
+    #         unit.move(self.map.get_pathable_position(target, unit))
+    #         return UnitMicroType.MOVE
+    #     return UnitMicroType.NONE
 
     @timed_async
-    async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> bool:
+    async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> UnitMicroType:
         if unit.tag in self.bot.unit_tags_received_action:
-            return False
+            return UnitMicroType.NONE
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
 
         do_retreat = False
@@ -119,7 +153,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         if not threats:
             if unit.health_percentage >= health_threshold:
                 self.retreat_scout_location = None
-                return False
+                return UnitMicroType.NONE
             # scout next enemy expansion location
             if self.retreat_scout_location is None or self.bot.is_visible(self.retreat_scout_location):
                 scout_locations = self.intel.get_next_enemy_expansion_scout_locations()
@@ -132,7 +166,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             else:
                 # might be on a double ledge with no pathing
                 unit.move(self.bot.start_location)
-            return True
+            return UnitMicroType.RETREAT
             # # just stop and wait for regen
             # unit.stop()
             # return True
@@ -141,7 +175,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         if not do_retreat:
             if not unit.health_max:
                 # rare weirdness
-                return True
+                return UnitMicroType.NONE
             hp_threshold = unit.health_max * health_threshold
             current_health = unit.health
             for threat in threats:
@@ -164,7 +198,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             if unit.distance_to(destination) < avg_threat_position.distance_to(destination) + 2:
                 # if closer to start or already near enemy, move past them to go home
                 unit.move(destination)
-                return True
+                return UnitMicroType.RETREAT
             if retreat_to_start:
                 retreat_position = unit.position.towards(avg_threat_position, -5)
                 if self.bot.in_pathing_grid(retreat_position):
@@ -176,21 +210,13 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                     else:
                         circle_around_position = self.get_circle_around_position(unit, avg_threat_position, destination)
                         unit.move(circle_around_position.towards(destination, 2))
-                return True
+                return UnitMicroType.RETREAT
             else:
                 circle_around_position = self.get_circle_around_position(unit, avg_threat_position, destination)
                 unit.move(circle_around_position)
-                return True
-
+                return UnitMicroType.RETREAT
         self.retreat_scout_location = None
-        return False
-
-    async def grenade_jump(self, unit: Unit, target: Unit) -> bool:
-        if await self.grenade_available(unit):
-            logger.debug(f"{unit} grenading {target}")
-            self.throw_grenade(unit, self.predict_future_unit_position(target, self.grenade_timer - 1, self.bot))
-            return True
-        return False
+        return UnitMicroType.NONE
 
     def throw_grenade(self, unit: Unit, target: Point2):
         unit(AbilityId.KD8CHARGE_KD8CHARGE, target)

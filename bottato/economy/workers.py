@@ -15,7 +15,7 @@ from bottato.economy.minerals import Minerals
 from bottato.economy.resources import ResourceNode, Resources
 from bottato.economy.vespene import Vespene
 from bottato.enemy import Enemy
-from bottato.enums import WorkerJobType
+from bottato.enums import UnitMicroType, WorkerJobType
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -206,7 +206,7 @@ class Workers(GeometryMixin):
                     or not assignment.unit_available \
                     or assignment.job_type not in [WorkerJobType.MINERALS, WorkerJobType.VESPENE] \
                     or assignment.unit.tag in self.workers_being_repaired \
-                    or await self.worker_micro._retreat(assignment.unit, 0.7):
+                    or await self.worker_micro._retreat(assignment.unit, 0.7) != UnitMicroType.NONE:
                 continue
             
             if not self.bot.townhalls.ready:
@@ -836,7 +836,7 @@ class Workers(GeometryMixin):
         for repairer in repairers:
             candidates.remove(repairer)
             self.update_assigment(repairer, WorkerJobType.REPAIR, injured_structure)
-            if await self.worker_micro.repair(repairer, injured_structure):
+            if await self.worker_micro.repair(repairer, injured_structure) == UnitMicroType.REPAIR:
                 assigned_count += 1
         LogHelper.add_log(f"assigned {assigned_count} of {repairers} to repair {injured_structure}")
         return repairers

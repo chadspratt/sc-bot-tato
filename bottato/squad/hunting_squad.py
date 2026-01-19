@@ -6,6 +6,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
 
 from bottato.enemy import Enemy
+from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import GeometryMixin, timed_async
@@ -54,8 +55,7 @@ class HuntingSquad(Squad, GeometryMixin):
                 self.next_location = None
                 self.closest_distance_to_next_location = float('inf')
                 target = self.closest_unit_to_unit(unit, candidates)
-                is_huntable = await micro.move(unit, target.position)
-                if not is_huntable:
+                if await micro.move(unit, target.position) == UnitMicroType.RETREAT:
                     self.unsafe_targets[target.tag] = self.bot.time
             else:
                 self.next_location = sorted(self.intel.scouting_locations, key=lambda loc: loc.last_seen)[0]

@@ -489,7 +489,9 @@ class UnitTypes(GeometryMixin):
         if attacker.type_id == UnitTypeId.SENTRY:
             return 8.4
         if attacker.type_id == UnitTypeId.WIDOWMINE:
-            return 45.0
+            return 15.0
+        if attacker.type_id == UnitTypeId.WIDOWMINEBURROWED:
+            return 30.0
         return attacker.calculate_dps_vs_target(target)
         
     @staticmethod

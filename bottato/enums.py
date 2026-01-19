@@ -74,6 +74,15 @@ class ExpansionSelection(enum.Enum):
     CLOSEST = 0
     AWAY_FROM_ENEMY = 1
 
+class UnitMicroType(enum.Enum):
+    NONE = 0
+    AVOID_EFFECTS = 1
+    USE_ABILITY = 2
+    ATTACK = 3
+    RETREAT = 4
+    MOVE = 5
+    REPAIR = 6
+
 class ActionErrorCode(enum.Enum):
   Success = 1
   NotSupported = 2

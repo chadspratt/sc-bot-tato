@@ -6,6 +6,7 @@ from sc2.unit import Unit
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 
+from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin, timed_async
 
@@ -47,21 +48,21 @@ class GhostMicro(BaseUnitMicro, GeometryMixin):
     }
 
     @timed_async
-    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
+    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
         # Try to use EMP against Protoss
         if await self._use_emp(unit):
-            return True
+            return UnitMicroType.USE_ABILITY
         
         # Try to use Snipe against Zerg
         if await self._use_snipe(unit):
-            return True
+            return UnitMicroType.USE_ABILITY
         
         # Use cloak when enemies are nearby
         if await self.bot.can_cast(unit, AbilityId.BEHAVIOR_CLOAKON_GHOST) and self.enemy.threats_to_friendly_unit(unit, 2):
             unit(AbilityId.BEHAVIOR_CLOAKON_GHOST)
-            return True
+            return UnitMicroType.USE_ABILITY
         
-        return False
+        return UnitMicroType.NONE
     
     @timed_async
     async def _use_emp(self, unit: Unit) -> bool:

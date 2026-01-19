@@ -17,7 +17,7 @@ from bottato.building.build_step import BuildStep
 from bottato.building.special_locations import SpecialLocations
 from bottato.economy.workers import Workers
 from bottato.economy.production import Production
-from bottato.enums import BuildResponseCode, BuildType, ExpansionSelection, WorkerJobType
+from bottato.enums import BuildResponseCode, BuildType, ExpansionSelection, UnitMicroType, WorkerJobType
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -438,7 +438,7 @@ class SCVBuildStep(BuildStep):
                 return False
             
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
-            if await micro._retreat(self.unit_in_charge, 0.8):
+            if await micro._retreat(self.unit_in_charge, 0.8) == UnitMicroType.RETREAT:
                 interrupted = True
                 LogHelper.add_log(f"{self} interrupted due to retreating worker {self.unit_in_charge}")
 

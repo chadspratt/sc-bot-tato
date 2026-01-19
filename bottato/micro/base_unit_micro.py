@@ -13,6 +13,7 @@ from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.enemy import Enemy
+from bottato.enums import UnitMicroType
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.custom_effect import CustomEffect
@@ -32,11 +33,10 @@ class BaseUnitMicro(GeometryMixin):
     tanks_being_retreated_to: Dict[int, float] = {}
     tanks_being_retreated_to_prev_frame: Dict[int, float] = {}
     harass_location_reached_tags: set[int] = set()
-    repair_started_tags: set[int] = set()
     repairer_tags: set[int] = set()
     repairer_tags_prev_frame: set[int] = set()
-    repair_targets: Dict[int, int] = {}  # target unit tag -> worker tag
-    repair_targets_prev_frame: Dict[int, int] = {}
+    repair_targets: Dict[int, List[int]] = {}  # target unit tag -> list of worker tags
+    repair_targets_prev_frame: Dict[int, List[int]] = {}
     custom_effects_to_avoid: List[CustomEffect] = []  # position, time, radius, duration
 
     damaging_effects = [
@@ -73,24 +73,20 @@ class BaseUnitMicro(GeometryMixin):
     # meta actions - used by non-micro classes to order units
     ###########################################################################        
     def get_override_target_for_repair(self, unit: Unit, target: Point2) -> Point2:
-        if unit.tag in BaseUnitMicro.repair_started_tags:
-            if unit.health_percentage == 1.0 or self.closest_distance_squared(unit, self.bot.workers) > 25:
-                BaseUnitMicro.repair_started_tags.remove(unit.tag)
-            else:
-                return unit.position
         if unit.tag in self.repair_targets_prev_frame:
             if unit.health_percentage > self.retreat_health and self.unit_is_closer_than(unit, self.bot.enemy_units, 15, self.bot):
                 # don't move to repairer if in combat and healthy
                 return target
-            repairer = self.bot.units.find_by_tag(self.repair_targets_prev_frame[unit.tag])
-            if repairer:
+            repairers = self.bot.units.filter(lambda u: u.tag in self.repair_targets_prev_frame[unit.tag])
+            if repairers:
+                repairer = repairers.closest_to(unit)
                 return repairer.position
         
         return target
 
 
     @timed_async
-    async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
+    async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> UnitMicroType:
         if unit.tag in BaseUnitMicro.scout_tags:
             BaseUnitMicro.scout_tags.remove(unit.tag)
         elif unit.tag in BaseUnitMicro.harass_tags:
@@ -98,29 +94,31 @@ class BaseUnitMicro(GeometryMixin):
         attack_health = self.attack_health
             
         if unit.tag in self.bot.unit_tags_received_action:
-            return True
+            return UnitMicroType.NONE
         target = self.get_override_target_for_repair(unit, target)
-        if self._avoid_effects(unit, force_move):
-            return False
-        if await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
-            return True
-        if self._attack_something(unit, health_threshold=attack_health, force_move=force_move):
-            return True
-        if force_move:
-            position_to_compare = target if unit.is_moving else unit.position
-            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-                unit.move(self.map.get_pathable_position(target, unit))
-            return True
-        if await self._retreat(unit, health_threshold=self.retreat_health):
-            return False
-        
+        action_taken: UnitMicroType = self._avoid_effects(unit, force_move)
+        if action_taken == UnitMicroType.NONE:
+            action_taken = await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move)
+        if action_taken == UnitMicroType.NONE:
+            action_taken = self._attack_something(unit, health_threshold=attack_health, force_move=force_move)
+        if action_taken == UnitMicroType.NONE:
+            action_taken = await self._retreat(unit, health_threshold=self.retreat_health)
+        if action_taken == UnitMicroType.NONE:
+            action_taken = self._move_unit(unit, target, previous_position)
+        return action_taken
+
+    def _move_unit(self, unit: Unit, target: Point2, previous_position: Point2 | None = None) -> UnitMicroType:
         position_to_compare = target if unit.is_moving else unit.position
         if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
             unit.move(self.map.get_pathable_position(target, unit))
-        return True
+            return UnitMicroType.MOVE
+        return UnitMicroType.NONE
+    
+    def _harass_move_unit(self, unit: Unit, target: Point2, previous_position: Point2 | None = None) -> UnitMicroType:
+        return self._move_unit(unit, target, previous_position)
 
     @timed_async
-    async def harass(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> bool:
+    async def harass(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> UnitMicroType:
         BaseUnitMicro.harass_tags.add(unit.tag)
         if unit.tag not in BaseUnitMicro.harass_location_reached_tags:
             if unit.position.manhattan_distance(target) < 10:
@@ -129,80 +127,76 @@ class BaseUnitMicro(GeometryMixin):
             
         if unit.tag in self.bot.unit_tags_received_action:
             LogHelper.add_log(f"harass {unit} already has action")
-            return True
+            return UnitMicroType.NONE
         target = self.get_override_target_for_repair(unit, target)
-        if self._avoid_effects(unit, force_move):
-            return False
-        if await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move):
-            return True
-        if self._harass_attack_something(unit, attack_health, target, force_move=force_move):
-            return True
-        if force_move:
-            position_to_compare = target if unit.is_moving else unit.position
-            if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-                unit.move(self.map.get_pathable_position(target, unit))
-            return True
-        if await self._harass_retreat(unit, health_threshold=self.retreat_health, harass_location=target):
-            return True
-        
-        position_to_compare = target if unit.is_moving else unit.position
-        if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-            unit.move(self.map.get_pathable_position(target, unit))
-        return True
+
+        action_taken: UnitMicroType = self._avoid_effects(unit, force_move)
+        if action_taken == UnitMicroType.NONE:
+            action_taken = await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move)
+        if action_taken == UnitMicroType.NONE:
+            action_taken = self._harass_attack_something(unit, health_threshold=attack_health, harass_location=target, force_move=force_move)
+        if action_taken == UnitMicroType.NONE:
+            action_taken = await self._harass_retreat(unit, health_threshold=self.retreat_health, harass_location=target)
+        if action_taken == UnitMicroType.NONE:
+            action_taken = self._harass_move_unit(unit, target, previous_position)
+        return action_taken
 
     @timed_async
-    async def scout(self, unit: Unit, scouting_location: Point2):
+    async def scout(self, unit: Unit, scouting_location: Point2) -> UnitMicroType:
         BaseUnitMicro.scout_tags.add(unit.tag)
         if unit.tag in self.bot.unit_tags_received_action:
-            return
+            return UnitMicroType.NONE
         logger.debug(f"scout {unit} health {unit.health}/{unit.health_max} ({unit.health_percentage}) health")
 
         scouting_location = self.get_override_target_for_repair(unit, scouting_location)
-        if self._avoid_effects(unit, False):
-            logger.debug(f"unit {unit} avoiding effects")
-        # elif await self._use_ability(unit, scouting_location, health_threshold=1.0):
-        #     pass
-        elif await self._retreat(unit, health_threshold=0.95):
-            pass
-        elif unit.type_id == UnitTypeId.VIKINGFIGHTER and self._attack_something(unit, health_threshold=1.0):
-            pass
-        else:
+        action_taken: UnitMicroType = self._avoid_effects(unit, False)
+        if action_taken == UnitMicroType.NONE:
+            action_taken = await self._retreat(unit, health_threshold=0.95)
+        if action_taken == UnitMicroType.NONE:
+            if unit.type_id == UnitTypeId.VIKINGFIGHTER:
+                action_taken = self._attack_something(unit, health_threshold=1.0)
+        if action_taken == UnitMicroType.NONE:
             logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")
             unit.move(self.map.get_pathable_position(scouting_location, unit))
+            action_taken = UnitMicroType.MOVE
+        return action_taken
 
     @timed_async
-    async def repair(self, unit: Unit, target: Unit) -> bool:
+    async def repair(self, unit: Unit, target: Unit) -> UnitMicroType:
         BaseUnitMicro.repairer_tags.add(unit.tag)
         if unit.tag in self.bot.unit_tags_received_action:
-            return False
+            return UnitMicroType.NONE
         distance_sq = unit.distance_to_squared(target)
-        BaseUnitMicro.repair_targets[target.tag] = unit.tag
-        if target.tag not in BaseUnitMicro.repair_started_tags and distance_sq < 4.0 and self.bot.in_pathing_grid(unit.position):
-            LogHelper.add_log(f"repair {target} is close to worker")
-            BaseUnitMicro.repair_started_tags.add(target.tag)
-        if self._avoid_effects(unit, force_move=False):
-            logger.debug(f"unit {unit} avoiding effects")
-        elif target.type_id in (UnitTypeId.BUNKER, UnitTypeId.PLANETARYFORTRESS, UnitTypeId.MISSILETURRET, UnitTypeId.SIEGETANKSIEGED) \
-                and (distance_sq < 16 or distance_sq < self.closest_distance_squared(unit, self.bot.enemy_units)):
-            # repair defensive structures regardless of risk
-            unit.repair(target)
-            return True
-        elif self.bot.time < 360 and target.distance_to_squared(self.bot.main_base_ramp.top_center) < 9:
-            # keep ramp wall repaired early game
-            unit.repair(target)
-            return True
+        if target.tag in BaseUnitMicro.repair_targets:
+            BaseUnitMicro.repair_targets[target.tag].append(unit.tag)
         else:
+            BaseUnitMicro.repair_targets[target.tag] = [unit.tag]
+        action_taken: UnitMicroType = self._avoid_effects(unit, force_move=False)
+        if action_taken == UnitMicroType.NONE:
+            if target.type_id in (UnitTypeId.BUNKER, UnitTypeId.PLANETARYFORTRESS, UnitTypeId.MISSILETURRET, UnitTypeId.SIEGETANKSIEGED) \
+                    and (distance_sq < 16 or distance_sq < self.closest_distance_squared(unit, self.bot.enemy_units)):
+                # repair defensive structures regardless of risk
+                unit.repair(target)
+                action_taken = UnitMicroType.REPAIR
+        if action_taken == UnitMicroType.NONE:
+            if self.bot.time < 360 and target.distance_to_squared(self.bot.main_base_ramp.top_center) < 9:
+                # keep ramp wall repaired early game
+                unit.repair(target)
+                action_taken = UnitMicroType.REPAIR
+        if action_taken == UnitMicroType.NONE:
             if self._retreat_to_tank(unit, can_attack=True):
-                logger.debug(f"unit {unit} retreating to tank")
-            elif await self._retreat(unit, health_threshold=0.25):
-                logger.debug(f"unit {unit} retreating while repairing {target}")
-            elif not target.is_structure and unit.distance_to(target) > unit.radius + target.radius + 0.5:
+                action_taken = UnitMicroType.RETREAT
+        if action_taken == UnitMicroType.NONE:
+            action_taken = await self._retreat(unit, health_threshold=0.25)
+        if action_taken == UnitMicroType.NONE:
+            if not target.is_structure and unit.distance_to(target) > unit.radius + target.radius + 0.5:
                 # sometimes they get in a weird state where they run from the target
                 unit.move(target.position)
+                action_taken = UnitMicroType.MOVE
             else:
                 unit.repair(target)
-                return True
-        return False
+                action_taken = UnitMicroType.REPAIR
+        return action_taken
 
     ###########################################################################
     # main actions - iterated through by meta actions
@@ -214,21 +208,30 @@ class BaseUnitMicro(GeometryMixin):
     }
     @staticmethod
     def add_custom_effect(position: Unit | Point2, radius: float, start_time: float, duration: float):
+        for effect in BaseUnitMicro.custom_effects_to_avoid:
+            if effect.position.position == position.position and effect.radius == radius:
+                effect.start_time = start_time
+                # don't add duplicates
+                return
         BaseUnitMicro.custom_effects_to_avoid.append(CustomEffect(position, radius, start_time, duration))
 
     @timed
-    def _avoid_effects(self, unit: Unit, force_move: bool) -> bool:
+    def _avoid_effects(self, unit: Unit, force_move: bool) -> UnitMicroType:
         # avoid damaging effects
         effects_to_avoid = []
         for effect in self.bot.state.effects:
             if effect.id not in self.damaging_effects:
                 continue
+            if effect.id == EffectId.RAVAGERCORROSIVEBILECP:
+                for position in effect.positions:
+                    # bile lands a second after effect disappears so replace with custom effect
+                    self.add_custom_effect(position, effect.radius, self.bot.time, 1.0)
             if effect.id in (EffectId.LIBERATORTARGETMORPHDELAYPERSISTENT, EffectId.LIBERATORTARGETMORPHPERSISTENT):
                 if effect.is_mine or unit.is_flying:
                     continue
                 if unit.type_id == UnitTypeId.SIEGETANKSIEGED and force_move:
                     unit(AbilityId.UNSIEGE_UNSIEGE)
-                    return True
+                    return UnitMicroType.USE_ABILITY
             effect_radius = self.fixed_radius.get(effect.id, effect.radius)
             safe_distance = (effect_radius + unit.radius + 1.5) ** 2
             for position in effect.positions:
@@ -254,26 +257,26 @@ class BaseUnitMicro(GeometryMixin):
                 else:
                     new_position = unit.position.towards(effects_to_avoid[0], -2)
                 unit.move(new_position)
-                return True
+                return UnitMicroType.AVOID_EFFECTS
             average_x = sum(p.x for p in effects_to_avoid) / number_of_effects
             average_y = sum(p.y for p in effects_to_avoid) / number_of_effects
             average_position = Point2((average_x, average_y))
             # move out of effect radius
             new_position = unit.position.towards(average_position, -2)
             unit.move(new_position)
-            return True
-        return False
+            return UnitMicroType.AVOID_EFFECTS
+        return UnitMicroType.NONE
 
     last_targets_update_time: float = 0.0
     valid_targets: Units | None = None
     @timed_async
-    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> bool:
-        return False
+    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
+        return UnitMicroType.NONE
 
     @timed
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> bool:
+    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
         if unit.tag in self.bot.unit_tags_received_action:
-            return False
+            return UnitMicroType.NONE
 
         if self.last_targets_update_time != self.bot.time:
             self.last_targets_update_time = self.bot.time
@@ -282,10 +285,10 @@ class BaseUnitMicro(GeometryMixin):
                 ) + self.bot.enemy_structures
 
         if not self.valid_targets:
-            return False
+            return UnitMicroType.NONE
         nearby_enemies = self.valid_targets.closer_than(20, unit).sorted(lambda u: u.health + u.shield)
         if not nearby_enemies:
-            return False
+            return UnitMicroType.NONE
         
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if can_attack:
@@ -296,16 +299,16 @@ class BaseUnitMicro(GeometryMixin):
             attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance)
             if attack_target:
                 self._attack(unit, attack_target)
-                return True
+                return UnitMicroType.ATTACK
         
         # don't attack if low health and there are threats
         if unit.health_percentage < health_threshold:
             if self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6, first_only=True):
-                return False
+                return UnitMicroType.NONE
             
         # no enemy in range, stay near tanks
         if self._retreat_to_tank(unit, can_attack):
-            return True
+            return UnitMicroType.RETREAT
             
         if can_attack:
             # venture out to attack further enemy but don't chase too far
@@ -313,29 +316,29 @@ class BaseUnitMicro(GeometryMixin):
                 attack_target = self._get_attack_target(unit, nearby_enemies, 5)
                 if attack_target:
                     unit.attack(attack_target)
-                    return True
+                    return UnitMicroType.ATTACK
         elif self.valid_targets:
             return self._stay_at_max_range(unit, self.valid_targets)
 
-        return False
+        return UnitMicroType.NONE
     
     @timed
-    def _harass_attack_something(self, unit: Unit, health_threshold: float, harass_location: Point2, force_move: bool = False) -> bool:
+    def _harass_attack_something(self, unit: Unit, health_threshold: float, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
         return self._attack_something(unit, health_threshold, force_move, harass_location)
 
     @timed_async
-    async def _retreat(self, unit: Unit, health_threshold: float) -> bool:
+    async def _retreat(self, unit: Unit, health_threshold: float) -> UnitMicroType:
         if unit.tag in self.bot.unit_tags_received_action:
-            return False
+            return UnitMicroType.NONE
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=4)
 
         if not threats:
             if unit.health_percentage >= health_threshold:
-                return False
+                return UnitMicroType.NONE
         else:
             if not unit.health_max:
                 # rare weirdness
-                return True
+                return UnitMicroType.NONE
             # check if incoming damage will bring unit below health threshold
             hp_threshold = unit.health_max * health_threshold
             current_health = unit.health
@@ -344,13 +347,13 @@ class BaseUnitMicro(GeometryMixin):
                 if current_health < hp_threshold:
                     break
             else:
-                return False
+                return UnitMicroType.NONE
 
-        if unit.type_id == UnitTypeId.SCV and not threats and not unit.is_constructing_scv:
+        if unit.type_id == UnitTypeId.SCV and not threats and not unit.is_constructing_scv and unit.health_percentage == 1.0:
             injured_units = self.bot.units.filter(lambda u: u.health_percentage < 1.0 and u.tag != unit.tag and u.is_mechanical and u.type_id != UnitTypeId.MULE)
             if injured_units:
                 unit.repair(injured_units.closest_to(unit))
-                return True
+                return UnitMicroType.REPAIR
 
         # retreat if there is nothing this unit can attack and it's not an SCV which might be repairing
         if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
@@ -358,14 +361,14 @@ class BaseUnitMicro(GeometryMixin):
             targets = self.enemy.in_attack_range(unit, visible_threats, 3, first_only=True)
             if not targets:
                 unit(AbilityId.UNSIEGE_UNSIEGE)
-                return True
+                return UnitMicroType.USE_ABILITY
 
         retreat_position = self._get_retreat_destination(unit, threats)
         unit.move(retreat_position)
-        return True
+        return UnitMicroType.RETREAT
     
     @timed_async
-    async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> bool:
+    async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> UnitMicroType:
         return await self._retreat(unit, health_threshold)
 
     ###########################################################################
@@ -392,15 +395,15 @@ class BaseUnitMicro(GeometryMixin):
             if in_range:
                 return in_range.first
             
-    def _stay_at_max_range(self, unit: Unit, targets: Units, buffer: float = 0.5) -> bool:
+    def _stay_at_max_range(self, unit: Unit, targets: Units, buffer: float = 0.5) -> UnitMicroType:
         if not targets:
-            return False
+            return UnitMicroType.NONE
         nearest_target = self.closest_unit_to_unit(unit, targets)
         # don't keep distance from structures since it prevents units in back from attacking
         # except for zerg structures that spawn broodlings when they die
         if nearest_target.is_structure and nearest_target.type_id not in UnitTypes.OFFENSIVE_STRUCTURE_TYPES and (nearest_target.race != "Zerg" or nearest_target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS):
             unit.move(self.map.get_pathable_position(nearest_target.position, unit))
-            return True
+            return UnitMicroType.MOVE
         # move away if weapon on cooldown
         if not unit.is_flying:
             nearest_sieged_tank = None
@@ -430,7 +433,7 @@ class BaseUnitMicro(GeometryMixin):
 
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
 
-    def _kite(self, unit: Unit, target: Unit) -> bool:
+    def _kite(self, unit: Unit, target: Unit) -> UnitMicroType:
         attack_range = UnitTypes.range_vs_target(unit, target)
         target_range = UnitTypes.range_vs_target(target, unit)
         do_kite = UnitTypes.can_be_attacked(unit, self.bot, self.bot.enemy_units) \
@@ -444,17 +447,17 @@ class BaseUnitMicro(GeometryMixin):
                     if not target.is_facing(unit, angle_error=0.2):
                         # stay target_range + 2.5 away instead of attack_range + 0.5
                         buffer = target_range - attack_range + 2.5
-                    if self._stay_at_max_range(unit, Units([target], bot_object=self.bot), buffer=buffer):
-                        return True
+                    if self._stay_at_max_range(unit, Units([target], bot_object=self.bot), buffer=buffer) != UnitMicroType.NONE:
+                        return UnitMicroType.MOVE
                     unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
-                    return True
+                    return UnitMicroType.MOVE
             elif target_distance < attack_range - 1.0 or target_distance < target_range + 0.5:
-                if self._stay_at_max_range(unit, Units([target], bot_object=self.bot)):
-                    return True
+                if self._stay_at_max_range(unit, Units([target], bot_object=self.bot)) != UnitMicroType.NONE:
+                    return UnitMicroType.MOVE
                 unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
-                return True
+                return UnitMicroType.MOVE
         self._attack(unit, target)
-        return True
+        return UnitMicroType.ATTACK
     
     def _attack(self, unit: Unit, target: Unit) -> bool:
         if target.type_id == UnitTypeId.INTERCEPTOR:
@@ -466,11 +469,11 @@ class BaseUnitMicro(GeometryMixin):
             unit.attack(target)
         return True
     
-    def _move_to_pathable_position(self, unit: Unit, position: Point2) -> bool:
+    def _move_to_pathable_position(self, unit: Unit, position: Point2) -> UnitMicroType:
         if unit.is_flying and self.bot.in_map_bounds(position) or self.bot.in_pathing_grid(position):
             unit.move(self.map.get_pathable_position(position, unit))
-            return True
-        return False
+            return UnitMicroType.MOVE
+        return UnitMicroType.NONE
             
     @timed
     def _get_retreat_destination(self, unit: Unit, threats: Units) -> Point2:
@@ -480,7 +483,8 @@ class BaseUnitMicro(GeometryMixin):
                 repairer: Unit | None = None
                 if unit.tag in self.repair_targets_prev_frame:
                     try:
-                        repairer = self.bot.units.by_tag(self.repair_targets_prev_frame[unit.tag])
+                        repairers: Units = self.bot.units.filter(lambda w: w.tag in BaseUnitMicro.repair_targets_prev_frame[unit.tag])
+                        repairer = repairers.closest_to(unit)
                         ultimate_destination = repairer.position
                     except KeyError:
                         pass
@@ -534,7 +538,7 @@ class BaseUnitMicro(GeometryMixin):
         return False
 
     @timed
-    def _retreat_to_medivac(self, unit: Unit) -> bool:
+    def _retreat_to_medivac(self, unit: Unit) -> UnitMicroType:
         medivacs = self.bot.units.filter(lambda unit: unit.type_id == UnitTypeId.MEDIVAC and unit.energy > 5 and unit.cargo_used == 0)
         if medivacs:
             nearest_medivac = medivacs.closest_to(unit)
@@ -546,8 +550,8 @@ class BaseUnitMicro(GeometryMixin):
             logger.debug(f"{unit} marine retreating to heal at {nearest_medivac} hp {unit.health_percentage}")
             self.healing_unit_tags.add(unit.tag)
         else:
-            return False
-        return True
+            return UnitMicroType.NONE
+        return UnitMicroType.RETREAT
     
     retreat_to_tank_excluded_types: set[UnitTypeId] = set((
             UnitTypeId.PROBE,
