@@ -129,6 +129,7 @@ class FormationSquad(Squad, GeometryMixin):
             for unit_type in ground_unit_type_order:
                 if self.add_unit_formation(unit_type, y_offset):
                     y_offset -= 1
+            y_offset = -1
             for unit_type in flying_unit_type_order:
                 if self.add_unit_formation(unit_type, y_offset):
                     y_offset -= 1

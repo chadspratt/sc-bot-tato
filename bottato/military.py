@@ -281,11 +281,13 @@ class Military(GeometryMixin, DebugMixin):
             except Exception:
                 pass
 
-        if len(bunker.units) < 4:
+        cargo_max = bunker.structure.cargo_max
+        cargo_used = sum(u.cargo_size for u in bunker.units)
+        if cargo_used < cargo_max:
             for squad in self.squads:
                 if squad == self.main_army or squad.name.startswith("defense"):
                     valid_units = squad.units.of_type({UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.GHOST})
-                    closest_units = valid_units.closest_n_units(bunker.structure, 4 - len(bunker.units))
+                    closest_units = valid_units.closest_n_units(bunker.structure, cargo_max - cargo_used)
                     for unit in closest_units:
                         enemy_distance_to_unit = self.closest_distance_squared(unit, current_enemies) if current_enemies else 10000
                         marine_distance_to_bunker = unit.distance_to_squared(bunker.structure)
@@ -293,7 +295,8 @@ class Military(GeometryMixin, DebugMixin):
                             # send unit to bunker if they won't have to move past enemies
                             self.transfer(unit, self.main_army, bunker)
                             unit.smart(bunker.structure)
-                            if len(bunker.units) >= 4:
+                            cargo_used += unit.cargo_size
+                            if cargo_used >= cargo_max:
                                 return
 
     def empty_bunker(self, bunker: Bunker):
@@ -466,10 +469,15 @@ class Military(GeometryMixin, DebugMixin):
         if enemies is None:
             seconds_since_killed = min(60, 60 - (self.bot.time - 300) // 2)
             enemies = self.enemy.get_army(seconds_since_killed=seconds_since_killed).filter(lambda unit: not unit.is_structure)
-        friendlies = self.main_army.units + self.bunker.units + self.bunker2.units
-        for friendly in friendlies:
+        friendlies = self.main_army.units.copy()
+        for friendly in friendlies + self.bunker.units + self.bunker2.units:
             if hasattr(friendly, "build_progress"):
                 self.passenger_stand_ins[friendly.type_id] = friendly
+        medivacs = friendlies.of_type(UnitTypeId.MEDIVAC)
+        for medivac in medivacs:
+            if medivac.passengers:
+                for passenger in medivac.passengers:
+                    friendlies.append(passenger)
         for bunker in [self.bunker, self.bunker2]:
             if bunker.structure and bunker.structure.passengers:
                 for passenger in bunker.structure.passengers:

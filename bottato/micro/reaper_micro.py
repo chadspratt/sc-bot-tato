@@ -72,7 +72,12 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         target = None
         if nearby_workers:
+            # target lowest health but prioritize closest if very close
             target = nearby_workers.sorted(key=lambda t: t.shield + t.health).first
+            closest_worker = self.closest_unit_to_unit(unit, nearby_workers)
+            if self.distance_squared(unit, closest_worker, self.enemy.predicted_position) < 9:
+                target = closest_worker
+
         if threats:
             closest_distance: float = float('inf')
             if target:

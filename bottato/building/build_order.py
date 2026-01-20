@@ -1,6 +1,6 @@
 import math
 import random
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from sc2.bot_ai import BotAI
 from sc2.data import Race
@@ -104,11 +104,12 @@ class BuildOrder():
             self.queue_turret(intel)
 
             # randomize unit queue so it doesn't get stuck on one unit type
-            military_queue = self.get_military_queue(enemy)
+            military_queue, priority_military_queue = self.get_military_queue(enemy)
             military_queue.sort(key=lambda step: random.randint(0,255))
             # prioritize building at least one of each requested unit type
             military_queue.sort(key=lambda step: isinstance(step, UnitTypeId) and self.bot.units(step).amount > 0)
             self.queue_prereqs(military_queue)
+            self.add_to_build_queue(priority_military_queue, queue=self.build_queue)
             self.add_to_build_queue(military_queue, queue=self.build_queue)
 
             only_build_units = self.bot.supply_left > 5 and army_ratio > 0.0 and army_ratio < 0.8
@@ -346,7 +347,7 @@ class BuildOrder():
                 self.add_to_build_queue(prereqs, queue=self.build_queue)
 
     @timed
-    def get_military_queue(self, enemy: Enemy) -> List[UnitTypeId | UpgradeId]:
+    def get_military_queue(self, enemy: Enemy) -> Tuple[List[UnitTypeId | UpgradeId], List[UnitTypeId | UpgradeId]]:
         worker_supply_cap = min(self.workers.max_workers, self.bot.workers.amount * 1.15)
         military_cap = self.bot.supply_cap - worker_supply_cap
         enemy_army = enemy.get_army(include_scouts=True, seconds_since_killed=180)
@@ -365,6 +366,7 @@ class BuildOrder():
         # scale composition to fit military cap
         
         queue: List[UnitTypeId | UpgradeId] = []
+        priority_queue: List[UnitTypeId | UpgradeId] = []
         if UnitTypeId.RAVEN not in ideal_composition:
             # have at least one raven for detection
             ideal_composition[UnitTypeId.RAVEN] = 0.01
@@ -387,13 +389,16 @@ class BuildOrder():
             needed_count = ideal_count - existing_count - in_progress_count - queued_count
             if needed_count > 0:
                 # queued_supply += needed_count * self.unit_types.get_unit_info(unit_type)["supply"]
+                if needed_count >= 5 or existing_count + in_progress_count + queued_count == 0:
+                    priority_queue.append(unit_type)
+                    needed_count -= 1
                 queue.extend([unit_type] * needed_count)
         # buildable_percentage += 0.5
-        return queue
+        return (queue, priority_queue)
 
     @timed
     def queue_supply(self) -> None:
-        in_static_queue = self.get_queued_count(UnitTypeId.SUPPLYDEPOT) > 0
+        in_static_queue = self.get_queued_count(UnitTypeId.SUPPLYDEPOT, queue=self.static_queue) > 0
         if 0 < self.bot.supply_cap < 200 and not in_static_queue:
             in_progress_count = self.get_in_progress_count(UnitTypeId.SUPPLYDEPOT)
             in_progress_ccs = self.bot.townhalls.filter(lambda cc: not cc.is_ready)

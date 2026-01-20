@@ -447,14 +447,12 @@ class BaseUnitMicro(GeometryMixin):
                     if not target.is_facing(unit, angle_error=0.2):
                         # stay target_range + 2.5 away instead of attack_range + 0.5
                         buffer = target_range - attack_range + 2.5
-                    if self._stay_at_max_range(unit, Units([target], bot_object=self.bot), buffer=buffer) != UnitMicroType.NONE:
-                        return UnitMicroType.MOVE
-                    unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
+                    if self._stay_at_max_range(unit, Units([target], bot_object=self.bot), buffer=buffer) == UnitMicroType.NONE:
+                        unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
                     return UnitMicroType.MOVE
             elif target_distance < attack_range - 1.0 or target_distance < target_range + 0.5:
-                if self._stay_at_max_range(unit, Units([target], bot_object=self.bot)) != UnitMicroType.NONE:
-                    return UnitMicroType.MOVE
-                unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
+                if self._stay_at_max_range(unit, Units([target], bot_object=self.bot)) == UnitMicroType.NONE:
+                    unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
                 return UnitMicroType.MOVE
         self._attack(unit, target)
         return UnitMicroType.ATTACK

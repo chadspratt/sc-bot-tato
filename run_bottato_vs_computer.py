@@ -170,7 +170,7 @@ def main():
     match_id = create_pending_match(test_group_id, start_time, random_map, opponent_race, difficulty, opponent_build)
     assert match_id is not None, "Failed to create match entry in the database."
 
-    replay_name = f"replays/[{match_id}]_{random_map}_{race}-{build}.SC2Replay"
+    replay_name = f"replays/{match_id}_{random_map}_{race}-{build}.SC2Replay"
 
     # Set match ID as environment variable for the bot
     os.environ["TEST_MATCH_ID"] = str(match_id)
