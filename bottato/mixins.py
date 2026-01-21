@@ -169,8 +169,8 @@ class GeometryMixin:
                 return future_position
 
     @staticmethod
-    def distance(unit1: Unit, unit2: Unit, predicted_positions: Dict[int, Point2] | None = None) -> float:
-        if unit1.age == 0 and unit2.age == 0:
+    def distance(unit1: Unit | Point2, unit2: Unit | Point2, predicted_positions: Dict[int, Point2] | None = None) -> float:
+        if isinstance(unit1, Unit) and isinstance(unit2, Unit) and unit1.age == 0 and unit2.age == 0:
             return unit1.distance_to(unit2)
         return GeometryMixin.distance_squared(unit1, unit2, predicted_positions) ** 0.5
         
@@ -228,7 +228,7 @@ class GeometryMixin:
         return False
 
     @staticmethod
-    def closest_unit_to_unit(unit1: Unit, units: Units, predicted_positions: Dict[int, Point2] | None = None) -> Unit:
+    def closest_unit_to_unit(unit1: Unit | Point2, units: Units, predicted_positions: Dict[int, Point2] | None = None) -> Unit:
         assert units, "units list is empty"
         closest_distance = 9999
         closest_unit: Unit = units[0]

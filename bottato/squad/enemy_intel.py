@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from sc2.bot_ai import BotAI
 from sc2.data import Race
@@ -29,6 +29,8 @@ class EnemyIntel(GeometryMixin):
         self.enemy_race_confirmed: Race | None = None
         self.enemy_builds_detected: Dict[BuildType, float] = {}
         self.proxy_buildings: Units = Units([], self.bot)
+        self.enemy_drop_transports: Units = Units([], self.bot)
+        self.enemy_drop_locations: List[Tuple[Point2, float]] = []
 
         self.scouting_locations: List[ScoutingLocation] = list()
         for expansion_location in self.bot.expansion_locations_list:
@@ -44,6 +46,7 @@ class EnemyIntel(GeometryMixin):
         self.catalog_visible_units()
         self.update_proxy_buildings()
         await self.detect_enemy_builds()
+        self.update_enemy_drop_locations()
 
     def catalog_visible_units(self):
         """Catalog all visible enemy units and buildings"""
@@ -219,6 +222,44 @@ class EnemyIntel(GeometryMixin):
                 return True
             return self.enemy_main_scouted and self.number_seen(UnitTypeId.BARRACKS) == 0
         return self.bot.time > 100 and self.number_seen(UnitTypeId.GATEWAY) == 0
+    
+    def update_enemy_drop_locations(self):
+        for transport in self.bot.enemy_units.of_type({UnitTypeId.MEDIVAC, UnitTypeId.WARPPRISM}):
+            if transport not in self.enemy_drop_transports:
+                if self.closest_distance_squared(transport, self.bot.townhalls) > 225:
+                    # not near a base, not a drop
+                    continue
+                enemy_non_transports = self.bot.enemy_units.exclude_type({UnitTypeId.MEDIVAC, UnitTypeId.WARPPRISM})
+                # exclude units that suddenly appeared since the transport was probably carrying them
+                appeared_from_the_fog_enemies = enemy_non_transports.filter(
+                    lambda u: u.tag not in self.enemy.suddenly_seen_units.tags)
+                if appeared_from_the_fog_enemies:
+                    nearby_allies = appeared_from_the_fog_enemies.closer_than(5, transport)
+                    if nearby_allies:
+                        # transport is not alone, not a drop
+                        continue
+                self.enemy_drop_transports.append(transport)
+            if self.bot.in_pathing_grid(transport.position):
+                i = len(self.enemy_drop_locations) - 1
+                already_recorded = False
+                while i >= 0:
+                    drop_position, _ = self.enemy_drop_locations[i]
+                    if transport.distance_to_squared(drop_position) < 6:
+                        self.enemy_drop_locations[i] = (drop_position, self.bot.time)
+                        already_recorded = True
+                        break
+                    i -= 1
+                if not already_recorded:
+                    self.enemy_drop_locations.append((transport.position, self.bot.time))
+                    LogHelper.write_log_to_db(f"Enemy drop detected at {transport.position}")
+
+    def get_recent_drop_locations(self, within_seconds: float) -> List[Point2]:
+        recent_drops: List[Point2] = []
+        i = len(self.enemy_drop_locations) - 1
+        for drop_position, drop_time in self.enemy_drop_locations:
+            if self.bot.time - drop_time <= within_seconds:
+                recent_drops.append(drop_position)
+        return recent_drops
 
     def update_proxy_buildings(self):
         i = len(self.proxy_buildings) - 1

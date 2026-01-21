@@ -1,7 +1,6 @@
 from __future__ import annotations
 from loguru import logger
 
-
 from sc2.bot_ai import BotAI
 from sc2.game_data import Cost
 from sc2.ids.ability_id import AbilityId
@@ -16,7 +15,7 @@ from bottato.building.build_step import BuildStep
 from bottato.economy.production import Production
 from bottato.economy.workers import Workers
 from bottato.enemy import Enemy
-from bottato.enums import BuildType, WorkerJobType
+from bottato.enums import WorkerJobType
 from bottato.map.destructibles import BUILDING_RADIUS
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -24,6 +23,7 @@ from bottato.micro.micro_factory import MicroFactory
 from bottato.micro.structure_micro import StructureMicro
 from bottato.military import Military
 from bottato.mixins import GeometryMixin, timed_async
+from bottato.squad.bunker import Bunker
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.scouting import Scouting
 from bottato.unit_reference_helper import UnitReferenceHelper
@@ -168,10 +168,18 @@ class Commander(GeometryMixin):
         elif unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT):
             unit(AbilityId.RALLY_UNITS, self.bot.game_info.map_center)
         elif unit.type_id == UnitTypeId.BUNKER:
-            if not self.military.bunker.structure:
-                self.military.bunker.structure = unit
-            elif not self.military.bunker2.structure:
-                self.military.bunker2.structure = unit
+            if self.military.top_ramp_bunker.structure and self.military.natural_bunker.structure:
+                new_bunker = Bunker(self.bot, len(self.military.bunkers), unit)
+                self.military.bunkers.append(new_bunker)
+                return
+            if not self.military.top_ramp_bunker.structure:
+                distance_to_top_ramp = unit.position.distance_to(self.bot.main_base_ramp.barracks_correct_placement) # type: ignore
+                if distance_to_top_ramp < 6:
+                    self.military.top_ramp_bunker.structure = unit
+                    return
+            if not self.military.natural_bunker.structure:
+                # not top ramp, assume natural
+                self.military.natural_bunker.structure = unit
 
     def add_unit(self, unit: Unit):
         if unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE):

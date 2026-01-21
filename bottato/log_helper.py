@@ -75,3 +75,22 @@ class LogHelper:
         
         conn.commit()
         conn.close()
+
+    @staticmethod
+    def write_log_to_db(message: str):
+        """Update the match duration in the database if we're in testing mode."""
+        LogHelper.add_log(message)
+
+        if LogHelper.test_match_id is None:
+            return
+            
+        conn = sqlite3.connect('db/match_data.db')
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            INSERT INTO match_event (match_id, message, timestamp)
+            VALUES (?, ?, CURRENT_TIMESTAMP)
+        ''', (int(LogHelper.test_match_id), message))
+        
+        conn.commit()
+        conn.close()

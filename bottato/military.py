@@ -54,15 +54,16 @@ class Military(GeometryMixin, DebugMixin):
             color=self.random_color(),
             name='main',
         )
-        self.bunker = Bunker(self.bot, 1)
-        self.bunker2 = Bunker(self.bot, 2)
+        self.top_ramp_bunker = Bunker(self.bot, 1)
+        self.natural_bunker = Bunker(self.bot, 2)
+        self.bunkers = [self.top_ramp_bunker, self.natural_bunker]
         self.stuck_rescue = StuckRescue(self.bot, self.main_army, self.squads_by_unit_tag)
         self.reaper_harass = HarassSquad(self.bot, name="reaper harass")
         self.banshee_harass = HarassSquad(self.bot, name="banshee harass")
         self.hunting_squad: HuntingSquad | None = None
         self.squads.append(self.main_army)
-        self.squads.append(self.bunker)
-        self.squads.append(self.bunker2)
+        self.squads.append(self.top_ramp_bunker)
+        self.squads.append(self.natural_bunker)
         self.squads.append(self.stuck_rescue)
         self.squads.append(self.reaper_harass)
         self.squads.append(self.banshee_harass)
@@ -126,9 +127,21 @@ class Military(GeometryMixin, DebugMixin):
 
         self.status_message = f"army ratio {self.army_ratio:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
-
-        await self.manage_bunker(self.bunker2, self.enemies_in_base, enemies_in_base_ratio, mount_offense)
-        await self.manage_bunker(self.bunker, self.enemies_in_base, enemies_in_base_ratio, mount_offense)
+        closest_bunker_to_center: Bunker | None = None
+        closest_bunker_to_center_distance: float = float('inf')
+        for bunker in self.bunkers:
+            if not bunker.structure:
+                continue
+            distance_to_map_center = bunker.structure.distance_to_squared(self.bot.game_info.map_center) if bunker.structure else float('inf')
+            if bunker.structure and distance_to_map_center < closest_bunker_to_center_distance:
+                closest_bunker_to_center = bunker
+                closest_bunker_to_center_distance = distance_to_map_center
+        for bunker in self.bunkers:
+            if mount_offense or not bunker.structure:
+                self.empty_bunker(bunker)
+            else:
+                is_closest = bunker == closest_bunker_to_center
+                await self.manage_bunker(bunker, self.enemies_in_base, is_closest)
 
         if self.main_army.units:
             self.main_army.draw_debug_box()
@@ -242,9 +255,8 @@ class Military(GeometryMixin, DebugMixin):
         return defend_with_main_army, countered_enemies
 
     @timed_async
-    async def manage_bunker(self, bunker: Bunker, enemies_in_base: Units, enemies_in_base_ratio: float, mount_offense: bool):
-        if mount_offense or not bunker.structure:
-            self.empty_bunker(bunker)
+    async def manage_bunker(self, bunker: Bunker, enemies_in_base: Units, is_closest_to_enemy: bool = False):
+        if not bunker.structure:
             return
         for passenger in bunker.structure.passengers:
             if passenger.type_id == UnitTypeId.SCV:
@@ -259,13 +271,17 @@ class Military(GeometryMixin, DebugMixin):
             closest_enemy = self.closest_unit_to_unit(bunker.structure, current_enemies)
             enemy_distance_to_bunker = closest_enemy.distance_to_squared(bunker.structure)
 
-        if enemies_in_base_ratio >= 1.0 and closest_enemy:
+        if not is_closest_to_enemy:
+            if not closest_enemy:
+                self.empty_bunker(bunker)
+                return
+
             enemy_distance_to_main = self.closest_distance_squared(self.bot.start_location, current_enemies) if current_enemies else 10000
             buffer = 2 if enemy_distance_to_main > 300 else 0
 
             bunker_range = self.enemy.get_attack_range_with_buffer(bunker.structure, closest_enemy, buffer)
             if bunker_range < enemy_distance_to_bunker < 10000:
-                self.empty_bunker(bunker)
+                self.empty_bunker(bunker, closest_enemy)
                 return
 
         # add units to bunker
@@ -299,11 +315,11 @@ class Military(GeometryMixin, DebugMixin):
                             if cargo_used >= cargo_max:
                                 return
 
-    def empty_bunker(self, bunker: Bunker):
+    def empty_bunker(self, bunker: Bunker, destination: Unit | None = None):
         for unit in bunker.units:
             self.squads_by_unit_tag[unit.tag] = self.main_army
         # self.bunker.transfer_all(self.main_army)
-        bunker.empty()
+        bunker.empty(destination)
 
     @timed_async
     async def harass(self, detected_enemy_builds: Dict[BuildType, float]):
@@ -470,7 +486,7 @@ class Military(GeometryMixin, DebugMixin):
             seconds_since_killed = min(60, 60 - (self.bot.time - 300) // 2)
             enemies = self.enemy.get_army(seconds_since_killed=seconds_since_killed).filter(lambda unit: not unit.is_structure)
         friendlies = self.main_army.units.copy()
-        for friendly in friendlies + self.bunker.units + self.bunker2.units:
+        for friendly in friendlies + self.top_ramp_bunker.units + self.natural_bunker.units:
             if hasattr(friendly, "build_progress"):
                 self.passenger_stand_ins[friendly.type_id] = friendly
         medivacs = friendlies.of_type(UnitTypeId.MEDIVAC)
@@ -478,7 +494,7 @@ class Military(GeometryMixin, DebugMixin):
             if medivac.passengers:
                 for passenger in medivac.passengers:
                     friendlies.append(passenger)
-        for bunker in [self.bunker, self.bunker2]:
+        for bunker in self.bunkers:
             if bunker.structure and bunker.structure.passengers:
                 for passenger in bunker.structure.passengers:
                     friendlies.append(passenger)
@@ -665,3 +681,7 @@ class Military(GeometryMixin, DebugMixin):
             if squad:
                 squad.remove_by_tag(unit_tag)
             del self.squads_by_unit_tag[unit_tag]
+        for bunker in self.bunkers:
+            if bunker.structure and bunker.structure.tag == unit_tag:
+                bunker.empty()
+                bunker.structure = None

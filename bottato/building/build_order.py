@@ -104,7 +104,7 @@ class BuildOrder():
             self.queue_turret(intel)
 
             # randomize unit queue so it doesn't get stuck on one unit type
-            military_queue, priority_military_queue = self.get_military_queue(enemy)
+            military_queue, priority_military_queue = self.get_military_queue(enemy, intel)
             military_queue.sort(key=lambda step: random.randint(0,255))
             # prioritize building at least one of each requested unit type
             military_queue.sort(key=lambda step: isinstance(step, UnitTypeId) and self.bot.units(step).amount > 0)
@@ -347,7 +347,7 @@ class BuildOrder():
                 self.add_to_build_queue(prereqs, queue=self.build_queue)
 
     @timed
-    def get_military_queue(self, enemy: Enemy) -> Tuple[List[UnitTypeId | UpgradeId], List[UnitTypeId | UpgradeId]]:
+    def get_military_queue(self, enemy: Enemy, intel: EnemyIntel) -> Tuple[List[UnitTypeId | UpgradeId], List[UnitTypeId | UpgradeId]]:
         worker_supply_cap = min(self.workers.max_workers, self.bot.workers.amount * 1.15)
         military_cap = self.bot.supply_cap - worker_supply_cap
         enemy_army = enemy.get_army(include_scouts=True, seconds_since_killed=180)
@@ -393,7 +393,18 @@ class BuildOrder():
                     priority_queue.append(unit_type)
                     needed_count -= 1
                 queue.extend([unit_type] * needed_count)
-        # buildable_percentage += 0.5
+        
+        recent_drops = intel.get_recent_drop_locations(within_seconds=120)
+        if len(recent_drops) > 0:
+            widowmines = self.bot.units(UnitTypeId.WIDOWMINE)
+            in_progress_and_queued_widowmines = self.get_queued_count(UnitTypeId.WIDOWMINE, queue=self.started + self.priority_queue + self.static_queue)
+            needed_mine_count = len(recent_drops) - len(widowmines) + in_progress_and_queued_widowmines
+            if needed_mine_count > 0:
+                # need more widowmines for drop defense
+                priority_queue.append(UnitTypeId.WIDOWMINE)
+                if needed_mine_count > 1:
+                    queue.extend([UnitTypeId.WIDOWMINE] * (needed_mine_count - 1))
+        
         return (queue, priority_queue)
 
     @timed

@@ -39,6 +39,7 @@ class Enemy(GeometryMixin):
         self.all_seen: Dict[UnitTypeId, set[int]] = {}
         self.attack_range_squared_cache: Dict[UnitTypeId, Dict[float, Dict[UnitTypeId, float]]] = {}
         self.unit_distance_squared_cache: Dict[int, Dict[int, float]] = {}
+        self.suddenly_seen_units: Units = Units([], bot)
 
     @timed
     def update_references(self):
@@ -46,6 +47,7 @@ class Enemy(GeometryMixin):
 
         new_visible_enemies: Units = self.bot.enemy_units + self.bot.enemy_structures
         
+        self.detect_suddenly_seen_units(new_visible_enemies)
         self.update_out_of_view()
         self.set_last_seen_for_visible(new_visible_enemies)
         self.add_new_out_of_view()
@@ -506,3 +508,39 @@ class Enemy(GeometryMixin):
     
     def get_total_count_of_type_seen(self, unit_type: UnitTypeId) -> int:
         return len(self.all_seen.get(unit_type, set()))
+
+    @timed
+    def detect_suddenly_seen_units(self, new_visible_enemies: Units):
+        """Detect units that suddenly appear in vision range without being seen moving in."""
+        prev_suddenly_seen_tags = self.suddenly_seen_units.tags
+        self.suddenly_seen_units.clear()
+        
+        for enemy_unit in new_visible_enemies:
+            if enemy_unit.tag in prev_suddenly_seen_tags:
+                # continue tracking units already marked as suddenly seen
+                self.suddenly_seen_units.append(enemy_unit)
+                continue
+            if enemy_unit.tag in self.enemies_in_view.tags:
+                # already seen this unit before
+                continue
+            # Skip eggs, larvae, and structures (they don't "drop")
+            if enemy_unit.type_id in (UnitTypeId.EGG, UnitTypeId.LARVA) or enemy_unit.is_structure:
+                continue
+            
+            # Check if unit appeared well inside vision range (not at the edge)
+            vision_buffer = 2.0  # Units appearing this far from vision edge are considered "suddenly seen"
+            is_well_inside_vision = True
+            
+            # Check several points around the unit to see if they're all visible
+            check_positions = [
+                enemy_unit.position + Point2((0, vision_buffer)),
+                enemy_unit.position + Point2((0, -vision_buffer)),
+                enemy_unit.position + Point2((vision_buffer, 0)),
+                enemy_unit.position + Point2((-vision_buffer, 0)),
+            ]
+            
+            for pos in check_positions:
+                if not self.bot.is_visible(pos):
+                    break
+            else:
+                self.suddenly_seen_units.append(enemy_unit)

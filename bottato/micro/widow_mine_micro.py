@@ -29,6 +29,8 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
     current_targets: Dict[int, Unit | None] = {}
     last_lockon_time: Dict[int, float | None] = {}
     last_fire_time: Dict[int, float] = {}
+    special_position: Dict[int, Point2] = {}
+    last_special_position_update_time: float = 0.0
 
     @timed
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
@@ -43,8 +45,32 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                 self.max_burrow_time = 1.5
                 self.time_in_frames_to_transform = self.max_burrow_time * 22.4
 
+        if self.last_special_position_update_time != self.bot.time:
+            self.last_special_position_update_time = self.bot.time
+            self.special_position.clear()
+            all_mines = self.bot.units.of_type({UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED})
+            latest_enemy_drop_locations = self.intel.get_recent_drop_locations(120)
+            for drop_location in latest_enemy_drop_locations:
+                closest_mine = self.closest_unit_to_unit(drop_location, all_mines)
+                self.special_position[closest_mine.tag] = drop_location
+
         is_burrowed = unit.type_id == UnitTypeId.WIDOWMINEBURROWED
         cooldown_remaining = max(0, 29 - (self.bot.time - self.last_fire_time.get(unit.tag, 0)))
+
+        if unit.tag in self.special_position:
+            special_pos = self.special_position[unit.tag]
+            if not is_burrowed:
+                if unit.position.distance_to(special_pos) > 2:
+                    unit.move(special_pos)
+                    return UnitMicroType.MOVE
+                else:
+                    self.burrow(unit)
+                    return UnitMicroType.USE_ABILITY
+            
+            if unit.position.distance_to(special_pos) > 2:
+                self.unburrow(unit)
+                return UnitMicroType.USE_ABILITY
+            return UnitMicroType.NONE
 
         if not is_burrowed:
             self.last_lockon_time[unit.tag] = None
