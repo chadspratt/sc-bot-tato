@@ -49,10 +49,13 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
             self.last_special_position_update_time = self.bot.time
             self.special_position.clear()
             all_mines = self.bot.units.of_type({UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED})
-            latest_enemy_drop_locations = self.intel.get_recent_drop_locations(120)
-            for drop_location in latest_enemy_drop_locations:
-                closest_mine = self.closest_unit_to_unit(drop_location, all_mines)
-                self.special_position[closest_mine.tag] = drop_location
+            latest_enemy_drop_locations = self.intel.get_recent_drop_locations(150)
+            for mine in all_mines:
+                if not latest_enemy_drop_locations:
+                    break
+                closest_drop_location = min(latest_enemy_drop_locations, key=lambda loc: mine.distance_to_squared(loc))
+                self.special_position[mine.tag] = closest_drop_location
+                latest_enemy_drop_locations.remove(closest_drop_location)
 
         is_burrowed = unit.type_id == UnitTypeId.WIDOWMINEBURROWED
         cooldown_remaining = max(0, 29 - (self.bot.time - self.last_fire_time.get(unit.tag, 0)))

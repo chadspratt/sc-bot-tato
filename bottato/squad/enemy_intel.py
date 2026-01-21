@@ -244,8 +244,9 @@ class EnemyIntel(GeometryMixin):
                 already_recorded = False
                 while i >= 0:
                     drop_position, _ = self.enemy_drop_locations[i]
-                    if transport.distance_to_squared(drop_position) < 6:
+                    if transport.distance_to_squared(drop_position) < 36:
                         self.enemy_drop_locations[i] = (drop_position, self.bot.time)
+                        LogHelper.add_log(f"Updated enemy drop location at {drop_position}")
                         already_recorded = True
                         break
                     i -= 1
