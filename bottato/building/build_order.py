@@ -350,7 +350,7 @@ class BuildOrder():
     def get_military_queue(self, enemy: Enemy, intel: EnemyIntel) -> Tuple[List[UnitTypeId | UpgradeId], List[UnitTypeId | UpgradeId]]:
         worker_supply_cap = min(self.workers.max_workers, self.bot.workers.amount * 1.15)
         military_cap = self.bot.supply_cap - worker_supply_cap
-        enemy_army = enemy.get_army(include_scouts=True, seconds_since_killed=180)
+        enemy_army = enemy.get_army(include_scouts=True, seconds_since_killed=60)
         ideal_composition = self.counter.get_counters(enemy_army)
         current_composition = UnitTypes.count_units_by_type(self.bot.units)
         if not ideal_composition:

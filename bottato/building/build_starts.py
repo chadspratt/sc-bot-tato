@@ -29,11 +29,11 @@ class BuildStarts():
                 # UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
-                UnitTypeId.REFINERY,                    # 2ND GAS,
+                UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.COMMANDCENTER,
-                UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
+                UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.BUNKER,                      # NATURAL choke, XXX on high ground if getting cheesed
@@ -63,11 +63,11 @@ class BuildStarts():
                 UnitTypeId.BARRACKS,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
-                UnitTypeId.REFINERY,                    # 2ND GAS,
+                UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.COMMANDCENTER,
-                UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
+                UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.BUNKER,                      # NATURAL choke, XXX on high ground if getting cheesed
@@ -101,11 +101,11 @@ class BuildStarts():
                 # UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
-                UnitTypeId.REFINERY,                    # 2ND GAS,
+                UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.COMMANDCENTER,
-                UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
+                UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.BUNKER,                      # NATURAL choke, XXX on high ground if getting cheesed
