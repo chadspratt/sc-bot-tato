@@ -7,6 +7,7 @@ from sc2.data import Race
 from sc2.game_data import Cost
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from sc2.position import Point2
 from sc2.unit import Unit
 
 from bottato.building.build_starts import BuildStarts
@@ -22,6 +23,7 @@ from bottato.enemy import Enemy
 from bottato.enums import BuildType, BuildResponseCode, WorkerJobType, BuildOrderChange
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
+from bottato.military import Military
 from bottato.mixins import timed, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.unit_reference_helper import UnitReferenceHelper
@@ -45,11 +47,15 @@ class BuildOrder():
     rush_defense_enacted: bool = False
     detected_enemy_builds: Dict[BuildType, float] = {}
 
-    def __init__(self, build_name: str, bot: BotAI, workers: Workers, production: Production, map: Map) -> None:
+    def __init__(self, build_name: str, bot: BotAI, workers: Workers, production: Production, map: Map
+                 , military: Military, intel: EnemyIntel, enemy: Enemy) -> None:
         self.bot = bot
         self.workers = workers
         self.production = production
         self.map = map
+        self.military = military
+        self.intel = intel
+        self.enemy = enemy
 
         self.counter = Counter()
         self.unit_types = UnitTypes()
@@ -77,10 +83,9 @@ class BuildOrder():
         return self.started + self.interrupted_queue + self.priority_queue + self.static_queue + self.build_queue
 
     @timed_async
-    async def execute(self, army_ratio: float,
-                      detected_enemy_builds: Dict[BuildType, float],
-                      enemy: Enemy,
-                      intel: EnemyIntel) -> Cost:
+    async def execute(self) -> Cost:
+        army_ratio = self.military.army_ratio
+        detected_enemy_builds = self.intel.enemy_builds_detected
         for build_type, build_time in detected_enemy_builds.items():
             self.detected_enemy_builds[build_type] = build_time
         self.enact_build_changes(self.detected_enemy_builds)
@@ -101,10 +106,11 @@ class BuildOrder():
         self.queue_upgrade()
         self.queue_marines(detected_enemy_builds)
         if len(self.static_queue) < 5 or self.bot.time > 300:
-            self.queue_turret(intel)
+            self.queue_turret(self.intel)
+            # self.queue_bunker(self.military.main_army.staging_location)
 
             # randomize unit queue so it doesn't get stuck on one unit type
-            military_queue, priority_military_queue = self.get_military_queue(enemy, intel)
+            military_queue, priority_military_queue = self.get_military_queue(self.enemy, self.intel)
             military_queue.sort(key=lambda step: random.randint(0,255))
             # prioritize building at least one of each requested unit type
             military_queue.sort(key=lambda step: isinstance(step, UnitTypeId) and self.bot.units(step).amount > 0)
@@ -295,7 +301,7 @@ class BuildOrder():
                            position: int | None = None,
                            queue: List[BuildStep] | None = None,
                            add_prereqs: bool = True,
-                           remove_duplicates: bool = True) -> None:
+                           remove_duplicates: bool = True) -> List[BuildStep]:
         if queue is None:
             queue = self.build_queue
         all_prereqs: List[UnitTypeId | UpgradeId] = []
@@ -328,6 +334,7 @@ class BuildOrder():
                 steps_to_add = queue[:position] + steps_to_add + queue[position:]
                 queue.clear()
             queue.extend(steps_to_add)
+        return steps_to_add
 
     def create_build_step(self, unit_type: UnitTypeId | UpgradeId, existing_structure: Unit | None = None) -> BuildStep:
         if isinstance(unit_type, UpgradeId):
@@ -424,6 +431,8 @@ class BuildOrder():
                 # queue another if supply is very low
                 if (self.bot.supply_left < 2 or supply_percent_remaining <= 0.1):
                     needed_count += 1
+                if (self.bot.supply_left == 0):
+                    needed_count += 1
                 if in_progress_count < needed_count:
                     self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT] * (needed_count - in_progress_count), queue=self.priority_queue)
 
@@ -466,11 +475,12 @@ class BuildOrder():
         projected_worker_capacity += cc_count * 16
 
         # adds number of townhalls to account for near-term production
-        projected_worker_count = min(self.workers.max_workers, len(self.workers.assignments_by_job[WorkerJobType.MINERALS]) + len(self.bot.townhalls) * 4)
+        projected_worker_count = min(self.workers.max_workers,
+                                     len(self.workers.assignments_by_job[WorkerJobType.MINERALS]) + len(self.bot.townhalls) * 4)
         surplus_worker_count = projected_worker_count - projected_worker_capacity
         needed_cc_count = math.ceil(surplus_worker_count / 16)
-        if army_ratio < 0.65 and self.bot.townhalls.amount >= 2:
-            # delay expansion if army low and already have 2 bases
+        if army_ratio < 0.65 and self.bot.townhalls.amount >= 2 and self.bot.minerals < 400:
+            # delay expansion if army low and already have 2 bases, unless sitting on enough minerals
             needed_cc_count -= 1
 
         # expand if running out of room for workers at current bases
@@ -663,6 +673,32 @@ class BuildOrder():
                             break
                     else:
                         self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
+    
+    @timed
+    def queue_bunker(self, main_army_staging_location: Point2) -> None:
+        in_progress_bunkers = self.get_in_progress_count(UnitTypeId.BUNKER)
+        if in_progress_bunkers > 0:
+            return
+        bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
+        if bunkers and bunkers.closest_distance_to(main_army_staging_location) < 15:
+            # already have a bunker near main army
+            return
+        path_to_enemy = self.map.get_path(main_army_staging_location, self.bot.enemy_start_locations[0])
+        placement_position = main_army_staging_location
+        position_is_valid = self.bot.can_place_single(UnitTypeId.BUNKER, placement_position)
+        while not position_is_valid and path_to_enemy:
+            next_waypoint = path_to_enemy.zones[1].midpoint
+            placement_position = placement_position.towards(next_waypoint, 1, limit=True)
+            if placement_position.manhattan_distance(next_waypoint) < 0.1:
+                path_to_enemy.zones.pop(0)
+            position_is_valid = self.bot.can_place_single(UnitTypeId.BUNKER, placement_position)
+            
+        if position_is_valid:
+            new_steps = self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue)
+            if new_steps:
+                bunker_step = new_steps[0]
+                assert isinstance(bunker_step, SCVBuildStep)
+                bunker_step.position = placement_position
 
     def get_affordable_build_list(self, only_build_units: bool) -> List[UnitTypeId]:
         affordable_items: List[UnitTypeId] = []

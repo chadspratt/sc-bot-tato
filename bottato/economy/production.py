@@ -1,17 +1,18 @@
 from typing import List
 from loguru import logger
 
-from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.bot_ai import BotAI
-from sc2.unit import Unit
+from sc2.constants import abilityid_to_unittypeid
+from sc2.dicts.unit_research_abilities import RESEARCH_INFO
+from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
+from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
+from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
+from sc2.game_data import Cost
+from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
-from sc2.ids.ability_id import AbilityId
-from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
-from sc2.dicts.unit_tech_alias import UNIT_TECH_ALIAS
-from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
-from sc2.constants import abilityid_to_unittypeid
 from sc2.position import Point2
+from sc2.unit import Unit
 
 from bottato.log_helper import LogHelper
 from bottato.mixins import timed, timed_async
@@ -283,6 +284,17 @@ class Production():
         if unit_type_id == UnitTypeId.REFINERYRICH:
             return {UnitTypeId.SCV}
         return UNIT_TRAINED_FROM[unit_type_id]
+    
+    costs: dict[UnitTypeId | UpgradeId, Cost] = {}
+    
+    def subtract_costs(self, cost: Cost, types: List[UnitTypeId]) -> Cost:
+        for unit_type in types:
+            if unit_type not in self.costs:
+                self.costs[unit_type] = self.bot.calculate_cost(unit_type)
+            unit_cost: Cost = self.costs[unit_type]
+            cost.minerals -= unit_cost.minerals
+            cost.vespene -= unit_cost.vespene
+        return cost
 
     def get_cheapest_builder_type(self, unit_type_id: UnitTypeId | UpgradeId) -> UnitTypeId:
         # XXX add hardcoded answers for sets with more than one entry
@@ -375,6 +387,7 @@ class Production():
             UnitTypeId.FACTORY: [],
             UnitTypeId.STARPORT: [],
         }
+        needed_resources: Cost = Cost(self.bot.minerals, self.bot.vespene)
         additional_production: List[UnitTypeId | UpgradeId] = []
         prereqs_added: List[UnitTypeId] = []
         for builder_type in self.facilities.keys():
@@ -385,6 +398,9 @@ class Production():
 
             if tech_balance < 0:
                 for i in range(abs(tech_balance)):
+                    if needed_resources.minerals < 0 or needed_resources.vespene < 0:
+                        logger.debug("not enough resources to build additional tech lab")
+                        break
                     facility: Facility
                     # look for facility with no add-on to upgrade
                     for facility in self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
@@ -399,7 +415,9 @@ class Production():
                         else:
                             additional_production.extend(self.build_order_with_prereqs(builder_type))
                             prereqs_added.append(builder_type)
+                        needed_resources = self.subtract_costs(needed_resources, [builder_type])
                     additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.TECHLAB])
+                    needed_resources = self.subtract_costs(needed_resources, [UnitTypeId.TECHLAB])
 
             # use leftover tech facilities
             if tech_balance > 0:
@@ -408,6 +426,9 @@ class Production():
 
             if normal_balance < 0:
                 for i in range(abs(normal_balance)):
+                    if needed_resources.minerals < 0 or needed_resources.vespene < 0:
+                        logger.debug("not enough resources to build additional reactor/facility")
+                        break
                     facility: Facility
                     for facility in self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
                         if facility.is_building_addon():
@@ -415,10 +436,12 @@ class Production():
                         if facility.unit.tag not in upgraded_facility_tags[builder_type] and not facility.addon_blocked:
                             upgraded_facility_tags[builder_type].append(facility.unit.tag)
                             additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.REACTOR])
+                            needed_resources = self.subtract_costs(needed_resources, [UnitTypeId.REACTOR])
                             break
                     else:
                         if extra_facility:
                             additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.REACTOR])
+                            needed_resources = self.subtract_costs(needed_resources, [UnitTypeId.REACTOR])
                             extra_facility = False
                         else:
                             if builder_type in prereqs_added:
@@ -426,6 +449,7 @@ class Production():
                             else:
                                 additional_production.extend(self.build_order_with_prereqs(builder_type))
                                 prereqs_added.append(builder_type)
+                            needed_resources = self.subtract_costs(needed_resources, [builder_type])
                             extra_facility = True
 
         logger.debug(f"production capacity {production_capacity}")

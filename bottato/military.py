@@ -161,7 +161,7 @@ class Military(GeometryMixin, DebugMixin):
                     if target_position:
                         await self.main_army.move(target_position) # slow, 50%+ of command time
             else:
-                await self.move_army_to_staging_location(newest_enemy_base, detected_enemy_builds, blueprints)
+                await self.move_army_to_staging_location(newest_enemy_base, detected_enemy_builds, blueprints, self.army_ratio)
 
     @timed_async
     async def get_enemies_in_base(self) -> Units:
@@ -406,7 +406,11 @@ class Military(GeometryMixin, DebugMixin):
         return target_position
     
     @timed_async
-    async def move_army_to_staging_location(self, newest_enemy_base: Point2 | None, detected_enemy_builds: Dict[BuildType, float], blueprints: List[BuildStep]):
+    async def move_army_to_staging_location(self,
+                                            newest_enemy_base: Point2 | None,
+                                            detected_enemy_builds: Dict[BuildType, float],
+                                            blueprints: List[BuildStep],
+                                            army_ratio: float):
         # generally a retreat due to being outnumbered
         LogHelper.add_log(f"squad {self.main_army} staging at {self.main_army.staging_location}")
         enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
@@ -420,21 +424,26 @@ class Military(GeometryMixin, DebugMixin):
         elif len(detected_enemy_builds) > 0 and len(self.bot.townhalls) <= 3 and self.army_ratio < 1.0:
             self.main_army.staging_location = self.map.natural_position.towards(self.bot.main_base_ramp.bottom_center, 5)
         elif len(self.bot.townhalls) > 1:
-            closest_base = self.map.get_closest_unit_by_path(self.bot.townhalls, enemy_position)
-            if closest_base is None:
-                closest_base = self.bot.townhalls.closest_to(enemy_position)
-            second_closest_base = self.bot.townhalls.filter(
-                lambda base: base.tag != closest_base.tag).closest_to(enemy_position)
-            path = self.map.get_path_points(closest_base.position, second_closest_base.position)
-            backtrack_distance = 15
-            i = 0
-            while backtrack_distance > 0 and i + 1 < len(path):
-                next_node_distance = path[i].distance_to(path[i + 1])
-                if backtrack_distance <= next_node_distance:
-                    self.main_army.staging_location = path[i].towards(path[i + 1], backtrack_distance)
-                    break
-                backtrack_distance -= next_node_distance
-                i += 1
+            bunkers = self.bot.structures(UnitTypeId.BUNKER)
+            if not bunkers or army_ratio > 0.8:
+                closest_base = self.map.get_closest_unit_by_path(self.bot.townhalls, enemy_position)
+                if closest_base is None:
+                    closest_base = self.bot.townhalls.closest_to(enemy_position)
+                second_closest_base = self.bot.townhalls.filter(
+                    lambda base: base.tag != closest_base.tag).closest_to(enemy_position)
+                path = self.map.get_path_points(second_closest_base.position, closest_base.position)
+                backtrack_distance = 15
+                i = 0
+                while backtrack_distance > 0 and i + 1 < len(path):
+                    next_node_distance = path[i].distance_to(path[i + 1])
+                    if backtrack_distance <= next_node_distance:
+                        self.main_army.staging_location = path[i].towards(path[i + 1], backtrack_distance)
+                        break
+                    backtrack_distance -= next_node_distance
+                    i += 1
+            else:
+                closest_bunker = self.closest_unit_to_unit(self.main_army.position, bunkers)
+                self.main_army.staging_location = closest_bunker.position
         else:
             self.main_army.staging_location = self.bot.start_location.towards(enemy_position, 5)
         # force move is used for retreating. don't use if already near staging location

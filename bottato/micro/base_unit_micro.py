@@ -92,6 +92,7 @@ class BaseUnitMicro(GeometryMixin):
         elif unit.tag in BaseUnitMicro.harass_tags:
             BaseUnitMicro.harass_tags.remove(unit.tag)
         attack_health = self.attack_health
+
             
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.NONE
@@ -99,6 +100,8 @@ class BaseUnitMicro(GeometryMixin):
         action_taken: UnitMicroType = self._avoid_effects(unit, force_move)
         if action_taken == UnitMicroType.NONE:
             action_taken = await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move)
+        if action_taken == UnitMicroType.NONE:
+            action_taken = self._move_to_repairer(unit)
         if action_taken == UnitMicroType.NONE:
             action_taken = self._attack_something(unit, health_threshold=attack_health, force_move=force_move)
         if action_taken == UnitMicroType.NONE:
@@ -133,6 +136,8 @@ class BaseUnitMicro(GeometryMixin):
         action_taken: UnitMicroType = self._avoid_effects(unit, force_move)
         if action_taken == UnitMicroType.NONE:
             action_taken = await self._use_ability(unit, target, health_threshold=self.ability_health, force_move=force_move)
+        if action_taken == UnitMicroType.NONE:
+            action_taken = self._move_to_repairer(unit)
         if action_taken == UnitMicroType.NONE:
             action_taken = self._harass_attack_something(unit, health_threshold=attack_health, harass_location=target, force_move=force_move)
         if action_taken == UnitMicroType.NONE:
@@ -271,6 +276,16 @@ class BaseUnitMicro(GeometryMixin):
     valid_targets: Units | None = None
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
+        return UnitMicroType.NONE
+    
+    def _move_to_repairer(self, unit: Unit) -> UnitMicroType:
+        if unit.tag in BaseUnitMicro.repair_targets_prev_frame and unit.health_percentage < 1.0:
+            repairer_tags = BaseUnitMicro.repair_targets_prev_frame[unit.tag]
+            repairers = self.bot.workers.filter(lambda w: w.tag in repairer_tags)
+            closest_repairer = repairers.closest_to(unit) if repairers else None
+            if closest_repairer and 1 < closest_repairer.distance_to_squared(unit) < 16:
+                unit.move(closest_repairer)
+                return UnitMicroType.MOVE
         return UnitMicroType.NONE
 
     @timed

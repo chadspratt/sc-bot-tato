@@ -43,7 +43,8 @@ class Commander(GeometryMixin):
         self.my_workers: Workers = Workers(bot, self.enemy, self.map)
         self.military: Military = Military(bot, self.enemy, self.map, self.my_workers, self.intel)
         self.build_order: BuildOrder = BuildOrder(
-            "pig_b2gm", bot=bot, workers=self.my_workers, production=self.production, map=self.map
+            "pig_b2gm", bot=bot, workers=self.my_workers, production=self.production, map=self.map,
+            military=self.military, intel=self.intel, enemy=self.enemy
         )
         self.scouting = Scouting(bot, self.enemy, self.map, self.my_workers, self.military, self.intel)
 
@@ -81,7 +82,7 @@ class Commander(GeometryMixin):
         await self.structure_micro.execute(self.intel.enemy_builds_detected) # fast
 
         # XXX slow, 17% of command time
-        needed_resources: Cost = await self.build_order.execute(self.military.army_ratio, self.intel.enemy_builds_detected, self.enemy, self.intel)
+        needed_resources: Cost = await self.build_order.execute()
 
         await self.scout() # fast
 
