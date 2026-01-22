@@ -343,8 +343,8 @@ class Map(GeometryMixin):
         closest_unit: Unit | None = None
         for unit in units:
             path = self.get_path(unit.position, end)
-            if path.distance < shortest_distance:
-                shortest_distance = path.distance
+            if path.length < shortest_distance:
+                shortest_distance = path.length
                 closest_unit = unit
         if closest_unit is None:
             # fallback to direct distance
@@ -358,8 +358,8 @@ class Map(GeometryMixin):
         closest_position: Point2 = positions[0]
         for position in positions:
             path = self.get_path(start, position)
-            if path.distance < shortest_distance:
-                shortest_distance = path.distance
+            if path.length < shortest_distance:
+                shortest_distance = path.length
                 closest_position = position
         if closest_position is None:
             for position in positions:
@@ -374,14 +374,14 @@ class Map(GeometryMixin):
         position: Point2
         for position in positions:
             path = self.get_path(start, position)
-            distances_by_position[position] = path.distance
+            distances_by_position[position] = path.length
         return distances_by_position
     
     def get_unit_distances_by_path(self, start: Point2, units: Units) -> Dict[Unit, float]:
         distances_by_unit: Dict[Unit, float] = {}
         for unit in units:
             path = self.get_path(start, unit.position)
-            distances_by_unit[unit] = path.distance
+            distances_by_unit[unit] = path.length
         return distances_by_unit
 
     @timed
@@ -389,7 +389,7 @@ class Map(GeometryMixin):
         point2_path: List[Point2] = [start]
         zone: Zone
         path: Path = self.get_path(start, end)
-        if path.distance < 9999:
+        if path.length < 9999:
             logger.debug(f"found path {path}")
             for zone in path.zones[1:-1]:
                 if zone.midpoint != point2_path[-1]:
@@ -497,7 +497,7 @@ class Map(GeometryMixin):
     def _distance_minus_enemy_distance(self, location: ScoutingLocation, start_position: Point2, enemy_start_position: Point2) -> float:
         """Helper function for sorting expansions by distance from enemy."""
         path = self.get_path(start_position, location.expansion_position)
-        return path.distance - location.expansion_position.distance_to(enemy_start_position)
+        return path.length - location.expansion_position.distance_to(enemy_start_position)
 
     checked_zones = set()
     zones_to_check: List[Zone] = []

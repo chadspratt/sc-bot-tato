@@ -38,7 +38,6 @@ class WorkerAssignment():
         self.initial_gather_complete: bool = False
         self.is_returning = False
         self.on_attack_break = False
-        self.attack_target_tag: int | None = None
 
     def __repr__(self) -> str:
         return f"WorkerAssignment({self.unit}({self.unit_available}), {self.job_type.name}, {self.target})"
@@ -381,10 +380,12 @@ class Workers(GeometryMixin):
             healthy_workers = available_workers.filter(lambda u: u.health_percentage > 0.5)
             unhealthy_workers = available_workers.filter(lambda u: u.health_percentage <= 0.5)
 
+            defenders_per_enemy: Dict[int, int] = defaultdict(int)
             for worker in self.bot.workers:
                 assignment = self.assignments_by_worker[worker.tag]
                 targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
-                nearby_enemies = targetable_enemies.closer_than(4, worker)
+                position = assignment.target if assignment.target else worker
+                nearby_enemies = targetable_enemies.closer_than(1.5, position)
                 if nearby_enemies:
                     if worker.health_percentage < 0.6 and assignment.job_type == WorkerJobType.BUILD:
                         # stop building if getting attacked
@@ -393,8 +394,12 @@ class Workers(GeometryMixin):
                     if len(nearby_enemies) >= len(available_workers):
                         continue
                     for nearby_enemy in nearby_enemies:
-                        predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
-                        defender_tags.update(await self.send_defenders(nearby_enemy, healthy_workers, unhealthy_workers, 2))
+                        needed_defender_count = 2 - defenders_per_enemy[nearby_enemy.tag]
+                        if needed_defender_count > 0:
+                            predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
+                            new_defenders = await self.send_defenders(nearby_enemy, predicted_position, healthy_workers, unhealthy_workers, needed_defender_count)
+                            defenders_per_enemy[nearby_enemy.tag] += len(new_defenders)
+                            defender_tags.update(new_defenders)
 
             for townhall in self.bot.townhalls:
                 nearby_enemy_structures = self.bot.enemy_structures.closer_than(23, townhall).filter(lambda u: not u.is_flying)
@@ -417,12 +422,15 @@ class Workers(GeometryMixin):
                 workers_per_enemy_unit = 2 if nearby_enemy_structures or self.bot.enemy_race != Race.Protoss else 3
                 for nearby_enemy in nearby_enemies + nearby_enemy_structures:
                     predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
-                    number_of_attackers = 4 if nearby_enemy.is_structure else workers_per_enemy_unit
-                    townhall_defenders = await self.send_defenders(nearby_enemy, healthy_workers, unhealthy_workers, number_of_attackers)
-                    if not townhall_defenders:
-                        logger.debug(f"no attackers available for enemy {nearby_enemy}")
-                        break
-                    defender_tags.update(townhall_defenders)
+                    target_defender_count = 4 if nearby_enemy.is_structure else workers_per_enemy_unit
+                    needed_defender_count = target_defender_count - defenders_per_enemy[nearby_enemy.tag]
+                    if needed_defender_count > 0:
+                        townhall_defenders = await self.send_defenders(nearby_enemy, predicted_position, healthy_workers, unhealthy_workers, needed_defender_count)
+                        if not townhall_defenders:
+                            logger.debug(f"no attackers available for enemy {nearby_enemy}")
+                            break
+                        defenders_per_enemy[nearby_enemy.tag] += len(townhall_defenders)
+                        defender_tags.update(townhall_defenders)
 
         # put any leftover workers back to work
         for worker in self.bot.workers:
@@ -435,10 +443,13 @@ class Workers(GeometryMixin):
                     else:
                         assignment.unit.smart(assignment.target)
 
-    async def send_defenders(self, nearby_enemy: Unit, healthy_workers: Units, unhealthy_workers: Units, number_of_attackers: int) -> set[int]:
-        enemy_position = nearby_enemy if nearby_enemy.age == 0 else self.enemy.get_predicted_position(nearby_enemy, 0.0)
+    async def send_defenders(self, nearby_enemy: Unit,
+                             predicted_position: Point2,
+                             healthy_workers: Units,
+                             unhealthy_workers: Units,
+                             number_of_attackers: int) -> set[int]:
         if len(healthy_workers) >= number_of_attackers:
-            defenders = healthy_workers.closest_n_units(enemy_position, number_of_attackers)
+            defenders = healthy_workers.closest_n_units(predicted_position, number_of_attackers)
             for defender in defenders:
                 healthy_workers.remove(defender)
         else:
@@ -448,7 +459,7 @@ class Workers(GeometryMixin):
                 remainder = number_of_attackers - len(defenders)
 
                 if len(unhealthy_workers) >= remainder:
-                    unhealthy_defenders = unhealthy_workers.closest_n_units(enemy_position, remainder)
+                    unhealthy_defenders = unhealthy_workers.closest_n_units(predicted_position, remainder)
                     for defender in unhealthy_defenders:
                         unhealthy_workers.remove(defender)
                     defenders.extend(unhealthy_defenders)
@@ -458,7 +469,7 @@ class Workers(GeometryMixin):
 
         micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first)
         for defender in defenders:
-            if defender.distance_to_squared(enemy_position) > 625 or abs(self.bot.get_terrain_height(defender.position) - self.bot.get_terrain_height(enemy_position)) > 5:
+            if defender.distance_to_squared(predicted_position) > 625 or abs(self.bot.get_terrain_height(defender.position) - self.bot.get_terrain_height(predicted_position)) > 5:
                 # don't pull workers from far away or go down a ramp
                 logger.debug(f"worker {defender} too far from enemy {nearby_enemy}")
                 continue
@@ -469,7 +480,7 @@ class Workers(GeometryMixin):
                 await micro.move(defender, nearby_enemy.position)
             else:
                 # try to head off units instead of trailing after them
-                await micro.move(defender, enemy_position.position)
+                await micro.move(defender, predicted_position.position)
             self.assignments_by_worker[defender.tag].on_attack_break = True
 
         return defenders.tags

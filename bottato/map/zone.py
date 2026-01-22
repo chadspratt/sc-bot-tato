@@ -3,19 +3,22 @@ from typing import List, Dict, Set
 
 from loguru import logger
 
+from sc2.bot_ai import BotAI
 from sc2.position import Point2, Point3
 
+from bottato.mixins import GeometryMixin
 
-class Path:
-    def __init__(self, zones: List[Zone], distance: float, is_shortest: bool = True) -> None:
-        self.distance: float = distance
+
+class Path(GeometryMixin):
+    def __init__(self, zones: List[Zone], length: float, is_shortest: bool = True) -> None:
+        self.length: float = length
         self.zones: List[Zone] = zones
         self.is_shortest: bool = is_shortest
         if self.zones is None:
             logger.debug("SELF.ZONES IS NONE")
 
     def __repr__(self) -> str:
-        return f"Path({self.zones}, {self.distance})"
+        return f"Path({self.zones}, {self.length})"
     
     def __ne__(self, other: object) -> bool:
         assert isinstance(other, Path)
@@ -29,18 +32,41 @@ class Path:
     def add_to_start(self, zone: Zone, distance: float) -> Path:
         new_zones = [zone]
         new_zones.extend(self.zones)
-        return Path(new_zones, self.distance + distance)
+        return Path(new_zones, self.length + distance)
 
     def copy(self) -> Path:
-        return Path(self.zones.copy(), self.distance)
+        return Path(self.zones.copy(), self.length)
 
     def extend(self, path: Path) -> Path:
         self.zones.extend(path.zones[1:])
-        self.distance += path.distance
+        self.length += path.length
         return self
 
     def get_reverse(self) -> Path:
-        return Path([z for z in reversed(self.zones)], self.distance)
+        return Path([z for z in reversed(self.zones)], self.length)
+    
+    def draw(self, bot: BotAI) -> None:
+        """Draw a line connecting the midpoints in zones."""
+        if len(self.zones) < 2:
+            return
+        
+        previous_point3: Point3 | None = None
+        red_value: int = 255
+        red_value_adjustment: int = -50
+        i = 0
+        for zone in self.zones:
+            next_point3: Point3 = self.convert_point2_to_3(zone.midpoint, bot)
+            bot.client.debug_sphere_out(next_point3, 0.7, (red_value, 50, 50))
+            bot.client.debug_text_3d(f"{i};{next_point3}", next_point3, (255, 255, 255), size=10)
+            if previous_point3 is not None:
+                bot.client.debug_line_out(previous_point3, next_point3, (red_value, 50, 50))
+            previous_point3 = next_point3
+            i += 1
+            red_value = max(50, red_value + red_value_adjustment)
+            if red_value == 50:
+                red_value_adjustment = 50
+            elif red_value == 255:
+                red_value_adjustment = -50
 
 
 class Zone:
@@ -108,7 +134,7 @@ class Zone:
             while unchecked_paths:
                 current_path: Path = unchecked_paths.pop(0)
                 logger.debug(f"checking path {current_path}")
-                if current_path.distance >= destination_path.distance:
+                if current_path.length >= destination_path.length:
                     # this path can't be shorter than the known route, don't continue
                     continue
                 last_zone = current_path.zones[-1]
@@ -135,14 +161,14 @@ class Zone:
                         logger.debug(f"adding path to check {new_full_path}")
                         unchecked_paths.append(new_full_path)
 
-                    if adjacent_zone.id == destination_zone.id and new_full_path.distance < destination_path.distance:
+                    if adjacent_zone.id == destination_zone.id and new_full_path.length < destination_path.length:
                         destination_path = new_full_path
                         logger.debug(f"shorter path found, adding route from {self} to {destination_zone}: {destination_path}")
 
             logger.debug(f"shortest route: {destination_path}")
             destination_path.is_shortest = True
             # set reverse to be shortest too
-            if destination_path.distance < 9999:
+            if destination_path.length < 9999:
                 destination_path.zones[-1].shortest_paths[destination_path.zones[0].id].is_shortest = True
         return destination_path
 
@@ -157,8 +183,8 @@ class Zone:
         is_shorter_or_equal: bool = False
         try:
             existing_path: Path = self.shortest_paths[zone.id]
-            existing_distance = round(existing_path.distance, 2)
-            new_distance = round(path.distance, 2)
+            existing_distance = round(existing_path.length, 2)
+            new_distance = round(path.length, 2)
             if existing_distance == new_distance:
                 is_shorter_or_equal = True
             elif existing_distance > new_distance:
@@ -179,10 +205,10 @@ class Zone:
             existing_paths = self.longer_paths[zone.id]
             for i in range(len(existing_paths)):
                 existing_path = existing_paths[i]
-                if existing_path.distance == path.distance:
+                if existing_path.length == path.length:
                     # assume duplicate if distance is the same. could compare paths
                     break
-                elif existing_path.distance > path.distance:
+                elif existing_path.length > path.length:
                     existing_paths.insert(i, path)
                     break
             else:

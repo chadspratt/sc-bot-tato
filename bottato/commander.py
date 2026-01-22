@@ -169,10 +169,6 @@ class Commander(GeometryMixin):
         elif unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT):
             unit(AbilityId.RALLY_UNITS, self.bot.game_info.map_center)
         elif unit.type_id == UnitTypeId.BUNKER:
-            if self.military.top_ramp_bunker.structure and self.military.natural_bunker.structure:
-                new_bunker = Bunker(self.bot, len(self.military.bunkers), unit)
-                self.military.bunkers.append(new_bunker)
-                return
             if not self.military.top_ramp_bunker.structure:
                 distance_to_top_ramp = unit.position.distance_to(self.bot.main_base_ramp.barracks_correct_placement) # type: ignore
                 if distance_to_top_ramp < 6:
@@ -181,6 +177,10 @@ class Commander(GeometryMixin):
             if not self.military.natural_bunker.structure:
                 # not top ramp, assume natural
                 self.military.natural_bunker.structure = unit
+                return
+            new_bunker = Bunker(self.bot, len(self.military.bunkers), unit)
+            self.military.bunkers.append(new_bunker)
+            return
 
     def add_unit(self, unit: Unit):
         if unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE):

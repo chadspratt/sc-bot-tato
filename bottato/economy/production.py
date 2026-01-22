@@ -317,6 +317,8 @@ class Production():
             tech_lab_required: bool = False
             if unit_type in self.needs_tech_lab:
                 tech_lab_required = True
+            if builder_type == UnitTypeId.COMMANDCENTER:
+                return self.bot.townhalls.ready.idle.amount > 0
             if self.get_build_capacity(builder_type, tech_lab_required) > 0:
                 return True
         return False

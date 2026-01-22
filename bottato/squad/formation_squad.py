@@ -60,7 +60,7 @@ class FormationSquad(Squad, GeometryMixin):
                     next_point3: Point3 = self.convert_point2_to_3(point, self.bot)
                     self.bot.client.debug_line_out(previous_point3, next_point3, (255, 50, 50))
                     self.bot.client.debug_sphere_out(next_point3, 0.7, (255, 50, 50))
-                    self.bot.client.debug_text_3d(f"{i};{next_point3}", next_point3, (255, 255, 255), size=9)
+                    self.bot.client.debug_text_3d(f"{i};{next_point3}", next_point3, (255, 255, 255), size=10)
                     previous_point3 = next_point3
             if self._destination:
                 destination3: Point3 = self.convert_point2_to_3(self._destination, self.bot)

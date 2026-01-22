@@ -414,41 +414,43 @@ class Military(GeometryMixin, DebugMixin):
         # generally a retreat due to being outnumbered
         LogHelper.add_log(f"squad {self.main_army} staging at {self.main_army.staging_location}")
         enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
-        if len(detected_enemy_builds) > 0 and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
+        bunker_staging_location: Point2 | None = None
+        if BuildType.RUSH in detected_enemy_builds and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
             ramp_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOT).filter(lambda depot: depot.position.manhattan_distance(self.bot.main_base_ramp.top_center) < 5)
             if len(ramp_depots) >= 2:
                 # depots are raised, crowd around ramp to defend
                 self.main_army.staging_location = self.bot.main_base_ramp.top_center
             else:
                 self.main_army.staging_location = self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 5)
-        elif len(detected_enemy_builds) > 0 and len(self.bot.townhalls) <= 3 and self.army_ratio < 1.0:
+        elif BuildType.RUSH in detected_enemy_builds and len(self.bot.townhalls) <= 3 and self.army_ratio < 1.0:
             self.main_army.staging_location = self.map.natural_position.towards(self.bot.main_base_ramp.bottom_center, 5)
         elif len(self.bot.townhalls) > 1:
+            closest_base = self.map.get_closest_unit_by_path(self.bot.townhalls, enemy_position)
+            if closest_base is None:
+                closest_base = self.bot.townhalls.closest_to(enemy_position)
+            second_closest_base = self.bot.townhalls.filter(
+                lambda base: base.tag != closest_base.tag).closest_to(enemy_position)
+            path = self.map.get_path_points(second_closest_base.position, closest_base.position)
+            backtrack_distance = 15
+            i = 0
+            while backtrack_distance > 0 and i + 1 < len(path):
+                next_node_distance = path[i].distance_to(path[i + 1])
+                if backtrack_distance <= next_node_distance:
+                    self.main_army.staging_location = path[i].towards(path[i + 1], backtrack_distance)
+                    break
+                backtrack_distance -= next_node_distance
+                i += 1
+
             bunkers = self.bot.structures(UnitTypeId.BUNKER)
-            if not bunkers or army_ratio > 0.8:
-                closest_base = self.map.get_closest_unit_by_path(self.bot.townhalls, enemy_position)
-                if closest_base is None:
-                    closest_base = self.bot.townhalls.closest_to(enemy_position)
-                second_closest_base = self.bot.townhalls.filter(
-                    lambda base: base.tag != closest_base.tag).closest_to(enemy_position)
-                path = self.map.get_path_points(second_closest_base.position, closest_base.position)
-                backtrack_distance = 15
-                i = 0
-                while backtrack_distance > 0 and i + 1 < len(path):
-                    next_node_distance = path[i].distance_to(path[i + 1])
-                    if backtrack_distance <= next_node_distance:
-                        self.main_army.staging_location = path[i].towards(path[i + 1], backtrack_distance)
-                        break
-                    backtrack_distance -= next_node_distance
-                    i += 1
-            else:
-                closest_bunker = self.closest_unit_to_unit(self.main_army.position, bunkers)
-                self.main_army.staging_location = closest_bunker.position
+            if bunkers and army_ratio < 0.8:
+                closest_bunker = self.closest_unit_to_unit(self.main_army.staging_location, bunkers)
+                bunker_staging_location = closest_bunker.position
         else:
             self.main_army.staging_location = self.bot.start_location.towards(enemy_position, 5)
         # force move is used for retreating. don't use if already near staging location
-        force_move = self.main_army.position._distance_squared(self.main_army.staging_location) >= 225
-        await self.main_army.move(self.main_army.staging_location, enemy_position, force_move=force_move, blueprints=blueprints)
+        staging_location = bunker_staging_location if bunker_staging_location else self.main_army.staging_location
+        force_move = self.main_army.position._distance_squared(staging_location) >= 225
+        await self.main_army.move(staging_location, enemy_position, force_move=force_move, blueprints=blueprints)
 
     @timed_async
     async def regroup(self, target_position: Point2, blueprints: List[BuildStep]):

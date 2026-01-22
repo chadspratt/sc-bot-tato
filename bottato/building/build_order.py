@@ -107,7 +107,7 @@ class BuildOrder():
         self.queue_marines(detected_enemy_builds)
         if len(self.static_queue) < 5 or self.bot.time > 300:
             self.queue_turret(self.intel)
-            # self.queue_bunker(self.military.main_army.staging_location)
+            await self.queue_bunker(self.military.main_army.staging_location)
 
             # randomize unit queue so it doesn't get stuck on one unit type
             military_queue, priority_military_queue = self.get_military_queue(self.enemy, self.intel)
@@ -118,7 +118,7 @@ class BuildOrder():
             self.add_to_build_queue(priority_military_queue, queue=self.build_queue)
             self.add_to_build_queue(military_queue, queue=self.build_queue)
 
-            only_build_units = self.bot.supply_left > 5 and army_ratio > 0.0 and army_ratio < 0.8
+            only_build_units = self.bot.supply_left > 6 and 0.0 < army_ratio < 0.6
             if only_build_units:
                 capacity_available = self.production.can_build_any(military_queue)
                 if not capacity_available:
@@ -674,24 +674,25 @@ class BuildOrder():
                     else:
                         self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
     
-    @timed
-    def queue_bunker(self, main_army_staging_location: Point2) -> None:
+    @timed_async
+    async def queue_bunker(self, main_army_staging_location: Point2) -> None:
         in_progress_bunkers = self.get_in_progress_count(UnitTypeId.BUNKER)
         if in_progress_bunkers > 0:
             return
         bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
-        if bunkers and bunkers.closest_distance_to(main_army_staging_location) < 15:
+        if bunkers and bunkers.closest_distance_to(main_army_staging_location) < 10:
             # already have a bunker near main army
             return
         path_to_enemy = self.map.get_path(main_army_staging_location, self.bot.enemy_start_locations[0])
+        path_to_enemy.draw(self.bot)
         placement_position = main_army_staging_location
-        position_is_valid = self.bot.can_place_single(UnitTypeId.BUNKER, placement_position)
+        position_is_valid = await self.bot.can_place_single(UnitTypeId.BUNKER, placement_position)
         while not position_is_valid and path_to_enemy:
             next_waypoint = path_to_enemy.zones[1].midpoint
             placement_position = placement_position.towards(next_waypoint, 1, limit=True)
             if placement_position.manhattan_distance(next_waypoint) < 0.1:
                 path_to_enemy.zones.pop(0)
-            position_is_valid = self.bot.can_place_single(UnitTypeId.BUNKER, placement_position)
+            position_is_valid = await self.bot.can_place_single(UnitTypeId.BUNKER, placement_position)
             
         if position_is_valid:
             new_steps = self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue)
@@ -853,6 +854,11 @@ class BuildOrder():
                 continue
             time_since_last_cancel = self.bot.time - build_step.last_cancel_time
             if time_since_last_cancel < 10:
+                continue
+            
+            if isinstance(build_step, StructureBuildStep) and not self.production.can_build_any([build_step.get_unit_type_id()]):
+                # skip if no available production
+                failed_types.append(build_step.get_unit_type_id())
                 continue
 
             percent_affordable = 1.0
