@@ -104,7 +104,7 @@ class BuildOrder():
         self.queue_supply()
         self.queue_command_center(army_ratio)
         self.queue_upgrade()
-        self.queue_marines(detected_enemy_builds)
+        self.queue_marines(detected_enemy_builds, army_ratio)
         if len(self.static_queue) < 5 or self.bot.time > 300:
             self.queue_turret(self.intel)
             await self.queue_bunker(self.military.main_army.staging_location)
@@ -180,7 +180,7 @@ class BuildOrder():
                     self.interrupted_queue.insert(0, build_step)
 
     def enact_build_changes(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
-        if self.bot.time > 300 or self.bot.townhalls.amount > 2 or len(detected_enemy_builds) == 0:
+        if self.bot.time > 300 or self.bot.townhalls.amount > 2 or BuildType.RUSH not in detected_enemy_builds:
             # not a rush
             return
         if BuildType.WORKER_RUSH in detected_enemy_builds and BuildOrderChange.WORKER_RUSH not in self.changes_enacted:
@@ -463,7 +463,7 @@ class BuildOrder():
             # don't queue another expansion if current one is still in air
             # probably unsafe or it would have landed
             return
-        if len(self.detected_enemy_builds) > 0 and self.bot.time < 160:
+        if BuildType.RUSH in self.detected_enemy_builds and self.bot.time < 160:
             # don't expand too early during rush
             return
         if len(self.detected_enemy_builds) == 0 and self.bot.structures(UnitTypeId.STARPORT).amount == 0:
@@ -482,10 +482,13 @@ class BuildOrder():
         if army_ratio < 0.65 and self.bot.townhalls.amount >= 2 and self.bot.minerals < 400:
             # delay expansion if army low and already have 2 bases, unless sitting on enough minerals
             needed_cc_count -= 1
-
-        # expand if running out of room for workers at current bases
+        
         if needed_cc_count > cc_count:
+            # expand if running out of room for workers at current bases
             self.add_to_build_queue([UnitTypeId.COMMANDCENTER] * (needed_cc_count - cc_count), queue=self.priority_queue)
+        # elif len(self.bot.townhalls) == 1 and cc_count == 0 and self.bot.time > 160 and army_ratio > 1.0:
+        #     self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.priority_queue)
+        #     self.add_to_build_queue([UnitTypeId.COMMANDCENTER], queue=self.priority_queue, position=0)
 
     @timed
     def queue_townhall_work(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
@@ -547,10 +550,11 @@ class BuildOrder():
         self.add_to_build_queue(extra_production, position=0, queue=self.static_queue)
 
     @timed
-    def queue_marines(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
+    def queue_marines(self, detected_enemy_builds: Dict[BuildType, float], army_ratio: float) -> None:
         # use excess minerals and idle barracks
-        need_early_marines: bool = self.bot.time < 300 and \
-            (len(detected_enemy_builds) > 0 or self.bot.enemy_units.closer_than(20, self.map.natural_position).amount > 2)
+        need_early_marines: bool = self.bot.time < 300 and army_ratio < 0.8 and \
+            (BuildType.RUSH in detected_enemy_builds or self.bot.enemy_units.closer_than(20, self.map.natural_position).amount > 2)
+            
         if need_early_marines and self.bot.minerals >= 50 and self.bot.structures(UnitTypeId.BARRACKSREACTOR):
             idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
             priority_queue_count = self.get_queued_count(UnitTypeId.MARINE, self.priority_queue)

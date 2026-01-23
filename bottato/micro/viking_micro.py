@@ -157,7 +157,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                                                                 and u.tag != enemy_tag
                                                                 and u.type_id == enemy_type)
                 # other_type_threats = other_nearby_threats.exclude_type(enemy_unit.type_id)
-                if len(defenders) >= len(same_type_threats):
+                if len(defenders) >= len(same_type_threats) or UnitTypes.range_vs_target(defenders[0], enemy_unit) > UnitTypes.range_vs_target(enemy_unit, defenders[0]):
                     enemy_health = enemy_unit.health + enemy_unit.shield
                     for defender in defenders:
                         if defender.tag in self.target_assignments:

@@ -116,7 +116,7 @@ class Military(GeometryMixin, DebugMixin):
             if self.bot.units([UnitTypeId.REAPER, UnitTypeId.VIKINGFIGHTER]).amount == 0 and self.bot.time < 420:
                 # wait for a scout to attack
                 mount_offense = False
-            elif len(detected_enemy_builds) > 0 and self.bot.time < 360:
+            elif BuildType.RUSH in detected_enemy_builds and self.bot.time < 360:
                 mount_offense = False
             elif self.bot.supply_used < 50: # previously 110
                 mount_offense = False
@@ -212,7 +212,7 @@ class Military(GeometryMixin, DebugMixin):
                 # cannon rush response
                 self.workers.attack_enemy(enemy)
                 continue
-            if len(detected_enemy_builds) > 0 and len(self.main_army.units) < 10:
+            if BuildType.RUSH in detected_enemy_builds and len(self.main_army.units) < 10:
                 # don't send out units if getting rushed and army is small
                 defend_with_main_army = True
                 break
@@ -332,7 +332,7 @@ class Military(GeometryMixin, DebugMixin):
             if reapers:
                 self.transfer(reapers[0], self.main_army, self.reaper_harass)
 
-        if self.banshee_harass.units.amount < 2 and (self.bot.enemy_race != Race.Terran or len(detected_enemy_builds) > 0):
+        if self.banshee_harass.units.amount < 2 and (self.bot.enemy_race != Race.Terran or BuildType.RUSH in detected_enemy_builds):
             if not self.anti_banshee_units:
                 self.anti_banshee_units = self.bot.enemy_units((UnitTypeId.VIKINGFIGHTER, UnitTypeId.PHOENIX, UnitTypeId.MUTALISK))
             if not self.anti_banshee_units:

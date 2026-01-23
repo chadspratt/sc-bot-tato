@@ -209,7 +209,7 @@ class SCVBuildStep(BuildStep):
     attempted_expansion_positions = {}
     async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> Point2 | None:
         new_build_position = None
-        if unit_type_id == UnitTypeId.COMMANDCENTER and (len(detected_enemy_builds) == 0 or self.bot.townhalls.amount >= 2):
+        if unit_type_id == UnitTypeId.COMMANDCENTER and (BuildType.RUSH not in detected_enemy_builds or self.bot.townhalls.amount >= 2):
             # modified from bot_ai get_next_expansion
             sorted_expansions = self.map.expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY]
             available_expansions = []
@@ -316,7 +316,7 @@ class SCVBuildStep(BuildStep):
                     logger.debug(f"found enemy near proposed build position {new_build_position}, rejecting")
                     return None
                 
-            if unit_type_id == UnitTypeId.COMMANDCENTER and len(detected_enemy_builds) == 0:
+            if unit_type_id == UnitTypeId.COMMANDCENTER and BuildType.RUSH not in detected_enemy_builds:
                 if new_build_position in self.attempted_expansion_positions:
                     self.attempted_expansion_positions[new_build_position] += 1
                 else:
