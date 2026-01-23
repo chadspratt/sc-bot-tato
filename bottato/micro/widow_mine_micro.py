@@ -70,7 +70,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                     self.burrow(unit)
                     return UnitMicroType.USE_ABILITY
             
-            if unit.position.distance_to(special_pos) > 2:
+            if unit.position.distance_to(special_pos) > 5:
                 self.unburrow(unit)
                 return UnitMicroType.USE_ABILITY
             return UnitMicroType.NONE

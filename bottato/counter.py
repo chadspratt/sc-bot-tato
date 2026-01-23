@@ -23,7 +23,7 @@ class Counter():
             UnitTypeId.VIKINGFIGHTER: 3
         },
         UnitTypeId.COLOSSUS: { # 6
-            UnitTypeId.VIKINGFIGHTER: 2.5
+            UnitTypeId.VIKINGFIGHTER: 2
         },
         UnitTypeId.DARKTEMPLAR: { # 2
             UnitTypeId.RAVEN: 0.2,
@@ -34,7 +34,7 @@ class Counter():
             UnitTypeId.THOR: 0.4 # 2.4
         },
         UnitTypeId.FLEETBEACON: {
-            UnitTypeId.VIKINGFIGHTER: 4
+            UnitTypeId.VIKINGFIGHTER: 3
         },
         UnitTypeId.HIGHTEMPLAR: { # 2
             UnitTypeId.GHOST: 0.7, # 2.1
@@ -52,7 +52,7 @@ class Counter():
             UnitTypeId.MARINE: 3
         },
         UnitTypeId.ORACLE: { # 3
-            UnitTypeId.VIKINGFIGHTER: 1.5, # 3
+            UnitTypeId.VIKINGFIGHTER: 0.75,
         },
         UnitTypeId.PHOENIX: { # 2
             UnitTypeId.VIKINGFIGHTER: 1
@@ -67,17 +67,17 @@ class Counter():
             UnitTypeId.SIEGETANK: 0.2
         },
         UnitTypeId.STARGATE: {
-            UnitTypeId.VIKINGFIGHTER: 1
+            UnitTypeId.VIKINGFIGHTER: 0.5
         },
         UnitTypeId.TEMPEST: { # 4
             UnitTypeId.VIKINGFIGHTER: 3,
             UnitTypeId.CYCLONE: 0.3
         },
         UnitTypeId.VOIDRAY: { # 4
-            UnitTypeId.VIKINGFIGHTER: 2
+            UnitTypeId.VIKINGFIGHTER: 1
         },
         UnitTypeId.WARPPRISM: { # 2
-            UnitTypeId.VIKINGFIGHTER: 1
+            UnitTypeId.VIKINGFIGHTER: 0.75
         },
         UnitTypeId.ZEALOT: { # 2
             UnitTypeId.SIEGETANK: 0.2, # 1

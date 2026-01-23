@@ -43,6 +43,7 @@ class EnemyIntel(GeometryMixin):
         self.enemy_main_scouted = True
 
     async def update(self):
+        self.enemy_drop_transports = UnitReferenceHelper.get_updated_unit_references(self.enemy_drop_transports)
         self.catalog_visible_units()
         self.update_proxy_buildings()
         await self.detect_enemy_builds()
@@ -238,21 +239,21 @@ class EnemyIntel(GeometryMixin):
                     if nearby_allies:
                         # transport is not alone, not a drop
                         continue
-                self.enemy_drop_transports.append(transport)
-            if self.bot.in_pathing_grid(transport.position):
-                i = len(self.enemy_drop_locations) - 1
-                already_recorded = False
-                while i >= 0:
-                    drop_position, _ = self.enemy_drop_locations[i]
-                    if transport.distance_to_squared(drop_position) < 36:
-                        self.enemy_drop_locations[i] = (drop_position, self.bot.time)
-                        LogHelper.add_log(f"Updated enemy drop location at {drop_position}")
-                        already_recorded = True
-                        break
-                    i -= 1
-                if not already_recorded:
-                    self.enemy_drop_locations.append((transport.position, self.bot.time))
-                    LogHelper.write_log_to_db(f"Enemy drop detected at {transport.position}")
+                if self.bot.in_pathing_grid(transport.position):
+                    self.enemy_drop_transports.append(transport)
+                    i = len(self.enemy_drop_locations) - 1
+                    already_recorded = False
+                    while i >= 0:
+                        drop_position, _ = self.enemy_drop_locations[i]
+                        if transport.distance_to_squared(drop_position) < 36:
+                            self.enemy_drop_locations[i] = (drop_position, self.bot.time)
+                            LogHelper.add_log(f"Updated enemy drop location at {drop_position}")
+                            already_recorded = True
+                            break
+                        i -= 1
+                    if not already_recorded:
+                        self.enemy_drop_locations.append((transport.position, self.bot.time))
+                        LogHelper.write_log_to_db(f"Enemy drop detected at {transport.position}")
 
     def get_recent_drop_locations(self, within_seconds: float) -> List[Point2]:
         recent_drops: List[Point2] = []

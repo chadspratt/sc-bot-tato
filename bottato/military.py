@@ -127,20 +127,20 @@ class Military(GeometryMixin, DebugMixin):
 
         self.status_message = f"army ratio {self.army_ratio:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
-        closest_bunker_to_center: Bunker | None = None
-        closest_bunker_to_center_distance: float = float('inf')
+        closest_bunker_to_army: Bunker | None = None
+        closest_bunker_to_army_distance: float = float('inf')
         for bunker in self.bunkers:
             if not bunker.structure:
                 continue
-            distance_to_map_center = bunker.structure.distance_to_squared(self.bot.game_info.map_center) if bunker.structure else float('inf')
-            if bunker.structure and distance_to_map_center < closest_bunker_to_center_distance:
-                closest_bunker_to_center = bunker
-                closest_bunker_to_center_distance = distance_to_map_center
+            distance_to_army = bunker.structure.distance_to_squared(self.main_army.position) if bunker.structure else float('inf')
+            if bunker.structure and distance_to_army < closest_bunker_to_army_distance:
+                closest_bunker_to_army = bunker
+                closest_bunker_to_army_distance = distance_to_army
         for bunker in self.bunkers:
             if mount_offense or not bunker.structure:
                 self.empty_bunker(bunker)
             else:
-                is_closest = bunker == closest_bunker_to_center
+                is_closest = bunker == closest_bunker_to_army
                 await self.manage_bunker(bunker, self.enemies_in_base, is_closest)
 
         if self.main_army.units:

@@ -180,6 +180,7 @@ class Commander(GeometryMixin):
                 return
             new_bunker = Bunker(self.bot, len(self.military.bunkers), unit)
             self.military.bunkers.append(new_bunker)
+            self.military.squads.append(new_bunker)
             return
 
     def add_unit(self, unit: Unit):

@@ -687,7 +687,7 @@ class BuildOrder():
         path_to_enemy.draw(self.bot)
         placement_position = main_army_staging_location
         position_is_valid = await self.bot.can_place_single(UnitTypeId.BUNKER, placement_position)
-        while not position_is_valid and path_to_enemy:
+        while not position_is_valid and len(path_to_enemy.zones) > 1:
             next_waypoint = path_to_enemy.zones[1].midpoint
             placement_position = placement_position.towards(next_waypoint, 1, limit=True)
             if placement_position.manhattan_distance(next_waypoint) < 0.1:
@@ -698,8 +698,8 @@ class BuildOrder():
             new_steps = self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue)
             if new_steps:
                 bunker_step = new_steps[0]
-                assert isinstance(bunker_step, SCVBuildStep)
-                bunker_step.position = placement_position
+                if isinstance(bunker_step, SCVBuildStep):
+                    bunker_step.position = placement_position
 
     def get_affordable_build_list(self, only_build_units: bool) -> List[UnitTypeId]:
         affordable_items: List[UnitTypeId] = []
