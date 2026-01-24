@@ -330,6 +330,8 @@ class SCVBuildStep(BuildStep):
     async def find_generic_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations) -> Point2 | None:
         logger.debug(f"finding placement for {unit_type_id}")
         new_build_position: Point2 | None = None
+        if unit_type_id == UnitTypeId.REFINERYRICH:
+            unit_type_id = UnitTypeId.REFINERY
         if not special_locations.is_blocked:
             new_build_position = special_locations.find_placement(unit_type_id)
         addon_place = unit_type_id in (
