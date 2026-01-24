@@ -103,7 +103,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         last_siege_attack = self.last_siege_attack_time.get(unit.tag, -999)
         time_since_last_siege_attack = self.bot.time - last_siege_attack
 
-        excluded_enemy_types = [UnitTypeId.LARVA, UnitTypeId.EGG] if is_sieged else UnitTypes.NON_THREATS
+        excluded_enemy_types = [UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.ADEPTPHASESHIFT] if is_sieged else UnitTypes.NON_THREATS
         closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
                                                                         excluded_types=excluded_enemy_types)
         closest_distance_after_siege = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
@@ -219,7 +219,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if closest_enemy_to_ramp:
             LogHelper.add_log(f"Early game siege tank micro for {unit}, closest enemy to ramp: {closest_enemy_to_ramp}")
             # bonus_distance = 0 if is_sieged else 6
-            in_range_distance_sq = (10.8 + closest_enemy_to_ramp.radius) ** 2 if closest_enemy_to_ramp.is_structure else 169
+            structure_in_range_distance = 10.5 if is_sieged else 10.8
+            in_range_distance_sq = (structure_in_range_distance + closest_enemy_to_ramp.radius) ** 2 if closest_enemy_to_ramp.is_structure else 169
             enemy_out_of_range = unit.distance_to_squared(closest_enemy_to_ramp) >= in_range_distance_sq
             if is_sieged and enemy_out_of_range and closest_enemy_to_ramp.is_structure:
                 self.unsiege(unit)

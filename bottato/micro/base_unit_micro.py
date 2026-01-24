@@ -431,7 +431,7 @@ class BaseUnitMicro(GeometryMixin):
 
             if nearest_sieged_tank:
                 distance_to_tank = self.distance(unit, nearest_sieged_tank)
-                if distance_to_tank < 7:
+                if distance_to_tank < 8:
                     # dive on sieged tanks
                     attack_range = 0
                     target_position = nearest_sieged_tank.position.towards(unit, attack_range)
@@ -603,7 +603,11 @@ class BaseUnitMicro(GeometryMixin):
         if not tank_targets:
             return False
         closest_enemy = tank_targets.closest_to(unit)
-        if closest_enemy.distance_to_squared(unit) > 225:
+        closest_enemy_distance_sq = closest_enemy.distance_to_squared(unit)
+        if closest_enemy_distance_sq > 225:
+            return False
+        if closest_enemy.type_id == UnitTypeId.SIEGETANKSIEGED and closest_enemy_distance_sq < 7:
+            # if enemy tank is close, dive on it instead of retreating
             return False
 
         nearest_tank = tanks.closest_to(unit)

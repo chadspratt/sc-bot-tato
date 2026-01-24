@@ -105,7 +105,8 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
 
             if (not current_target or current_target.type_id == UnitTypeId.BROODLING) and cooldown_remaining == 0:
                 # target new unit, if any in range
-                targets_in_range = self.enemy.in_attack_range(unit, self.bot.enemy_units, -0.5)
+                valid_targets = self.bot.enemy_units.exclude_type([UnitTypeId.BROODLING, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.ADEPTPHASESHIFT, UnitTypeId.CHANGELING])
+                targets_in_range = self.enemy.in_attack_range(unit, valid_targets, -0.5)
                 if targets_in_range:
                     new_target = max(targets_in_range, key=lambda t: t.health + t.shield - self.get_targeting_count(t) * 125)
                     unit.smart(new_target)
@@ -151,7 +152,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                         return UnitMicroType.MOVE
             return UnitMicroType.NONE
                     
-        excluded_enemy_types = [UnitTypeId.LARVA, UnitTypeId.EGG] if is_burrowed else UnitTypes.NON_THREATS
+        excluded_enemy_types = [UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.ADEPTPHASESHIFT] if is_burrowed else UnitTypes.NON_THREATS
         new_target, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
                                                                         excluded_types=excluded_enemy_types)
 

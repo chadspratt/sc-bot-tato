@@ -365,6 +365,7 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.PROBE,
         UnitTypeId.SCV,
         UnitTypeId.MULE,
+        UnitTypeId.ADEPTPHASESHIFT,
     ]
 
     NON_THREAT_DETECTORS = [

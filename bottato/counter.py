@@ -14,6 +14,9 @@ class Counter():
             UnitTypeId.MARAUDER: 0.5,
             UnitTypeId.SIEGETANK: 0.1
         },
+        UnitTypeId.ADEPTPHASESHIFT: { # 2
+            UnitTypeId.MARINE: 2
+        },
         UnitTypeId.ARCHON: { # 4
             UnitTypeId.THOR: 0.6,
             UnitTypeId.GHOST: 0.4,
