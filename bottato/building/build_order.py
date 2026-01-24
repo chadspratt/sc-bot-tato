@@ -684,7 +684,8 @@ class BuildOrder():
         if in_progress_bunkers > 0:
             return
         bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
-        if bunkers and bunkers.closest_distance_to(main_army_staging_location) < 10:
+        closest_bunker = bunkers.closest_to(main_army_staging_location) if bunkers else None
+        if closest_bunker and closest_bunker.distance_to(main_army_staging_location) < 10:
             # already have a bunker near main army
             return
         path_to_enemy = self.map.get_path(main_army_staging_location, self.bot.enemy_start_locations[0])
@@ -696,14 +697,16 @@ class BuildOrder():
             placement_position = placement_position.towards(next_waypoint, 1, limit=True)
             if placement_position.manhattan_distance(next_waypoint) < 0.1:
                 path_to_enemy.zones.pop(0)
+            if closest_bunker and closest_bunker.distance_to(placement_position) < 10:
+                break
             position_is_valid = await self.bot.can_place_single(UnitTypeId.BUNKER, placement_position)
             
         if position_is_valid:
             new_steps = self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue)
             if new_steps:
-                bunker_step = new_steps[0]
-                if isinstance(bunker_step, SCVBuildStep):
-                    bunker_step.position = placement_position
+                for bunker_step in new_steps:
+                    if isinstance(bunker_step, SCVBuildStep) and bunker_step.unit_type_id == UnitTypeId.BUNKER:
+                        bunker_step.position = placement_position
 
     def get_affordable_build_list(self, only_build_units: bool) -> List[UnitTypeId]:
         affordable_items: List[UnitTypeId] = []
