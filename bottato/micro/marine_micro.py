@@ -17,7 +17,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     last_stim_time: dict[int, float] = {}
     stim_researched: bool = False
     attack_range: float = 5.0
-    time_in_frames_to_attack: float = 0.3 * 22.4  # 0.3 seconds
+    time_in_frames_to_attack: float = 0.5 * 22.4  # 0.3 seconds
 
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:

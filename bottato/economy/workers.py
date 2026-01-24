@@ -385,16 +385,20 @@ class Workers(GeometryMixin):
                 assignment = self.assignments_by_worker[worker.tag]
                 targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
                 position = assignment.target if assignment.target else worker
-                nearby_enemies = targetable_enemies.closer_than(1.5, position)
+                nearby_enemies = targetable_enemies.closer_than(5, position)
                 if nearby_enemies:
                     if worker.health_percentage < 0.6 and assignment.job_type == WorkerJobType.BUILD:
                         # stop building if getting attacked
                         worker(AbilityId.HALT)
+                    
+                    if worker.health_percentage > 0.5 and assignment.job_type == WorkerJobType.REPAIR:
+                        continue
 
                     if len(nearby_enemies) >= len(available_workers):
                         continue
                     for nearby_enemy in nearby_enemies:
-                        needed_defender_count = 2 - defenders_per_enemy[nearby_enemy.tag]
+                        num_defenders_per_enemy = 2 if nearby_enemy.type_id in UnitTypes.WORKER_TYPES else 3
+                        needed_defender_count = num_defenders_per_enemy - defenders_per_enemy[nearby_enemy.tag]
                         if needed_defender_count > 0:
                             predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
                             new_defenders = await self.send_defenders(nearby_enemy, predicted_position, healthy_workers, unhealthy_workers, needed_defender_count)
@@ -742,7 +746,7 @@ class Workers(GeometryMixin):
                         ], bot_object=self.bot)
 
             for injured_unit in injured_units:
-                if injured_unit.type_id == UnitTypeId.BUNKER:
+                if injured_unit.type_id == UnitTypeId.BUNKER and len(injured_unit.passengers) > 0:
                     assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 5, candidates))
                 elif injured_unit.type_id == UnitTypeId.MISSILETURRET:
                     flying_enemies = self.bot.enemy_units.filter(lambda u: u.is_flying)

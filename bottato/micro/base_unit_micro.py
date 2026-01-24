@@ -413,6 +413,10 @@ class BaseUnitMicro(GeometryMixin):
     def _stay_at_max_range(self, unit: Unit, targets: Units, buffer: float = 0.5) -> UnitMicroType:
         if not targets:
             return UnitMicroType.NONE
+        if self.bot.time < 300 and unit.position.manhattan_distance(self.bot.main_base_ramp.top_center) < 10:
+            if self.bot.get_terrain_height(unit) == self.bot.get_terrain_height(self.bot.start_location):
+                # don't kite away from ramp wall early game
+                return UnitMicroType.NONE
         nearest_target = self.closest_unit_to_unit(unit, targets)
         # don't keep distance from structures since it prevents units in back from attacking
         # except for zerg structures that spawn broodlings when they die
