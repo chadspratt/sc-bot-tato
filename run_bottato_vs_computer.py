@@ -146,6 +146,20 @@ def update_match_result(match_id: int, result: str, replay_path: str):
     conn.commit()
     conn.close()
 
+def update_match_map(match_id: int, map_name: str):
+    """Update the map name for an existing match."""
+    conn = sqlite3.connect('db/match_data.db')
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        UPDATE match 
+        SET map_name = ?
+        WHERE id = ?
+    ''', (map_name, match_id))
+
+    conn.commit()
+    conn.close()
+
 def main():
     # Initialize database
     init_database()
@@ -155,6 +169,7 @@ def main():
     race = os.environ.get("RACE")
     build = os.environ.get("BUILD")
     difficulty_env = os.environ.get("DIFFICULTY")
+    existing_match_id = os.environ.get("MATCH_ID")
     
     opponent_race = race_dict.get(race, Race.Random)
     opponent_build = build_dict.get(build, AIBuild.RandomBuild)
@@ -163,12 +178,15 @@ def main():
     opponent = Computer(opponent_race, difficulty, ai_build=opponent_build)
     start_time = datetime.now().isoformat()
 
-    # Get the next test group ID
-    test_group_id = get_next_test_group_id()
-
-    # Create pending match entry and get match ID
-    match_id = create_pending_match(test_group_id, start_time, random_map, opponent_race, difficulty, opponent_build)
-    assert match_id is not None, "Failed to create match entry in the database."
+    if existing_match_id:
+        # Use existing match ID and update it with map name
+        match_id = int(existing_match_id)
+        update_match_map(match_id, random_map)
+    else:
+        # Fallback: create new match if no ID provided (for backward compatibility)
+        test_group_id = get_next_test_group_id()
+        match_id = create_pending_match(test_group_id, start_time, random_map, opponent_race, difficulty, opponent_build)
+        assert match_id is not None, "Failed to create match entry in the database."
 
     replay_name = f"replays/{match_id}_{random_map}_{race}-{build}.SC2Replay"
 

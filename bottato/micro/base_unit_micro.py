@@ -446,35 +446,47 @@ class BaseUnitMicro(GeometryMixin):
                     return self._move_to_pathable_position(unit, target_position)
 
         attack_range = UnitTypes.range_vs_target(unit, nearest_target)
-        future_enemy_position = nearest_target.position
+        future_enemy_position = targets.center
         target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius + buffer)
         return self._move_to_pathable_position(unit, target_position)
 
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
 
-    def _kite(self, unit: Unit, target: Unit) -> UnitMicroType:
-        attack_range = UnitTypes.range_vs_target(unit, target)
-        target_range = UnitTypes.range_vs_target(target, unit)
-        do_kite = UnitTypes.can_be_attacked(unit, self.bot, self.bot.enemy_units) \
-            and attack_range > target_range > 0 and unit.movement_speed > target.movement_speed
-        if do_kite:
-            # can attack while staying out of range
-            target_distance = self.distance(unit, target, self.enemy.predicted_position) - target.radius - unit.radius
-            if target.type_id in UnitTypes.WORKER_TYPES:
-                if target_distance < target_range + 2.0:
-                    buffer = 0.5
-                    if not target.is_facing(unit, angle_error=0.2):
-                        # stay target_range + 2.5 away instead of attack_range + 0.5
-                        buffer = target_range - attack_range + 2.5
-                    if self._stay_at_max_range(unit, Units([target], bot_object=self.bot), buffer=buffer) == UnitMicroType.NONE:
-                        unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
-                    return UnitMicroType.MOVE
-            elif target_distance < attack_range - 1.0 or target_distance < target_range + 0.5:
-                if self._stay_at_max_range(unit, Units([target], bot_object=self.bot)) == UnitMicroType.NONE:
-                    unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
-                return UnitMicroType.MOVE
-        self._attack(unit, target)
-        return UnitMicroType.ATTACK
+    def _kite(self, unit: Unit, targets: Units) -> UnitMicroType:
+        targets_to_avoid = Units([], bot_object=self.bot)
+        for target in targets:
+            attack_range = UnitTypes.range_vs_target(unit, target)
+            target_range = UnitTypes.range_vs_target(target, unit)
+            do_kite = UnitTypes.can_be_attacked(unit, self.bot, self.bot.enemy_units) \
+                and attack_range > target_range > 0 and unit.movement_speed > target.movement_speed
+            if do_kite:
+                # can attack while staying out of range
+                target_distance = self.distance(unit, target, self.enemy.predicted_position) - target.radius - unit.radius
+                if target.type_id in UnitTypes.WORKER_TYPES:
+                    if target_distance < target_range + 2.0:
+                        targets_to_avoid.append(target)
+                        # buffer = 0.5
+                        # if not target.is_facing(unit, angle_error=0.2):
+                        #     # stay target_range + 2.5 away instead of attack_range + 0.5
+                        #     buffer = target_range - attack_range + 2.5
+                        # if self._stay_at_max_range(unit, Units([target], bot_object=self.bot), buffer=buffer) == UnitMicroType.NONE:
+                        #     unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
+                        # return UnitMicroType.MOVE
+                elif target_distance < attack_range - 1.0 or target_distance < target_range + 0.5:
+                    targets_to_avoid.append(target)
+        if targets_to_avoid:
+            if self._stay_at_max_range(unit, targets_to_avoid) == UnitMicroType.NONE:
+                unit.move(self._get_retreat_destination(unit, targets_to_avoid))
+            return UnitMicroType.MOVE
+
+        if unit.weapon_cooldown < self.time_in_frames_to_attack:
+            target = sorted(targets, key=lambda t: t.health + t.shield)[0]
+            self._attack(unit, target)
+            return UnitMicroType.ATTACK
+        
+        if self._stay_at_max_range(unit, targets) == UnitMicroType.NONE:
+            unit.move(self._get_retreat_destination(unit, targets))
+        return UnitMicroType.MOVE
     
     def _attack(self, unit: Unit, target: Unit) -> bool:
         if target.type_id == UnitTypeId.INTERCEPTOR:
@@ -510,7 +522,7 @@ class BaseUnitMicro(GeometryMixin):
                     repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags.union(BaseUnitMicro.repairer_tags_prev_frame))
                     if not repairers:
                         repairers = self.bot.workers.filter(lambda w: w.tag not in BaseUnitMicro.scout_tags)
-                    if repairers:
+                    if repairers and unit.type_id == UnitTypeId.SCV:
                         repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
                     if repairers:
                         closest_repairer = repairers.closest_to(unit)
@@ -534,20 +546,30 @@ class BaseUnitMicro(GeometryMixin):
         if not threats:
             return self.map.get_pathable_position(ultimate_destination, unit)
 
-        avg_threat_position = threats.center
-        if unit.distance_to(ultimate_destination) < avg_threat_position.distance_to(ultimate_destination) - 2:
-            return self.map.get_pathable_position(ultimate_destination, unit)
+        retreat_vector: Point2 = Point2((0,0))
+        for threat in threats:
+            if unit.position != threat.position:
+                threat_vector = (unit.position - threat.position).normalized
+                retreat_vector += threat_vector
+        if retreat_vector.length == 0:
+            retreat_vector = ultimate_destination - unit.position
         retreat_distance = -10 if unit.is_flying else -5
-        retreat_position = unit.position.towards(avg_threat_position, retreat_distance)
-        # .towards(ultimate_destination, 2)
+        retreat_position = unit.position.towards(unit.position + retreat_vector, retreat_distance)
+        threat_position = unit.position - retreat_vector
+
+        if unit.distance_to(ultimate_destination) < threat_position.distance_to(ultimate_destination) - 2:
+            return self.map.get_pathable_position(ultimate_destination, unit)
+        retreat_position = unit.position.towards(retreat_vector, retreat_distance)
+        if unit.is_flying:
+            retreat_position = self.map.clamp_position_to_map_bounds(retreat_position, self.bot)
         if self._position_is_pathable(unit, retreat_position):
             return self.map.get_pathable_position(retreat_position, unit)
 
-        if unit.position == avg_threat_position:
+        if unit.position == retreat_vector:
             # avoid divide by zero
             return self.map.get_pathable_position(ultimate_destination, unit)
         else:
-            circle_around_position = self.get_circle_around_position(unit, avg_threat_position, ultimate_destination)
+            circle_around_position = self.get_circle_around_position(unit, retreat_vector, ultimate_destination)
             return circle_around_position
     
     def _position_is_pathable(self, unit: Unit, position: Point2) -> bool:

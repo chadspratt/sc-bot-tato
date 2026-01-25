@@ -16,7 +16,7 @@ from bottato.economy.minerals import Minerals
 from bottato.economy.resources import ResourceNode, Resources
 from bottato.economy.vespene import Vespene
 from bottato.enemy import Enemy
-from bottato.enums import UnitMicroType, WorkerJobType
+from bottato.enums import BuildType, UnitMicroType, WorkerJobType
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -373,18 +373,19 @@ class Workers(GeometryMixin):
                 worker(AbilityId.SMART, target)
 
     @timed_async
-    async def attack_nearby_enemies(self) -> None:
+    async def attack_nearby_enemies(self, enemy_builds_detected: Dict[BuildType, float]) -> None:
         defender_tags = set()
         if self.bot.townhalls and self.bot.time < 200:
             available_workers = self.bot.workers.filter(lambda u: self.assignments_by_worker[u.tag].job_type in {WorkerJobType.MINERALS, WorkerJobType.VESPENE})
             healthy_workers = available_workers.filter(lambda u: u.health_percentage > 0.5)
             unhealthy_workers = available_workers.filter(lambda u: u.health_percentage <= 0.5)
+            worker_rush_detected = BuildType.WORKER_RUSH in enemy_builds_detected
 
             defenders_per_enemy: Dict[int, int] = defaultdict(int)
             for worker in self.bot.workers:
                 assignment = self.assignments_by_worker[worker.tag]
                 targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
-                position = assignment.target if assignment.target else worker
+                position = assignment.target if assignment.target and not worker_rush_detected else worker
                 nearby_enemies = targetable_enemies.closer_than(5, position)
                 if nearby_enemies:
                     if worker.health_percentage < 0.6 and assignment.job_type == WorkerJobType.BUILD:
@@ -394,7 +395,7 @@ class Workers(GeometryMixin):
                     if worker.health_percentage > 0.5 and assignment.job_type == WorkerJobType.REPAIR:
                         continue
 
-                    if len(nearby_enemies) >= len(available_workers):
+                    if len(nearby_enemies) >= len(available_workers) and not worker_rush_detected:
                         continue
                     for nearby_enemy in nearby_enemies:
                         num_defenders_per_enemy = 2 if nearby_enemy.type_id in UnitTypes.WORKER_TYPES else 3
@@ -419,7 +420,7 @@ class Workers(GeometryMixin):
                     logger.debug(f"units_to_attack: {self.units_to_attack}")
                     logger.debug(f"nearby enemy structures: {nearby_enemy_structures}, nearby enemies: {nearby_enemies}")
 
-                if len(nearby_enemies) >= len(available_workers):
+                if len(nearby_enemies) >= len(available_workers) and not worker_rush_detected:
                     # don't suicide workers if outnumbered
                     continue
                 # assign closest 3 workers to attack each enemy
@@ -473,18 +474,21 @@ class Workers(GeometryMixin):
 
         micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first)
         for defender in defenders:
-            if defender.distance_to_squared(predicted_position) > 625 or abs(self.bot.get_terrain_height(defender.position) - self.bot.get_terrain_height(predicted_position)) > 5:
+            distance_to_enemy_squared = defender.distance_to_squared(predicted_position)
+            if distance_to_enemy_squared > 625 or abs(self.bot.get_terrain_height(defender.position) - self.bot.get_terrain_height(predicted_position)) > 5:
                 # don't pull workers from far away or go down a ramp
                 logger.debug(f"worker {defender} too far from enemy {nearby_enemy}")
                 continue
-            if nearby_enemy.is_structure:
+            # check if within 0.75 of attack range
+            attack_distance_squared_with_buffer = self.enemy.get_attack_range_with_buffer_squared(nearby_enemy, defender, 0.75)
+            if nearby_enemy.is_structure or distance_to_enemy_squared < attack_distance_squared_with_buffer:
                 defender.attack(nearby_enemy)
             elif nearby_enemy.is_facing(defender, angle_error=0.15):
                 # in front of enemy, turn to attack it
                 await micro.move(defender, nearby_enemy.position)
             else:
                 # try to head off units instead of trailing after them
-                await micro.move(defender, predicted_position.position)
+                await micro.move(defender, predicted_position)
             self.assignments_by_worker[defender.tag].on_attack_break = True
 
         return defenders.tags
@@ -711,8 +715,8 @@ class Workers(GeometryMixin):
         )
 
     @timed_async
-    async def redistribute_workers(self, needed_resources: Cost) -> int:
-        await self.update_repairers()
+    async def redistribute_workers(self, needed_resources: Cost, enemy_builds_detected: Dict[BuildType, float]) -> int:
+        await self.update_repairers(enemy_builds_detected)
         self.distribute_idle()
 
         remaining_cooldown = 3 - (self.bot.time - self.last_worker_stop)
@@ -731,8 +735,8 @@ class Workers(GeometryMixin):
         return 0
 
     @timed_async
-    async def update_repairers(self) -> None:
-        injured_units = self.units_needing_repair()
+    async def update_repairers(self, enemy_builds_detected: Dict[BuildType, float]) -> None:
+        injured_units = self.units_needing_repair(enemy_builds_detected)
         needed_repairers: int = 0
         assigned_repairers: Units = Units([], bot_object=self.bot)
         units_with_no_repairer: List[Unit] = []
@@ -899,27 +903,29 @@ class Workers(GeometryMixin):
         UnitTypeId.MISSILETURRET,
         UnitTypeId.PLANETARYFORTRESS,
     ])
-    def units_needing_repair(self) -> Units:
-        injured_mechanical_units = Units([], self.bot)
+    def units_needing_repair(self, enemy_builds_detected: Dict[BuildType, float]) -> Units:
+        injured_units = Units([], self.bot)
         # repair_scvs = self.bot.time > 240
-        injured_mechanical_units = self.bot.units.filter(lambda unit: unit.is_mechanical
-                                                         and unit.type_id != UnitTypeId.MULE
-                                                         and unit.health < unit.health_max
-                                                        #  and (repair_scvs or unit.type_id != UnitTypeId.SCV)
-                                                         and (
-                                                             unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(unit) < 20
-                                                            or len(self.enemy.threats_to_repairer(unit, attack_range_buffer=0)) == 0))
-        logger.debug(f"injured mechanical units {injured_mechanical_units}")
+        injured_units = self.bot.units.filter(lambda unit: unit.is_mechanical
+                                                and unit.type_id != UnitTypeId.MULE
+                                                and unit.health < unit.health_max
+                                                    #  and (repair_scvs or unit.type_id != UnitTypeId.SCV)
+                                                and (
+                                                    unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(unit) < 20
+                                                or len(self.enemy.threats_to_repairer(unit, attack_range_buffer=0)) == 0))
+        logger.debug(f"injured mechanical units {injured_units}")
 
         # can only repair fully built structures
-        injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
-                                                        and unit.build_progress == 1
-                                                        and unit.health < unit.health_max
-                                                        and ((self.bot.time < 300 and unit.type_id in self.ramp_wall_structers)
-                                                             or unit.type_id in self.defensive_structures
-                                                             or len(self.enemy.threats_to_repairer(unit, attack_range_buffer=-unit.radius)) == 0))
-        logger.debug(f"injured structures {injured_structures}")
-        return injured_mechanical_units + injured_structures
+        if BuildType.WORKER_RUSH not in enemy_builds_detected:
+            injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
+                                                            and unit.build_progress == 1
+                                                            and unit.health < unit.health_max
+                                                            and ((self.bot.time < 300 and unit.type_id in self.ramp_wall_structers)
+                                                                or unit.type_id in self.defensive_structures
+                                                                or len(self.enemy.threats_to_repairer(unit, attack_range_buffer=-unit.radius)) == 0))
+            logger.debug(f"injured structures {injured_structures}")
+            injured_units.extend(injured_structures)
+        return injured_units
 
     def move_workers_to_minerals(self, number_to_move: int) -> int:
         return self.move_workers_between_resources(self.vespene, self.minerals, WorkerJobType.MINERALS, number_to_move)

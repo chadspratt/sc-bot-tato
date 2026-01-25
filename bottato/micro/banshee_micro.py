@@ -55,30 +55,30 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         enemy_candidates = self.enemy.get_candidates(include_out_of_view=False).sorted(lambda u: u.health + u.shield)
         attack_target = self._get_attack_target(unit, enemy_candidates, attack_range_buffer)
         if attack_target:
-            return self._kite(unit, attack_target)
+            return self._kite(unit, Units([attack_target], bot_object=self.bot))
 
         if force_move:
             return UnitMicroType.NONE
-        nearest_priority, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK, UnitTypeId.LURKERMP, UnitTypeId.LURKERMPBURROWED])
+        nearest_priority, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.CYCLONE, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK, UnitTypeId.LURKERMP, UnitTypeId.LURKERMPBURROWED])
         if nearest_priority:
             if can_attack:
-                return self._kite(unit, nearest_priority)
+                return self._kite(unit, Units([nearest_priority], bot_object=self.bot))
             else:
                 return self._stay_at_max_range(unit, Units([nearest_priority], bot_object=self.bot))
         return UnitMicroType.NONE
 
     @timed
     def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
-        if unit.health_percentage <= self.harass_retreat_health:
-            return UnitMicroType.NONE
+        # if unit.health_percentage <= self.harass_retreat_health:
+        #     return UnitMicroType.NONE
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if force_move and not can_attack:
             return UnitMicroType.NONE
         nearby_enemy: Units
-        attack_range_buffer = 0 if can_attack else 5
+        attack_range_buffer = 0 if can_attack or unit.health_percentage <= self.harass_retreat_health else 5
         incomplete_anti_air_structures = self.bot.enemy_structures.filter(
             lambda s: not s.is_ready and s.is_visible and UnitTypes.can_attack_air(s)).sorted(lambda u: u.health + u.shield)
-        nearby_enemy = self.enemy.in_attack_range(unit, incomplete_anti_air_structures, attack_range_buffer, first_only=True)
+        nearby_enemy = self.enemy.in_attack_range(unit, incomplete_anti_air_structures, 6, first_only=True)
         if not nearby_enemy:
             enemy_candidates = self.enemy.get_candidates(include_structures=False, include_out_of_view=False).sorted(lambda u: u.health + u.shield)
             nearby_enemy = self.enemy.in_attack_range(unit, enemy_candidates, attack_range_buffer, first_only=True)
@@ -89,12 +89,12 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             if threats:
                 if nearby_enemy and can_attack:
                     threats_are_just_detectors = min([u.is_structure or u.type_id in UnitTypes.NON_THREAT_DETECTORS for u in threats])
-                    if threats_are_just_detectors or unit.distance_to_squared(harass_location) < 25:
-                        return self._kite(unit, nearby_enemy.first)
+                    if threats_are_just_detectors:
+                        return self._kite(unit, nearby_enemy)
                 if unit.health_percentage < self.harass_attack_health:
                     return UnitMicroType.NONE
                 for threat in threats:
-                    if threat.is_structure and self.distance_squared(unit, threat, self.enemy.predicted_position) > self.enemy.get_attack_range_with_buffer(threat, unit, 2):
+                    if threat.is_structure and self.distance_squared(unit, threat, self.enemy.predicted_position) > self.enemy.get_attack_range_with_buffer_squared(threat, unit, 3):
                         continue
                     if threat.is_flying or UnitTypes.air_range(threat) >= unit.ground_range:
                         # don't attack enemies that outrange
@@ -102,17 +102,21 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                         return UnitMicroType.MOVE
 
         if nearby_enemy:
-            return self._kite(unit, nearby_enemy.first)
-        if force_move:
+            return self._kite(unit, nearby_enemy)
+        if force_move or unit.health_percentage <= self.harass_retreat_health:
             return UnitMicroType.NONE
+        if can_attack:
+            enemy_structures = self.bot.enemy_structures.sorted(lambda u: u.health + u.shield)
+            nearby_enemy = self.enemy.in_attack_range(unit, enemy_structures, attack_range_buffer, first_only=True)
+            if nearby_enemy:
+                self._attack(unit, nearby_enemy.first)
+                return UnitMicroType.ATTACK
         if unit.tag in self.harass_location_reached_tags:
-            nearest_worker, _ = self.enemy.get_closest_target(unit, included_types=UnitTypes.WORKER_TYPES)
-            if nearest_worker:
-                if can_attack:
-                    return self._kite(unit, nearest_worker)
-                else:
-                    unit.move(self.map.get_pathable_position(nearest_worker.position, unit))
-                    return UnitMicroType.MOVE
+            nearest_workers = self.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
+            if nearest_workers:
+                target = sorted(nearest_workers, key=lambda t: t.health + t.shield)[0]
+                self._attack(unit, target)
+                return UnitMicroType.ATTACK
         return UnitMicroType.NONE
 
     @timed_async

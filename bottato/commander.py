@@ -94,8 +94,8 @@ class Commander(GeometryMixin):
                                           self.intel.enemy_builds_detected,
                                           self.intel.proxy_buildings)
 
-        await self.my_workers.attack_nearby_enemies() # ultra fast
-        await self.my_workers.redistribute_workers(needed_resources)
+        await self.my_workers.attack_nearby_enemies(self.intel.enemy_builds_detected) # ultra fast
+        await self.my_workers.redistribute_workers(needed_resources, self.intel.enemy_builds_detected)
         await self.my_workers.speed_mine() # slow, 15% of command time
         # if self.bot.time > 240:
         #     logger.debug(f"minerals gathered: {self.bot.state.score.collected_minerals}")

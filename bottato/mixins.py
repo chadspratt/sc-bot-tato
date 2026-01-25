@@ -129,46 +129,6 @@ class GeometryMixin:
         ]
 
     @staticmethod
-    def predict_future_unit_position(unit: Unit,
-                                     seconds_ahead: float,
-                                     bot: BotAI,
-                                     check_pathable: bool = True,
-                                     frame_vector: Point2 | None = None
-                                     ) -> Point2:
-        if unit.is_structure:
-            return unit.position
-        unit_speed: float
-        forward_unit_vector: Point2
-        max_speed = unit.calculate_speed()
-        if frame_vector is not None:
-            speed_per_frame = frame_vector.length
-            if speed_per_frame == 0:
-                return unit.position
-            unit_speed = min(speed_per_frame * 22.4, max_speed)
-            forward_unit_vector = frame_vector.normalized
-        else:
-            unit_speed = max_speed
-            forward_unit_vector = GeometryMixin.apply_rotation(unit.facing, Point2([0, 1]))
-
-        remaining_distance = unit_speed * seconds_ahead
-        if not check_pathable:
-            return unit.position + forward_unit_vector * remaining_distance
-
-        future_position = unit.position
-        while True:
-            if remaining_distance < 1:
-                forward_unit_vector *= remaining_distance
-            potential_position = future_position + forward_unit_vector
-            if not bot.in_pathing_grid(potential_position):
-                return future_position
-
-            future_position = potential_position
-
-            remaining_distance -= 1
-            if remaining_distance <= 0:
-                return future_position
-
-    @staticmethod
     def distance(unit1: Unit | Point2, unit2: Unit | Point2, predicted_positions: Dict[int, Point2] | None = None) -> float:
         if isinstance(unit1, Unit) and isinstance(unit2, Unit) and unit1.age == 0 and unit2.age == 0:
             return unit1.distance_to(unit2)

@@ -97,7 +97,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                     self.last_lockon_time[unit.tag] = None
                     current_target = None
                 if current_target:
-                    if unit.distance_to_squared(current_target) > self.enemy.get_attack_range_with_buffer(unit, current_target, 0):
+                    if unit.distance_to_squared(current_target) > self.enemy.get_attack_range_with_buffer_squared(unit, current_target, 0):
                         # lost target
                         self.last_lockon_time[unit.tag] = None
                         self.current_targets[unit.tag] = None

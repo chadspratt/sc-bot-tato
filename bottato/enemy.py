@@ -67,8 +67,14 @@ class Enemy(GeometryMixin):
                 self.last_seen_positions[enemy_unit.tag].append(None)
                 new_prediction = self.get_predicted_position(enemy_unit, 0)
                 # move projection to edge of visibility
-                if self.is_visible(new_prediction, enemy_unit.radius) and self.last_seen_position[enemy_unit.tag] != new_prediction:
-                    predicted_vector = (new_prediction - self.last_seen_position[enemy_unit.tag]).normalized
+                if self.is_visible(new_prediction, enemy_unit.radius):
+                    if self.last_seen_position[enemy_unit.tag] != new_prediction:
+                        predicted_vector = (new_prediction - self.last_seen_position[enemy_unit.tag]).normalized
+                    elif self.bot.units:
+                        closest_friendly_unit = self.closest_unit_to_unit(enemy_unit, self.bot.units)
+                        predicted_vector = (new_prediction - closest_friendly_unit.position).normalized
+                    else:
+                        continue
                     position_found = False
                     # check both directions along predicted vector
                     # checking forward is useful when enemy unit is running away
@@ -162,9 +168,51 @@ class Enemy(GeometryMixin):
             return unit.position
         if unit.age > 0 and unit not in self.enemies_out_of_view:
             return unit.position
-        time_since_last_seen = self.bot.time - self.last_seen[unit.tag]
+        last_predicted_position = self.predicted_position[unit.tag] if unit.tag in self.predicted_position else self.last_seen_position[unit.tag]
         frame_vector = self.predicted_frame_vector[unit.tag]
-        return self.predict_future_unit_position(unit, time_since_last_seen + seconds_ahead, self.bot, frame_vector=frame_vector)
+        return self.predict_future_unit_position(unit, last_predicted_position, seconds_ahead, self.bot, frame_vector=frame_vector)
+        
+    def predict_future_unit_position(self,
+                                     unit: Unit,
+                                     last_predicted_position: Point2,
+                                     seconds_ahead: float,
+                                     bot: BotAI,
+                                     check_pathable: bool = True,
+                                     frame_vector: Point2 | None = None
+                                     ) -> Point2:
+        time_since_last_frame = 4 / 22.4
+        if unit.is_structure:
+            return last_predicted_position
+        unit_speed: float
+        forward_unit_vector: Point2
+        max_speed = unit.calculate_speed()
+        if frame_vector is not None:
+            speed_per_frame = frame_vector.length
+            if speed_per_frame == 0:
+                return last_predicted_position
+            unit_speed = min(speed_per_frame * 22.4, max_speed)
+            forward_unit_vector = frame_vector.normalized
+        else:
+            unit_speed = max_speed
+            forward_unit_vector = GeometryMixin.apply_rotation(unit.facing, Point2([0, 1]))
+
+        remaining_distance = unit_speed * (seconds_ahead + time_since_last_frame)
+        if not check_pathable:
+            return last_predicted_position + forward_unit_vector * remaining_distance
+
+        future_position = last_predicted_position
+        while True:
+            if remaining_distance < 1:
+                forward_unit_vector *= remaining_distance
+            potential_position = future_position + forward_unit_vector
+            if not bot.in_pathing_grid(potential_position):
+                return future_position
+
+            future_position = potential_position
+
+            remaining_distance -= 1
+            if remaining_distance <= 0:
+                return future_position
 
     @timed
     def get_average_movement_per_step(self, recent_positions: deque):
@@ -244,7 +292,7 @@ class Enemy(GeometryMixin):
                                 and BuffId.NEURALPARASITE not in u.buffs)
 
         for enemy_unit in targets:
-            attack_range_squared = self.get_attack_range_with_buffer(unit, enemy_unit, attack_range_buffer)
+            attack_range_squared = self.get_attack_range_with_buffer_squared(unit, enemy_unit, attack_range_buffer)
             distance_squared = self.distance_squared(unit, enemy_unit, self.predicted_position)
 
             if distance_squared <= attack_range_squared:
@@ -268,7 +316,7 @@ class Enemy(GeometryMixin):
 
         for enemy_unit in attackers:
             buffer = 1 if enemy_unit.is_structure else attack_range_buffer
-            attack_range_squared = self.get_attack_range_with_buffer(enemy_unit, unit, buffer)
+            attack_range_squared = self.get_attack_range_with_buffer_squared(enemy_unit, unit, buffer)
             distance_squared = self.distance_squared(unit, enemy_unit, self.predicted_position)
 
             if distance_squared <= attack_range_squared:
@@ -292,8 +340,8 @@ class Enemy(GeometryMixin):
 
         for enemy_unit in enemies:
             attack_range_squared = max(
-                self.get_attack_range_with_buffer(enemy_unit, friendly_unit, attack_range_buffer),
-                self.get_attack_range_with_buffer(friendly_unit, enemy_unit, attack_range_buffer)
+                self.get_attack_range_with_buffer_squared(enemy_unit, friendly_unit, attack_range_buffer),
+                self.get_attack_range_with_buffer_squared(friendly_unit, enemy_unit, attack_range_buffer)
             )
             distance_squared = self.distance_squared(friendly_unit, enemy_unit, self.predicted_position)
 
@@ -304,7 +352,8 @@ class Enemy(GeometryMixin):
 
         return in_range
 
-    def get_attack_range_with_buffer(self, attacker: Unit, target: Unit, attack_range_buffer: float) -> float:
+    def get_attack_range_with_buffer_squared(self, attacker: Unit, target: Unit, attack_range_buffer: float) -> float:
+        # pre-calculated attack ranges with different buffers, for gauging whether units are in range by comparing to their distance squared
         try:
             return self.attack_range_squared_cache[attacker.type_id][attack_range_buffer][target.type_id]
         except KeyError:
@@ -415,6 +464,35 @@ class Enemy(GeometryMixin):
         if nearest_enemy:
             nearest_distance = nearest_distance ** 0.5 - nearest_enemy.radius - friendly_unit.radius
         return (nearest_enemy, nearest_distance)
+
+    @timed
+    def get_closest_targets(self, friendly_unit: Unit, within_attack_buffer: float=0,
+                           include_structures=True, include_units=True, include_destructables=False,
+                           include_out_of_view=True, excluded_types=[], included_types=[]) -> Units:
+        nearest_enemies: Units = Units([], self.bot)
+
+        candidates: Units = self.get_candidates(include_structures, include_units, include_destructables,
+                                                include_out_of_view, excluded_types, included_types)
+
+        closest_enemy: Unit | None = None
+        nearest_distance = float('inf')
+        # ravens technically can't attack
+        if friendly_unit.type_id != UnitTypeId.RAVEN:
+            candidates = candidates.filter(lambda enemy: UnitTypes.can_attack_target(friendly_unit, enemy))
+        for enemy in candidates:
+            enemy_distance: float = self.distance_squared(friendly_unit, enemy, self.predicted_position)
+            in_range_distance = self.get_attack_range_with_buffer_squared(friendly_unit, enemy, within_attack_buffer)
+            if (enemy_distance < nearest_distance):
+                closest_enemy = enemy
+                nearest_distance = enemy_distance
+            if enemy_distance <= in_range_distance:
+                nearest_enemies.append(enemy)
+
+        # return just the closest if none in range
+        if nearest_enemies.amount == 0 and closest_enemy:
+            nearest_enemies.append(closest_enemy)
+
+        return nearest_enemies
     
     @timed
     def get_target_closer_than(self, friendly_unit: Unit, max_distance: float,
