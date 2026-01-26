@@ -391,7 +391,7 @@ class Workers(GeometryMixin):
                     if worker.health_percentage < 0.6 and assignment.job_type == WorkerJobType.BUILD:
                         # stop building if getting attacked
                         worker(AbilityId.HALT)
-                    
+
                     if worker.health_percentage > 0.5 and assignment.job_type == WorkerJobType.REPAIR:
                         continue
 
@@ -402,7 +402,7 @@ class Workers(GeometryMixin):
                         needed_defender_count = num_defenders_per_enemy - defenders_per_enemy[nearby_enemy.tag]
                         if needed_defender_count > 0:
                             predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
-                            new_defenders = await self.send_defenders(nearby_enemy, predicted_position, healthy_workers, unhealthy_workers, needed_defender_count)
+                            new_defenders = await self.send_defenders(nearby_enemy, predicted_position, healthy_workers, unhealthy_workers, needed_defender_count, worker_rush_detected)
                             defenders_per_enemy[nearby_enemy.tag] += len(new_defenders)
                             defender_tags.update(new_defenders)
 
@@ -430,7 +430,7 @@ class Workers(GeometryMixin):
                     target_defender_count = 4 if nearby_enemy.is_structure else workers_per_enemy_unit
                     needed_defender_count = target_defender_count - defenders_per_enemy[nearby_enemy.tag]
                     if needed_defender_count > 0:
-                        townhall_defenders = await self.send_defenders(nearby_enemy, predicted_position, healthy_workers, unhealthy_workers, needed_defender_count)
+                        townhall_defenders = await self.send_defenders(nearby_enemy, predicted_position, healthy_workers, unhealthy_workers, needed_defender_count, worker_rush_detected)
                         if not townhall_defenders:
                             logger.debug(f"no attackers available for enemy {nearby_enemy}")
                             break
@@ -452,16 +452,17 @@ class Workers(GeometryMixin):
                              predicted_position: Point2,
                              healthy_workers: Units,
                              unhealthy_workers: Units,
-                             number_of_attackers: int) -> set[int]:
-        if len(healthy_workers) >= number_of_attackers:
-            defenders = healthy_workers.closest_n_units(predicted_position, number_of_attackers)
+                             number_of_defenders: int,
+                             worker_rush_detected: bool) -> set[int]:
+        if len(healthy_workers) >= number_of_defenders:
+            defenders = healthy_workers.closest_n_units(predicted_position, number_of_defenders)
             for defender in defenders:
                 healthy_workers.remove(defender)
         else:
             defenders = Units([worker for worker in healthy_workers], self.bot)
             healthy_workers.clear()
             if unhealthy_workers:
-                remainder = number_of_attackers - len(defenders)
+                remainder = number_of_defenders - len(defenders)
 
                 if len(unhealthy_workers) >= remainder:
                     unhealthy_defenders = unhealthy_workers.closest_n_units(predicted_position, remainder)
@@ -473,6 +474,7 @@ class Workers(GeometryMixin):
                     unhealthy_workers.clear()
 
         micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first)
+        injured_workers = self.bot.workers.filter(lambda w: w.health_percentage < 1.0)
         for defender in defenders:
             distance_to_enemy_squared = defender.distance_to_squared(predicted_position)
             if distance_to_enemy_squared > 625 or abs(self.bot.get_terrain_height(defender.position) - self.bot.get_terrain_height(predicted_position)) > 5:
@@ -481,11 +483,17 @@ class Workers(GeometryMixin):
                 continue
             # check if within 0.75 of attack range
             attack_distance_squared_with_buffer = self.enemy.get_attack_range_with_buffer_squared(nearby_enemy, defender, 0.75)
-            if nearby_enemy.is_structure or distance_to_enemy_squared < attack_distance_squared_with_buffer:
+            if distance_to_enemy_squared < attack_distance_squared_with_buffer \
+                    or nearby_enemy.is_structure:
                 defender.attack(nearby_enemy)
+            elif worker_rush_detected:
+                if distance_to_enemy_squared > 9 and injured_workers:
+                    closest_injured = injured_workers.closest_to(defender)
+                    defender.repair(closest_injured)
+                else:
+                    defender.attack(nearby_enemy)
             elif nearby_enemy.is_facing(defender, angle_error=0.15):
-                # in front of enemy, turn to attack it
-                await micro.move(defender, nearby_enemy.position)
+                defender.attack(nearby_enemy)
             else:
                 # try to head off units instead of trailing after them
                 await micro.move(defender, predicted_position)
