@@ -553,13 +553,13 @@ class BaseUnitMicro(GeometryMixin):
                 retreat_vector += threat_vector
         if retreat_vector.length == 0:
             retreat_vector = ultimate_destination - unit.position
-        retreat_distance = -10 if unit.is_flying else -5
+        retreat_distance = 10 if unit.is_flying else 5
         retreat_position = unit.position.towards(unit.position + retreat_vector, retreat_distance)
+        # questionable value for threat_position but might work
         threat_position = unit.position - retreat_vector
 
         if unit.distance_to(ultimate_destination) < threat_position.distance_to(ultimate_destination) - 2:
             return self.map.get_pathable_position(ultimate_destination, unit)
-        retreat_position = unit.position.towards(retreat_vector, retreat_distance)
         if unit.is_flying:
             retreat_position = self.map.clamp_position_to_map_bounds(retreat_position, self.bot)
         if self._position_is_pathable(unit, retreat_position):

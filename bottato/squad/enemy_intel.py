@@ -154,6 +154,7 @@ class EnemyIntel(GeometryMixin):
             no_gas = self.initial_scout_completed and self.number_seen(UnitTypeId.EXTRACTOR) == 0
             no_expansion = self.initial_scout_completed and self.number_seen(UnitTypeId.HATCHERY) == 1
             zergling_rush = self.enemy.get_total_count_of_type_seen(UnitTypeId.ZERGLING) >= 8 and self.bot.time < 180
+            spire_detected = self.number_seen(UnitTypeId.SPIRE) > 0
             if early_pool:
                 await LogHelper.add_chat("early pool detected")
             if no_gas:
@@ -163,6 +164,9 @@ class EnemyIntel(GeometryMixin):
             if zergling_rush:
                 await LogHelper.add_chat("zergling rush detected")
                 self.add_detected_build(BuildType.ZERGLING_RUSH)
+            if spire_detected:
+                await LogHelper.add_chat("spire detected")
+                self.add_detected_build(BuildType.SPIRE)
             if early_pool or no_gas or no_expansion or zergling_rush:
                 self.add_detected_build(BuildType.RUSH)
         elif self.enemy_race_confirmed == Race.Terran:
@@ -170,27 +174,30 @@ class EnemyIntel(GeometryMixin):
             battlecruiser = self.bot.time < 360 and \
                 (self.number_seen(UnitTypeId.FUSIONCORE) > 0 or
                  self.number_seen(UnitTypeId.BATTLECRUISER) > 0)
+            multiple_barracks = not self.initial_scout_completed and self.number_seen(UnitTypeId.BARRACKS) > 1
+            mutiple_reapers = self.bot.enemy_units(UnitTypeId.REAPER).amount >= 2 and self.bot.time < 180
             if battlecruiser:
                 await LogHelper.add_chat("battlecruiser rush detected")
                 self.add_detected_build(BuildType.BATTLECRUISER_RUSH)
-            multiple_barracks = not self.initial_scout_completed and self.number_seen(UnitTypeId.BARRACKS) > 1
             if multiple_barracks:
                 await LogHelper.add_chat("multiple early barracks detected")
+                self.add_detected_build(BuildType.RUSH)
+            if mutiple_reapers:
+                await LogHelper.add_chat("multiple reapers detected")
+                self.add_detected_build(BuildType.MULTIPLE_REAPER)
             # if no_expansion:
             #     await LogHelper.add_chat("no expansion detected")
-            if multiple_barracks:
-                self.add_detected_build(BuildType.RUSH)
         else:
             # Protoss
             lots_of_gateways = not self.initial_scout_completed and self.number_seen(UnitTypeId.GATEWAY) > 2
             no_expansion = self.initial_scout_completed and self.number_seen(UnitTypeId.NEXUS) == 1
-            early_stargate = self.number_seen(UnitTypeId.STARGATE) > 0
+            stargate_detected = self.number_seen(UnitTypeId.STARGATE) > 0
             fleet_beacon = self.number_seen(UnitTypeId.FLEETBEACON) > 0
             if lots_of_gateways:
                 await LogHelper.add_chat("lots of gateways detected")
             if no_expansion:
                 await LogHelper.add_chat("no expansion detected")
-            if early_stargate:
+            if stargate_detected:
                 await LogHelper.add_chat("stargate detected")
                 self.add_detected_build(BuildType.STARGATE)
             if fleet_beacon:

@@ -82,6 +82,9 @@ class BuildStep(GeometryMixin):
 
     def get_position(self) -> Point2 | None:
         return None
+    
+    def tech_requirements_met(self) -> bool:
+        return True
 
     async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
         # override in subclasses

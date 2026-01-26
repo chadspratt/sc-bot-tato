@@ -60,6 +60,8 @@ class BuildType(enum.Enum):
     FLEET_BEACON = 5
     ZERGLING_RUSH = 6
     WORKER_RUSH = 7
+    SPIRE = 8
+    MULTIPLE_REAPER = 9
 
 class BuildOrderChange(enum.Enum):
     RUSH = 0

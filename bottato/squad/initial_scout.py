@@ -79,9 +79,9 @@ class InitialScout(Squad, GeometryMixin):
         if self.bot.time < self.start_time:
             # too early to scout
             return
-        if self.intel.enemy_builds_detected:
-            self.completed = True
-            self.intel.mark_initial_scout_complete()
+        # if self.intel.enemy_builds_detected:
+        #     self.completed = True
+        #     self.intel.mark_initial_scout_complete()
             
         if self.unit:
             try:
@@ -107,9 +107,9 @@ class InitialScout(Squad, GeometryMixin):
             self.initial_scout_complete_time = 100
     
     async def move_scout(self):
-        if self.bot.time > self.initial_scout_complete_time + 20:
-            self.completed = True
-            self.intel.mark_initial_scout_complete()
+        # if self.bot.time > self.initial_scout_complete_time + 20:
+        #     self.completed = True
+        #     self.intel.mark_initial_scout_complete()
         if not self.unit or self.completed:
             return
         
@@ -124,8 +124,11 @@ class InitialScout(Squad, GeometryMixin):
                     self.intel.mark_initial_scout_complete()
         elif self.last_waypoint:
             if self.unit.distance_to(self.waypoints[0]) <= 5:
-                if self.waypoints[0] == self.last_waypoint and self.bot.time > self.initial_scout_complete_time:
-                    self.do_natural_check = True
+                if self.waypoints[0] == self.last_waypoint:
+                    if self.intel.enemy_builds_detected:
+                        self.completed = True
+                    elif self.bot.time > self.initial_scout_complete_time:
+                        self.do_natural_check = True
                 else:
                     self.waypoints.pop(0)
                     # Check if we've completed all waypoints

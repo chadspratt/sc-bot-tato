@@ -1,8 +1,9 @@
 from typing import Dict
 from loguru import logger
 
-from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.bot_ai import BotAI
+from sc2.dicts.unit_research_abilities import RESEARCH_INFO
+from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit_command import UnitCommand
@@ -13,7 +14,7 @@ from bottato.economy.production import Production
 from bottato.economy.workers import Workers
 from bottato.enums import BuildResponseCode, BuildType
 from bottato.map.map import Map
-from bottato.mixins import timed, timed_async
+from bottato.mixins import timed
 from bottato.upgrades import RESEARCH_ABILITIES
 from bottato.unit_reference_helper import UnitReferenceHelper
 
@@ -47,6 +48,18 @@ class UpgradeBuildStep(BuildStep):
     def is_upgrade_type(self, upgrade_id: UpgradeId) -> bool:
         return self.upgrade_id == upgrade_id
     
+    def tech_requirements_met(self) -> bool:
+        research_structure_type: UnitTypeId = UPGRADE_RESEARCHED_FROM[self.upgrade_id]
+        required_tech_building: UnitTypeId | None = RESEARCH_INFO[research_structure_type][self.upgrade_id].get(
+            "required_building", None
+        ) # type: ignore
+        requirement_met = (
+            required_tech_building is None or self.bot.structure_type_build_progress(required_tech_building) < 0.8
+        )
+        if not requirement_met:
+            return False
+        return True
+    
     async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
         response = None
 
@@ -60,14 +73,6 @@ class UpgradeBuildStep(BuildStep):
             # successful_action: bool = self.unit_in_charge.research(self.upgrade_id)
             ability = RESEARCH_ABILITIES[self.upgrade_id]
 
-            required_tech_building: UnitTypeId | None = RESEARCH_INFO[self.unit_in_charge.type_id][self.upgrade_id].get(
-                "required_building", None
-            ) # type: ignore
-            requirement_met = (
-                required_tech_building is None or self.bot.structure_type_build_progress(required_tech_building) == 1
-            )
-            if not requirement_met:
-                return BuildResponseCode.NO_TECH
             logger.debug(f"{self.unit_in_charge} researching upgrade with ability {ability}")
             successful_action: UnitCommand | bool = self.unit_in_charge(ability)
             if successful_action:

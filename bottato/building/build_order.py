@@ -26,6 +26,7 @@ from bottato.map.map import Map
 from bottato.military import Military
 from bottato.mixins import timed, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
+from bottato.tech_tree import TECH_TREE
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 from bottato.upgrades import Upgrades
@@ -180,19 +181,41 @@ class BuildOrder():
                     self.interrupted_queue.insert(0, build_step)
 
     def enact_build_changes(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
-        if self.bot.time > 300 or self.bot.townhalls.amount > 2 or BuildType.RUSH not in detected_enemy_builds:
-            # not a rush
+        # if self.bot.time > 300 or self.bot.townhalls.amount > 2 or BuildType.RUSH not in detected_enemy_builds:
+        #     # not a rush
+        #     return
+        # prioritize blocking ramp
+        self.make_one_time_build_change(BuildType.WORKER_RUSH, BuildOrderChange.WORKER_RUSH, detected_enemy_builds)
+        self.make_one_time_build_change(BuildType.BATTLECRUISER_RUSH, BuildOrderChange.BATTLECRUISER, detected_enemy_builds)
+        self.make_one_time_build_change(BuildType.MULTIPLE_REAPER, BuildOrderChange.REAPER, detected_enemy_builds)
+        if BuildType.BATTLECRUISER_RUSH not in detected_enemy_builds:
+            self.make_one_time_build_change(BuildType.RUSH, BuildOrderChange.RUSH, detected_enemy_builds)
+        self.make_one_time_build_change(BuildType.ZERGLING_RUSH, BuildOrderChange.ZERGLING_RUSH, detected_enemy_builds)
+        self.make_one_time_build_change(self.bot.enemy_race == Race.Terran, BuildOrderChange.BANSHEE_HARASS, detected_enemy_builds)
+        self.make_one_time_build_change(BuildType.STARGATE, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
+        self.make_one_time_build_change(BuildType.SPIRE, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
+
+        # make persistent changes to build order
+        if BuildOrderChange.ANTI_AIR in self.changes_enacted:
+            min_vikings = 10 if BuildType.FLEET_BEACON in detected_enemy_builds else 6
+            if self.bot.units(UnitTypeId.VIKINGFIGHTER).amount + self.get_queued_count(UnitTypeId.VIKINGFIGHTER) < min_vikings:
+                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.static_queue)
+
+    def make_one_time_build_change(self, enemy_build_type: BuildType | bool, change: BuildOrderChange,
+                                detected_enemy_builds: Dict[BuildType, float]) -> None:
+        # make one-time changes to build order
+        if enemy_build_type not in detected_enemy_builds and enemy_build_type != True:
             return
-        if BuildType.WORKER_RUSH in detected_enemy_builds and BuildOrderChange.WORKER_RUSH not in self.changes_enacted:
-            self.changes_enacted.append(BuildOrderChange.WORKER_RUSH)
-            # prioritize blocking ramp
+        if change in self.changes_enacted:
+            return
+        self.changes_enacted.append(change)
+        LogHelper.add_log(f"Enacting build order change: {change.name}")
+        
+        if change == BuildOrderChange.WORKER_RUSH:
             self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue, position=0)
-        if BuildOrderChange.BATTLECRUISER not in self.changes_enacted and BuildType.BATTLECRUISER_RUSH in detected_enemy_builds:
-            self.changes_enacted.append(BuildOrderChange.BATTLECRUISER)
+        elif change == BuildOrderChange.BATTLECRUISER:
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 2, position=0, queue=self.priority_queue)
-        if BuildOrderChange.REAPER not in self.changes_enacted and \
-                self.bot.enemy_race == Race.Terran and self.bot.enemy_units(UnitTypeId.REAPER).amount > 1:
-            self.changes_enacted.append(BuildOrderChange.REAPER)
+        elif change == BuildOrderChange.REAPER:
             # queue one hellion in case of reaper rush
             self.add_to_build_queue([UnitTypeId.HELLION] * 2, position=0, queue=self.priority_queue)
             # swap reactor for techlab (faster, allows marauder)
@@ -201,8 +224,7 @@ class BuildOrder():
                     self.static_queue.remove(step)
                     self.add_to_build_queue([UnitTypeId.BARRACKSTECHLAB, UnitTypeId.MARAUDER], position=0, queue=self.priority_queue)
                     break
-        if BuildOrderChange.RUSH not in self.changes_enacted and BuildType.RUSH in detected_enemy_builds and BuildType.BATTLECRUISER_RUSH not in detected_enemy_builds:
-            self.changes_enacted.append(BuildOrderChange.RUSH)
+        elif change == BuildOrderChange.RUSH:
             self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.static_queue)
             # prioritize bunker and first tank
             self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
@@ -229,36 +251,26 @@ class BuildOrder():
                 if self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue):
                     # add a second bunker for low ground
                     self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
-        if BuildType.ZERGLING_RUSH in detected_enemy_builds and BuildOrderChange.ZERGLING_RUSH not in self.changes_enacted:
-            self.changes_enacted.append(BuildOrderChange.ZERGLING_RUSH)
+        elif change == BuildOrderChange.ZERGLING_RUSH:
             self.add_to_build_queue([UnitTypeId.WIDOWMINE, UnitTypeId.HELLION], queue=self.priority_queue)
-        if BuildOrderChange.BANSHEE_HARASS not in self.changes_enacted and self.bot.enemy_race == Race.Terran:
-            self.changes_enacted.append(BuildOrderChange.BANSHEE_HARASS)
+        elif change == BuildOrderChange.ANTI_AIR:
+            self.remove_step_from_queue(UnitTypeId.STARPORTTECHLAB, self.static_queue)
+            self.add_to_build_queue([UnitTypeId.STARPORTREACTOR], queue=self.priority_queue)
+            self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue)
+            self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue)
+            self.remove_step_from_queue(UnitTypeId.MEDIVAC, self.static_queue)
+            self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 3, queue=self.priority_queue)
+            if not self.substitute_steps_in_queue(UnitTypeId.SIEGETANK, [UnitTypeId.CYCLONE], self.static_queue):
+                self.add_to_build_queue([UnitTypeId.CYCLONE], queue=self.static_queue)
+            self.remove_step_from_queue(UpgradeId.BANSHEECLOAK, self.static_queue)
+            self.add_to_build_queue([UnitTypeId.STARPORT, UnitTypeId.STARPORTREACTOR], queue=self.static_queue, remove_duplicates=False)
+        elif change == BuildOrderChange.BANSHEE_HARASS:
             self.move_between_queues(UnitTypeId.STARPORT, self.static_queue, self.priority_queue)
             self.substitute_steps_in_queue(UnitTypeId.VIKINGFIGHTER, [
                 UnitTypeId.STARPORTTECHLAB,
-                UnitTypeId.BANSHEE,
-                UpgradeId.BANSHEECLOAK], self.static_queue)
+                UpgradeId.BANSHEECLOAK,
+                UnitTypeId.BANSHEE], self.static_queue)
             self.add_to_build_queue([UnitTypeId.BANSHEE], queue=self.static_queue)
-        if BuildType.STARGATE in detected_enemy_builds:
-            if BuildOrderChange.ANTI_AIR not in self.changes_enacted:
-                self.changes_enacted.append(BuildOrderChange.ANTI_AIR)
-                self.remove_step_from_queue(UnitTypeId.STARPORTTECHLAB, self.static_queue)
-                self.add_to_build_queue([UnitTypeId.STARPORTREACTOR], queue=self.priority_queue)
-                self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue)
-                self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue)
-                self.remove_step_from_queue(UnitTypeId.MEDIVAC, self.static_queue)
-                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.priority_queue)
-                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.priority_queue)
-                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.priority_queue)
-                if not self.substitute_steps_in_queue(UnitTypeId.SIEGETANK, [UnitTypeId.CYCLONE], self.static_queue):
-                    self.add_to_build_queue([UnitTypeId.CYCLONE], queue=self.static_queue)
-                self.remove_step_from_queue(UpgradeId.BANSHEECLOAK, self.static_queue)
-                self.add_to_build_queue([UnitTypeId.STARPORT, UnitTypeId.STARPORTREACTOR], queue=self.static_queue, remove_duplicates=False)
-            min_vikings = 10 if BuildType.FLEET_BEACON in detected_enemy_builds else 6
-            if self.bot.units(UnitTypeId.VIKINGFIGHTER).amount + self.get_queued_count(UnitTypeId.VIKINGFIGHTER) < min_vikings:
-                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.static_queue, )
-
     
     def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep], position: int | None = None) -> bool:
         for step in from_queue:
@@ -495,6 +507,9 @@ class BuildOrder():
         if self.bot.time < 15:
             # pause workers to save for first expansion
             return
+        if self.bot.workers.amount >= 15 and self.bot.structures(UnitTypeId.BARRACKS).amount == 0:
+            # hold off on workers until barracks started
+            return
         if BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount < 2:
             # hold off on workers during worker rush until depots are up
             return
@@ -541,9 +556,9 @@ class BuildOrder():
             return
         # add more barracks/factories/starports to handle backlog of pending affordable units
         affordable_units: List[UnitTypeId] = self.get_affordable_build_list(only_build_units)
-        if len(affordable_units) == 0 and len(self.static_queue) < 4 and self.unit_queue:
-            if isinstance(self.unit_queue[0], SCVBuildStep) or isinstance(self.unit_queue[0], StructureBuildStep):
-                affordable_units.append(self.unit_queue[0].unit_type_id)
+        # if len(affordable_units) == 0 and len(self.static_queue) < 4 and self.unit_queue:
+        #     if isinstance(self.unit_queue[0], SCVBuildStep) or isinstance(self.unit_queue[0], StructureBuildStep):
+        #         affordable_units.append(self.unit_queue[0].unit_type_id)
         extra_production: List[UnitTypeId | UpgradeId] = self.production.additional_needed_production(affordable_units)
         # only add if not already in progress
         extra_production = self.remove_in_progress_from_list(extra_production)
@@ -865,6 +880,11 @@ class BuildOrder():
             
             if isinstance(build_step, StructureBuildStep) and not self.production.can_build_any([build_step.get_unit_type_id()]):
                 # skip if no available production
+                failed_types.append(build_step.get_unit_type_id())
+                continue
+
+            if not build_step.tech_requirements_met():
+                # skip if missing tech
                 failed_types.append(build_step.get_unit_type_id())
                 continue
 

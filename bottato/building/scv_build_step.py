@@ -127,6 +127,14 @@ class SCVBuildStep(BuildStep):
 
     def get_position(self) -> Point2 | None:
         return self.position
+    
+    def tech_requirements_met(self) -> bool:
+        if self.unit_type_id in TECH_TREE:
+            # check that all tech requirements are met
+            for requirement in TECH_TREE[self.unit_type_id]:
+                if self.bot.structure_type_build_progress(requirement) < 0.8:
+                    return False
+        return True
 
     async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
         response = await self.execute_scv_build(special_locations, detected_enemy_builds)
@@ -137,12 +145,6 @@ class SCVBuildStep(BuildStep):
     
     @timed_async
     async def execute_scv_build(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
-        if self.unit_type_id in TECH_TREE:
-            # check that all tech requirements are met
-            for requirement in TECH_TREE[self.unit_type_id]:
-                if self.bot.structure_type_build_progress(requirement) != 1:
-                    return BuildResponseCode.NO_TECH
-
         if self.unit_being_built:
             self.position = self.unit_being_built.position
             if self.start_time is None:

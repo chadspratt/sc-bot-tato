@@ -170,7 +170,9 @@ class Counter():
         UnitTypeId.MUTALISK: { # 2
             UnitTypeId.WIDOWMINE: 0.5,
             UnitTypeId.MARINE: 0.3,
-            UnitTypeId.VIKINGFIGHTER: 0.3
+            UnitTypeId.VIKINGFIGHTER: 0.3,
+            UnitTypeId.BANSHEE: -0.5,
+            UnitTypeId.SIEGETANK: -0.2,
         },
         UnitTypeId.OVERLORD: {
             UnitTypeId.VIKINGFIGHTER: 0.1
@@ -199,6 +201,7 @@ class Counter():
             UnitTypeId.SIEGETANK: 0.5,
         },
         UnitTypeId.SPIRE: { # 1
+            UnitTypeId.WIDOWMINE: 1,
             UnitTypeId.VIKINGFIGHTER: 4,
         },
         UnitTypeId.SWARMHOSTMP: { # 3

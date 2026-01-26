@@ -91,6 +91,14 @@ class StructureBuildStep(BuildStep):
         if response == BuildResponseCode.SUCCESS:
             self.is_in_progress = True
         return response
+    
+    def tech_requirements_met(self) -> bool:
+        if self.unit_type_id in TECH_TREE:
+            # check that all tech requirements are met
+            for requirement in TECH_TREE[self.unit_type_id]:
+                if self.bot.structure_type_build_progress(requirement) < 0.8:
+                    return False
+        return True
 
     @timed_async
     async def execute_facility_build(self) -> BuildResponseCode:
@@ -100,11 +108,6 @@ class StructureBuildStep(BuildStep):
             f"Trying to train unit {self.unit_type_id} with {self.builder_type}"
         )
 
-        if self.unit_type_id in TECH_TREE:
-            # check that all tech requirements are met
-            for requirement in TECH_TREE[self.unit_type_id]:
-                if self.bot.structure_type_build_progress(requirement) != 1:
-                    return BuildResponseCode.NO_TECH
         if self.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
             self.unit_in_charge = self.production.get_builder(self.unit_type_id)
             if self.unit_type_id in self.production.add_on_types and self.unit_in_charge:
