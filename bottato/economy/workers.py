@@ -757,50 +757,52 @@ class Workers(GeometryMixin):
 
     @timed_async
     async def update_repairers(self, enemy_builds_detected: Dict[BuildType, float]) -> None:
-        injured_units = self.units_needing_repair(enemy_builds_detected)
         needed_repairers: int = 0
         assigned_repairers: Units = Units([], bot_object=self.bot)
         units_with_no_repairer: List[Unit] = []
-        if injured_units:
-            missing_health = 0
-            # limit to percentage of total workers
-            max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 5))
-            candidates: Units = Units([
-                            worker for worker in self.bot.workers
-                            if self.assignments_by_worker[worker.tag].job_type != WorkerJobType.BUILD
-                        ], bot_object=self.bot)
+        injured_units: Units = Units([], bot_object=self.bot)
+        if self.bot.minerals > 10:
+            injured_units = self.units_needing_repair(enemy_builds_detected)
+            if injured_units:
+                missing_health = 0
+                # limit to percentage of total workers
+                max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 5))
+                candidates: Units = Units([
+                                worker for worker in self.bot.workers
+                                if self.assignments_by_worker[worker.tag].job_type != WorkerJobType.BUILD
+                            ], bot_object=self.bot)
 
-            for injured_unit in injured_units:
-                if injured_unit.type_id == UnitTypeId.BUNKER and len(injured_unit.passengers) > 0:
-                    assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 5, candidates))
-                elif injured_unit.type_id == UnitTypeId.MISSILETURRET:
-                    flying_enemies = self.bot.enemy_units.filter(lambda u: u.is_flying)
-                    if self.closest_distance_squared(injured_unit, flying_enemies) > 121:
-                        # don't waste repairers on missile turrets that don't have targets
-                        continue
-                    assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 3, candidates))
-                elif injured_unit.type_id == UnitTypeId.PLANETARYFORTRESS:
-                    if injured_unit.health_max - injured_unit.health < 50:
-                        assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 2, candidates))
+                for injured_unit in injured_units:
+                    if injured_unit.type_id == UnitTypeId.BUNKER and len(injured_unit.passengers) > 0:
+                        assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 5, candidates))
+                    elif injured_unit.type_id == UnitTypeId.MISSILETURRET:
+                        flying_enemies = self.bot.enemy_units.filter(lambda u: u.is_flying)
+                        if self.closest_distance_squared(injured_unit, flying_enemies) > 121:
+                            # don't waste repairers on missile turrets that don't have targets
+                            continue
+                        assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 3, candidates))
+                    elif injured_unit.type_id == UnitTypeId.PLANETARYFORTRESS:
+                        if injured_unit.health_max - injured_unit.health < 50:
+                            assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 2, candidates))
+                        else:
+                            assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 8, candidates))
+                    elif injured_unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(injured_unit) < 20:
+                        assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 3, candidates))
                     else:
-                        assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 8, candidates))
-                elif injured_unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(injured_unit) < 20:
-                    assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 3, candidates))
-                else:
-                    missing_health += injured_unit.health_max - injured_unit.health
-                    if self.bot.time < 300:
-                        units_with_no_repairer.append(injured_unit)
+                        missing_health += injured_unit.health_max - injured_unit.health
+                        if self.bot.time < 300:
+                            units_with_no_repairer.append(injured_unit)
 
-            if missing_health > 0 and self.bot.time < 180:
-                # early game, just assign a bunch so wall isn't broken by a rush
-                needed_repairers = max(needed_repairers, 5)
-            else:
-                needed_repairers = math.ceil(missing_health / self.health_per_repairer)
-                if needed_repairers > max_repairers:
-                    needed_repairers = max_repairers
+                if missing_health > 0 and self.bot.time < 180:
+                    # early game, just assign a bunch so wall isn't broken by a rush
+                    needed_repairers = max(needed_repairers, 5)
                 else:
-                    # minimum 1 repairer per injured, up to 3. mostly for repairing initial wall
-                    needed_repairers = max(needed_repairers, min(3, len(injured_units)))
+                    needed_repairers = math.ceil(missing_health / self.health_per_repairer)
+                    if needed_repairers > max_repairers:
+                        needed_repairers = max_repairers
+                    else:
+                        # minimum 1 repairer per injured, up to 3. mostly for repairing initial wall
+                        needed_repairers = max(needed_repairers, min(3, len(injured_units)))
             
         current_repairers: Units = self.availiable_workers_on_job(WorkerJobType.REPAIR).filter(
             lambda u: u.tag not in assigned_repairers.tags)

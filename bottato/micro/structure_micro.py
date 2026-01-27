@@ -29,16 +29,16 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         self.last_scan_time: float = 0
 
     @timed_async
-    async def execute(self, detected_enemy_builds: Dict[BuildType, float]):
+    async def execute(self, army_ratio: float):
         # logger.debug("adjust_supply_depots_for_enemies step")
-        self.adjust_supply_depots_for_enemies(detected_enemy_builds)
+        self.adjust_supply_depots_for_enemies()
         self.target_autoturrets()
         await self.move_command_centers()
-        self.move_ramp_barracks()
+        self.move_ramp_barracks(army_ratio)
         self.scan()
 
     @timed
-    def adjust_supply_depots_for_enemies(self, detected_enemy_builds: Dict[BuildType, float]):
+    def adjust_supply_depots_for_enemies(self):
         # Raise depots when enemies are nearby
         distance_threshold = 8
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
@@ -134,12 +134,14 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                             cc(AbilityId.LIFT)
 
     @timed
-    def move_ramp_barracks(self):
+    def move_ramp_barracks(self, army_ratio: float):
         if self.bot.structures(UnitTypeId.BARRACKSREACTOR):
             # reactor already started, don't move barracks
             return
+        if BuildType.RUSH not in self.intel.enemy_builds_detected:
+            return
         if self.intel.enemy_race_confirmed != Race.Zerg \
-                or BuildType.RUSH not in self.intel.enemy_builds_detected:
+                or army_ratio >= 0.1:
             return
         desired_position = self.bot.main_base_ramp.barracks_in_middle
         if desired_position is None:

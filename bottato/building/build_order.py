@@ -579,7 +579,7 @@ class BuildOrder():
             priority_queue_count = self.get_queued_count(UnitTypeId.MARINE, self.priority_queue)
             if idle_capacity > 0 and priority_queue_count == 0:
                 if not self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue, position=0):
-                    self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue, position=0)
+                    self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue)
         elif self.bot.minerals > 500 and self.bot.supply_left > 15:
             idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
             if idle_capacity > 0:
@@ -916,6 +916,9 @@ class BuildOrder():
                 remaining_resources = remaining_resources - build_step.cost
             if percent_affordable < 1.0:
                 if only_build_units:
+                    # builder_type = build_step.builder_type
+                    # if build_step.get_unit_type_id() in self.production.needs_tech_lab:
+                    #     builder_type = self.production.add_on_type_lookup[build_step.builder_type][UnitTypeId.TECHLAB]
                     # skip ahead more aggressively to try to use any production capacity
                     remaining_resources = remaining_resources + build_step.cost
                     continue

@@ -79,7 +79,7 @@ class Commander(GeometryMixin):
         self.map.update_influence_maps(self.new_damage_by_position) # fast
         BaseUnitMicro.reset_tag_sets()
 
-        await self.structure_micro.execute(self.intel.enemy_builds_detected) # fast
+        await self.structure_micro.execute(self.military.army_ratio) # fast
 
         # XXX slow, 17% of command time
         remaining_resources: Cost = await self.build_order.execute()
