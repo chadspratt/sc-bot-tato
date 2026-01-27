@@ -160,12 +160,33 @@ def update_match_map(match_id: int, map_name: str):
     conn.commit()
     conn.close()
 
+
+def get_least_used_map(opponent_race: str, opponent_build: str, opponent_difficulty: str) -> str:
+    """Update the map name for an existing match."""
+    conn = sqlite3.connect('db/match_data.db')
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        select map_name, count(*) ct
+        from match
+        where opponent_race = ?
+            and opponent_build = ?
+            and opponent_difficulty = ?
+            and result in ("Victory", "Defeat")
+            and test_group_id >= 0
+        group by map_name
+        order by ct
+        limit 1
+    ''', (opponent_race, opponent_build, opponent_difficulty))
+
+    map_name = cursor.fetchone()[0]
+    conn.close()
+    return map_name
+
 def main():
     # Initialize database
     init_database()
 
-    random_map = random.choice(map_list)
-    map = maps.get(random_map)
     race = os.environ.get("RACE")
     build = os.environ.get("BUILD")
     difficulty_env = os.environ.get("DIFFICULTY")
@@ -174,6 +195,9 @@ def main():
     opponent_race = race_dict.get(race, Race.Random)
     opponent_build = build_dict.get(build, AIBuild.RandomBuild)
     difficulty: Difficulty = difficulty_dict.get(difficulty_env, Difficulty.CheatInsane)
+
+    least_used_map = get_least_used_map(opponent_race.name, opponent_build.name, difficulty.name)
+    map = maps.get(least_used_map)
     
     opponent = Computer(opponent_race, difficulty, ai_build=opponent_build)
     start_time = datetime.now().isoformat()
@@ -181,14 +205,14 @@ def main():
     if existing_match_id:
         # Use existing match ID and update it with map name
         match_id = int(existing_match_id)
-        update_match_map(match_id, random_map)
+        update_match_map(match_id, least_used_map)
     else:
         # Fallback: create new match if no ID provided (for backward compatibility)
         test_group_id = get_next_test_group_id()
-        match_id = create_pending_match(test_group_id, start_time, random_map, opponent_race, difficulty, opponent_build)
+        match_id = create_pending_match(test_group_id, start_time, least_used_map, opponent_race, difficulty, opponent_build)
         assert match_id is not None, "Failed to create match entry in the database."
 
-    replay_name = f"replays/{match_id}_{random_map}_{race}-{build}.SC2Replay"
+    replay_name = f"replays/{match_id}_{least_used_map}_{race}-{build}.SC2Replay"
 
     # Set match ID as environment variable for the bot
     os.environ["TEST_MATCH_ID"] = str(match_id)
