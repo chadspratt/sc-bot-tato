@@ -1,13 +1,20 @@
+from typing import Dict
+
 from sc2.bot_ai import BotAI
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
+from sc2.units import Units
 
+from bottato.enemy import Enemy
+from bottato.mixins import GeometryMixin
 from bottato.squad.squad import Squad
 from bottato.unit_reference_helper import UnitReferenceHelper
 
-class Bunker(Squad):
-    def __init__(self, bot: BotAI, number: int, structure: Unit | None = None):
+class Bunker(Squad, GeometryMixin):
+    def __init__(self, bot: BotAI, enemy: Enemy, number: int, structure: Unit | None = None):
         super().__init__(bot, name=f"bunker{number}", color=(255, 255, 0))
+        self.enemy = enemy
         self.structure: Unit | None = structure
     
     def empty(self, destination: Unit | None = None):

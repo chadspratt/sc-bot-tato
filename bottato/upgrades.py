@@ -1,12 +1,14 @@
 from loguru import logger
 
-from typing import List
+from typing import List, Set
 
 from sc2.bot_ai import BotAI
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.ability_id import AbilityId
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
+
+from bottato.enums import BuildOrderChange
 
 
 RESEARCH_ABILITIES: dict[UpgradeId, AbilityId] = {}
@@ -40,7 +42,7 @@ class Upgrades:
         UpgradeId.BANSHEESPEED: [UnitTypeId.BANSHEE],
         # ==engineering bay==
         UpgradeId.HISECAUTOTRACKING: [UnitTypeId.RAVEN, UnitTypeId.MISSILETURRET, UnitTypeId.PLANETARYFORTRESS],
-        UpgradeId.TERRANBUILDINGARMOR: [UnitTypeId.BARRACKS],
+        UpgradeId.TERRANBUILDINGARMOR: [UnitTypeId.BARRACKS, UnitTypeId.BUNKER, UnitTypeId.PLANETARYFORTRESS],
         UpgradeId.TERRANINFANTRYARMORSLEVEL1: infantry_types,
         UpgradeId.TERRANINFANTRYARMORSLEVEL2: infantry_types,
         UpgradeId.TERRANINFANTRYARMORSLEVEL3: infantry_types,
@@ -116,6 +118,16 @@ class Upgrades:
     required_unit_counts: dict[UpgradeId, int] = {
         UpgradeId.BANSHEECLOAK: 1,
         UpgradeId.BANSHEESPEED: 2,
+        UpgradeId.STIMPACK: 1,
+        UpgradeId.DRILLCLAWS: 2,
+        UpgradeId.TERRANINFANTRYWEAPONSLEVEL1: 1,
+        UpgradeId.TERRANINFANTRYARMORSLEVEL1: 1,
+        UpgradeId.TERRANVEHICLEWEAPONSLEVEL1: 1,
+        UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1: 1,
+        UpgradeId.TERRANSHIPWEAPONSLEVEL1: 1,
+        UpgradeId.TERRANVEHICLEWEAPONSLEVEL1: 1,
+        UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1: 1,
+        UpgradeId.PERSONALCLOAKING: 2,
     }
 
     prereqs: dict[UpgradeId, UpgradeId] = {
@@ -136,10 +148,22 @@ class Upgrades:
         self.bot = bot
         self.index = 0
     
-    def next_upgrade(self, facility_type: UnitTypeId) -> UpgradeId | None:
-        for upgrade_type in self.upgrades_by_facility[facility_type]:
-            if upgrade_type != UpgradeId.TERRANBUILDINGARMOR \
-                 and self.bot.units(self.affected_unit_types[upgrade_type]).amount < self.required_unit_counts.get(upgrade_type, 4):
+    def next_upgrade(self, facility_type: UnitTypeId, build_order_changes: Set[BuildOrderChange]) -> UpgradeId | None:
+        upgrade_list = self.upgrades_by_facility[facility_type]
+        if BuildOrderChange.ANTI_AIR in build_order_changes and facility_type == UnitTypeId.ARMORY:
+            upgrade_list = [
+                UpgradeId.TERRANSHIPWEAPONSLEVEL1,
+                UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1,
+                UpgradeId.TERRANVEHICLEWEAPONSLEVEL1,
+                UpgradeId.TERRANSHIPWEAPONSLEVEL2,
+                UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL2,
+                UpgradeId.TERRANVEHICLEWEAPONSLEVEL2,
+                UpgradeId.TERRANSHIPWEAPONSLEVEL3,
+                UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL3,
+                UpgradeId.TERRANVEHICLEWEAPONSLEVEL3,
+            ]
+        for upgrade_type in upgrade_list:
+            if self.bot.units(self.affected_unit_types[upgrade_type]).amount < self.required_unit_counts.get(upgrade_type, 4):
                 # don't research if no units benefit
                 continue
             if self.already_pending_upgrade(facility_type, upgrade_type) > 0:

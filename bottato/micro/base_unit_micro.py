@@ -24,8 +24,11 @@ from bottato.unit_types import UnitTypes
 
 class BaseUnitMicro(GeometryMixin):
     ability_health: float = 0.1
-    attack_health: float = 0.1
-    retreat_health: float = 0.75
+    # threshold for whether unit should move aggressively. units should generally attack if able and enemy is in range
+    # this governs whether the unit should be retreating as they attack
+    attack_health: float = 0.7
+    # retreat if below this health, otherwise keep attacking if no threats
+    retreat_health: float = 0.5
     time_in_frames_to_attack: float = 0.25 * 22.4
     scout_tags: set[int] = set()
     harass_tags: set[int] = set()
@@ -74,7 +77,7 @@ class BaseUnitMicro(GeometryMixin):
     ###########################################################################        
     def get_override_target_for_repair(self, unit: Unit, target: Point2) -> Point2:
         if unit.tag in self.repair_targets_prev_frame:
-            if unit.health_percentage > self.retreat_health and self.unit_is_closer_than(unit, self.bot.enemy_units, 15, self.bot):
+            if unit.health_percentage > self.retreat_health and self.unit_is_closer_than(unit, self.bot.enemy_units, 15):
                 # don't move to repairer if in combat and healthy
                 return target
             repairers = self.bot.units.filter(lambda u: u.tag in self.repair_targets_prev_frame[unit.tag])
@@ -505,10 +508,10 @@ class BaseUnitMicro(GeometryMixin):
         return UnitMicroType.NONE
             
     @timed
-    def _get_retreat_destination(self, unit: Unit, threats: Units) -> Point2:
+    def _get_retreat_destination(self, unit: Unit, threats: Units | None = None) -> Point2:
         ultimate_destination: Point2 | None = None
         if unit.is_mechanical:
-            if not threats.filter(lambda t: t.can_attack):
+            if not threats or not threats.filter(lambda t: t.can_attack):
                 repairer: Unit | None = None
                 if unit.tag in self.repair_targets_prev_frame:
                     try:
@@ -617,7 +620,7 @@ class BaseUnitMicro(GeometryMixin):
         if unit.health_percentage >= 0.9:
             injured_friendlies = self.bot.units.filter(lambda u: u.health_percentage < 0.9 and u.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER))
             # poke out at full health otherwise enemy might never be engaged
-            if not self.unit_is_closer_than(unit, injured_friendlies, 5, self.bot):
+            if not self.unit_is_closer_than(unit, injured_friendlies, 5):
                 return False
 
         tank_targets = self.bot.enemy_units.filter(

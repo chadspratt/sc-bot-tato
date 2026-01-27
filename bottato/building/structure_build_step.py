@@ -58,6 +58,19 @@ class StructureBuildStep(BuildStep):
     def is_unit(self) -> bool:
         return self.unit_type_id in UnitTypes.TERRAN
     
+    def is_unit_production_facility(self) -> bool:
+        return self.unit_type_id in (
+            UnitTypeId.BARRACKS,
+            UnitTypeId.BARRACKSREACTOR,
+            UnitTypeId.BARRACKSTECHLAB,
+            UnitTypeId.FACTORY,
+            UnitTypeId.FACTORYREACTOR,
+            UnitTypeId.FACTORYTECHLAB,
+            UnitTypeId.STARPORT,
+            UnitTypeId.STARPORTREACTOR,
+            UnitTypeId.STARPORTTECHLAB,
+        )
+    
     def get_unit_type_id(self) -> UnitTypeId:
         return self.unit_type_id
     
@@ -99,6 +112,9 @@ class StructureBuildStep(BuildStep):
                 if self.bot.structure_type_build_progress(requirement) < 0.8:
                     return False
         return True
+    
+    def get_readiness_to_build(self) -> float:
+        return self.production.get_readiness_to_build(self.unit_type_id)
 
     @timed_async
     async def execute_facility_build(self) -> BuildResponseCode:

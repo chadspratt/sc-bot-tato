@@ -13,6 +13,7 @@ from bottato.building.special_locations import SpecialLocations
 from bottato.economy.production import Production
 from bottato.economy.workers import Workers
 from bottato.enums import BuildResponseCode, BuildType
+from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.mixins import timed
 from bottato.upgrades import RESEARCH_ABILITIES
@@ -54,11 +55,24 @@ class UpgradeBuildStep(BuildStep):
             "required_building", None
         ) # type: ignore
         requirement_met = (
-            required_tech_building is None or self.bot.structure_type_build_progress(required_tech_building) < 0.8
+            required_tech_building is None or self.bot.structure_type_build_progress(required_tech_building) > 0.8
         )
         if not requirement_met:
             return False
         return True
+
+    def get_readiness_to_build(self) -> float:
+        max_readiness: float = 0.0
+        research_facilities = self.bot.structures(self.builder_type)
+        for facility in research_facilities:
+            if facility.is_ready:
+                if facility.is_idle:
+                    return 1.0
+                elif facility.orders:
+                    max_readiness = max(max_readiness, facility.orders[0].progress)
+            else:
+                max_readiness = max(max_readiness, facility.build_progress)
+        return max_readiness
     
     async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
         response = None
@@ -78,7 +92,8 @@ class UpgradeBuildStep(BuildStep):
             if successful_action:
                 response = BuildResponseCode.SUCCESS
                 self.is_in_progress = True
-
+                LogHelper.write_log_to_db(self.upgrade_id.name)
+    
         if response is None:
             logger.debug("upgrade failed to start")
             response = BuildResponseCode.FAILED

@@ -18,8 +18,9 @@ from bottato.unit_types import UnitTypes
 class ReaperMicro(BaseUnitMicro, GeometryMixin):
     grenade_cooldown = 14.0
     grenade_timer = 1.7
-    attack_health = 0.65
-    retreat_health = 0.8
+    attack_health = 0.8
+    retreat_health = 0.65
+    time_in_frames_to_attack = 0.18 * 22.4
 
     grenade_cooldowns: dict[int, float] = {}
     unconfirmed_grenade_throwers: List[int] = []
@@ -161,7 +162,6 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             return UnitMicroType.NONE
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
 
-        do_retreat = False
 
         if not threats:
             if unit.health_percentage >= health_threshold:
@@ -184,50 +184,54 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             # unit.stop()
             # return True
 
+        if not unit.health_max:
+            # rare weirdness
+            return UnitMicroType.NONE
+
+        do_retreat = False
         # check if incoming damage will bring unit below health threshold
-        if not do_retreat:
-            if not unit.health_max:
-                # rare weirdness
-                return UnitMicroType.NONE
-            hp_threshold = unit.health_max * health_threshold
-            current_health = unit.health
-            for threat in threats:
-                if UnitTypes.ground_range(threat) > unit.ground_range:
-                    # just run away from threats that outrange
-                    do_retreat = True
-                    break
-                current_health -= threat.calculate_damage_vs_target(unit)[0]
-                if current_health < hp_threshold:
-                    do_retreat = True
-                    break
+        hp_threshold = unit.health_max * health_threshold
+        current_health = unit.health
+        for threat in threats:
+            if UnitTypes.ground_range(threat) > unit.ground_range:
+                # just run away from threats that outrange
+                do_retreat = True
+                break
+            current_health -= threat.calculate_damage_vs_target(unit)[0]
+            if current_health < hp_threshold:
+                do_retreat = True
+                break
 
         if do_retreat:
-            destination = self.retreat_scout_location if self.retreat_scout_location else harass_location
-            # retreat_to_start =  unit.health_percentage < health_threshold or unit.distance_to_squared(harass_location) < 400
-            retreat_to_start =  True
-            if retreat_to_start:
-                destination = self.bot.start_location
+            if unit.health_percentage < health_threshold:
+                retreat_position = self._get_retreat_destination(unit, threats)
+                unit.move(retreat_position)
+                return UnitMicroType.RETREAT
+            # # retreat_to_start =  unit.health_percentage < health_threshold or unit.distance_to_squared(harass_location) < 400
+            # retreat_to_start =  True
+            # if retreat_to_start:
+            destination = self.bot.start_location
             avg_threat_position = threats.center
             if unit.distance_to(destination) < avg_threat_position.distance_to(destination) + 2:
                 # if closer to start or already near enemy, move past them to go home
                 unit.move(destination)
                 return UnitMicroType.RETREAT
-            if retreat_to_start:
-                retreat_position = unit.position.towards(avg_threat_position, -5)
-                if self.bot.in_pathing_grid(retreat_position):
-                    unit.move(retreat_position)
-                else:
-                    if unit.position == avg_threat_position:
-                        # avoid divide by zero
-                        unit.move(destination)
-                    else:
-                        circle_around_position = self.get_circle_around_position(unit, avg_threat_position, destination)
-                        unit.move(circle_around_position.towards(destination, 2))
-                return UnitMicroType.RETREAT
-            else:
-                circle_around_position = self.get_circle_around_position(unit, avg_threat_position, destination)
-                unit.move(circle_around_position)
-                return UnitMicroType.RETREAT
+            # if retreat_to_start:
+            retreat_position = self._get_retreat_destination(unit, threats)
+            # if self.bot.in_pathing_grid(retreat_position):
+            #     unit.move(retreat_position)
+            # else:
+            #     if unit.position == avg_threat_position:
+            #         # avoid divide by zero
+            #         unit.move(destination)
+            #     else:
+            #         circle_around_position = self.get_circle_around_position(unit, avg_threat_position, destination)
+            #         unit.move(circle_around_position.towards(destination, 2))
+            return UnitMicroType.RETREAT
+            # elif unit.health_percentage > self.attack_health:
+            #     circle_around_position = self.get_circle_around_position(unit, avg_threat_position, harass_location)
+            #     unit.move(circle_around_position)
+            #     return UnitMicroType.MOVE
         self.retreat_scout_location = None
         return UnitMicroType.NONE
 

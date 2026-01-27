@@ -53,7 +53,7 @@ class BuildStep(GeometryMixin):
     def is_unit_type(self, unit_type_id: UnitTypeId | UpgradeId) -> bool:
         return False
     
-    def is_addon(self) -> bool:
+    def is_unit_production_facility(self) -> bool:
         return False
 
     def is_upgrade_type(self, upgrade_id: UpgradeId) -> bool:
@@ -85,6 +85,9 @@ class BuildStep(GeometryMixin):
     
     def tech_requirements_met(self) -> bool:
         return True
+    
+    def get_readiness_to_build(self) -> float:
+        return 1.0
 
     async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
         # override in subclasses

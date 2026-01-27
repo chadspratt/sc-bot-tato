@@ -82,7 +82,7 @@ class Commander(GeometryMixin):
         await self.structure_micro.execute(self.intel.enemy_builds_detected) # fast
 
         # XXX slow, 17% of command time
-        needed_resources: Cost = await self.build_order.execute()
+        remaining_resources: Cost = await self.build_order.execute()
 
         await self.scout() # fast
 
@@ -95,7 +95,7 @@ class Commander(GeometryMixin):
                                           self.intel.proxy_buildings)
 
         await self.my_workers.attack_nearby_enemies(self.intel.enemy_builds_detected) # ultra fast
-        await self.my_workers.redistribute_workers(needed_resources, self.intel.enemy_builds_detected)
+        await self.my_workers.redistribute_workers(remaining_resources, self.intel.enemy_builds_detected)
         await self.my_workers.speed_mine() # slow, 15% of command time
         # if self.bot.time > 240:
         #     logger.debug(f"minerals gathered: {self.bot.state.score.collected_minerals}")
@@ -178,7 +178,7 @@ class Commander(GeometryMixin):
                 # not top ramp, assume natural
                 self.military.natural_bunker.structure = unit
                 return
-            new_bunker = Bunker(self.bot, len(self.military.bunkers), unit)
+            new_bunker = Bunker(self.bot, self.enemy, len(self.military.bunkers), unit)
             self.military.bunkers.append(new_bunker)
             self.military.squads.append(new_bunker)
             return
@@ -205,6 +205,7 @@ class Commander(GeometryMixin):
             self.new_damage_by_unit[unit.tag] += amount_damage_taken
         if unit.is_structure:
             self.build_order.cancel_damaged_structure(unit, self.new_damage_by_unit[unit.tag])
+        self.military.log_damage(unit)
 
     def remove_destroyed_unit(self, unit_tag: int):
         destroyed_unit = UnitReferenceHelper.units_by_tag.get(unit_tag)

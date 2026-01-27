@@ -381,7 +381,7 @@ class Workers(GeometryMixin):
             unhealthy_workers = available_workers.filter(lambda u: u.health_percentage <= 0.5)
             worker_rush_detected = BuildType.WORKER_RUSH in enemy_builds_detected
 
-            defenders_per_enemy: Dict[int, int] = defaultdict(int)
+            assigned_defender_counts: Dict[int, int] = defaultdict(int)
             for worker in self.bot.workers:
                 assignment = self.assignments_by_worker[worker.tag]
                 targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
@@ -399,43 +399,16 @@ class Workers(GeometryMixin):
                         continue
                     for nearby_enemy in nearby_enemies:
                         num_defenders_per_enemy = 2 if nearby_enemy.type_id in UnitTypes.WORKER_TYPES else 3
-                        needed_defender_count = num_defenders_per_enemy - defenders_per_enemy[nearby_enemy.tag]
+                        needed_defender_count = num_defenders_per_enemy - assigned_defender_counts[nearby_enemy.tag]
                         if needed_defender_count > 0:
                             predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
                             new_defenders = await self.send_defenders(nearby_enemy, predicted_position, healthy_workers, unhealthy_workers, needed_defender_count, worker_rush_detected)
-                            defenders_per_enemy[nearby_enemy.tag] += len(new_defenders)
+                            assigned_defender_counts[nearby_enemy.tag] += len(new_defenders)
                             defender_tags.update(new_defenders)
 
             for townhall in self.bot.townhalls:
-                nearby_enemy_structures = self.bot.enemy_structures.closer_than(23, townhall).filter(lambda u: not u.is_flying)
-                if nearby_enemy_structures:
-                    nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1000000 + a.distance_to_squared(townhall))
-                nearby_enemy_range = 25 if nearby_enemy_structures else 12
-                nearby_enemies = self.bot.enemy_units.closer_than(nearby_enemy_range, townhall).filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
-                for enemy in self.units_to_attack:
-                    predicted_position = self.enemy.get_predicted_position(enemy, 0.0)
-                    if predicted_position._distance_squared(townhall.position) < 625:
-                        nearby_enemies.append(enemy)
-                if nearby_enemies or nearby_enemy_structures:
-                    logger.debug(f"units_to_attack: {self.units_to_attack}")
-                    logger.debug(f"nearby enemy structures: {nearby_enemy_structures}, nearby enemies: {nearby_enemies}")
-
-                if len(nearby_enemies) >= len(available_workers) and not worker_rush_detected:
-                    # don't suicide workers if outnumbered
-                    continue
-                # assign closest 3 workers to attack each enemy
-                workers_per_enemy_unit = 2 if nearby_enemy_structures or self.bot.enemy_race != Race.Protoss else 3
-                for nearby_enemy in nearby_enemies + nearby_enemy_structures:
-                    predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
-                    target_defender_count = 4 if nearby_enemy.is_structure else workers_per_enemy_unit
-                    needed_defender_count = target_defender_count - defenders_per_enemy[nearby_enemy.tag]
-                    if needed_defender_count > 0:
-                        townhall_defenders = await self.send_defenders(nearby_enemy, predicted_position, healthy_workers, unhealthy_workers, needed_defender_count, worker_rush_detected)
-                        if not townhall_defenders:
-                            logger.debug(f"no attackers available for enemy {nearby_enemy}")
-                            break
-                        defenders_per_enemy[nearby_enemy.tag] += len(townhall_defenders)
-                        defender_tags.update(townhall_defenders)
+                defender_tags.update(await self.defend_position(townhall, 15, assigned_defender_counts, healthy_workers, unhealthy_workers, worker_rush_detected))
+            defender_tags.update(await self.defend_position(self.bot.main_base_ramp.top_center, 3, assigned_defender_counts, healthy_workers, unhealthy_workers, worker_rush_detected))
 
         # put any leftover workers back to work
         for worker in self.bot.workers:
@@ -447,6 +420,46 @@ class Workers(GeometryMixin):
                         assignment.unit.smart(self.bot.townhalls.closest_to(assignment.unit))
                     else:
                         assignment.unit.smart(assignment.target)
+    
+    async def defend_position(self, position: Point2 | Unit,
+                              radius: float,
+                              assigned_defender_counts: Dict[int, int],
+                              healthy_workers: Units,
+                              unhealthy_workers: Units,
+                              worker_rush_detected: bool) -> set[int]:
+        defender_tags = set()
+        nearby_enemy_structures = self.bot.enemy_structures.closer_than(23, position).filter(lambda u: not u.is_flying)
+        if nearby_enemy_structures:
+            nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1000000 + a.distance_to_squared(position))
+        nearby_enemy_range = 25 if nearby_enemy_structures else 12
+        nearby_enemies = self.bot.enemy_units.closer_than(nearby_enemy_range, position).filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
+        radius_squared = radius * radius
+        for enemy in self.units_to_attack:
+            predicted_position = self.enemy.get_predicted_position(enemy, 0.0)
+            if predicted_position._distance_squared(position.position) < radius_squared:
+                nearby_enemies.append(enemy)
+        if nearby_enemies or nearby_enemy_structures:
+            logger.debug(f"units_to_attack: {self.units_to_attack}")
+            logger.debug(f"nearby enemy structures: {nearby_enemy_structures}, nearby enemies: {nearby_enemies}")
+
+        # if len(nearby_enemies) >= len(available_workers) and not worker_rush_detected:
+        #     # don't suicide workers if outnumbered
+        #     continue
+        # assign closest 3 workers to attack each enemy
+        workers_per_enemy_unit = 2 if nearby_enemy_structures or self.bot.enemy_race != Race.Protoss else 3
+        for nearby_enemy in nearby_enemies + nearby_enemy_structures:
+            predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
+            target_defender_count = 4 if nearby_enemy.is_structure else workers_per_enemy_unit
+            needed_defender_count = target_defender_count - assigned_defender_counts[nearby_enemy.tag]
+            if needed_defender_count > 0:
+                townhall_defenders = await self.send_defenders(nearby_enemy, predicted_position, healthy_workers, unhealthy_workers, needed_defender_count, worker_rush_detected)
+                if not townhall_defenders:
+                    logger.debug(f"no attackers available for enemy {nearby_enemy}")
+                    break
+                assigned_defender_counts[nearby_enemy.tag] += len(townhall_defenders)
+                defender_tags.update(townhall_defenders)
+
+        return defender_tags
 
     async def send_defenders(self, nearby_enemy: Unit,
                              predicted_position: Point2,
@@ -723,7 +736,7 @@ class Workers(GeometryMixin):
         )
 
     @timed_async
-    async def redistribute_workers(self, needed_resources: Cost, enemy_builds_detected: Dict[BuildType, float]) -> int:
+    async def redistribute_workers(self, remaining_resources: Cost, enemy_builds_detected: Dict[BuildType, float]) -> int:
         await self.update_repairers(enemy_builds_detected)
         self.distribute_idle()
 
@@ -733,10 +746,10 @@ class Workers(GeometryMixin):
             return -1
 
         max_workers_to_move = 10
-        if needed_resources.vespene < 20:
+        if remaining_resources.vespene < 90:
             logger.debug("saturate vespene")
             return self.move_workers_to_vespene(max_workers_to_move)
-        if needed_resources.minerals < 0:
+        if remaining_resources.minerals < 0:
             logger.debug("saturate minerals")
             return self.move_workers_to_minerals(max_workers_to_move)
 

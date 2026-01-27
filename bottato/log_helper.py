@@ -10,6 +10,7 @@ class LogHelper:
     previous_messages: dict[str, int] = {}
     new_messages: List[str] = []
     chat_messages: List[str] = []
+    db_messages: List[str] = []
 
     bot: BotAI
 
@@ -80,17 +81,18 @@ class LogHelper:
     def write_log_to_db(message: str):
         """Update the match duration in the database if we're in testing mode."""
         LogHelper.add_log(message)
-
-        if LogHelper.test_match_id is None:
-            return
+        if message not in LogHelper.db_messages:
+            LogHelper.db_messages.append(message)
+            if LogHelper.test_match_id is None:
+                return
+                
+            conn = sqlite3.connect('db/match_data.db')
+            cursor = conn.cursor()
             
-        conn = sqlite3.connect('db/match_data.db')
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            INSERT INTO match_event (match_id, message, timestamp)
-            VALUES (?, ?, CURRENT_TIMESTAMP)
-        ''', (int(LogHelper.test_match_id), message))
-        
-        conn.commit()
-        conn.close()
+            cursor.execute('''
+                INSERT INTO match_event (match_id, message, timestamp)
+                VALUES (?, ?, ?)
+            ''', (int(LogHelper.test_match_id), message, LogHelper.bot.time))
+            
+            conn.commit()
+            conn.close()

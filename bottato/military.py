@@ -45,6 +45,7 @@ class Military(GeometryMixin, DebugMixin):
         self.status_message = ""
         self.units_by_tag: Dict[int, Unit] = {}
         self.enemies_in_base: Units = Units([], self.bot)
+        self.last_damage_taken_time: Dict[int, float] = {}  # unit_tag -> game_time
         self.anti_banshee_units: Units | None = None
         # special squads
         self.main_army = FormationSquad(
@@ -54,8 +55,8 @@ class Military(GeometryMixin, DebugMixin):
             color=self.random_color(),
             name='main',
         )
-        self.top_ramp_bunker = Bunker(self.bot, 1)
-        self.natural_bunker = Bunker(self.bot, 2)
+        self.top_ramp_bunker = Bunker(self.bot,  self.enemy,  1)
+        self.natural_bunker = Bunker(self.bot,  self.enemy,  2)
         self.bunkers = [self.top_ramp_bunker, self.natural_bunker]
         self.stuck_rescue = StuckRescue(self.bot, self.main_army, self.squads_by_unit_tag)
         self.reaper_harass = HarassSquad(self.bot, name="reaper harass")
@@ -127,21 +128,18 @@ class Military(GeometryMixin, DebugMixin):
 
         self.status_message = f"army ratio {self.army_ratio:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
-        closest_bunker_to_army: Bunker | None = None
-        closest_bunker_to_army_distance: float = float('inf')
+        closest_bunker_to_center: Bunker | None = None
+        closest_bunker_to_center_distance: float = float('inf')
         for bunker in self.bunkers:
             if not bunker.structure:
                 continue
-            distance_to_army = bunker.structure.distance_to_squared(self.main_army.position) if bunker.structure else float('inf')
-            if bunker.structure and distance_to_army < closest_bunker_to_army_distance:
-                closest_bunker_to_army = bunker
-                closest_bunker_to_army_distance = distance_to_army
+            distance_to_center = bunker.structure.distance_to_squared(self.bot.game_info.map_center) if bunker.structure else float('inf')
+            if distance_to_center < closest_bunker_to_center_distance:
+                closest_bunker_to_center = bunker
+                closest_bunker_to_center_distance = distance_to_center
         for bunker in self.bunkers:
-            if mount_offense or not bunker.structure:
-                self.empty_bunker(bunker)
-            else:
-                is_closest = bunker == closest_bunker_to_army
-                await self.manage_bunker(bunker, self.enemies_in_base, is_closest)
+            is_closest = bunker == closest_bunker_to_center
+            await self.manage_bunker(bunker, self.enemies_in_base, is_closest)
 
         if self.main_army.units:
             self.main_army.draw_debug_box()
@@ -257,31 +255,32 @@ class Military(GeometryMixin, DebugMixin):
     @timed_async
     async def manage_bunker(self, bunker: Bunker, enemies_in_base: Units, is_closest_to_enemy: bool = False):
         if not bunker.structure:
+            self.empty_bunker(bunker)
             return
+        
         for passenger in bunker.structure.passengers:
             if passenger.type_id == UnitTypeId.SCV:
                 # SCV accidentally entered bunker, remove them
                 self.empty_bunker(bunker)
-                break
-        
-        current_enemies = enemies_in_base.filter(lambda unit: unit.age == 0)
-        closest_enemy: Unit | None = None
-        enemy_distance_to_bunker = 10000
-        if current_enemies:
-            closest_enemy = self.closest_unit_to_unit(bunker.structure, current_enemies)
-            enemy_distance_to_bunker = closest_enemy.distance_to_squared(bunker.structure)
-
-        if not is_closest_to_enemy:
-            if not closest_enemy:
-                self.empty_bunker(bunker)
                 return
-
-            enemy_distance_to_main = self.closest_distance_squared(self.bot.start_location, current_enemies) if current_enemies else 10000
-            buffer = 2 if enemy_distance_to_main > 300 else 0
-
+        
+        is_currently_occupied = len(bunker.structure.passengers) > 0
+        buffer = 2 if is_currently_occupied else 1
+        visible_enemies = enemies_in_base.filter(lambda unit: unit.age == 0)
+        enemy_distance_to_bunker = float('inf')
+        if visible_enemies:
+            closest_enemy = self.closest_unit_to_unit(bunker.structure, visible_enemies)
+            enemy_distance_to_bunker = closest_enemy.distance_to_squared(bunker.structure)
             bunker_range = self.enemy.get_attack_range_with_buffer_squared(bunker.structure, closest_enemy, buffer)
-            if bunker_range < enemy_distance_to_bunker < 10000:
+            if enemy_distance_to_bunker > bunker_range:
                 self.empty_bunker(bunker, closest_enemy)
+                return
+        else:
+            # no enemies nearby but maybe was recently attacked
+            last_attacked = self.last_damage_taken_time.get(bunker.structure.tag, 0)
+            recently_attacked = self.bot.time - last_attacked < 60
+            if not recently_attacked and not is_closest_to_enemy:
+                self.empty_bunker(bunker)
                 return
 
         # add units to bunker
@@ -305,7 +304,7 @@ class Military(GeometryMixin, DebugMixin):
                     valid_units = squad.units.of_type({UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.GHOST})
                     closest_units = valid_units.closest_n_units(bunker.structure, cargo_max - cargo_used)
                     for unit in closest_units:
-                        enemy_distance_to_unit = self.closest_distance_squared(unit, current_enemies) if current_enemies else 10000
+                        enemy_distance_to_unit = self.closest_distance_squared(unit, visible_enemies) if visible_enemies else 10000
                         marine_distance_to_bunker = unit.distance_to_squared(bunker.structure)
                         if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
                             # send unit to bunker if they won't have to move past enemies
@@ -685,6 +684,9 @@ class Military(GeometryMixin, DebugMixin):
         for unit in self.bot.units:
             if unit.tag not in self.squads_by_unit_tag and unit.type_id not in (UnitTypeId.SCV, UnitTypeId.MULE):
                 self.add_to_main(unit)
+
+    def log_damage(self, unit: Unit):
+        self.last_damage_taken_time[unit.tag] = self.bot.time
 
     def record_death(self, unit_tag):
         if unit_tag in self.squads_by_unit_tag:

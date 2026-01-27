@@ -89,16 +89,6 @@ class SCVBuildStep(BuildStep):
             return False
         return self.unit_type_id == unit_type_id or \
             self.unit_type_id == UnitTypeId.REFINERY and unit_type_id == UnitTypeId.REFINERYRICH
-    
-    def is_addon(self) -> bool:
-        return self.unit_type_id in (
-            UnitTypeId.BARRACKSREACTOR,
-            UnitTypeId.BARRACKSTECHLAB,
-            UnitTypeId.FACTORYREACTOR,
-            UnitTypeId.FACTORYTECHLAB,
-            UnitTypeId.STARPORTREACTOR,
-            UnitTypeId.STARPORTTECHLAB,
-        )
 
     def get_unit_type_id(self) -> UnitTypeId:
         return self.unit_type_id
@@ -157,7 +147,10 @@ class SCVBuildStep(BuildStep):
                     return BuildResponseCode.NO_FACILITY
                 self.position = self.geysir.position
             else:
-                if self.position is None or (self.start_time is not None and self.start_time - self.bot.time > 5):
+                # try to reset position to highground if it was set to low before rush was detected
+                # if self.unit_type_id == UnitTypeId.BUNKER and BuildType.RUSH in detected_enemy_builds and self.unit_being_built is None:
+                #     self.position = None
+                if self.position is None or (self.start_time is not None and self.start_time - self.bot.time > 7):
                     self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds)
                 if self.position is None:
                     self.no_position_count += 1
@@ -171,7 +164,7 @@ class SCVBuildStep(BuildStep):
         threats = self.bot.enemy_units.filter(
             lambda u: u.type_id not in UnitTypes.WORKER_TYPES \
                 and UnitTypes.can_attack_ground(u))
-        enemy_is_close = self.unit_is_closer_than(self.unit_in_charge, threats, 15, self.bot)
+        enemy_is_close = self.unit_is_closer_than(self.unit_in_charge, threats, 15)
         if enemy_is_close:
             return BuildResponseCode.TOO_CLOSE_TO_ENEMY
 
@@ -272,7 +265,7 @@ class SCVBuildStep(BuildStep):
                 # candidates = [(depot_position + ramp_barracks.position) / 2 for depot_position in self.bot.main_base_ramp.corner_depots]
                 candidate = min(candidates, key=lambda p: self.bot.start_location.distance_to(p))
                 # candidate = candidate.towards(self.bot.main_base_ramp.top_center.towards(ramp_barracks.position, distance=2), distance=-1)
-            else:
+            elif self.bot.structures.of_type(UnitTypeId.BUNKER).amount < 2:
                 ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
                 # enemy_start: Point2 = self.bot.enemy_start_locations[0]
                 ramp_to_natural_vector = (self.map.natural_position - ramp_position).normalized
@@ -281,7 +274,9 @@ class SCVBuildStep(BuildStep):
                 candidates = [toward_natural + ramp_to_natural_perp_vector * 3, toward_natural - ramp_to_natural_perp_vector * 3]
                 candidates.sort(key=lambda p: p.distance_to(self.bot.game_info.map_center))
                 candidate = candidates[0]
-                # candidate = ramp_position.towards(self.map.natural_position, 2).towards(enemy_start, distance=1)
+            else:
+                # find_placement only supports first 2 bunkers, 
+                return None
             retry_count = 0
             while not new_build_position or new_build_position._distance_squared(self.map.natural_position) < 16:
                 if retry_count > 5:
@@ -487,7 +482,7 @@ class SCVBuildStep(BuildStep):
                     lambda u: UnitTypes.can_attack_ground(u) \
                         and u.type_id not in UnitTypes.WORKER_TYPES)
                 if threats:
-                    enemy_is_close = self.unit_is_closer_than(self.unit_in_charge, threats, 12, self.bot)
+                    enemy_is_close = self.unit_is_closer_than(self.unit_in_charge, threats, 12)
                     if not enemy_is_close:
                         return False
                     if self.unit_in_charge:

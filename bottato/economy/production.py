@@ -322,6 +322,64 @@ class Production():
             if self.get_build_capacity(builder_type, tech_lab_required) > 0:
                 return True
         return False
+    
+    def get_readiness_to_build(self, unit_type: UnitTypeId) -> float:
+        # returns a float between 0.0 and 1.0 representing how ready we are to build any of the given unit types
+        # if a structure is under construction or working on an earlier order, return build/order progress
+        # returns maximum readiness among all unit types
+        max_readiness = 0.0
+        
+        builder_type: UnitTypeId = self.get_cheapest_builder_type(unit_type)
+        tech_lab_required: bool = unit_type in self.needs_tech_lab
+        
+        if builder_type == UnitTypeId.COMMANDCENTER:
+            if self.bot.townhalls.ready.idle.amount > 0:
+                max_readiness = 1.0
+            else:
+                # Check if any are under construction or busy
+                for th in self.bot.townhalls:
+                    if not th.is_ready:
+                        max_readiness = max(max_readiness, th.build_progress)
+                    elif not th.is_idle and th.orders:
+                        # Estimate progress based on first order
+                        order_progress = th.orders[0].progress
+                        max_readiness = max(max_readiness, order_progress)
+        else:
+            addon_types = [UnitTypeId.TECHLAB] if tech_lab_required else [UnitTypeId.REACTOR, UnitTypeId.NOTAUNIT, UnitTypeId.TECHLAB]
+            for addon_type in addon_types:
+                facilities = self.facilities.get(builder_type, {}).get(addon_type, [])
+                
+                for facility in facilities:                        
+                    # Facility is flying (moving to new position)
+                    if facility.unit.is_flying:
+                        max_readiness = max(max_readiness, 0.8)
+                        continue
+                    
+                    # Facility has available capacity
+                    if facility.has_capacity:
+                        max_readiness = 1.0
+                        break
+                    
+                    # Facility is busy but has orders - estimate progress
+                    max_orders = 2 if addon_type == UnitTypeId.REACTOR else 1
+                    num_orders = len(facility.unit.orders)
+                    if num_orders > max_orders or num_orders == 0:
+                        # has an order queued, readiness is 0
+                        continue
+                
+                    # Use the most progressed order as readiness indicator
+                    most_progressed = max(order.progress for order in facility.unit.orders)
+                    max_readiness = max(max_readiness, most_progressed)
+            
+            # Check if builder structure itself needs to be built
+            if max_readiness < 1.0:
+                builder_structures = self.bot.structures(builder_type)
+                if not builder_structures.ready:
+                    # Structure under construction
+                    for structure in builder_structures:
+                        max_readiness = max(max_readiness, structure.build_progress)
+        
+        return max_readiness
 
     @timed
     def additional_needed_production(self, unit_types: List[UnitTypeId]):
