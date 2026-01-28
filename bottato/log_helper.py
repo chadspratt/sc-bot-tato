@@ -5,6 +5,13 @@ from typing import List
 
 from sc2.bot_ai import BotAI
 
+# Try to import pymysql - it will be available in local testing, not on server
+try:
+    import pymysql
+    PYMYSQL_AVAILABLE = True
+except ImportError:
+    PYMYSQL_AVAILABLE = False
+
 
 class LogHelper:
     previous_messages: dict[str, int] = {}
@@ -15,13 +22,21 @@ class LogHelper:
     bot: BotAI
 
     testing: bool = False
-    test_match_id: str | None = None
+    test_match_id: int | None = None
+    use_mariadb: bool = False
+
     @staticmethod
     def init(bot: BotAI):
         LogHelper.bot = bot
-        LogHelper.testing = os.environ.get("SC_BOT_AUTOMATED_TEST") == "1"
-        LogHelper.test_match_id = os.environ.get("TEST_MATCH_ID")
-        LogHelper.add_log(f"LogHelper initialized. Testing mode: {LogHelper.testing}, Test Match ID: {LogHelper.test_match_id}")
+        match_id = os.environ.get("TEST_MATCH_ID")
+        if match_id is not None:
+            LogHelper.test_match_id = int(match_id)
+        # Use MariaDB only if pymysql is available AND we're in local testing mode
+        LogHelper.use_mariadb = PYMYSQL_AVAILABLE and LogHelper.test_match_id is not None
+        LogHelper.add_log(f"LogHelper initialized. Test Match ID: {LogHelper.test_match_id}, Using MariaDB: {LogHelper.use_mariadb}")
+        # enable writing to an sqlite db on the ladder
+        # if not LogHelper.use_mariadb:
+        #     LogHelper.test_match_id = 0
 
     @staticmethod
     def add_log(message: str):
@@ -62,37 +77,48 @@ class LogHelper:
     @staticmethod
     def update_match_duration(duration_seconds: int):
         """Update the match duration in the database if we're in testing mode."""
-        if LogHelper.test_match_id is None:
-            return
-            
-        conn = sqlite3.connect('db/match_data.db')
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            UPDATE match 
-            SET duration_in_game_time = ?
-            WHERE id = ?
-        ''', (duration_seconds, int(LogHelper.test_match_id)))
-        
-        conn.commit()
-        conn.close()
+        LogHelper.write_log_to_db("Match ended", str(LogHelper.bot.time))
 
     @staticmethod
-    def write_log_to_db(message: str):
+    def write_log_to_db(type: str, message: str, override_time: float | None = None):
         """Update the match duration in the database if we're in testing mode."""
         LogHelper.add_log(message)
+        if LogHelper.test_match_id is None:
+            return
         if message not in LogHelper.db_messages:
             LogHelper.db_messages.append(message)
-            if LogHelper.test_match_id is None:
-                return
-                
-            conn = sqlite3.connect('db/match_data.db')
-            cursor = conn.cursor()
             
-            cursor.execute('''
-                INSERT INTO match_event (match_id, message, timestamp)
-                VALUES (?, ?, ?)
-            ''', (int(LogHelper.test_match_id), message, LogHelper.bot.time))
+            timestamp = override_time if override_time else LogHelper.bot.time
+            
+            if LogHelper.use_mariadb:
+                # Use MariaDB for local testing
+                conn = pymysql.connect( # type: ignore always defined if USE_MARIADB is True
+                    host=os.environ.get('DB_HOST', 'localhost'),
+                    port=int(os.environ.get('DB_PORT', '3306')),
+                    user=os.environ.get('DB_USER', 'root'),
+                    password=os.environ.get('DB_PASSWORD', 'default'),
+                    database=os.environ.get('DB_NAME', 'sc_bot'),
+                    autocommit=False
+                )
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO match_event (match_id, type, message, game_timestamp)
+                    VALUES (%s, %s, %s, %s)
+                ''', (int(LogHelper.test_match_id), type, message, timestamp))
+                if type == "Match ended":
+                    cursor.execute('''
+                        UPDATE `match` SET duration_in_game_time = %s
+                        WHERE id = %s
+                    ''', (int(timestamp), LogHelper.test_match_id))
+                    conn.commit()
+            else:
+                # Use SQLite for server matches
+                conn = sqlite3.connect('../db/match_data.db')
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO match_event (match_id, type, message, game_timestamp)
+                    VALUES (?, ?, ?, ?)
+                ''', (LogHelper.test_match_id, type, message, timestamp))
             
             conn.commit()
             conn.close()

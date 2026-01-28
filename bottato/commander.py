@@ -16,6 +16,7 @@ from bottato.economy.production import Production
 from bottato.economy.workers import Workers
 from bottato.enemy import Enemy
 from bottato.enums import WorkerJobType
+from bottato.log_helper import LogHelper
 from bottato.map.destructibles import BUILDING_RADIUS
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -162,6 +163,7 @@ class Commander(GeometryMixin):
 
     def update_completed_structure(self, unit: Unit):
         self.build_order.update_completed_structure(unit)
+        LogHelper.write_log_to_db(f'Building', unit.type_id.name)
         self.production.add_builder(unit)
         if unit.type_id == UnitTypeId.BARRACKS and len(self.bot.structures(UnitTypeId.BARRACKS)) == 1:
             # set rally point for first barracks away from ramp
@@ -224,3 +226,4 @@ class Commander(GeometryMixin):
     def add_upgrade(self, upgrade: UpgradeId):
         logger.debug(f"upgrade completed {upgrade}")
         self.build_order.update_completed_upgrade(upgrade)
+        LogHelper.write_log_to_db('Upgrade complete', upgrade.name)

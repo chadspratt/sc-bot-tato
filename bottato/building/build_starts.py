@@ -23,6 +23,7 @@ class BuildStarts():
             return [
                 UnitTypeId.SCV,
                 UnitTypeId.SCV,
+                UnitTypeId.SCV,
                 UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,
                 UnitTypeId.REFINERY,
                 UnitTypeId.BARRACKS,
@@ -56,6 +57,7 @@ class BuildStarts():
             ]
         elif build_name == "pig_b2gm protoss":
             return [
+                UnitTypeId.SCV,
                 UnitTypeId.SCV,
                 UnitTypeId.SCV,
                 UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,
@@ -93,6 +95,7 @@ class BuildStarts():
             ]
         elif build_name == "pig_b2gm zerg":
             return [
+                UnitTypeId.SCV,
                 UnitTypeId.SCV,
                 UnitTypeId.SCV,
                 UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,

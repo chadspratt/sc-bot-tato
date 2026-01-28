@@ -5,11 +5,29 @@ This script makes sure to run all bots in the examples folder to check if they c
 from __future__ import annotations
 
 import os
-import sqlite3
+import pymysql
 from datetime import datetime
 import random
 
 from loguru import logger
+
+# Database configuration from environment variables
+DB_HOST = os.environ.get('DB_HOST', 'localhost')
+DB_PORT = int(os.environ.get('DB_PORT', '3306'))
+DB_NAME = os.environ.get('DB_NAME', 'sc_bot')
+DB_USER = os.environ.get('DB_USER', 'root')
+DB_PASSWORD = os.environ.get('DB_PASSWORD', 'default')
+
+def get_db_connection():
+    """Create and return a database connection."""
+    return pymysql.connect(
+        host=DB_HOST,
+        port=DB_PORT,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        database=DB_NAME,
+        autocommit=False
+    )
 
 from sc2 import maps
 from sc2.bot_ai import BotAI
@@ -58,43 +76,20 @@ map_list = [
     "MagannathaAIE_v2"
 ]
 
-def init_database():
-    """Initialize the SQLite database and create the matches table if it doesn't exist."""
-    conn = sqlite3.connect('db/match_data.db')
-    cursor = conn.cursor()
-
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS match (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            test_group_id INTEGER,
-            start_timestamp TEXT NOT NULL,
-            end_timestamp TEXT,
-            map_name TEXT NOT NULL,
-            opponent_race TEXT NOT NULL,
-            opponent_difficulty TEXT NOT NULL,
-            opponent_build TEXT NOT NULL,
-            result TEXT NOT NULL,
-            replay_path TEXT
-        )
-    ''')
-
-    conn.commit()
-    conn.close()
-
 def get_next_test_group_id() -> int:
     """Get the next test group ID by incrementing the highest completed test group ID."""
-    conn = sqlite3.connect('db/match_data.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     cursor.execute('''
-        SELECT MAX(test_group_id) FROM match WHERE end_timestamp IS NOT NULL
+        SELECT MAX(test_group_id) FROM `match` WHERE end_timestamp IS NOT NULL
     ''')
     
-    result = cursor.fetchone()[0]
+    result = cursor.fetchone()
     conn.close()
     
     # If no completed matches exist, start at 0, otherwise increment by 1
-    return 0 if result is None else result + 1
+    return 0 if result is None else result[0] + 1
 
 def create_pending_match(
         test_group_id: int,
@@ -105,12 +100,12 @@ def create_pending_match(
         opponent_build: AIBuild,
     ) -> int | None:
     """Create a pending match entry and return the match ID."""
-    conn = sqlite3.connect('db/match_data.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
-        INSERT INTO match (test_group_id, start_timestamp, map_name, opponent_race, opponent_difficulty, opponent_build, result)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO `match` (test_group_id, start_timestamp, map_name, opponent_race, opponent_difficulty, opponent_build, result)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
     ''', (
         test_group_id,
         start_timestamp,
@@ -129,15 +124,14 @@ def create_pending_match(
 
 def update_match_result(match_id: int, result: str, replay_path: str):
     """Update match result in the database."""
-    conn = sqlite3.connect('db/match_data.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
-        UPDATE match 
-        SET end_timestamp = ?, result = ?, replay_path = ?
-        WHERE id = ?
+        UPDATE `match` 
+        SET end_timestamp = NOW(), result = %s, replay_path = %s
+        WHERE id = %s
     ''', (
-        datetime.now().isoformat(),
         result,
         replay_path,
         match_id
@@ -148,45 +142,42 @@ def update_match_result(match_id: int, result: str, replay_path: str):
 
 def update_match_map(match_id: int, map_name: str):
     """Update the map name for an existing match."""
-    conn = sqlite3.connect('db/match_data.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
-        UPDATE match 
-        SET map_name = ?
-        WHERE id = ?
+        UPDATE `match` 
+        SET map_name = %s
+        WHERE id = %s
     ''', (map_name, match_id))
 
     conn.commit()
     conn.close()
 
-
 def get_least_used_map(opponent_race: str, opponent_build: str, opponent_difficulty: str) -> str:
     """Update the map name for an existing match."""
-    conn = sqlite3.connect('db/match_data.db')
+    conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
-        select map_name, count(*) ct
-        from match
-        where opponent_race = ?
-            and opponent_build = ?
-            and opponent_difficulty = ?
-            and result in ("Victory", "Defeat")
-            and test_group_id >= 0
-        group by map_name
-        order by ct
-        limit 1
+        SELECT map_name, count(*) ct
+        FROM `match`
+        WHERE opponent_race = %s
+            AND opponent_build = %s
+            AND opponent_difficulty = %s
+            AND result IN ("Victory", "Defeat")
+            AND test_group_id >= 0
+        GROUP BY map_name
+        ORDER BY ct
+        LIMIT 1
     ''', (opponent_race, opponent_build, opponent_difficulty))
 
-    map_name = cursor.fetchone()[0]
+    map_name = cursor.fetchone()
     conn.close()
-    return map_name
+    return map_name[0] if map_name else random.choice(map_list)
+
 
 def main():
-    # Initialize database
-    init_database()
-
     race = os.environ.get("RACE")
     build = os.environ.get("BUILD")
     difficulty_env = os.environ.get("DIFFICULTY")
@@ -218,7 +209,6 @@ def main():
     os.environ["TEST_MATCH_ID"] = str(match_id)
 
     # disable logging done by LogHelper
-    # os.environ["SC_BOT_AUTOMATED_TEST"] = "1"
 
     try:
         result: Result | list[Result] = run_game(

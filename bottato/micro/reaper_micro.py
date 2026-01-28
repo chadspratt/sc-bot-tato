@@ -162,7 +162,6 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             return UnitMicroType.NONE
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
 
-
         if not threats:
             if unit.health_percentage >= health_threshold:
                 self.retreat_scout_location = None

@@ -66,15 +66,16 @@ class EnemyIntel(GeometryMixin):
     def add_type(self, unit: Unit, time: float):
         if unit.type_id not in self.type_positions_seen:
             self.type_positions_seen[unit.type_id] = [unit.position]
-            LogHelper.add_log(f"EnemyIntel: first seen {unit.type_id} at time {time:.1f}")
+            LogHelper.write_log_to_db('Enemy type seen', unit.type_id.name)
         elif unit.is_structure and unit.position not in self.type_positions_seen[unit.type_id]:
             # store position for every structure
             self.type_positions_seen[unit.type_id].append(unit.position)
 
         if unit.type_id not in self.first_building_time:
-            start_time = time - unit.build_progress * unit._type_data.cost.time / 22.4 # type: ignore
+            start_time: float = time - unit.build_progress * unit._type_data.cost.time / 22.4 # type: ignore
             self.first_building_time[unit.type_id] = start_time
             LogHelper.add_log(f"EnemyIntel: first {unit.type_id} started at time {start_time:.1f}")
+            LogHelper.write_log_to_db('Enemy type started', unit.type_id.name, start_time)
 
     def update_location_visibility(self, scout_units: List[Unit]):
         enemy_townhalls = self.bot.enemy_structures.of_type(race_townhalls[self.bot.enemy_race])
@@ -216,6 +217,7 @@ class EnemyIntel(GeometryMixin):
     def add_detected_build(self, build_type: BuildType):
         if build_type not in self.enemy_builds_detected:
             self.enemy_builds_detected[build_type] = self.bot.time
+            LogHelper.write_log_to_db('Enemy build detected', build_type.name)
 
     def proxy_detected(self) -> bool:
         if self.enemy_race_confirmed is None or self.bot.time > 120:
@@ -260,7 +262,7 @@ class EnemyIntel(GeometryMixin):
                         i -= 1
                     if not already_recorded:
                         self.enemy_drop_locations.append((transport.position, self.bot.time))
-                        LogHelper.write_log_to_db(f"Enemy drop detected at {transport.position}")
+                        LogHelper.write_log_to_db("Enemy drop detected", str(transport.position))
 
     def get_recent_drop_locations(self, within_seconds: float) -> List[Point2]:
         recent_drops: List[Point2] = []

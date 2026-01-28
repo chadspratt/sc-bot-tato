@@ -92,7 +92,6 @@ class UpgradeBuildStep(BuildStep):
             if successful_action:
                 response = BuildResponseCode.SUCCESS
                 self.is_in_progress = True
-                LogHelper.write_log_to_db(self.upgrade_id.name)
     
         if response is None:
             logger.debug("upgrade failed to start")

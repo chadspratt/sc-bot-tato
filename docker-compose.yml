@@ -4,9 +4,17 @@ services:
       context: ..
       dockerfile: ./python_sc2/dockerfiles/Dockerfile
     container_name: sc2_bot
+    network_mode: "host"
+    working_dir: /root/bot
     volumes:
       - .:/root/bot
       - C:\Program Files (x86)\StarCraft II\Maps:/root/StarCraftII/Maps
       - C:\Users\inter\Documents\StarCraft II\Replays\Multiplayer\docker:/root/replays
-      - C:\Users\inter\Documents\db:/root/db
-    command: uv run /root/bot/run_bottato_vs_computer.py
+      # - C:\Users\inter\Documents\db:/root/db
+    environment:
+      - DB_HOST=${DB_HOST}
+      - DB_PORT=${DB_PORT}
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    command: uv run run_bottato_vs_computer.py

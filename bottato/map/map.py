@@ -13,6 +13,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.enums import ExpansionSelection
+from bottato.log_helper import LogHelper
 from bottato.map.influence_maps import InfluenceMaps
 from bottato.map.zone import Path, Zone
 from bottato.mixins import GeometryMixin, timed, timed_async
@@ -40,6 +41,7 @@ class Map(GeometryMixin):
             ExpansionSelection.CLOSEST: [],
             ExpansionSelection.AWAY_FROM_ENEMY: []
         }
+        self.reaper_cliff_positions: Set[Point2] = set()
         self.enemy_expansion_orders: Dict[ExpansionSelection, List[ScoutingLocation]] = {
             ExpansionSelection.CLOSEST: [],
             ExpansionSelection.AWAY_FROM_ENEMY: []
@@ -78,8 +80,22 @@ class Map(GeometryMixin):
                     self.bot.start_location)
         )
 
+    previous_reaper_elevations: Dict[int, float] = {}
     @timed_async
     async def refresh_map(self):
+        for reaper in self.bot.units(UnitTypeId.REAPER):
+            if reaper.tag not in self.previous_reaper_elevations:
+                self.previous_reaper_elevations[reaper.tag] = self.bot.get_terrain_z_height(reaper.position)
+            else:
+                previous_elevation = self.previous_reaper_elevations[reaper.tag]
+                current_elevation = self.bot.get_terrain_z_height(reaper.position)
+                if abs(current_elevation - previous_elevation) > 1:
+                    # elevation changed significantly, likely jumped a cliff
+                    if reaper.position.rounded not in self.reaper_cliff_positions:
+                        LogHelper.write_log_to_db("Reaper cliff", str(reaper.position.rounded))
+                        self.reaper_cliff_positions.add(reaper.position.rounded)
+                self.previous_reaper_elevations[reaper.tag] = current_elevation
+
         if self.influence_maps.destructables_changed():
             self.init_distance_from_edge(self.influence_maps.get_long_range_grid())
             self.zones: Dict[int, Zone] = await self.init_zones(self.distance_from_edge)
