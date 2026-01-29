@@ -31,6 +31,8 @@ class Facility():
         self.capacity = 1
         self.queued_unit_ids = []
         self.new_position: Point2 | None = None
+        self.was_told_to_lift_to_unblock_addon: bool = False
+        self.was_lifted_to_unblock_addon: bool = False
 
     def __repr__(self) -> str:
         return f"facility {self.unit}-{self.add_on_type}"
@@ -69,7 +71,12 @@ class Facility():
 
         self.unit = updated_unit
 
-        if self.add_on_type == UnitTypeId.NOTAUNIT and not self.addon_blocked:
+        if self.unit.is_flying:
+            if self.was_told_to_lift_to_unblock_addon:
+                self.was_lifted_to_unblock_addon = True
+                self.was_told_to_lift_to_unblock_addon = False
+            self.addon_blocked = False
+        elif self.add_on_type == UnitTypeId.NOTAUNIT and not self.addon_blocked:
             closest_candidates = self.bot.structures.filter(lambda s: s.tag != updated_unit.tag and s.type_id not in (
                 UnitTypeId.BARRACKSTECHLAB,
                 UnitTypeId.BARRACKSREACTOR,
@@ -84,17 +91,15 @@ class Facility():
                 closest_structure_to_addon = closest_candidates.closest_to(updated_unit.add_on_position)
                 self.addon_blocked = closest_structure_to_addon.radius > closest_structure_to_addon.distance_to(updated_unit.add_on_position)
                 # not (await self.bot.can_place_single(UnitTypeId.SUPPLYDEPOT, updated_unit.add_on_position))
-        if self.addon_blocked or updated_unit.is_flying:
-            if updated_unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING) \
+
+        # blocking main base ramp, don't move
+        is_ramp_barracks = updated_unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING) \
                     and self.bot.main_base_ramp.barracks_in_middle \
-                    and updated_unit.position.manhattan_distance(self.bot.main_base_ramp.barracks_in_middle) < 3:
-                # blocking main base ramp, don't move
-                return
-            logger.debug(f"addon blocked for {updated_unit}")
-            # move facility to an unblocked position
-            if not updated_unit.is_flying:
-                updated_unit(AbilityId.LIFT)
-            else:
+                    and updated_unit.position.manhattan_distance(self.bot.main_base_ramp.barracks_in_middle) < 3
+        if self.was_lifted_to_unblock_addon:
+            if not self.unit.is_flying:
+                self.was_lifted_to_unblock_addon = False
+            if not is_ramp_barracks:
                 if self.new_position is None:
                     unit_type = updated_unit.unit_alias if updated_unit.unit_alias else updated_unit.type_id
                     self.new_position = await self.bot.find_placement(unit_type, updated_unit.position, placement_step=1, addon_place=True)
@@ -102,8 +107,13 @@ class Facility():
                     updated_unit.move(self.new_position)
                 else:
                     updated_unit(AbilityId.LAND, self.new_position)
-                    self.addon_blocked = False
                     self.new_position = None
+
+        if self.addon_blocked and not is_ramp_barracks:
+            logger.debug(f"addon blocked for {updated_unit}")
+            # move facility to an unblocked position
+            self.was_told_to_lift_to_unblock_addon = True
+            updated_unit(AbilityId.LIFT)
 
     @property
     def has_capacity(self) -> bool:
@@ -345,7 +355,13 @@ class Production():
                         order_progress = th.orders[0].progress
                         max_readiness = max(max_readiness, order_progress)
         else:
-            addon_types = [UnitTypeId.TECHLAB] if tech_lab_required else [UnitTypeId.REACTOR, UnitTypeId.NOTAUNIT, UnitTypeId.TECHLAB]
+            addon_types: List[UnitTypeId] = []
+            if tech_lab_required:
+                addon_types = [UnitTypeId.TECHLAB]
+            elif unit_type in self.add_on_types:
+                addon_types = [UnitTypeId.NOTAUNIT]
+            else:
+                addon_types = [UnitTypeId.REACTOR, UnitTypeId.NOTAUNIT, UnitTypeId.TECHLAB]
             for addon_type in addon_types:
                 facilities = self.facilities.get(builder_type, {}).get(addon_type, [])
                 

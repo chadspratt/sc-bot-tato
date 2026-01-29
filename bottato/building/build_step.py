@@ -89,7 +89,10 @@ class BuildStep(GeometryMixin):
     def get_readiness_to_build(self) -> float:
         return 1.0
 
-    async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
+    async def execute(self, special_locations: SpecialLocations,
+                      detected_enemy_builds: Dict[BuildType, float],
+                      floating_building_destinations: Dict[int, Point2]
+                      ) -> BuildResponseCode:
         # override in subclasses
         return BuildResponseCode.FAILED
 

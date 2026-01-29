@@ -273,8 +273,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 elif current_distance < 3 and (unit.position.manhattan_distance(self.previous_positions[unit.tag]) < 0.1 or current_distance > previous_distance):
                     # don't block depots from raising
                     closest_depot = self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).closest_to(unit)
-                    depot_distance = closest_depot.distance_to(unit)
-                    if depot_distance < 2.2:
+                    depot_distance = min(abs(closest_depot.position.x - unit.position.x), abs(closest_depot.position.y - unit.position.y))
+                    if depot_distance < 2.3:
                         tank_position = closest_depot.position.towards(unit.position, 4)
                         unit.move(tank_position)
                     else:

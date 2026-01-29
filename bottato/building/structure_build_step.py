@@ -99,7 +99,10 @@ class StructureBuildStep(BuildStep):
             return self.position.manhattan_distance(point)
         return 9999
 
-    async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
+    async def execute(self, special_locations: SpecialLocations,
+                      detected_enemy_builds: Dict[BuildType, float],
+                      floating_building_destinations: Dict[int, Point2]
+                      ) -> BuildResponseCode:
         response = await self.execute_facility_build()
         if response == BuildResponseCode.SUCCESS:
             self.is_in_progress = True

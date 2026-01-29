@@ -1,6 +1,8 @@
 """
 https://github.com/DrInfy/sharpy-sc2/blob/develop/sharpy/managers/unit_value.py
 """
+from typing import Dict
+
 from sc2.ids.unit_typeid import UnitTypeId
 
 BUILDINGS = {
@@ -50,10 +52,13 @@ BUILDINGS = {
         UnitTypeId.INFESTATIONPIT,
         UnitTypeId.ULTRALISKCAVERN,
         UnitTypeId.BARRACKS,
+        UnitTypeId.BARRACKSFLYING,
         UnitTypeId.ENGINEERINGBAY,
         UnitTypeId.FACTORY,
+        UnitTypeId.FACTORYFLYING,
         UnitTypeId.GHOSTACADEMY,
         UnitTypeId.STARPORT,
+        UnitTypeId.STARPORTFLYING,
         UnitTypeId.FUSIONCORE,
         UnitTypeId.BUNKER,
         UnitTypeId.ARMORY,
@@ -66,16 +71,18 @@ BUILDINGS = {
         UnitTypeId.HIVE,
         UnitTypeId.LAIR,
         UnitTypeId.COMMANDCENTER,
+        UnitTypeId.COMMANDCENTERFLYING,
         UnitTypeId.ORBITALCOMMAND,
+        UnitTypeId.ORBITALCOMMANDFLYING,
         UnitTypeId.PLANETARYFORTRESS,
     }
 }
 
-BUILDING_RADIUS = {}
+BUILDING_RADIUS: Dict[UnitTypeId, float] = {}
 for type_id in BUILDINGS["2x2"]:
     BUILDING_RADIUS[type_id] = 1
 for type_id in BUILDINGS["3x3"]:
-    BUILDING_RADIUS[type_id] = 2
+    BUILDING_RADIUS[type_id] = 1.5
 for type_id in BUILDINGS["5x5"]:
     BUILDING_RADIUS[type_id] = 2.5
 

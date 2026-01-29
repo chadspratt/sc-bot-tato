@@ -6,6 +6,7 @@ from sc2.dicts.unit_research_abilities import RESEARCH_INFO
 from sc2.dicts.upgrade_researched_from import UPGRADE_RESEARCHED_FROM
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from sc2.position import Point2
 from sc2.unit_command import UnitCommand
 
 from bottato.building.build_step import BuildStep
@@ -13,7 +14,6 @@ from bottato.building.special_locations import SpecialLocations
 from bottato.economy.production import Production
 from bottato.economy.workers import Workers
 from bottato.enums import BuildResponseCode, BuildType
-from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.mixins import timed
 from bottato.upgrades import RESEARCH_ABILITIES
@@ -74,7 +74,9 @@ class UpgradeBuildStep(BuildStep):
                 max_readiness = max(max_readiness, facility.build_progress)
         return max_readiness
     
-    async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
+    async def execute(self, special_locations: SpecialLocations,
+                      detected_enemy_builds: Dict[BuildType, float],
+                      floating_building_destinations: Dict[int, Point2]) -> BuildResponseCode:
         response = None
 
         logger.debug(f"researching upgrade {self.upgrade_id}")

@@ -122,18 +122,17 @@ def create_pending_match(
     
     return match_id
 
-def update_match_result(match_id: int, result: str, replay_path: str):
+def update_match_result(match_id: int, result: str):
     """Update match result in the database."""
     conn = get_db_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
         UPDATE `match` 
-        SET end_timestamp = NOW(), result = %s, replay_path = %s
+        SET end_timestamp = NOW(), result = %s
         WHERE id = %s
     ''', (
         result,
-        replay_path,
         match_id
     ))
 
@@ -203,7 +202,7 @@ def main():
         match_id = create_pending_match(test_group_id, start_time, least_used_map, opponent_race, difficulty, opponent_build)
         assert match_id is not None, "Failed to create match entry in the database."
 
-    replay_name = f"replays/{match_id}_{least_used_map}_{race}-{build}.SC2Replay"
+    replay_path = f"/root/replays/{match_id}_{least_used_map}_{race}-{build}.SC2Replay"
 
     # Set match ID as environment variable for the bot
     os.environ["TEST_MATCH_ID"] = str(match_id)
@@ -215,7 +214,7 @@ def main():
             map,
             [Bot(Race.Terran, bot_class(), "BotTato"), opponent],
             realtime=False,
-            save_replay_as=replay_name,
+            save_replay_as=replay_path,
             game_time_limit=3600,
         )
 
@@ -223,11 +222,11 @@ def main():
         logger.info(f"\n================================\nResult vs {opponent}: {bottato_result}\n================================")
 
         # Update the existing match entry with the result
-        update_match_result(match_id, bottato_result.name, replay_name)
+        update_match_result(match_id, bottato_result.name)
         
     except Exception as e:
         logger.info(f"\n================================\nResult vs {opponent}: Crash\n================================")
-        update_match_result(match_id, "Crash", replay_name)
+        update_match_result(match_id, "Crash")
         raise e
     
     assert bottato_result == Result.Victory, f"BotTato should win against {opponent}, but got {bottato_result}"

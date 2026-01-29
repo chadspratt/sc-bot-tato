@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Dict
+from typing import Dict, List
 from loguru import logger
 
 from sc2.ids.ability_id import AbilityId
@@ -103,15 +103,30 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                         self.current_targets[unit.tag] = None
                         current_target = None
 
-            if (not current_target or current_target.type_id == UnitTypeId.BROODLING) and cooldown_remaining == 0:
+            if cooldown_remaining == 0:
                 # target new unit, if any in range
+                if current_target:
+                    remaining_hp_on_current_target = current_target.health + current_target.shield - self.get_targeting_count(current_target) * 125
+                    min_health_to_attack = 25
+                    allowed_excess = 125 - min_health_to_attack
+                    overkill_damage = -remaining_hp_on_current_target - allowed_excess
+                    if overkill_damage < 0:
+                        # not overkilling
+                        return UnitMicroType.NONE
+                    excess_mine_count: int = int((overkill_damage + 124) // 125)
+                    if unit.tag not in self.get_recent_lockons(current_target)[:excess_mine_count]:
+                        # this mine is not overkilling
+                        return UnitMicroType.NONE
+                    else:
+                        unit.smart(current_target)
+                    
                 valid_targets = self.bot.enemy_units.exclude_type([UnitTypeId.BROODLING, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.ADEPTPHASESHIFT, UnitTypeId.CHANGELING])
-                targets_in_range = self.enemy.in_attack_range(unit, valid_targets, -0.5)
+                targets_in_range = self.enemy.in_attack_range(unit, valid_targets, -0.1)
                 if targets_in_range:
                     new_target = max(targets_in_range, key=lambda t: t.health + t.shield - self.get_targeting_count(t) * 125)
-                    unit.smart(new_target)
                     if new_target.health + new_target.shield > self.get_targeting_count(new_target) * 125:
-                        # add to targetting count. without this it will keep restarting the attack cooldown
+                        unit.smart(new_target)
+                        # add good target to targetting count so it won't keep restarting the attack cooldown
                         self.current_targets[unit.tag] = new_target
                         self.last_lockon_time[unit.tag] = self.bot.time
 
@@ -208,6 +223,14 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
     
     def get_targeting_count(self, enemy_unit: Unit) -> int:
         return sum(1 for target in self.current_targets.values() if target and target.tag == enemy_unit.tag)
+    
+    def get_recent_lockons(self, enemy_unit: Unit) -> List[int]:
+        mines_targeting_enemy = []
+        for mine_tag, target in self.current_targets.items():
+            if target and target.tag == enemy_unit.tag and self.last_lockon_time[mine_tag]:
+                mines_targeting_enemy.append(mine_tag)
+        sorted_mine_tags = sorted(mines_targeting_enemy, key=lambda t: self.last_lockon_time[t], reverse=True) # type: ignore
+        return sorted_mine_tags
 
     def burrow(self, unit: Unit, update_last_transform_time: bool = True):
         unit(AbilityId.BURROWDOWN_WIDOWMINE)

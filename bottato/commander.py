@@ -80,10 +80,10 @@ class Commander(GeometryMixin):
         self.map.update_influence_maps(self.new_damage_by_position) # fast
         BaseUnitMicro.reset_tag_sets()
 
-        await self.structure_micro.execute(self.military.army_ratio) # fast
+        await self.structure_micro.execute(self.military.army_ratio, self.stuck_units) # fast
 
         # XXX slow, 17% of command time
-        remaining_resources: Cost = await self.build_order.execute()
+        remaining_resources: Cost = await self.build_order.execute(self.structure_micro.destinations)
 
         await self.scout() # fast
 
@@ -120,6 +120,9 @@ class Commander(GeometryMixin):
     async def detect_stuck_units(self, iteration: int):
         if iteration % 3 == 0 and self.bot.workers and self.bot.units.of_type(UnitTypeId.MEDIVAC):
             self.stuck_units.clear()
+            # skip if ramp depots are raised
+            if self.unit_is_closer_than(self.bot.main_base_ramp.top_center, self.bot.structures(UnitTypeId.SUPPLYDEPOT), 5):
+                return
             if self.pathable_position is None:
                 self.pathable_position = await self.bot.find_placement(UnitTypeId.MISSILETURRET,self.bot.game_info.map_center, 25, placement_step = 5)
             else:

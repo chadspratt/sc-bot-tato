@@ -72,17 +72,18 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                     unit(AbilityId.MORPH_VIKINGASSAULTMODE)
                     return UnitMicroType.USE_ABILITY
         else:
-            nearby_enemies = self.bot.enemy_units.closer_than(27, unit) \
+            nearby_enemies = self.bot.enemy_units.exclude_type(UnitTypes.WORKER_TYPES).closer_than(27, unit) \
                 + self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES).closer_than(27, unit)
             if unit.health_percentage < health_threshold:
                 aerial_threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_air(u)
                                                        and not UnitTypes.can_attack_ground(u))
                 if not aerial_threats:
-                    ground_threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_ground(u)
-                                                        and not UnitTypes.can_attack_air(u))
-                    if ground_threats:
-                        unit(AbilityId.MORPH_VIKINGFIGHTERMODE)
-                        return UnitMicroType.USE_ABILITY
+                    unit(AbilityId.MORPH_VIKINGFIGHTERMODE)
+                    return UnitMicroType.USE_ABILITY
+                ground_threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_ground(u)
+                                                    and not UnitTypes.can_attack_air(u))
+                if not ground_threats:
+                    return UnitMicroType.NONE
             if not nearby_enemies:
                 nearby_enemies = self.bot.enemy_structures.closer_than(10, unit).filter(
                     lambda u: self.bot.get_terrain_height(u) <= self.bot.get_terrain_height(unit))

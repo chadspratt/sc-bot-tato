@@ -420,6 +420,11 @@ class BaseUnitMicro(GeometryMixin):
             if self.bot.get_terrain_height(unit) == self.bot.get_terrain_height(self.bot.start_location):
                 # don't kite away from ramp wall early game
                 return UnitMicroType.NONE
+        if unit.type_id != UnitTypeId.BANSHEE:
+            # banshees will want to avoid non-attacking detectors, but other units don't need to avoid them
+            targets = targets.filter(lambda t: UnitTypes.can_attack(t))
+        if not targets:
+            return UnitMicroType.NONE
         nearest_target = self.closest_unit_to_unit(unit, targets)
         # don't keep distance from structures since it prevents units in back from attacking
         # except for zerg structures that spawn broodlings when they die

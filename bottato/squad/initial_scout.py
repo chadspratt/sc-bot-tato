@@ -129,13 +129,13 @@ class InitialScout(Squad, GeometryMixin):
                         self.completed = True
                     elif self.bot.time > self.initial_scout_complete_time:
                         self.do_natural_check = True
-                else:
-                    self.waypoints.pop(0)
-                    # Check if we've completed all waypoints
-                    if len(self.waypoints) == 0:
-                        self.waypoints_completed = True
-                        self.intel.mark_enemy_main_scouted()
-                        self.waypoints = list(self.original_waypoints)  # reset to keep scouting
+
+                self.waypoints.pop(0)
+                # Check if we've completed all waypoints
+                if len(self.waypoints) == 0:
+                    self.waypoints_completed = True
+                    self.intel.mark_enemy_main_scouted()
+                    self.waypoints = list(self.original_waypoints)  # reset to keep scouting
         else:
             # find initial waypoint
             i = 0

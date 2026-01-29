@@ -20,6 +20,7 @@ from bottato.economy.production import Production
 from bottato.enums import BuildResponseCode, BuildType, ExpansionSelection, UnitMicroType, WorkerJobType
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
+from bottato.map.destructibles import BUILDING_RADIUS
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import timed, timed_async
@@ -126,15 +127,15 @@ class SCVBuildStep(BuildStep):
                     return False
         return True
 
-    async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
-        response = await self.execute_scv_build(special_locations, detected_enemy_builds)
+    async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float], floating_building_destinations: Dict[int, Point2]) -> BuildResponseCode:
+        response = await self.execute_scv_build(special_locations, detected_enemy_builds, floating_building_destinations)
             
         if response == BuildResponseCode.SUCCESS:
             self.is_in_progress = True
         return response
     
     @timed_async
-    async def execute_scv_build(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> BuildResponseCode:
+    async def execute_scv_build(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float], floating_building_destinations: Dict[int, Point2]) -> BuildResponseCode:
         if self.unit_being_built:
             self.position = self.unit_being_built.position
             if self.start_time is None:
@@ -151,7 +152,7 @@ class SCVBuildStep(BuildStep):
                 # if self.unit_type_id == UnitTypeId.BUNKER and BuildType.RUSH in detected_enemy_builds and self.unit_being_built is None:
                 #     self.position = None
                 if self.position is None or (self.start_time is not None and self.start_time - self.bot.time > 7):
-                    self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds)
+                    self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds, floating_building_destinations)
                 if self.position is None:
                     self.no_position_count += 1
                     return BuildResponseCode.NO_LOCATION
@@ -181,7 +182,10 @@ class SCVBuildStep(BuildStep):
 
         return BuildResponseCode.SUCCESS if build_response else BuildResponseCode.FAILED
 
-    async def position_worker(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]):
+    async def position_worker(self,
+                              special_locations: SpecialLocations,
+                              detected_enemy_builds: Dict[BuildType, float],
+                              flying_building_destinations: Dict[int, Point2]):
         if UnitTypeId.SCV in self.builder_type:
             if self.unit_type_id == UnitTypeId.REFINERYRICH:
                 self.unit_type_id = UnitTypeId.REFINERY
@@ -193,7 +197,7 @@ class SCVBuildStep(BuildStep):
                         return
                     self.position = self.geysir.position
                 else:
-                    self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds)
+                    self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds, flying_building_destinations)
             if self.position is not None:
                 if self.unit_in_charge is None:
                     self.unit_in_charge = self.workers.get_builder(self.position)
@@ -202,7 +206,11 @@ class SCVBuildStep(BuildStep):
                     await unit_micro.move(self.unit_in_charge, self.position)
     
     attempted_expansion_positions = {}
-    async def find_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float]) -> Point2 | None:
+    async def find_placement(self,
+                            unit_type_id: UnitTypeId,
+                            special_locations: SpecialLocations,
+                            detected_enemy_builds: Dict[BuildType, float],
+                            flying_building_destinations: Dict[int, Point2]) -> Point2 | None:
         new_build_position = None
         if unit_type_id == UnitTypeId.COMMANDCENTER and (BuildType.RUSH not in detected_enemy_builds or self.bot.townhalls.amount >= 2):
             # modified from bot_ai get_next_expansion
@@ -239,7 +247,7 @@ class SCVBuildStep(BuildStep):
             if self.attempted_expansion_positions[new_build_position] > 3:
                 # build it wherever and fly it there later
                 LogHelper.add_log(f"Too many attempts to build cc at {new_build_position}, finding generic placement")
-                new_build_position = await self.find_generic_placement(unit_type_id, special_locations)
+                new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
             elif self.bot.game_info.map_name == 'Magannatha AIE':
                 # run it through find placement in case it's blocked by some weird map feature
                 new_build_position = await self.bot.find_placement(
@@ -304,7 +312,7 @@ class SCVBuildStep(BuildStep):
             if new_build_position is None:
                 new_build_position = await self.map.get_non_visible_position_in_main()
         else:
-            new_build_position = await self.find_generic_placement(unit_type_id, special_locations)
+            new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
 
         if new_build_position:
             if self.bot.all_enemy_units:
@@ -324,7 +332,7 @@ class SCVBuildStep(BuildStep):
                             break
         return new_build_position
     
-    async def find_generic_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations) -> Point2 | None:
+    async def find_generic_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, flying_building_destinations: Dict[int, Point2]) -> Point2 | None:
         logger.debug(f"finding placement for {unit_type_id}")
         new_build_position: Point2 | None = None
         if unit_type_id == UnitTypeId.REFINERYRICH:
@@ -390,13 +398,22 @@ class SCVBuildStep(BuildStep):
                 # don't build near edge to avoid trapping units
                 edge_distance = self.map.get_distance_from_edge(new_build_position.rounded)
                 if edge_distance <= 3:
-                    max_distance += 1
-                    logger.debug(f"{new_build_position} is {edge_distance} from edge")
                     # accept defeat, is ok to do it sometimes
-                    if max_distance > 25:
-                        break
-                    retry_count += 1
                     new_build_position = None
+            if new_build_position:
+                for tag, destination in flying_building_destinations.items():
+                    flying_building = self.bot.structures.find_by_tag(tag)
+                    if not flying_building:
+                        continue
+                    if min(abs(new_build_position.x - destination.x), abs(new_build_position.y - destination.y)) < BUILDING_RADIUS[flying_building.type_id]:
+                        new_build_position = None
+                        break
+            if new_build_position is None:
+                max_distance += 1
+                retry_count += 1
+                if retry_count > 25:
+                    # give up
+                    break
         return new_build_position
 
     def get_geysir(self) -> Unit | None:

@@ -430,7 +430,7 @@ class Military(GeometryMixin, DebugMixin):
             second_closest_base = self.bot.townhalls.filter(
                 lambda base: base.tag != closest_base.tag).closest_to(enemy_position)
             path = self.map.get_path_points(second_closest_base.position, closest_base.position)
-            backtrack_distance = 15
+            backtrack_distance = 7
             i = 0
             while backtrack_distance > 0 and i + 1 < len(path):
                 next_node_distance = path[i].distance_to(path[i + 1])

@@ -10,7 +10,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.enemy import Enemy
-from bottato.enums import BuildType
+from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.custom_effect import CustomEffect
@@ -27,15 +27,18 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         self.intel: EnemyIntel = intel
         self.command_center_destinations: Dict[int, Point2 | None] = {}
         self.last_scan_time: float = 0
+        self.last_lift_for_unstuck: Dict[int, float] = {}
+        self.destinations: Dict[int, Point2] = {}
 
     @timed_async
-    async def execute(self, army_ratio: float):
+    async def execute(self, army_ratio: float, stuck_units: Units):
         # logger.debug("adjust_supply_depots_for_enemies step")
         self.adjust_supply_depots_for_enemies()
         self.target_autoturrets()
         await self.move_command_centers()
         self.move_ramp_barracks(army_ratio)
         self.scan()
+        self.untrap_stuck_units(stuck_units)
 
     @timed
     def adjust_supply_depots_for_enemies(self):
@@ -138,15 +141,11 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         if self.bot.structures(UnitTypeId.BARRACKSREACTOR):
             # reactor already started, don't move barracks
             return
-        if BuildType.RUSH not in self.intel.enemy_builds_detected:
-            return
-        if self.intel.enemy_race_confirmed != Race.Zerg \
-                or army_ratio >= 0.1:
-            return
-        desired_position = self.bot.main_base_ramp.barracks_in_middle
+
+        desired_position = self.bot.main_base_ramp.barracks_correct_placement
         if desired_position is None:
             return
-        barracks = self.bot.structures([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING]).ready
+        barracks = self.bot.structures([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING]).ready.closer_than(3, desired_position)
         if barracks.amount != 1:
             return
         ramp_barracks = barracks.first
@@ -158,13 +157,54 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             else:
                 ramp_barracks.move(desired_position)
         elif not is_in_position:
-            if ramp_barracks.orders:
-                if ramp_barracks.orders[0].progress < 0.2:
-                    ramp_barracks(AbilityId.CANCEL_LAST)
-                    ramp_barracks(AbilityId.LIFT, queue=True)
-            else:
+            # Check if natural townhall is in position
+            natural_townhalls = self.bot.townhalls.filter(lambda th: th.distance_to(self.map.natural_position) < 1)
+            if not natural_townhalls:
+                return
+            if self.bot.enemy_units.closer_than(25, ramp_barracks):
+                # don't move if enemies are nearby
+                return
+            
+            if len(ramp_barracks.orders) == 0:
                 ramp_barracks(AbilityId.LIFT)
 
+    @timed
+    def untrap_stuck_units(self, stuck_units: Units):
+        """Lift up barracks/factories/starports if stuck units are touching them."""        
+        liftable_structures = self.bot.structures([
+            UnitTypeId.BARRACKS,
+            UnitTypeId.FACTORY,
+            UnitTypeId.STARPORT,
+            UnitTypeId.BARRACKSFLYING,
+            UnitTypeId.FACTORYFLYING,
+            UnitTypeId.STARPORTFLYING
+        ]).ready
+        
+        for structure in liftable_structures:
+            if structure.tag in self.last_lift_for_unstuck:
+                if structure.is_flying:
+                    time_since_last_lift = self.bot.time - self.last_lift_for_unstuck[structure.tag]
+                    if time_since_last_lift < 2:
+                        continue  # recently lifted, skip
+                    structure(AbilityId.LAND, self.destinations[structure.tag])
+                else:
+                    del self.last_lift_for_unstuck[structure.tag]
+                    if structure.tag in self.destinations:
+                        del self.destinations[structure.tag]
+            # Check if any stuck unit is touching this structure
+            if not structure.is_flying:
+                # Don't lift if currently building something
+                if structure.orders:
+                    continue
+                for stuck_unit in stuck_units:
+                    # Unit is touching if distance is less than sum of radii
+                    distance = structure.position.distance_to(stuck_unit.position)
+                    if distance < (structure.radius + stuck_unit.radius + 0.5):
+                        structure(AbilityId.LIFT)
+                        LogHelper.write_log_to_db("debug", "Lifting structure to untrap unit")
+                        self.last_lift_for_unstuck[structure.tag] = self.bot.time
+                        self.destinations[structure.tag] = structure.position
+                        break
 
     @timed
     def scan(self):

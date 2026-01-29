@@ -63,6 +63,7 @@ class BuildOrder():
         self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
         self.changes_enacted: Set[BuildOrderChange] = set()
         self.only_build_units: bool = False
+        self.floating_building_destinations: Dict[int, Point2] = {}
 
         if self.bot.enemy_race == Race.Protoss:
             build_name += " protoss"
@@ -84,7 +85,8 @@ class BuildOrder():
         return self.started + self.interrupted_queue + self.priority_queue + self.static_queue + self.build_queue
 
     @timed_async
-    async def execute(self) -> Cost:
+    async def execute(self, floating_building_destinations: Dict[int, Point2]) -> Cost:
+        self.floating_building_destinations = floating_building_destinations
         army_ratio = self.military.army_ratio
         detected_enemy_builds = self.intel.enemy_builds_detected
         self.enact_build_changes(detected_enemy_builds)
@@ -882,19 +884,18 @@ class BuildOrder():
             if only_build_units and not build_step.is_unit() \
                     and not build_step.is_unit_type(UnitTypeId.COMMANDCENTER) \
                     and not build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT) \
-                    and not build_step.is_unit_production_facility():
+                    and not build_step.is_unit_production_facility() \
+                    and not (isinstance(build_step, SCVBuildStep) and build_step.unit_being_built is not None):
                 continue
             time_since_last_cancel = self.bot.time - build_step.last_cancel_time
             if time_since_last_cancel < 10:
                 continue
             
+            production_readiness = 1.0
             if isinstance(build_step, StructureBuildStep) or isinstance(build_step, UpgradeBuildStep):
                 production_readiness = build_step.get_readiness_to_build()
-                # process step if production is almost ready
-                if production_readiness != 1.0:
-                    # skip all future steps
-                    failed_types.append(build_step.get_unit_type_id())
                 if production_readiness < 0.8:
+                    # don't reserve resources if production not close to ready
                     build_response = BuildResponseCode.NO_FACILITY
                     if not allow_skip:
                         remaining_resources.minerals = 0
@@ -925,13 +926,18 @@ class BuildOrder():
                 build_response = BuildResponseCode.NO_RESOURCES
                 if percent_affordable >= 0.75 and isinstance(build_step, SCVBuildStep) \
                         and self.bot.tech_requirement_progress(build_step.unit_type_id) == 1.0:
-                    await build_step.position_worker(self.special_locations, detected_enemy_builds)
+                    await build_step.position_worker(self.special_locations, detected_enemy_builds, self.floating_building_destinations)
                 if remaining_resources.minerals < 50:
                     break
                 continue
 
+            if production_readiness != 1.0:
+                # reserve resources if production is almost ready
+                failed_types.append(build_step.get_unit_type_id())
+                continue
+
             # XXX slightly slow
-            build_response = await build_step.execute(self.special_locations, detected_enemy_builds)
+            build_response = await build_step.execute(self.special_locations, detected_enemy_builds, self.floating_building_destinations)
             if build_response == BuildResponseCode.SUCCESS:
                 LogHelper.add_log(f"Started building {build_step}")
                 self.started.append(build_queue.pop(execution_index))
