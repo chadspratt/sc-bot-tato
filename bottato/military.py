@@ -47,6 +47,7 @@ class Military(GeometryMixin, DebugMixin):
         self.enemies_in_base: Units = Units([], self.bot)
         self.last_damage_taken_time: Dict[int, float] = {}  # unit_tag -> game_time
         self.anti_banshee_units: Units | None = None
+        self.aborted_attack_count: int = 0
         # special squads
         self.main_army = FormationSquad(
             bot=bot,
@@ -106,7 +107,10 @@ class Military(GeometryMixin, DebugMixin):
         self.army_ratio = self.calculate_army_ratio()
         enemies_in_base_ratio = self.calculate_army_ratio(self.enemies_in_base)
 
-        army_is_big_enough = self.army_ratio > 1.3 or self.bot.supply_used > 160 or self.offense_started and self.army_ratio > 0.9
+        ignore_ratio_threshold = min(195, 160 + self.aborted_attack_count * 5)
+        army_is_big_enough = self.army_ratio > 1.3 \
+            or self.bot.supply_used > ignore_ratio_threshold \
+            or self.offense_started and self.army_ratio > 0.9
         army_is_grouped = self.main_army.is_grouped()
         mount_offense = army_is_big_enough and not defend_with_main_army
 
@@ -124,9 +128,11 @@ class Military(GeometryMixin, DebugMixin):
         if not mount_offense and self.enemies_in_base and self.army_ratio > 1.0:
             defend_with_main_army = True
 
+        if self.offense_started and not mount_offense:
+            self.aborted_attack_count += 1
         self.offense_started = mount_offense
-
-        self.status_message = f"army ratio {self.army_ratio:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
+    
+        self.status_message = f"m {self.bot.minerals} g {self.bot.vespene} s {self.bot.supply_used}/{self.bot.supply_cap} army ratio {self.army_ratio:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
         closest_bunker_to_center: Bunker | None = None
         closest_bunker_to_center_distance: float = float('inf')

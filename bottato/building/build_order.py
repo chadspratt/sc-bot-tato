@@ -497,7 +497,7 @@ class BuildOrder():
                                      len(self.workers.assignments_by_job[WorkerJobType.MINERALS]) + len(self.bot.townhalls) * 4)
         surplus_worker_count = projected_worker_count - projected_worker_capacity
         needed_cc_count = math.ceil(surplus_worker_count / 16)
-        if army_ratio < 0.65 and self.bot.townhalls.amount >= 2 and self.bot.minerals < 400:
+        if army_ratio < 0.65 and self.bot.townhalls.amount >= 2 and self.bot.minerals <= 500:
             # delay expansion if army low and already have 2 bases, unless sitting on enough minerals
             needed_cc_count -= 1
         
@@ -641,7 +641,7 @@ class BuildOrder():
             if next_upgrade is None or self.upgrade_is_in_progress(next_upgrade):
                 continue
             if self.bot.structures(facility_type).ready.idle:
-                self.add_to_build_queue([next_upgrade], queue=self.priority_queue)
+                self.add_to_build_queue([next_upgrade], queue=self.static_queue)
             elif self.bot.townhalls.amount > 2 and self.bot.time > 300 and self.get_in_progress_count(facility_type) == 0:
                 facilities = self.bot.structures(facility_type)
                 if not facilities or self.bot.minerals > 500 and self.bot.vespene > 250 \
@@ -661,7 +661,7 @@ class BuildOrder():
                             # build if none or if we have excess resources
                             new_build_steps = self.production.build_order_with_prereqs(facility_type)
                             new_build_steps = self.remove_in_progress_from_list(new_build_steps)
-                    self.add_to_build_queue(new_build_steps, queue=self.priority_queue, position=0)
+                    self.add_to_build_queue(new_build_steps, queue=self.static_queue, position=0)
 
     def upgrade_is_in_progress(self, upgrade_type: UpgradeId) -> bool:
         for build_step in self.started:
@@ -706,6 +706,11 @@ class BuildOrder():
     async def queue_bunker(self, main_army_staging_location: Point2) -> None:
         in_progress_bunkers = self.get_in_progress_count(UnitTypeId.BUNKER)
         if in_progress_bunkers > 0:
+            return
+        queued_bunkers = self.get_queued_count(UnitTypeId.BUNKER)
+        if queued_bunkers > 0:
+            return
+        if main_army_staging_location._distance_squared(self.bot.start_location) < 225:
             return
         bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
         closest_bunker = bunkers.closest_to(main_army_staging_location) if bunkers else None

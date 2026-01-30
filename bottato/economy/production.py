@@ -196,6 +196,7 @@ class Production():
                 UnitTypeId.REACTOR: UnitTypeId.STARPORTREACTOR,
             },
         }
+        self.townhall_tags_with_new_work_this_step: List[int] = []
 
     @timed_async
     async def update_references(self) -> None:
@@ -208,7 +209,14 @@ class Production():
                     except UnitReferenceHelper.UnitNotFound:
                         addon_type.remove(facility)
                     # check if add-on was destroyed
-                    if not facility.unit.has_add_on and facility.add_on_type != UnitTypeId.NOTAUNIT:
+                    if facility.unit.has_add_on and facility.add_on_type == UnitTypeId.NOTAUNIT:
+                        add_on_unit = self.bot.structures.find_by_tag(facility.unit.add_on_tag)
+                        if add_on_unit:
+                            type_id = facility.unit.unit_alias if facility.unit.unit_alias else facility.unit.type_id
+                            facility.add_on_type = add_on_unit.unit_alias if add_on_unit.unit_alias else add_on_unit.type_id
+                            self.facilities[type_id][UnitTypeId.NOTAUNIT].remove(facility)
+                            self.facilities[type_id][facility.add_on_type].append(facility)
+                    elif not facility.unit.has_add_on and facility.add_on_type != UnitTypeId.NOTAUNIT:
                         facility.addon_destroyed_time = self.bot.time
                         type_id = facility.unit.unit_alias if facility.unit.unit_alias else facility.unit.type_id
                         self.facilities[type_id][facility.add_on_type].remove(facility)
@@ -217,6 +225,7 @@ class Production():
                         facility.add_on_type = UnitTypeId.NOTAUNIT
                     if self.bot.supply_left == 0:
                         facility.queued_unit_ids.clear()
+        self.townhall_tags_with_new_work_this_step.clear()
 
     def remove_type_from_facilty_queue(self, facility_unit: Unit, queued_type: UnitTypeId) -> None:
         if facility_unit.type_id in self.facilities.keys():
@@ -343,11 +352,13 @@ class Production():
         tech_lab_required: bool = unit_type in self.needs_tech_lab
         
         if builder_type == UnitTypeId.COMMANDCENTER:
-            if self.bot.townhalls.ready.idle.amount > 0:
+            if self.bot.townhalls.ready.idle.filter(lambda th: th.tag not in self.townhall_tags_with_new_work_this_step and not th.is_flying).amount > 0:
                 max_readiness = 1.0
             else:
                 # Check if any are under construction or busy
                 for th in self.bot.townhalls:
+                    if th.is_flying:
+                        max_readiness = max(max_readiness, 0.8)
                     if not th.is_ready:
                         max_readiness = max(max_readiness, th.build_progress)
                     elif not th.is_idle and th.orders:

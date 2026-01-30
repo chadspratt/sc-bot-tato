@@ -54,7 +54,7 @@ class LogHelper:
             LogHelper.new_messages.append(message)
 
     @staticmethod
-    def print_logs():
+    def print_logs(iteration: int):
         if LogHelper.testing:
             return
         formatted_time = LogHelper.bot.time_formatted
@@ -69,7 +69,7 @@ class LogHelper:
             if message not in LogHelper.new_messages:
                 to_delete.append(message)
                 if LogHelper.previous_messages[message] > 1:
-                    logger.info(f"{formatted_time}: ended ({LogHelper.previous_messages[message]}x): {message}")
+                    logger.info(f"{iteration} - {formatted_time}: ended ({LogHelper.previous_messages[message]}x): {message}")
         for message in to_delete:
             del LogHelper.previous_messages[message]
         LogHelper.new_messages = []
@@ -85,40 +85,40 @@ class LogHelper:
         LogHelper.add_log(message)
         if LogHelper.test_match_id is None:
             return
-        if message not in LogHelper.db_messages:
-            LogHelper.db_messages.append(message)
-            
-            timestamp = override_time if override_time else LogHelper.bot.time
-            
-            if LogHelper.use_mariadb:
-                # Use MariaDB for local testing
-                conn = pymysql.connect( # type: ignore always defined if USE_MARIADB is True
-                    host=os.environ.get('DB_HOST', 'localhost'),
-                    port=int(os.environ.get('DB_PORT', '3306')),
-                    user=os.environ.get('DB_USER', 'root'),
-                    password=os.environ.get('DB_PASSWORD', 'default'),
-                    database=os.environ.get('DB_NAME', 'sc_bot'),
-                    autocommit=False
-                )
-                cursor = conn.cursor()
+        # if message not in LogHelper.db_messages:
+        LogHelper.db_messages.append(message)
+        
+        timestamp = override_time if override_time else LogHelper.bot.time
+        
+        if LogHelper.use_mariadb:
+            # Use MariaDB for local testing
+            conn = pymysql.connect( # type: ignore always defined if USE_MARIADB is True
+                host=os.environ.get('DB_HOST', 'localhost'),
+                port=int(os.environ.get('DB_PORT', '3306')),
+                user=os.environ.get('DB_USER', 'root'),
+                password=os.environ.get('DB_PASSWORD', 'default'),
+                database=os.environ.get('DB_NAME', 'sc_bot'),
+                autocommit=False
+            )
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO match_event (match_id, type, message, game_timestamp)
+                VALUES (%s, %s, %s, %s)
+            ''', (int(LogHelper.test_match_id), type, message, timestamp))
+            if type == "Match ended":
                 cursor.execute('''
-                    INSERT INTO match_event (match_id, type, message, game_timestamp)
-                    VALUES (%s, %s, %s, %s)
-                ''', (int(LogHelper.test_match_id), type, message, timestamp))
-                if type == "Match ended":
-                    cursor.execute('''
-                        UPDATE `match` SET duration_in_game_time = %s
-                        WHERE id = %s
-                    ''', (int(timestamp), LogHelper.test_match_id))
-                    conn.commit()
-            else:
-                # Use SQLite for server matches
-                conn = sqlite3.connect('../db/match_data.db')
-                cursor = conn.cursor()
-                cursor.execute('''
-                    INSERT INTO match_event (match_id, type, message, game_timestamp)
-                    VALUES (?, ?, ?, ?)
-                ''', (LogHelper.test_match_id, type, message, timestamp))
-            
-            conn.commit()
-            conn.close()
+                    UPDATE `match` SET duration_in_game_time = %s
+                    WHERE id = %s
+                ''', (int(timestamp), LogHelper.test_match_id))
+                conn.commit()
+        else:
+            # Use SQLite for server matches
+            conn = sqlite3.connect('../db/match_data.db')
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT INTO match_event (match_id, type, message, game_timestamp)
+                VALUES (?, ?, ?, ?)
+            ''', (LogHelper.test_match_id, type, message, timestamp))
+        
+        conn.commit()
+        conn.close()

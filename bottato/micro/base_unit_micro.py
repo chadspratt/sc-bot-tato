@@ -90,6 +90,9 @@ class BaseUnitMicro(GeometryMixin):
 
     @timed_async
     async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> UnitMicroType:
+        if unit.age > 0:
+            LogHelper.write_log_to_db("stale unit micro", f"{unit}")
+            return UnitMicroType.NONE
         if unit.tag in BaseUnitMicro.scout_tags:
             BaseUnitMicro.scout_tags.remove(unit.tag)
         elif unit.tag in BaseUnitMicro.harass_tags:

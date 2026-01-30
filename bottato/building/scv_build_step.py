@@ -212,50 +212,74 @@ class SCVBuildStep(BuildStep):
                             detected_enemy_builds: Dict[BuildType, float],
                             flying_building_destinations: Dict[int, Point2]) -> Point2 | None:
         new_build_position = None
-        if unit_type_id == UnitTypeId.COMMANDCENTER and (BuildType.RUSH not in detected_enemy_builds or self.bot.townhalls.amount >= 2):
-            # modified from bot_ai get_next_expansion
-            sorted_expansions = self.map.expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY]
-            available_expansions = []
-            for location in sorted_expansions:
-                def is_near_to_expansion(t: Unit):
-                    return t.position.distance_to(location.expansion_position) < self.bot.EXPANSION_GAP_THRESHOLD
-
-                if any(map(is_near_to_expansion, self.bot.townhalls)):
-                    # already taken
-                    continue
-
-                # check that position hasn't already been attempted too many times
-                if location.expansion_position not in self.attempted_expansion_positions:
-                    self.attempted_expansion_positions[location.expansion_position] = 0
-
-                available_expansions.append(location.expansion_position)
-
-            if not available_expansions:
-                LogHelper.add_log("No valid expansions found. attempted_expansion_positions: {self.attempted_expansion_positions}")
-                self.attempted_expansion_positions.clear()
-                return None
-
-            LogHelper.add_log(f"Expansions to check: {available_expansions}")
-            used_expansion_count = len(self.bot.expansion_locations_list) - len(available_expansions)
-            # skip past spots that are reserved for a cc that is out of position (flying)
-            next_expansion_index = self.bot.townhalls.amount - used_expansion_count
-            if next_expansion_index >= len(available_expansions):
-                # already have enough CCs for every base
-                return None
-            new_build_position = available_expansions[next_expansion_index]
-
-            if self.attempted_expansion_positions[new_build_position] > 3:
-                # build it wherever and fly it there later
-                LogHelper.add_log(f"Too many attempts to build cc at {new_build_position}, finding generic placement")
-                new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
-            elif self.bot.game_info.map_name == 'Magannatha AIE':
-                # run it through find placement in case it's blocked by some weird map feature
+        if unit_type_id == UnitTypeId.COMMANDCENTER:
+            if BuildType.RUSH in detected_enemy_builds and self.bot.townhalls.amount < 2:
+                candidates = [self.map.natural_position, self.map.natural_position, self.map.natural_position]
+                start_terrain_height = self.bot.get_terrain_height(self.bot.start_location)
+                vector = (self.bot.start_location - self.map.natural_position).normalized
+                perpendicular_vector = Point2((-vector.y, vector.x))
+                perpendicular_offsets = [0, 0.5, -0.5]
+                candidate = candidates[0]
+                offset_index = 0
+                while self.bot.get_terrain_height(candidate) < start_terrain_height:
+                    candidate = candidates[offset_index] + vector + perpendicular_vector * perpendicular_offsets[offset_index]
+                    candidates[offset_index] = candidate
+                    offset_index = (offset_index + 1) % 3
+                # go a few more so it won't select a nearby low ground spot
+                candidate = candidate.towards(self.bot.start_location, distance=2)
                 new_build_position = await self.bot.find_placement(
                     unit_type_id,
-                    near=new_build_position,
-                    max_distance=4,
-                    placement_step=2,
+                    near=candidate,
+                    max_distance=5,
+                    placement_step=1,
                 )
+                if new_build_position is None:
+                    LogHelper.add_log(f"Could not find CC placement near natural high ground at {candidate}, trying generic placement")
+                    new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
+            else:
+                # modified from bot_ai get_next_expansion
+                sorted_expansions = self.map.expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY]
+                available_expansions = []
+                for location in sorted_expansions:
+                    def is_near_to_expansion(t: Unit):
+                        return t.position.distance_to(location.expansion_position) < self.bot.EXPANSION_GAP_THRESHOLD
+
+                    if any(map(is_near_to_expansion, self.bot.townhalls)):
+                        # already taken
+                        continue
+
+                    # check that position hasn't already been attempted too many times
+                    if location.expansion_position not in self.attempted_expansion_positions:
+                        self.attempted_expansion_positions[location.expansion_position] = 0
+
+                    available_expansions.append(location.expansion_position)
+
+                if not available_expansions:
+                    LogHelper.add_log("No valid expansions found. attempted_expansion_positions: {self.attempted_expansion_positions}")
+                    self.attempted_expansion_positions.clear()
+                    return None
+
+                LogHelper.add_log(f"Expansions to check: {available_expansions}")
+                used_expansion_count = len(self.bot.expansion_locations_list) - len(available_expansions)
+                # skip past spots that are reserved for a cc that is out of position (flying)
+                next_expansion_index = self.bot.townhalls.amount - used_expansion_count
+                if next_expansion_index >= len(available_expansions):
+                    # already have enough CCs for every base
+                    return None
+                new_build_position = available_expansions[next_expansion_index]
+
+                if self.attempted_expansion_positions[new_build_position] > 3:
+                    # build it wherever and fly it there later
+                    LogHelper.add_log(f"Too many attempts to build cc at {new_build_position}, finding generic placement")
+                    new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
+                elif self.bot.game_info.map_name == 'Magannatha AIE':
+                    # run it through find placement in case it's blocked by some weird map feature
+                    new_build_position = await self.bot.find_placement(
+                        unit_type_id,
+                        near=new_build_position,
+                        max_distance=4,
+                        placement_step=2,
+                    )
 
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2

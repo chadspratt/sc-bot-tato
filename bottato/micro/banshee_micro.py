@@ -94,8 +94,8 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 nearby_enemy = nearby_enemy.filter(lambda u: anti_banshee_structures.closest_distance_to(u) > 6)
 
         if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
-            buffer = 3 if nearby_enemy and can_attack else 5
-            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=buffer)
+            threat_range_buffer = 3 if nearby_enemy and can_attack and unit.health_percentage > self.harass_retreat_health else 5
+            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=threat_range_buffer)
             if threats:
                 if nearby_enemy and can_attack:
                     threats_are_just_detectors = min([u.is_structure or u.type_id in UnitTypes.NON_THREAT_DETECTORS for u in threats])

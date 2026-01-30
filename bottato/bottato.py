@@ -64,7 +64,7 @@ class BotTato(BotAI):
         if self.draw_map:
             self.commander.map.draw()
         self.print_build_order(10)
-        LogHelper.print_logs()
+        LogHelper.print_logs(iteration)
 
         if LogHelper.testing and self.time >= 3540 and not self.replay_saved:
             # save replay at 59 minutes
@@ -78,7 +78,7 @@ class BotTato(BotAI):
     async def on_end(self, game_result: Result):
         print("Game ended.")
         self.print_all_timers()
-        LogHelper.print_logs()
+        LogHelper.print_logs(99999)
         logger.info(f"Game length: {self.time_formatted}")
         LogHelper.update_match_duration(int(self.time))
         try:

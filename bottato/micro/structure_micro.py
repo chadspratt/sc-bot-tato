@@ -10,6 +10,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.enemy import Enemy
+from bottato.enums import ExpansionSelection
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -38,7 +39,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         await self.move_command_centers()
         self.move_ramp_barracks(army_ratio)
         self.scan()
-        self.untrap_stuck_units(stuck_units)
+        await self.untrap_stuck_units(stuck_units)
 
     @timed
     def adjust_supply_depots_for_enemies(self):
@@ -74,15 +75,18 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
     async def move_command_centers(self):
         for cc in self.bot.structures((UnitTypeId.COMMANDCENTER, UnitTypeId.COMMANDCENTERFLYING, UnitTypeId.ORBITALCOMMAND, UnitTypeId.ORBITALCOMMANDFLYING)).ready:
             if cc.is_flying:
-                if cc.tag not in self.command_center_destinations:
-                    self.command_center_destinations[cc.tag] = await self.bot.get_next_expansion()
-                destination = self.command_center_destinations[cc.tag]
+                destination = self.command_center_destinations.get(cc.tag, None)
+                if destination:
+                    ccs_at_destination = self.bot.townhalls.closer_than(5, destination)
+                    if ccs_at_destination and cc.tag not in ccs_at_destination.tags:
+                        # spot was taken, find a new one
+                        destination = None
                 if destination is None:
-                    continue
-                ccs_at_destination = self.bot.structures(UnitTypeId.COMMANDCENTER).closer_than(5, destination)
-                if ccs_at_destination and cc.tag not in ccs_at_destination.tags:
-                    # spot was taken, find a new one
-                    self.command_center_destinations[cc.tag] = await self.bot.get_next_expansion()
+                    destination = self.map.get_next_expansion()
+                    self.command_center_destinations[cc.tag] = destination
+                    if destination is None:
+                        cc(AbilityId.LAND, cc.position)
+                        continue
 
                 threats = self.bot.enemy_units.filter(lambda enemy: enemy.type_id not in UnitTypes.NON_THREATS)
                 
@@ -114,7 +118,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                             cc.move(destination)
                         continue
                 if cc.position == destination:
-                    BaseUnitMicro.add_custom_effect(cc.position, cc.radius, self.bot.time, 0.5)
+                    BaseUnitMicro.add_custom_effect(cc.position, cc.radius + 0.5, self.bot.time, 0.5)
                     cc(AbilityId.LAND, destination)
                 else:
                     cc.move(destination)
@@ -123,10 +127,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     if cc.position.distance_to(expansion_location) < 5:
                         break
                 else:
-                    if cc.type_id == UnitTypeId.ORBITALCOMMAND or self.bot.time > 240:
-                        # upgrade to orbital first so it can generate energy while flying, unless the cc is late
-                        cc(AbilityId.LIFT)
-                        return
+                    cc(AbilityId.LIFT)
+                    return
                 if cc.health_percentage < 0.8 and self.bot.enemy_units:
                     nearby_enemies = self.enemy.threats_to_friendly_unit(cc, attack_range_buffer=2)
                     if nearby_enemies:
@@ -168,8 +170,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             if len(ramp_barracks.orders) == 0:
                 ramp_barracks(AbilityId.LIFT)
 
-    @timed
-    def untrap_stuck_units(self, stuck_units: Units):
+    @timed_async
+    async def untrap_stuck_units(self, stuck_units: Units):
         """Lift up barracks/factories/starports if stuck units are touching them."""        
         liftable_structures = self.bot.structures([
             UnitTypeId.BARRACKS,
@@ -182,10 +184,10 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         
         for structure in liftable_structures:
             if structure.tag in self.last_lift_for_unstuck:
+                time_since_last_lift = self.bot.time - self.last_lift_for_unstuck[structure.tag]
+                if time_since_last_lift < 2:
+                    continue  # recently lifted, skip
                 if structure.is_flying:
-                    time_since_last_lift = self.bot.time - self.last_lift_for_unstuck[structure.tag]
-                    if time_since_last_lift < 2:
-                        continue  # recently lifted, skip
                     structure(AbilityId.LAND, self.destinations[structure.tag])
                 else:
                     del self.last_lift_for_unstuck[structure.tag]
@@ -200,10 +202,18 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     # Unit is touching if distance is less than sum of radii
                     distance = structure.position.distance_to(stuck_unit.position)
                     if distance < (structure.radius + stuck_unit.radius + 0.5):
-                        structure(AbilityId.LIFT)
-                        LogHelper.write_log_to_db("debug", "Lifting structure to untrap unit")
+                        LogHelper.write_log_to_db("debug", f"Lifting {structure} to untrap unit")
                         self.last_lift_for_unstuck[structure.tag] = self.bot.time
-                        self.destinations[structure.tag] = structure.position
+                        if structure.has_add_on:
+                            self.destinations[structure.tag] = structure.position
+                        else:
+                            unit_type = structure.unit_alias if structure.unit_alias else structure.type_id
+                            new_position = await self.bot.find_placement(unit_type, structure.position, placement_step=1, addon_place=True)
+                            if new_position:
+                                self.destinations[structure.tag] = new_position
+                            else:
+                                self.destinations[structure.tag] = structure.position
+                        structure(AbilityId.LIFT)
                         break
 
     @timed

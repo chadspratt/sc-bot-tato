@@ -79,6 +79,12 @@ class Map(GeometryMixin):
                     self.bot.enemy_start_locations[0],
                     self.bot.start_location)
         )
+    
+    def get_next_expansion(self, selection: ExpansionSelection = ExpansionSelection.AWAY_FROM_ENEMY) -> Point2 | None:
+        for location in self.expansion_orders[selection]:
+            if not self.unit_is_closer_than(location.expansion_position, self.bot.townhalls, 5):
+                return location.expansion_position
+        return None
 
     previous_reaper_elevations: Dict[int, float] = {}
     @timed_async

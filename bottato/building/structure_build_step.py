@@ -139,9 +139,13 @@ class StructureBuildStep(BuildStep):
                     self.position = self.unit_in_charge.add_on_position
         elif self.unit_type_id == UnitTypeId.SCV:
             # scv
-            facility_candidates = self.bot.townhalls.filter(lambda x: x.is_ready and x.is_idle and not x.is_flying)
+            facility_candidates = self.bot.townhalls.filter(lambda x: x.is_ready and x.is_idle and not x.is_flying and x.tag not in self.production.townhall_tags_with_new_work_this_step)
             facility_candidates.sort(key=lambda x: x.type_id == UnitTypeId.COMMANDCENTER)
-            self.unit_in_charge = facility_candidates[0] if facility_candidates else None
+            if facility_candidates:
+                self.unit_in_charge = facility_candidates[0]
+                self.production.townhall_tags_with_new_work_this_step.append(self.unit_in_charge.tag)
+            else:
+                self.unit_in_charge = None
         else:
             facility_candidates = self.bot.structures.filter(lambda x: x.type_id in self.builder_type and x.is_ready and x.is_idle and not x.is_flying)
             self.unit_in_charge = facility_candidates[0] if facility_candidates else None
