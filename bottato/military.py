@@ -96,10 +96,10 @@ class Military(GeometryMixin, DebugMixin):
                             proxy_buildings: Units):
         self.main_army.draw_debug_box()
 
-        await self.harass(detected_enemy_builds)
         await self.manage_special_squads()
 
         self.enemies_in_base = await self.get_enemies_in_base()
+        await self.harass(detected_enemy_builds, self.enemies_in_base)
         if self.enemies_in_base(UnitTypeId.NYDUSCANAL):
             return  # nydus response handled in get_enemies_in_base, don't conflict with it
         defend_with_main_army, countered_enemies = await self.counter_enemies_in_base(detected_enemy_builds)
@@ -329,7 +329,7 @@ class Military(GeometryMixin, DebugMixin):
         bunker.empty(destination)
 
     @timed_async
-    async def harass(self, detected_enemy_builds: Dict[BuildType, float]):
+    async def harass(self, detected_enemy_builds: Dict[BuildType, float], enemies_in_base: Units):
         if BuildType.PROXY in detected_enemy_builds and self.bot.enemy_units(UnitTypeId.REAPER) and self.bot.time < 300:
             # stop harass during proxy reaper rush
             self.transfer_all(self.reaper_harass, self.main_army)
@@ -339,14 +339,17 @@ class Military(GeometryMixin, DebugMixin):
             if reapers:
                 self.transfer(reapers[0], self.main_army, self.reaper_harass)
 
-        if self.banshee_harass.units.amount < 2 and (self.bot.enemy_race != Race.Terran or BuildType.RUSH in detected_enemy_builds):
-            if not self.anti_banshee_units:
-                self.anti_banshee_units = self.bot.enemy_units((UnitTypeId.VIKINGFIGHTER, UnitTypeId.PHOENIX, UnitTypeId.MUTALISK))
-            if not self.anti_banshee_units:
-                # transfer a banshee from main army to harass squad
-                banshees = self.main_army.units(UnitTypeId.BANSHEE)
-                if banshees:
-                    self.transfer(banshees[0], self.main_army, self.banshee_harass)
+        if not self.anti_banshee_units:
+            self.anti_banshee_units = self.bot.enemy_units((UnitTypeId.VIKINGFIGHTER, UnitTypeId.PHOENIX, UnitTypeId.MUTALISK))
+        anti_air_in_base = enemies_in_base.filter(lambda u: UnitTypes.can_attack_air(u))
+        if self.anti_banshee_units or len(enemies_in_base) >= 3 and anti_air_in_base.amount <= 2:
+            # defend base instead of harassing, or too dangerous to harass
+            self.transfer_all(self.banshee_harass, self.main_army)
+        elif self.banshee_harass.units.amount < 2 and (self.bot.enemy_race != Race.Terran or BuildType.RUSH in detected_enemy_builds):
+            # transfer a banshee from main army to harass squad
+            banshees = self.main_army.units(UnitTypeId.BANSHEE)
+            if banshees:
+                self.transfer(banshees[0], self.main_army, self.banshee_harass)
             
         await self.reaper_harass.harass(self.intel)
         await self.banshee_harass.harass(self.intel)

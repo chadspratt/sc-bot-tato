@@ -192,14 +192,14 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         hp_threshold = unit.health_max * health_threshold
         current_health = unit.health
         for threat in threats:
+            if current_health < hp_threshold:
+                do_retreat = True
+                break
             if UnitTypes.ground_range(threat) > unit.ground_range:
                 # just run away from threats that outrange
                 do_retreat = True
                 break
             current_health -= threat.calculate_damage_vs_target(unit)[0]
-            if current_health < hp_threshold:
-                do_retreat = True
-                break
 
         if do_retreat:
             if unit.health_percentage < health_threshold:

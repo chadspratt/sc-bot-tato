@@ -219,6 +219,12 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         enemies_near_ramp = self.bot.all_enemy_units.closer_than(20, self.bot.main_base_ramp.bottom_center)
         closest_enemy_to_ramp = enemies_near_ramp.closest_to(unit) if enemies_near_ramp else None
         enemy_out_of_range = False
+        if closest_enemy_to_ramp:
+            structure_in_range_distance = 10.5 if is_sieged else 10.8
+            in_range_distance_sq = (structure_in_range_distance + closest_enemy_to_ramp.radius) ** 2 if closest_enemy_to_ramp.is_structure else 169
+            enemy_out_of_range = unit.distance_to_squared(closest_enemy_to_ramp) >= in_range_distance_sq
+        if unit.tag not in self.previous_positions:
+            self.previous_positions[unit.tag] = unit.position
         if is_sieged:
             if self.bunker_count != len(self.bot.structures(UnitTypeId.BUNKER)):
                 # reposition to cover new bunker
@@ -227,18 +233,12 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 if unit.tag in self.early_game_siege_positions:
                     del self.early_game_siege_positions[unit.tag]
                 return UnitMicroType.USE_ABILITY
-            if closest_enemy_to_ramp and closest_enemy_to_ramp.is_structure:
+            if closest_enemy_to_ramp and closest_enemy_to_ramp.is_structure and enemy_out_of_range:
                 # creep out to clear structures
                 LogHelper.add_log(f"Early game siege tank micro for {unit}, closest enemy to ramp: {closest_enemy_to_ramp}")
-                structure_in_range_distance = 10.5 if is_sieged else 10.8
-                in_range_distance_sq = (structure_in_range_distance + closest_enemy_to_ramp.radius) ** 2 if closest_enemy_to_ramp.is_structure else 169
-                enemy_out_of_range = unit.distance_to_squared(closest_enemy_to_ramp) >= in_range_distance_sq
-                if enemy_out_of_range:
-                    self.unsiege(unit)
-                    return UnitMicroType.USE_ABILITY
-        if unit.tag not in self.previous_positions:
-            self.previous_positions[unit.tag] = unit.position
-        if not is_sieged:
+                self.unsiege(unit)
+                return UnitMicroType.USE_ABILITY
+        else:
             if closest_enemy_to_ramp:
                 if enemy_out_of_range:
                     if closest_enemy_to_ramp.is_structure:

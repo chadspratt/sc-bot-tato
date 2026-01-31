@@ -582,11 +582,11 @@ class BaseUnitMicro(GeometryMixin):
         if self._position_is_pathable(unit, retreat_position):
             return self.map.get_pathable_position(retreat_position, unit)
 
-        if unit.position == retreat_vector:
+        if unit.position == threat_position:
             # avoid divide by zero
             return self.map.get_pathable_position(ultimate_destination, unit)
         else:
-            circle_around_position = self.get_circle_around_position(unit, retreat_vector, ultimate_destination)
+            circle_around_position = self.get_circle_around_position(unit, threat_position, ultimate_destination)
             return circle_around_position
     
     def _position_is_pathable(self, unit: Unit, position: Point2) -> bool:

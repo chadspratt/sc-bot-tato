@@ -166,6 +166,8 @@ class SCVBuildStep(BuildStep):
             lambda u: u.type_id not in UnitTypes.WORKER_TYPES \
                 and UnitTypes.can_attack_ground(u))
         enemy_is_close = self.unit_is_closer_than(self.unit_in_charge, threats, 15)
+        if self.unit_being_built and not enemy_is_close:
+            enemy_is_close = self.unit_is_closer_than(self.unit_being_built, threats, 10)
         if enemy_is_close:
             return BuildResponseCode.TOO_CLOSE_TO_ENEMY
 
