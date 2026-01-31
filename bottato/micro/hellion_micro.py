@@ -51,7 +51,7 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
             
         if can_attack:
             # venture out to attack further enemy but don't chase too far
-            if move_position and move_position.manhattan_distance(unit.position) < 20:
+            if move_position is not None and move_position.manhattan_distance(unit.position) < 20:
                 attack_target = self._get_attack_target(unit, nearby_enemies, 5)
                 if attack_target:
                     unit.attack(attack_target)

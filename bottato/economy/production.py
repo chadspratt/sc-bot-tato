@@ -71,12 +71,13 @@ class Facility():
 
         self.unit = updated_unit
 
-        if self.unit.is_flying:
+        is_flying = self.unit.is_flying or self.unit.type_id in (UnitTypeId.BARRACKSFLYING, UnitTypeId.FACTORYFLYING, UnitTypeId.STARPORTFLYING)
+        if is_flying:
             if self.was_told_to_lift_to_unblock_addon:
                 self.was_lifted_to_unblock_addon = True
                 self.was_told_to_lift_to_unblock_addon = False
             self.addon_blocked = False
-        elif self.add_on_type == UnitTypeId.NOTAUNIT and not self.addon_blocked:
+        elif self.add_on_type == UnitTypeId.NOTAUNIT and not self.addon_blocked and not self.unit.has_add_on:
             closest_candidates = self.bot.structures.filter(lambda s: s.tag != updated_unit.tag and s.type_id not in (
                 UnitTypeId.BARRACKSTECHLAB,
                 UnitTypeId.BARRACKSREACTOR,
@@ -97,7 +98,7 @@ class Facility():
                     and self.bot.main_base_ramp.barracks_in_middle \
                     and updated_unit.position.manhattan_distance(self.bot.main_base_ramp.barracks_in_middle) < 3
         if self.was_lifted_to_unblock_addon:
-            if not self.unit.is_flying:
+            if not is_flying:
                 self.was_lifted_to_unblock_addon = False
             if not is_ramp_barracks:
                 if self.new_position is None:
@@ -568,7 +569,7 @@ class Production():
                         continue
                     if facility.unit.add_on_tag:
                         add_on = UnitReferenceHelper.get_updated_unit_reference_by_tag(facility.unit.add_on_tag)
-                        generic_type = list(UNIT_TECH_ALIAS[add_on.type_id])[0]
+                        generic_type = list(UNIT_TECH_ALIAS[add_on.type_id])[0] if add_on.type_id not in (UnitTypeId.TECHLAB, UnitTypeId.REACTOR) else add_on.type_id
                         self.facilities[facility_type][generic_type].append(facility)
                         self.facilities[facility_type][UnitTypeId.NOTAUNIT].remove(facility)
                         facility.set_add_on_type(generic_type)

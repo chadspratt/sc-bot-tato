@@ -233,6 +233,10 @@ class GeometryMixin:
         ap_distance = point_a._distance_squared(point)
         pb_distance = point._distance_squared(point_b)
         return ap_distance < ab_distance and pb_distance < ab_distance 
+    
+    def vectors_go_same_direction(self, vec1: Point2, vec2: Point2) -> bool:
+        dot_product = vec1.x * vec2.x + vec1.y * vec2.y
+        return dot_product > 0
 
 
 class DebugMixin:

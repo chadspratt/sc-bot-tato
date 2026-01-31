@@ -72,7 +72,9 @@ class Enemy(GeometryMixin):
                         predicted_vector = (new_prediction - self.last_seen_position[enemy_unit.tag]).normalized
                     elif self.bot.units:
                         closest_friendly_unit = self.closest_unit_to_unit(enemy_unit, self.bot.units)
-                        predicted_vector = (new_prediction - closest_friendly_unit.position).normalized
+                        predicted_vector = new_prediction - closest_friendly_unit.position
+                        if predicted_vector.length > 0:
+                            predicted_vector = predicted_vector.normalized
                     else:
                         continue
                     position_found = False

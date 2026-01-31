@@ -109,7 +109,7 @@ class BaseUnitMicro(GeometryMixin):
         if action_taken == UnitMicroType.NONE:
             action_taken = self._move_to_repairer(unit)
         if action_taken == UnitMicroType.NONE:
-            action_taken = self._attack_something(unit, health_threshold=attack_health, force_move=force_move)
+            action_taken = self._attack_something(unit, health_threshold=attack_health, force_move=force_move, move_position=target)
         if action_taken == UnitMicroType.NONE:
             action_taken = await self._retreat(unit, health_threshold=self.retreat_health)
         if action_taken == UnitMicroType.NONE:
@@ -333,7 +333,7 @@ class BaseUnitMicro(GeometryMixin):
             
         if can_attack:
             # venture out to attack further enemy but don't chase too far
-            if move_position and move_position.manhattan_distance(unit.position) < 20:
+            if move_position is not None and move_position.manhattan_distance(unit.position) < 20:
                 attack_target = self._get_attack_target(unit, nearby_enemies, 5)
                 if attack_target:
                     unit.attack(attack_target)
@@ -423,17 +423,22 @@ class BaseUnitMicro(GeometryMixin):
             if self.bot.get_terrain_height(unit) == self.bot.get_terrain_height(self.bot.start_location):
                 # don't kite away from ramp wall early game
                 return UnitMicroType.NONE
-        if unit.type_id != UnitTypeId.BANSHEE:
-            # banshees will want to avoid non-attacking detectors, but other units don't need to avoid them
-            targets = targets.filter(lambda t: UnitTypes.can_attack(t))
         if not targets:
             return UnitMicroType.NONE
         nearest_target = self.closest_unit_to_unit(unit, targets)
         # don't keep distance from structures since it prevents units in back from attacking
         # except for zerg structures that spawn broodlings when they die
-        if nearest_target.is_structure and nearest_target.type_id not in UnitTypes.OFFENSIVE_STRUCTURE_TYPES and (nearest_target.race != "Zerg" or nearest_target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS):
-            unit.move(self.map.get_pathable_position(nearest_target.position, unit))
-            return UnitMicroType.MOVE
+        is_nonthreat_structure = nearest_target.is_structure \
+            and nearest_target.type_id not in UnitTypes.OFFENSIVE_STRUCTURE_TYPES \
+            and nearest_target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS
+        is_passive_unit = not nearest_target.is_structure and not UnitTypes.can_attack(nearest_target)
+        if is_passive_unit or is_nonthreat_structure:
+            # nearest target isn't a threat, check for nearby threats before closing
+            threats = targets.filter(lambda t: UnitTypes.can_attack_target(t, unit))
+            if not threats:
+                unit.move(self.map.get_pathable_position(nearest_target.position, unit))
+                return UnitMicroType.MOVE
+            nearest_target = self.closest_unit_to_unit(unit, threats)
         # move away if weapon on cooldown
         if not unit.is_flying:
             nearest_sieged_tank = None
@@ -679,8 +684,7 @@ class BaseUnitMicro(GeometryMixin):
                         return path_to_destination[1]
         threat_to_unit_vector = (unit.position - threat_position).normalized
         unit_to_destination_vector = (destination - unit.position).normalized
-        same_direction = threat_to_unit_vector.x * unit_to_destination_vector.x + threat_to_unit_vector.y * unit_to_destination_vector.y > 0
-        if same_direction:
+        if self.vectors_go_same_direction(threat_to_unit_vector, unit_to_destination_vector):
             # on same side, go directly to destination
             return destination
         tangent_vector1 = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed

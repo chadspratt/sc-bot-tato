@@ -86,7 +86,9 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         if threats:
             nearest_threat = threats.closest_to(unit)
             if nearest_threat.distance_to_squared(unit) < unit.sight_range ** 2:
-                target_position = nearest_threat.position.towards(unit, unit.sight_range - 1)
+                is_near_destination = move_position is not None and move_position._distance_squared(unit.position) < 9
+                buffer = -1 if is_near_destination else 2
+                target_position = nearest_threat.position.towards(unit, unit.sight_range + buffer)
                 unit.move(self.map.get_pathable_position(target_position, unit))
                 return UnitMicroType.MOVE
         # provide detection

@@ -97,42 +97,56 @@ class FormationSquad(Squad, GeometryMixin):
         if reset:
             self.parent_formation.clear()
         if not self.parent_formation.formations:
-            ground_unit_type_order = [
-                UnitTypeId.MARINE,
-                UnitTypeId.VIKINGASSAULT,
-                UnitTypeId.MARAUDER,
-                UnitTypeId.HELLION,
-                UnitTypeId.REAPER,
-                # UnitTypeId.BANSHEE,
-                UnitTypeId.CYCLONE,
-                # UnitTypeId.VIKINGFIGHTER,
-                # UnitTypeId.BATTLECRUISER,
-                UnitTypeId.WIDOWMINE,
-                UnitTypeId.WIDOWMINEBURROWED,
-                UnitTypeId.THOR,
-                UnitTypeId.GHOST,
-                # UnitTypeId.RAVEN,
-                # UnitTypeId.LIBERATOR,
-                UnitTypeId.SIEGETANK,
-                UnitTypeId.SIEGETANKSIEGED,
-                # UnitTypeId.MEDIVAC
-            ]
-            flying_unit_type_order = [
-                UnitTypeId.BANSHEE,
-                UnitTypeId.VIKINGFIGHTER,
-                UnitTypeId.BATTLECRUISER,
-                UnitTypeId.RAVEN,
-                UnitTypeId.LIBERATOR,
-                UnitTypeId.MEDIVAC
-            ]
-            y_offset = 0
-            for unit_type in ground_unit_type_order:
-                if self.add_unit_formation(unit_type, y_offset):
-                    y_offset -= 1
-            y_offset = -1
-            for unit_type in flying_unit_type_order:
-                if self.add_unit_formation(unit_type, y_offset):
-                    y_offset -= 1
+            # ground_unit_type_order = [
+            #     UnitTypeId.MARINE,
+            #     UnitTypeId.VIKINGASSAULT,
+            #     UnitTypeId.MARAUDER,
+            #     UnitTypeId.HELLION,
+            #     UnitTypeId.REAPER,
+            #     # UnitTypeId.BANSHEE,
+            #     UnitTypeId.CYCLONE,
+            #     # UnitTypeId.VIKINGFIGHTER,
+            #     # UnitTypeId.BATTLECRUISER,
+            #     UnitTypeId.WIDOWMINE,
+            #     UnitTypeId.WIDOWMINEBURROWED,
+            #     UnitTypeId.THOR,
+            #     UnitTypeId.GHOST,
+            #     # UnitTypeId.RAVEN,
+            #     # UnitTypeId.LIBERATOR,
+            #     UnitTypeId.SIEGETANK,
+            #     UnitTypeId.SIEGETANKSIEGED,
+            #     # UnitTypeId.MEDIVAC
+            # ]
+            # flying_unit_type_order = [
+            #     UnitTypeId.BANSHEE,
+            #     UnitTypeId.VIKINGFIGHTER,
+            #     UnitTypeId.BATTLECRUISER,
+            #     UnitTypeId.RAVEN,
+            #     UnitTypeId.LIBERATOR,
+            #     UnitTypeId.MEDIVAC
+            # ]
+            unit_type_offsets = {
+                UnitTypeId.MARINE: 0,
+                UnitTypeId.BANSHEE: 0,
+                UnitTypeId.VIKINGFIGHTER: 0,
+                UnitTypeId.VIKINGASSAULT: 1,
+                UnitTypeId.MARAUDER: 0.75,
+                UnitTypeId.REAPER: 0.75,
+                UnitTypeId.HELLION: 1,
+                UnitTypeId.CYCLONE: 1.5,
+                UnitTypeId.BATTLECRUISER: 1.7,
+                UnitTypeId.RAVEN: 2.5,
+                UnitTypeId.THOR: 2.5,
+                UnitTypeId.LIBERATOR: 3,
+                UnitTypeId.MEDIVAC: 3,
+                UnitTypeId.WIDOWMINE: 3,
+                UnitTypeId.WIDOWMINEBURROWED: 3,
+                UnitTypeId.GHOST: 5,
+                UnitTypeId.SIEGETANK: 5,
+                UnitTypeId.SIEGETANKSIEGED: 5,
+            }
+            for unit_type, y_offset in unit_type_offsets.items():
+                self.add_unit_formation(unit_type, -y_offset)
 
         logger.debug(f"squad {self.name} formation: {self.parent_formation}")
 

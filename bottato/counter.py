@@ -169,7 +169,7 @@ class Counter():
             UnitTypeId.BANSHEE: 0.5
         },
         UnitTypeId.MUTALISK: { # 2
-            UnitTypeId.WIDOWMINE: 0.5,
+            UnitTypeId.WIDOWMINE: 0.2,
             UnitTypeId.MARINE: 0.3,
             UnitTypeId.VIKINGFIGHTER: 0.3,
             UnitTypeId.BANSHEE: -0.5,
@@ -184,7 +184,7 @@ class Counter():
         UnitTypeId.QUEEN: { # 2
             UnitTypeId.MARINE: 2,
             UnitTypeId.SIEGETANK: 0.3,
-            UnitTypeId.WIDOWMINE: 0.2,
+            UnitTypeId.WIDOWMINE: 0.1,
         },
         UnitTypeId.RAVAGER: { # 3
             UnitTypeId.MARAUDER: 0.5,
@@ -195,7 +195,7 @@ class Counter():
             UnitTypeId.MARAUDER: 0.3,
             UnitTypeId.BANSHEE: 0.15,
             UnitTypeId.SIEGETANK: 0.2,
-            UnitTypeId.WIDOWMINE: 0.15,
+            UnitTypeId.WIDOWMINE: 0.1,
             UnitTypeId.RAVEN: 0.05
         },
         UnitTypeId.SPINECRAWLER: { # 1
@@ -216,7 +216,7 @@ class Counter():
             UnitTypeId.VIKINGFIGHTER: 1.5
         },
         UnitTypeId.ZERGLING: {
-            UnitTypeId.WIDOWMINE: 0.2, # 0.4
+            UnitTypeId.WIDOWMINE: 0.1, # 0.4
             UnitTypeId.MARINE: 0.25, # 0.25
             UnitTypeId.SIEGETANK: 0.15, # 0.45
         },
