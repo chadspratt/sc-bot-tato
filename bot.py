@@ -24,6 +24,9 @@ from bottato.bottato import BotTato
 #         has_rotate_log = True
 
 match_id = os.environ.get("TEST_MATCH_ID", None)
+# Remove the default handler that includes timestamps and other info
+logger.remove()
+# Add a clean handler that only shows the message
 logger.add(sys.stdout, level="INFO", format="{message}")
 # if match_id:
 #     logger.add(f"logs/bot_tato_{match_id}.log", level="INFO", format="{message}")
