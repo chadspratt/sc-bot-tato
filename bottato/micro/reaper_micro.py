@@ -91,7 +91,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 if threat.age > 0 and is_low_health:
                     continue
                 threat_range = UnitTypes.ground_range(threat)
-                if threat_range > unit.ground_range or threat_range == unit.ground_range and threat.health + threat.shield > unit.health:
+                if threat_range > unit.ground_range or threat_range == unit.ground_range and unit.health < threat.health + threat.shield:
                     # don't attack enemies that outrange or have more health
                     self.add_bad_harass_experience_location(unit, harass_location)
                     return UnitMicroType.NONE

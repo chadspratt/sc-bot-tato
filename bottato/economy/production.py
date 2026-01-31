@@ -214,7 +214,7 @@ class Production():
                         add_on_unit = self.bot.structures.find_by_tag(facility.unit.add_on_tag)
                         if add_on_unit:
                             type_id = facility.unit.unit_alias if facility.unit.unit_alias else facility.unit.type_id
-                            facility.add_on_type = add_on_unit.unit_alias if add_on_unit.unit_alias else add_on_unit.type_id
+                            facility.add_on_type = UNIT_TECH_ALIAS.get(add_on_unit.type_id, {add_on_unit.type_id}).pop()
                             self.facilities[type_id][UnitTypeId.NOTAUNIT].remove(facility)
                             self.facilities[type_id][facility.add_on_type].append(facility)
                     elif not facility.unit.has_add_on and facility.add_on_type != UnitTypeId.NOTAUNIT:

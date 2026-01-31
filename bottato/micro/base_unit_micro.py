@@ -470,6 +470,7 @@ class BaseUnitMicro(GeometryMixin):
 
     def _kite(self, unit: Unit, targets: Units) -> UnitMicroType:
         targets_to_avoid = Units([], bot_object=self.bot)
+        workers_to_avoid = Units([], bot_object=self.bot)
         for target in targets:
             attack_range = UnitTypes.range_vs_target(unit, target)
             target_range = UnitTypes.range_vs_target(target, unit)
@@ -480,19 +481,19 @@ class BaseUnitMicro(GeometryMixin):
                 target_distance = self.distance(unit, target, self.enemy.predicted_position) - target.radius - unit.radius
                 if target.type_id in UnitTypes.WORKER_TYPES:
                     if target_distance < target_range + 2.0:
-                        targets_to_avoid.append(target)
-                        # buffer = 0.5
-                        # if not target.is_facing(unit, angle_error=0.2):
-                        #     # stay target_range + 2.5 away instead of attack_range + 0.5
-                        #     buffer = target_range - attack_range + 2.5
-                        # if self._stay_at_max_range(unit, Units([target], bot_object=self.bot), buffer=buffer) == UnitMicroType.NONE:
-                        #     unit.move(self._get_retreat_destination(unit, Units([target], bot_object=self.bot)))
-                        # return UnitMicroType.MOVE
+                        workers_to_avoid.append(target)
                 elif target_distance < attack_range - 1.0 or target_distance < target_range + 0.5:
                     targets_to_avoid.append(target)
         if targets_to_avoid:
             if self._stay_at_max_range(unit, targets_to_avoid) == UnitMicroType.NONE:
                 unit.move(self._get_retreat_destination(unit, targets_to_avoid))
+            return UnitMicroType.MOVE
+        if workers_to_avoid:
+            # stay at minimum distance from workers instead of max attack range
+            nearest_worker = self.closest_unit_to_unit(unit, workers_to_avoid)
+            target_position = workers_to_avoid.center.towards(unit, 2.5 + unit.radius + nearest_worker.radius)
+            if self._move_to_pathable_position(unit, target_position) == UnitMicroType.NONE:
+                unit.move(self._get_retreat_destination(unit, workers_to_avoid))
             return UnitMicroType.MOVE
 
         if unit.weapon_cooldown < self.time_in_frames_to_attack:
