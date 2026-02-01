@@ -1,15 +1,14 @@
 import math
 import random
-from loguru import logger
-from typing import Dict, List
-from time import perf_counter
 from functools import wraps
+from loguru import logger
+from time import perf_counter
+from typing import Dict, List
 
 from sc2.bot_ai import BotAI
+from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
-from sc2.position import Point2, Point3
-
 
 # Global timer storage for decorator
 _decorator_timers: Dict[str, float] = {}
@@ -28,7 +27,6 @@ def timed(func):
         
         return result
     return wrapper
-
 
 def timed_async(func):
     """Decorator to automatically time async function execution and accumulate total time."""
@@ -57,7 +55,6 @@ def log_decorator_timer(*args, func, elapsed: float):
     except KeyError:
         _decorator_timers[func_name] = elapsed
         _decorator_timer_counts[func_name] = 1
-
 
 def print_decorator_timers():
     """Print all accumulated timer data from @timed decorators."""

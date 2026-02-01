@@ -1,6 +1,6 @@
 import math
-from typing import Dict
 from loguru import logger
+from typing import Dict
 
 from sc2.bot_ai import BotAI
 from sc2.data import Race
@@ -10,23 +10,30 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.protocol import ConnectionAlreadyClosedError, ProtocolError
 from sc2.unit import Unit
-from sc2.units import Units
 from sc2.unit_command import UnitCommand
+from sc2.units import Units
 
 from bottato.building.build_step import BuildStep
 from bottato.building.special_locations import SpecialLocations
-from bottato.economy.workers import Workers
 from bottato.economy.production import Production
-from bottato.enums import BuildResponseCode, BuildType, ExpansionSelection, UnitMicroType, WorkerJobType
+from bottato.economy.workers import Workers
+from bottato.enums import (
+    BuildResponseCode,
+    BuildType,
+    ExpansionSelection,
+    UnitMicroType,
+    WorkerJobType,
+)
 from bottato.log_helper import LogHelper
-from bottato.map.map import Map
 from bottato.map.destructibles import BUILDING_RADIUS
+from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import timed, timed_async
 from bottato.tech_tree import TECH_TREE
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
+
 
 class SCVBuildStep(BuildStep):
     unit_type_id: UnitTypeId
@@ -88,8 +95,9 @@ class SCVBuildStep(BuildStep):
     def is_unit_type(self, unit_type_id: UnitTypeId | UpgradeId) -> bool:
         if isinstance(unit_type_id, UpgradeId):
             return False
-        return self.unit_type_id == unit_type_id or \
-            self.unit_type_id == UnitTypeId.REFINERY and unit_type_id == UnitTypeId.REFINERYRICH
+        if unit_type_id in (UnitTypeId.REFINERY, UnitTypeId.REFINERYRICH):
+            return self.unit_type_id in (UnitTypeId.REFINERY, UnitTypeId.REFINERYRICH)
+        return self.unit_type_id == unit_type_id
 
     def get_unit_type_id(self) -> UnitTypeId:
         return self.unit_type_id
@@ -333,7 +341,10 @@ class SCVBuildStep(BuildStep):
                     )
                     break
         elif unit_type_id == UnitTypeId.SUPPLYDEPOT and self.bot.supply_cap < 45 and self.bot.enemy_race != Race.Terran:
-            if not special_locations.is_blocked:
+            if BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.structures.of_type(UnitTypeId.SUPPLYDEPOT).amount == 2:
+                # try to build near edge of high ground towards natural
+                new_build_position = self.bot.main_base_ramp.depot_in_middle
+            elif not special_locations.is_blocked:
                 new_build_position = special_locations.find_placement(unit_type_id)
             if new_build_position is None:
                 new_build_position = await self.map.get_non_visible_position_in_main()

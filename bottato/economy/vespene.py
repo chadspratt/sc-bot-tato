@@ -1,6 +1,7 @@
 from loguru import logger
 
 from sc2.bot_ai import BotAI
+from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.economy.resources import Resources
 from bottato.mixins import timed
@@ -15,6 +16,10 @@ class Vespene(Resources):
     @timed
     def update_references(self):
         super().update_references()
+        missing_refineries = self.bot.structures(UnitTypeId.REFINERY).tags - set(self.nodes_by_tag.keys())
+        for refinery_tag in missing_refineries:
+            refinery = self.bot.structures.by_tag(refinery_tag)
+            self.add_node(refinery)
         for resource_node in self.nodes:
             for worker_tag in resource_node.worker_tags:
                 try:

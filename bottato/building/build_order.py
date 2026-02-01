@@ -13,14 +13,14 @@ from sc2.unit import Unit
 from bottato.building.build_starts import BuildStarts
 from bottato.building.build_step import BuildStep
 from bottato.building.scv_build_step import SCVBuildStep
-from bottato.building.special_locations import SpecialLocations, SpecialLocation
+from bottato.building.special_locations import SpecialLocation, SpecialLocations
 from bottato.building.structure_build_step import StructureBuildStep
 from bottato.building.upgrade_build_step import UpgradeBuildStep
 from bottato.counter import Counter
 from bottato.economy.production import Production
 from bottato.economy.workers import Workers
 from bottato.enemy import Enemy
-from bottato.enums import BuildType, BuildResponseCode, WorkerJobType, BuildOrderChange
+from bottato.enums import BuildOrderChange, BuildResponseCode, BuildType, WorkerJobType
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.military import Military
@@ -218,7 +218,10 @@ class BuildOrder():
         
         if change == BuildOrderChange.WORKER_RUSH:
             self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.static_queue)
+            self.remove_step_from_queue(UnitTypeId.REFINERY, self.static_queue)
+            self.remove_step_from_queue(UnitTypeId.REFINERY, self.static_queue)
             self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue, position=0)
+            self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT], position=1, queue=self.priority_queue)
         elif change == BuildOrderChange.BATTLECRUISER:
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 2, position=0, queue=self.priority_queue)
         elif change == BuildOrderChange.REAPER:
@@ -510,14 +513,14 @@ class BuildOrder():
 
     @timed
     def queue_townhall_work(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
-        if self.bot.time < 15:
-            # pause workers to save for first expansion
-            return
+        # if self.bot.time < 15:
+        #     # pause workers to save for first expansion
+        #     return
         if self.bot.workers.amount >= 15 and self.bot.structures(UnitTypeId.BARRACKS).amount == 0:
             # hold off on workers until barracks started
             return
-        if BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount < 2:
-            # hold off on workers during worker rush until depots are up
+        if BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.time < 180 and self.bot.structures.of_type([UnitTypeId.SUPPLYDEPOT, UnitTypeId.BARRACKS]).amount < 3:
+            # hold off on workers during worker rush until wall is up
             return
 
         available_townhalls = self.bot.townhalls.filter(lambda cc: cc.is_ready and (not cc.orders or cc.orders[0].progress > 0.85) and not cc.is_flying)
@@ -813,7 +816,6 @@ class BuildOrder():
                     try:
                         builder = UnitReferenceHelper.get_updated_unit_reference(builder)
                         if in_progress_step.is_unit_type(UnitTypeId.REFINERY):
-                            self.workers.vespene.add_node(completed_structure)
                             self.workers.update_assigment(builder, WorkerJobType.VESPENE, completed_structure)
                         else:
                             self.workers.set_as_idle(builder)

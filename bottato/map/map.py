@@ -1,10 +1,10 @@
 from __future__ import annotations
+
 import math
-from typing import List, Dict, Set, Tuple
-
 from loguru import logger
-import numpy as np
+from typing import Dict, List, Set, Tuple
 
+import numpy as np
 from sc2.bot_ai import BotAI
 from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -455,8 +455,9 @@ class Map(GeometryMixin):
                 pathable_cost = grid[int(pathable_position.x), int(pathable_position.y)]
             if position_cost <= pathable_cost and pathable_position._distance_squared(position) < 2.25:
                 pathable_position = position
-        if unit:
-            self.influence_maps.add_cost((pathable_position[0], pathable_position[1]), unit.radius, self.ground_grid, np.inf)
+            elif unit:
+                # position is out of formation, mark it as an obstacle to other units
+                self.influence_maps.add_cost((pathable_position[0], pathable_position[1]), unit.radius, self.ground_grid, np.inf)
         return pathable_position
 
     anti_air_structures: Set[UnitTypeId] = set([

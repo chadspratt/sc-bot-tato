@@ -1,18 +1,19 @@
 from __future__ import annotations
+
 import math
+from loguru import logger
 from typing import List, Set
 
-from loguru import logger
 from sc2.bot_ai import BotAI
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bottato.unit_types import UnitTypes
-from bottato.mixins import GeometryMixin, timed
-from bottato.map.map import Map
 from bottato.enums import SquadFormationType
+from bottato.map.map import Map
+from bottato.mixins import GeometryMixin, timed
 from bottato.unit_reference_helper import UnitReferenceHelper
+from bottato.unit_types import UnitTypes
 
 
 class UnitDemographics:
@@ -23,14 +24,15 @@ class UnitDemographics:
 
 class Formation:
     def __init__(
-        self, bot: BotAI, formation_type: SquadFormationType, unit_tags: Set[int], offset: Point2, spacing: float = 0
+        self, bot: BotAI, formation_type: SquadFormationType, unit_tags: Set[int], offset: Point2, unit_radius: float = 0
     ):
         self.bot = bot
         # generate specific formation positions
         self.formation_type = formation_type
         self.unit_tags = unit_tags
         self.offset = offset
-        self.spacing = spacing
+        self.unit_radius = unit_radius
+        self.spacing = unit_radius * 2.5
         self.positions: List[Point2] = self.get_formation_positions()
         logger.debug(f"created formation {self.positions}")
 
@@ -186,7 +188,7 @@ class Formation:
         unit_positions = []
         for position in self.positions:
             unit_position = position + self.offset - reference_point
-            unit_positions.append(unit_position * 2)
+            unit_positions.append(unit_position)
         return unit_positions
 
 
@@ -212,12 +214,12 @@ class ParentFormation(GeometryMixin):
         formation_type: SquadFormationType,
         unit_tags: Set[int],
         offset: Point2 = Point2((0, 0)),
-        spacing: float = 0,
+        unit_radius: float = 0,
     ):
         if not unit_tags:
             return
         logger.debug(f"Adding formation {formation_type.name} with unit tags {unit_tags}")
-        self.formations.append(Formation(self.bot, formation_type, unit_tags, offset, spacing))
+        self.formations.append(Formation(self.bot, formation_type, unit_tags, offset, unit_radius))
 
     @timed
     def get_unit_destinations(

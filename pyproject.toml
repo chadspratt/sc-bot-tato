@@ -20,3 +20,9 @@ dependencies = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.isort]
+profile = "black"
+extra_standard_library = ["loguru"]
+known_third_party = ["sc2", "MapAnalyzer"]
+known_first_party = ["bottato"]

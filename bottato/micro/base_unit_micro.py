@@ -1,16 +1,17 @@
 from __future__ import annotations
-from typing import Dict, List, Tuple
+
 # import math
 from loguru import logger
+from typing import Dict, List, Tuple
 
-from sc2.units import Units
 from sc2.bot_ai import BotAI
-from sc2.unit import Unit
-from sc2.position import Point2
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.position import Point2
+from sc2.unit import Unit
+from sc2.units import Units
 
 from bottato.enemy import Enemy
 from bottato.enums import UnitMicroType
@@ -87,7 +88,6 @@ class BaseUnitMicro(GeometryMixin):
         
         return target
 
-
     @timed_async
     async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> UnitMicroType:
         if unit.age > 0:
@@ -98,7 +98,6 @@ class BaseUnitMicro(GeometryMixin):
         elif unit.tag in BaseUnitMicro.harass_tags:
             BaseUnitMicro.harass_tags.remove(unit.tag)
         attack_health = self.attack_health
-
             
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.NONE
@@ -118,10 +117,10 @@ class BaseUnitMicro(GeometryMixin):
 
     def _move_unit(self, unit: Unit, target: Point2, previous_position: Point2 | None = None) -> UnitMicroType:
         position_to_compare = target if unit.is_moving else unit.position
-        if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
+        if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1.5:
             unit.move(self.map.get_pathable_position(target, unit))
             return UnitMicroType.MOVE
-        return UnitMicroType.NONE
+        return UnitMicroType.MOVE
     
     def _harass_move_unit(self, unit: Unit, target: Point2, previous_position: Point2 | None = None) -> UnitMicroType:
         return self._move_unit(unit, target, previous_position)
@@ -284,6 +283,7 @@ class BaseUnitMicro(GeometryMixin):
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
         return UnitMicroType.NONE
     
+    @timed
     def _move_to_repairer(self, unit: Unit) -> UnitMicroType:
         if unit.tag in BaseUnitMicro.repair_targets_prev_frame and unit.health_percentage < 1.0:
             repairer_tags = BaseUnitMicro.repair_targets_prev_frame[unit.tag]

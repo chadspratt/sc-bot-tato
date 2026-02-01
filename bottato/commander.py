@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 from loguru import logger
 
 from sc2.bot_ai import BotAI
@@ -145,6 +146,7 @@ class Commander(GeometryMixin):
                             self.stuck_units.append(path[0])
                             logger.debug(f"unit is stuck {path[0]}")
         self.military.rescue_stuck_units(self.stuck_units)
+        await self.enemy.detect_stuck_enemies(iteration)
 
     @timed_async
     async def scout(self):

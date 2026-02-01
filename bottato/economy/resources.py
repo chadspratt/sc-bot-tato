@@ -1,16 +1,17 @@
 from __future__ import annotations
+
 from loguru import logger
 from typing import List
 
 from sc2.bot_ai import BotAI
-from sc2.units import Units
-from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
-
+from sc2.unit import Unit
+from sc2.units import Units
 
 from bottato.mixins import GeometryMixin, timed
 from bottato.unit_reference_helper import UnitReferenceHelper
+
 
 class ResourceNode():
     def __init__(self, node: Unit, max_workers: int, max_mules: int, is_long_distance: bool = False):
@@ -113,8 +114,6 @@ class Resources(GeometryMixin):
             
         # Check if node exists in our tracking
         if node.tag not in self.nodes_by_tag:
-            # should be impossible to get here, yet it does and will crash without this
-            # get_workers_from_depleted deleting it?
             self.add_node(node)
         
         # Check capacity before adding worker (except for mules)

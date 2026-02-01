@@ -1,8 +1,9 @@
 from loguru import logger
-from typing import Dict, List
+from typing import List
 
 from sc2.bot_ai import BotAI
 from sc2.data import Race
+from sc2.ids.ability_id import AbilityId
 from sc2.position import Point2
 from sc2.unit import Unit
 
@@ -10,8 +11,9 @@ from bottato.economy.workers import Workers
 from bottato.enemy import Enemy
 from bottato.map.map import Map
 from bottato.mixins import GeometryMixin
-from bottato.squad.squad import Squad
 from bottato.squad.enemy_intel import EnemyIntel
+from bottato.squad.formation import Formation
+from bottato.squad.squad import Squad
 from bottato.unit_reference_helper import UnitReferenceHelper
 
 

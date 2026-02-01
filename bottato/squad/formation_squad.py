@@ -1,7 +1,7 @@
 from __future__ import annotations
+
 from loguru import logger
 from typing import Dict, List, Tuple
-# import traceback
 
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
@@ -97,53 +97,23 @@ class FormationSquad(Squad, GeometryMixin):
         if reset:
             self.parent_formation.clear()
         if not self.parent_formation.formations:
-            # ground_unit_type_order = [
-            #     UnitTypeId.MARINE,
-            #     UnitTypeId.VIKINGASSAULT,
-            #     UnitTypeId.MARAUDER,
-            #     UnitTypeId.HELLION,
-            #     UnitTypeId.REAPER,
-            #     # UnitTypeId.BANSHEE,
-            #     UnitTypeId.CYCLONE,
-            #     # UnitTypeId.VIKINGFIGHTER,
-            #     # UnitTypeId.BATTLECRUISER,
-            #     UnitTypeId.WIDOWMINE,
-            #     UnitTypeId.WIDOWMINEBURROWED,
-            #     UnitTypeId.THOR,
-            #     UnitTypeId.GHOST,
-            #     # UnitTypeId.RAVEN,
-            #     # UnitTypeId.LIBERATOR,
-            #     UnitTypeId.SIEGETANK,
-            #     UnitTypeId.SIEGETANKSIEGED,
-            #     # UnitTypeId.MEDIVAC
-            # ]
-            # flying_unit_type_order = [
-            #     UnitTypeId.BANSHEE,
-            #     UnitTypeId.VIKINGFIGHTER,
-            #     UnitTypeId.BATTLECRUISER,
-            #     UnitTypeId.RAVEN,
-            #     UnitTypeId.LIBERATOR,
-            #     UnitTypeId.MEDIVAC
-            # ]
             unit_type_offsets = {
                 UnitTypeId.MARINE: 0,
                 UnitTypeId.BANSHEE: 0,
                 UnitTypeId.VIKINGFIGHTER: 0,
                 UnitTypeId.VIKINGASSAULT: 1,
-                UnitTypeId.MARAUDER: 0.75,
-                UnitTypeId.REAPER: 0.75,
-                UnitTypeId.HELLION: 1,
-                UnitTypeId.CYCLONE: 1.5,
-                UnitTypeId.BATTLECRUISER: 1.7,
-                UnitTypeId.RAVEN: 2.5,
-                UnitTypeId.THOR: 2.5,
-                UnitTypeId.LIBERATOR: 3,
-                UnitTypeId.MEDIVAC: 3,
-                UnitTypeId.WIDOWMINE: 3,
-                UnitTypeId.WIDOWMINEBURROWED: 3,
-                UnitTypeId.GHOST: 5,
-                UnitTypeId.SIEGETANK: 5,
-                UnitTypeId.SIEGETANKSIEGED: 5,
+                UnitTypeId.MARAUDER: 1.5,
+                UnitTypeId.REAPER: 1.5,
+                UnitTypeId.HELLION: 2,
+                UnitTypeId.CYCLONE: 3,
+                UnitTypeId.BATTLECRUISER: 3.4,
+                UnitTypeId.WIDOWMINE: 3.5,
+                UnitTypeId.THOR: 4.5,
+                UnitTypeId.RAVEN: 5,
+                UnitTypeId.LIBERATOR: 6,
+                UnitTypeId.MEDIVAC: 6,
+                UnitTypeId.GHOST: 8,
+                UnitTypeId.SIEGETANK: 8,
             }
             for unit_type, y_offset in unit_type_offsets.items():
                 self.add_unit_formation(unit_type, -y_offset)
@@ -151,10 +121,15 @@ class FormationSquad(Squad, GeometryMixin):
         logger.debug(f"squad {self.name} formation: {self.parent_formation}")
 
     def add_unit_formation(self, unit_type: UnitTypeId, y_offset: int) -> bool:
-        units: Units = self.units.of_type(unit_type)
+        units: Units
+        if unit_type in (UnitTypeId.WIDOWMINEBURROWED, UnitTypeId.WIDOWMINE):
+            units = self.units.of_type((UnitTypeId.WIDOWMINEBURROWED, UnitTypeId.WIDOWMINE))
+        elif unit_type in (UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK):
+            units = self.units.of_type((UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK))
+        else:
+            units = self.units.of_type(unit_type)
         if units:
-            spacing = units[0].radius * 1.3
-            self.parent_formation.add_formation(SquadFormationType.COLUMNS, units.tags, Point2((0, y_offset)), spacing=spacing)
+            self.parent_formation.add_formation(SquadFormationType.COLUMNS, units.tags, Point2((0, y_offset)), unit_radius=units[0].radius)
             return True
         return False
 

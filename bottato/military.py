@@ -1,5 +1,5 @@
-from typing import List, Dict
 from loguru import logger
+from typing import Dict, List
 
 from sc2.bot_ai import BotAI
 from sc2.data import Race
@@ -16,7 +16,7 @@ from bottato.enums import BuildType
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.micro_factory import MicroFactory
-from bottato.mixins import GeometryMixin, DebugMixin, timed, timed_async
+from bottato.mixins import DebugMixin, GeometryMixin, timed, timed_async
 from bottato.squad.bunker import Bunker
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.formation_squad import FormationSquad
@@ -24,8 +24,8 @@ from bottato.squad.harass_squad import HarassSquad
 from bottato.squad.hunting_squad import HuntingSquad
 from bottato.squad.squad import Squad
 from bottato.squad.stuck_rescue import StuckRescue
-from bottato.unit_types import UnitTypes
 from bottato.unit_reference_helper import UnitReferenceHelper
+from bottato.unit_types import UnitTypes
 
 
 class Military(GeometryMixin, DebugMixin):
@@ -110,7 +110,7 @@ class Military(GeometryMixin, DebugMixin):
         ignore_ratio_threshold = min(195, 160 + self.aborted_attack_count * 5)
         army_is_big_enough = self.army_ratio > 1.3 \
             or self.bot.supply_used > ignore_ratio_threshold \
-            or self.offense_started and self.army_ratio > 0.9
+            or self.offense_started and self.army_ratio > 0.85
         army_is_grouped = self.main_army.is_grouped()
         mount_offense = army_is_big_enough and not defend_with_main_army
 

@@ -1,18 +1,18 @@
-from typing import Dict, List
-from loguru import logger
 from collections import deque
+from loguru import logger
+from typing import Dict, List
 
 from sc2.bot_ai import BotAI
-from sc2.unit import Unit
-from sc2.units import Units
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
+from sc2.unit import Unit
+from sc2.units import Units
 
-from bottato.mixins import GeometryMixin, timed
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.squad.enemy_squad import EnemySquad
-from bottato.unit_types import UnitTypes
 from bottato.unit_reference_helper import UnitReferenceHelper
+from bottato.unit_types import UnitTypes
 
 
 class Enemy(GeometryMixin):
@@ -40,6 +40,8 @@ class Enemy(GeometryMixin):
         self.attack_range_squared_cache: Dict[UnitTypeId, Dict[float, Dict[UnitTypeId, float]]] = {}
         self.unit_distance_squared_cache: Dict[int, Dict[int, float]] = {}
         self.suddenly_seen_units: Units = Units([], bot)
+        self.stuck_enemies: Units = Units([], bot)
+        self.stuck_check_position: Point2 | None = None
 
     @timed
     def update_references(self):
@@ -624,3 +626,45 @@ class Enemy(GeometryMixin):
                     break
             else:
                 self.suddenly_seen_units.append(enemy_unit)
+
+    @timed_async
+    async def detect_stuck_enemies(self, iteration: int):
+        """Detect enemy units that can't path to our main base."""
+        if iteration % 3 != 0:
+            return
+        # this must be different from the iteration modulus
+        # e.g. 3 and 2 = every third frame one of two batches will refresh so every 6 iterations will be a full refresh
+        num_refresh_batches = 2
+        batch_iteration = iteration % num_refresh_batches
+        self.stuck_enemies = self.stuck_enemies.filter(lambda unit: unit.tag % num_refresh_batches != batch_iteration)
+        
+        # Find a pathable position in our main base if we don't have one
+        if self.stuck_check_position is None or not await self.bot.can_place_single(UnitTypeId.MISSILETURRET, self.stuck_check_position):
+            self.stuck_check_position = await self.bot.find_placement(
+                UnitTypeId.MISSILETURRET, self.bot.start_location, 10, placement_step=3
+            )
+        
+        if self.stuck_check_position is None:
+            return
+        
+        # Get visible enemy units that could potentially be stuck
+        candidates = [
+            unit for unit in self.enemies_in_view
+            if unit.tag % num_refresh_batches == batch_iteration
+            and not unit.is_flying
+            and not unit.is_structure
+            and unit.type_id not in (UnitTypeId.SIEGETANKSIEGED, UnitTypeId.LURKERMPBURROWED,
+                                     UnitTypeId.EGG, UnitTypeId.LARVA, UnitTypeId.WIDOWMINEBURROWED)
+            and not unit.is_burrowed
+        ]
+        
+        if not candidates:
+            return
+        
+        paths_to_check = [[unit, self.stuck_check_position] for unit in candidates]
+        distances = await self.bot.client.query_pathings(paths_to_check)
+        
+        for (unit, _), distance in zip(paths_to_check, distances):
+            if distance == 0:
+                self.stuck_enemies.append(unit)
+                self.bot.client.debug_text_3d("STUCK", unit.position3d)

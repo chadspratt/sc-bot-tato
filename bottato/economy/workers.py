@@ -382,9 +382,9 @@ class Workers(GeometryMixin):
             worker_rush_detected = BuildType.WORKER_RUSH in enemy_builds_detected
 
             assigned_defender_counts: Dict[int, int] = defaultdict(int)
+            targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
             for worker in self.bot.workers:
                 assignment = self.assignments_by_worker[worker.tag]
-                targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
                 position = assignment.target if assignment.target and not worker_rush_detected else worker
                 nearby_enemies = targetable_enemies.closer_than(5, position)
                 if nearby_enemies:
@@ -432,6 +432,7 @@ class Workers(GeometryMixin):
         if nearby_enemy_structures:
             nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1000000 + a.distance_to_squared(position))
         nearby_enemy_range = 25 if nearby_enemy_structures else 12
+        nearby_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
         nearby_enemies = self.bot.enemy_units.closer_than(nearby_enemy_range, position).filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
         radius_squared = radius * radius
         for enemy in self.units_to_attack:
