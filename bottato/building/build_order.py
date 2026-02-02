@@ -513,9 +513,9 @@ class BuildOrder():
 
     @timed
     def queue_townhall_work(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
-        # if self.bot.time < 15:
-        #     # pause workers to save for first expansion
-        #     return
+        if self.bot.time < 15:
+            # pause workers to save for first expansion
+            return
         if self.bot.workers.amount >= 15 and self.bot.structures(UnitTypeId.BARRACKS).amount == 0:
             # hold off on workers until barracks started
             return
