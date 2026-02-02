@@ -2,14 +2,15 @@ from typing import Any, Dict, List, Tuple
 
 from sc2.bot_ai import BotAI
 from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.effect_id import EffectId
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from sc2.position import Point2
 
-from bottato.mixins import GeometryMixin, timed
 from bottato.enums import UnitAttribute
+from bottato.mixins import GeometryMixin, timed
+
 
 class UnitTypes(GeometryMixin):
     PROTOSS: Dict[UnitTypeId, Dict[str, Any]] = {
@@ -552,6 +553,8 @@ class UnitTypes(GeometryMixin):
     
     @staticmethod
     def can_be_attacked(unit: Unit, bot: BotAI, enemy_units: Units) -> bool:
+        if unit.type_id in (UnitTypeId.DISRUPTORPHASED,):
+            return False
         if not (unit.is_cloaked or unit.is_burrowed):
             return True
         is_mine = unit.owner_id == bot.player_id

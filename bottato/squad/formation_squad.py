@@ -134,7 +134,7 @@ class FormationSquad(Squad, GeometryMixin):
         return False
 
     @timed_async
-    async def move(self, destination: Point2, facing_position: Point2 | None = None, force_move: bool = False, blueprints: List[BuildStep] = []):
+    async def move(self, destination: Point2, facing_position: Point2 | None = None, force_move: bool = False):
         if not self.units:
             return
         self._destination = destination
@@ -156,12 +156,6 @@ class FormationSquad(Squad, GeometryMixin):
                 if unit.tag in self.bot.unit_tags_received_action:
                     logger.debug(f"unit {unit} already received an order {unit.orders}")
                     continue
-                # don't block new construction
-                for blueprint in blueprints:
-                    position = blueprint.get_position()
-                    if position:
-                        if self.bot.distance_math_hypot_squared(position, formation_positions[unit.tag]) < 9:
-                            formation_positions[unit.tag] = position.towards(formation_positions[unit.tag], 3)
                 if formation_positions[unit.tag] is None:
                     logger.debug(f"unit {unit} has no formation position")
                     continue

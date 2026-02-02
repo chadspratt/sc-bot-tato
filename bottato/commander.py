@@ -88,10 +88,9 @@ class Commander(GeometryMixin):
 
         await self.scout() # fast
 
-        blueprints = self.avoid_blueprints()
+        self.add_custom_effects_to_avoid()
         # very slow, 70% of command time
         await self.military.manage_squads(iteration,
-                                          blueprints,
                                           self.intel.get_newest_enemy_base(),
                                           self.intel.enemy_builds_detected,
                                           self.intel.proxy_buildings)
@@ -106,7 +105,7 @@ class Commander(GeometryMixin):
         self.new_damage_by_unit.clear()
         self.new_damage_by_position.clear()
 
-    def avoid_blueprints(self) -> list[BuildStep]:
+    def add_custom_effects_to_avoid(self):
         blueprints = self.build_order.get_blueprints()
         for blueprint in blueprints:
             position = blueprint.get_position()
@@ -115,7 +114,11 @@ class Commander(GeometryMixin):
                                                 BUILDING_RADIUS[blueprint.get_unit_type_id()],
                                                 self.bot.time,
                                                 0.3)
-        return blueprints
+        for nova in self.bot.enemy_units.of_type(UnitTypeId.DISRUPTORPHASED):
+            BaseUnitMicro.add_custom_effect(nova.position,
+                                            1.5,
+                                            self.bot.time,
+                                            0.5)
 
     @timed_async
     async def detect_stuck_units(self, iteration: int):

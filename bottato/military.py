@@ -90,7 +90,6 @@ class Military(GeometryMixin, DebugMixin):
 
     @timed_async
     async def manage_squads(self, iteration: int,
-                            blueprints: List[BuildStep],
                             newest_enemy_base: Point2 | None,
                             detected_enemy_builds: Dict[BuildType, float],
                             proxy_buildings: Units):
@@ -160,12 +159,12 @@ class Military(GeometryMixin, DebugMixin):
                 LogHelper.add_log(f"squad {self.main_army.name} mounting offense")
                 target_position: Point2 | None = self.get_offense_target_position(newest_enemy_base, countered_enemies)
                 if not army_is_grouped:
-                    await self.regroup(target_position, blueprints)
+                    await self.regroup(target_position)
                 else:
                     if target_position:
                         await self.main_army.move(target_position) # slow, 50%+ of command time
             else:
-                await self.move_army_to_staging_location(newest_enemy_base, detected_enemy_builds, blueprints, self.army_ratio)
+                await self.move_army_to_staging_location(newest_enemy_base, detected_enemy_builds, self.army_ratio)
 
     @timed_async
     async def get_enemies_in_base(self) -> Units:
@@ -419,7 +418,6 @@ class Military(GeometryMixin, DebugMixin):
     async def move_army_to_staging_location(self,
                                             newest_enemy_base: Point2 | None,
                                             detected_enemy_builds: Dict[BuildType, float],
-                                            blueprints: List[BuildStep],
                                             army_ratio: float):
         # generally a retreat due to being outnumbered
         LogHelper.add_log(f"squad {self.main_army} staging at {self.main_army.staging_location}")
@@ -460,10 +458,10 @@ class Military(GeometryMixin, DebugMixin):
         # force move is used for retreating. don't use if already near staging location
         staging_location = bunker_staging_location if bunker_staging_location else self.main_army.staging_location
         force_move = self.main_army.position._distance_squared(staging_location) >= 225
-        await self.main_army.move(staging_location, enemy_position, force_move=force_move, blueprints=blueprints)
+        await self.main_army.move(staging_location, enemy_position, force_move=force_move)
 
     @timed_async
-    async def regroup(self, target_position: Point2, blueprints: List[BuildStep]):
+    async def regroup(self, target_position: Point2):
         LogHelper.add_log(f"main_army regrouping")
         sieged_tanks = self.bot.units.of_type(UnitTypeId.SIEGETANKSIEGED).filter(lambda u: u.distance_to_squared(self.main_army.position) < 225)
         army_center: Point2
@@ -486,7 +484,7 @@ class Military(GeometryMixin, DebugMixin):
                         army_center = path[i + 1].towards(path[i], -remaining_distance)
                         break
                     i += 1
-        await self.main_army.move(army_center, target_position, blueprints=blueprints)
+        await self.main_army.move(army_center, target_position)
     
     passenger_stand_ins: Dict[UnitTypeId, Unit] = {}
     damage_by_type_cache_friendly: Dict[UnitTypeId, Dict[UnitTypeId, float]] = {}
