@@ -10,6 +10,9 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 
+from cython_extensions import cy_distance_to_squared
+from cython_extensions.geometry import cy_distance_to
+
 # Global timer storage for decorator
 _decorator_timers: Dict[str, float] = {}
 _decorator_timer_counts: Dict[str, int] = {}
@@ -129,29 +132,35 @@ class GeometryMixin:
     def distance(unit1: Unit | Point2, unit2: Unit | Point2, predicted_positions: Dict[int, Point2] | None = None) -> float:
         if isinstance(unit1, Unit) and isinstance(unit2, Unit) and unit1.age == 0 and unit2.age == 0:
             return unit1.distance_to(unit2)
-        return GeometryMixin.distance_squared(unit1, unit2, predicted_positions) ** 0.5
+        if predicted_positions is not None:
+            if isinstance(unit1, Unit) and unit1.age != 0:
+                try:
+                    unit1 = predicted_positions[unit1.tag]
+                except KeyError:
+                    pass
+            if isinstance(unit2, Unit) and unit2.age != 0:
+                try:
+                    unit2 = predicted_positions[unit2.tag]
+                except KeyError:
+                    pass
+        return cy_distance_to(unit1.position, unit2.position)
         
     @staticmethod
     def distance_squared(unit1: Unit | Point2, unit2: Unit | Point2, predicted_positions: Dict[int, Point2] | None = None) -> float:
-        if isinstance(unit1, Unit) and unit1.age != 0 and predicted_positions is not None:
-            try:
-                unit1 = predicted_positions[unit1.tag]
-            except KeyError:
-                pass
-        if isinstance(unit2, Unit) and unit2.age != 0 and predicted_positions is not None:
-            try:
-                unit2 = predicted_positions[unit2.tag]
-            except KeyError:
-                pass
-        if isinstance(unit1, Point2):
-            if isinstance(unit2, Point2):
-                return unit1._distance_squared(unit2)
-            return unit1._distance_squared(unit2.position)
-        if isinstance(unit2, Point2):
-            return unit1.position._distance_squared(unit2)
-        if unit1.age == 0 and unit2.age == 0:
-            return unit1.distance_to_squared(unit2)        
-        return unit1.distance_to_squared(unit2.position)
+        if isinstance(unit1, Unit) and isinstance(unit2, Unit) and unit1.age == 0 and unit2.age == 0:
+            return unit1.distance_to_squared(unit2)
+        if predicted_positions is not None:
+            if isinstance(unit1, Unit) and unit1.age != 0:
+                try:
+                    unit1 = predicted_positions[unit1.tag]
+                except KeyError:
+                    pass
+            if isinstance(unit2, Unit) and unit2.age != 0:
+                try:
+                    unit2 = predicted_positions[unit2.tag]
+                except KeyError:
+                    pass
+        return cy_distance_to_squared(unit1.position, unit2.position)
 
     @staticmethod
     def closest_distance(unit1: Unit, units: Units) -> float:
