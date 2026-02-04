@@ -4,6 +4,12 @@ import math
 from loguru import logger
 from typing import List, Set
 
+from cython_extensions.geometry import (
+    cy_distance_to,
+    cy_distance_to_squared,
+    cy_towards,
+)
+from cython_extensions.units_utils import cy_center, cy_closer_than, cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -268,12 +274,11 @@ class ParentFormation(GeometryMixin):
             # destination should be next waypoint, but need to
             next_waypoint = self.path[1] if len(self.path) > 1 else formation_destination
             self.front_center = self.calculate_formation_front_center(grouped_units, next_waypoint)
-            # limit front_center jumping around
-            # self.front_center = self.front_center.towards(new_front_center, 2, limit=True)
 
             if self.path and len(self.path) > 1:
                 logger.debug(f"following path {self.path} to {self.destination}")
-                self.destination = self.front_center.towards(self.path[1], distance=3, limit=True)
+                towards_distance = min(3, cy_distance_to(self.front_center, self.path[1]))
+                self.destination = Point2(cy_towards(self.front_center, self.path[1], towards_distance))
             else:
                 logger.debug(f"heading directly to {self.destination}")
                 # if no path, tell all units to go to the destination. happens if already in destination zone or if reference point passes over non-pathable area
@@ -281,8 +286,8 @@ class ParentFormation(GeometryMixin):
 
             # face nearest enemy
             if self.bot.enemy_units:
-                nearest_enemy = self.bot.enemy_units.closest_to(self.front_center)
-                if nearest_enemy.distance_to_squared(self.front_center) < 400:
+                nearest_enemy = cy_closest_to(self.front_center, self.bot.enemy_units)
+                if cy_distance_to_squared(nearest_enemy.position, self.front_center) < 400:
                     facing = self.get_facing(self.front_center, nearest_enemy.position)
             if not facing:
                 facing = self.get_facing(self.front_center, self.destination)
@@ -297,21 +302,21 @@ class ParentFormation(GeometryMixin):
 
     @timed
     def calculate_formation_front_center(self, units: Units, destination: Point2) -> Point2:
-        # closest_to_enemy = units.closest_to(self.bot.enemy_start_locations[0])
-        # close_units = units.closer_than(15, closest_to_enemy)
-        self.closest_unit = units.closest_to(destination)
+        # closest_to_enemy = cy_closest_to(self.bot.enemy_start_locations[0], units)
+        # close_units = cy_closer_than(units, 15, closest_to_enemy.position)
+        self.closest_unit = cy_closest_to(destination, units)
         closest_position = self.closest_unit.position
 
-        close_units = units.closer_than(15, self.closest_unit)
+        close_units = Units(cy_closer_than(units, 15, self.closest_unit.position), bot_object=self.bot)
         # in_formation_units: Units = close_units if close_units else units
-        units_center = close_units.center
+        units_center = Point2(cy_center(close_units))
 
         path_units = close_units.filter(lambda u: not u.is_flying)
         if path_units.empty:
             path_units = units
         # next_waypoint_path = self.map.get_shortest_path(path_units, destination)
         # closest_position = next_waypoint_path[0]
-        # self.closest_unit = units.closest_to(destination)
+        # self.closest_unit = cy_closest_to(destination, units)
 
         # # find waypoint beyond the units
         next_waypoint = destination
@@ -339,10 +344,12 @@ class ParentFormation(GeometryMixin):
             x_intersect = (closest_front_b - dest_center_b) / (dest_center_slope - closest_front_slope)
             y_intersect = x_intersect * dest_center_slope + dest_center_b
             intersect_point = Point2((x_intersect, y_intersect))
-        new_front_center = intersect_point.towards(next_waypoint, 1, limit=True)
+        towards_distance = min(1, cy_distance_to(intersect_point, next_waypoint))
+        new_front_center = Point2(cy_towards(intersect_point, next_waypoint, towards_distance))
         new_front_center = self.clamp_position_to_map_bounds(new_front_center, self.bot)
         while abs(self.bot.get_terrain_z_height(new_front_center) - closest_elevation) > 0.8 and new_front_center._distance_squared(closest_position) > 1:
-            new_front_center = new_front_center.towards(closest_position, 1, limit=True)
+            towards_distance = min(1, cy_distance_to(new_front_center, closest_position))
+            new_front_center = Point2(cy_towards(new_front_center, closest_position, towards_distance))
         return new_front_center
     
     @timed

@@ -347,6 +347,12 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.PLANETARYFORTRESS,
     )
 
+    ANTI_AIR_STRUCTURE_TYPES = (
+        UnitTypeId.MISSILETURRET,
+        UnitTypeId.SPORECRAWLER,
+        UnitTypeId.PHOTONCANNON,
+    )
+
     WORKER_TYPES = [
         UnitTypeId.DRONE,
         UnitTypeId.DRONEBURROWED,

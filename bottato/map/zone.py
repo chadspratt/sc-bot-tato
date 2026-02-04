@@ -1,8 +1,9 @@
 from __future__ import annotations
-from typing import List, Dict, Set
 
 from loguru import logger
+from typing import Dict, List, Set
 
+from cython_extensions.geometry import cy_distance_to
 from sc2.bot_ai import BotAI
 from sc2.position import Point2, Point3
 
@@ -173,7 +174,7 @@ class Zone:
         return destination_path
 
     def add_path_to_adjacent(self, zone: Zone) -> Path:
-        distance: float = zone.midpoint.distance_to(self.midpoint)
+        distance: float = cy_distance_to(zone.midpoint, self.midpoint)
         new_path = Path([self, zone], distance)
         self.shortest_paths[zone.id] = new_path
         zone.shortest_paths[self.id] = new_path.get_reverse()

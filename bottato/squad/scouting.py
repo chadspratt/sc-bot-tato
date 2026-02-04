@@ -1,5 +1,6 @@
 from typing import Dict
 
+from cython_extensions.geometry import cy_distance_to
 from sc2.bot_ai import BotAI
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -16,6 +17,7 @@ from bottato.squad.initial_scout import InitialScout
 from bottato.squad.scout import Scout
 from bottato.squad.squad import Squad
 from bottato.unit_reference_helper import UnitReferenceHelper
+
 
 class Scouting(Squad, DebugMixin):
     def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers,
@@ -94,7 +96,7 @@ class Scouting(Squad, DebugMixin):
 
         if not self.initial_scan_done and 165 < self.bot.time < 210:
             reaper = self.bot.units(UnitTypeId.REAPER)
-            if not reaper or reaper.first.distance_to(self.enemy_main.scouting_position) > 25:
+            if not reaper or cy_distance_to(reaper.first.position, self.enemy_main.scouting_position) > 25:
                 if self.enemy_main.needs_fresh_scouting(self.bot.time, skip_occupied=False):
                     for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND).ready:
                         if orbital.energy >= 50:

@@ -1,11 +1,14 @@
 from __future__ import annotations
-from typing import Dict, Tuple
-from loguru import logger
 
+from loguru import logger
+from typing import Dict, Tuple
+
+from cython_extensions.geometry import cy_distance_to, cy_towards
+from cython_extensions.units_utils import cy_closest_to
+from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
-from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.ability_id import AbilityId
 
 from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -69,7 +72,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             return UnitMicroType.NONE
 
         if enemy_unit.type_id == UnitTypeId.SIEGETANKSIEGED:
-            return await self.drop_turret(unit, enemy_unit.position.towards(unit, enemy_unit.radius + 1))
+            return await self.drop_turret(unit, Point2(cy_towards(enemy_unit.position, unit.position, enemy_unit.radius + 1)))
         
         return await self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
         
@@ -84,11 +87,11 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         threats = self.bot.enemy_units.filter(lambda enemy: UnitTypes.can_attack_air(enemy)) \
             + self.bot.enemy_structures.filter(lambda enemy: UnitTypes.can_attack_air(enemy))
         if threats:
-            nearest_threat = threats.closest_to(unit)
+            nearest_threat = cy_closest_to(unit.position, threats)
             if nearest_threat.distance_to_squared(unit) < unit.sight_range ** 2:
                 is_near_destination = move_position is not None and move_position._distance_squared(unit.position) < 9
                 buffer = -1 if is_near_destination else 2
-                target_position = nearest_threat.position.towards(unit, unit.sight_range + buffer)
+                target_position = Point2(cy_towards(nearest_threat.position, unit.position, unit.sight_range + buffer))
                 unit.move(self.map.get_pathable_position(target_position, unit))
                 return UnitMicroType.MOVE
         # provide detection
@@ -101,7 +104,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             closest_unit: Unit = self.closest_unit_to_unit(unit, need_detection)
             closest_distance = self.distance(closest_unit, unit)
             if closest_distance < 30 and closest_distance > unit.sight_range:
-                target_position = closest_unit.position.towards(unit, unit.sight_range - 1)
+                target_position = Point2(cy_towards(closest_unit.position, unit.position, unit.sight_range - 1))
                 unit.move(self.map.get_pathable_position(target_position, unit))
                 return UnitMicroType.MOVE
             elif self.bot.is_visible(closest_unit.position) and closest_unit.age > 0:
@@ -111,7 +114,8 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     @timed_async
     async def attack_with_turret(self, unit: Unit, target: Point2) -> UnitMicroType:
         self.bot.client.debug_line_out(unit, self.convert_point2_to_3(target, self.bot), (100, 255, 50))
-        turret_position = target.towards(unit, self.turret_attack_range - 1, limit=True)
+        towards_distance = min(self.turret_drop_range - 1, cy_distance_to(target, unit.position))
+        turret_position = Point2(cy_towards(target, unit.position, towards_distance))
         logger.debug(f"{unit} trying to drop turret at {turret_position} to attack {target} at {target.position}")
         return await self.drop_turret(unit, turret_position)
 

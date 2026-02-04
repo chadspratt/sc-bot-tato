@@ -3,6 +3,8 @@ from __future__ import annotations
 from loguru import logger
 from typing import List
 
+from cython_extensions.geometry import cy_distance_to
+from cython_extensions.units_utils import cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -54,7 +56,7 @@ class Resources(GeometryMixin):
             if townhall.is_flying:
                 continue
             if self.bot.get_terrain_height(townhall) == self.bot.get_terrain_height(node):
-                if townhall.position.distance_to(node.position) <= 15:
+                if cy_distance_to(townhall.position, node.position) <= 15:
                     is_long_distance = False
                     break
         for resource_node in self.nodes:
@@ -98,7 +100,7 @@ class Resources(GeometryMixin):
                 candidates = Units([node.node for node in nodes_needing_workers if node.needed_workers() == most_needed], bot_object=self.bot)
 
         if candidates:
-            node = candidates.closest_to(worker)
+            node = cy_closest_to(worker.position, candidates)
             if worker.type_id == UnitTypeId.MULE:
                 self.nodes_by_tag[node.tag].mule_tag = worker.tag
             else:

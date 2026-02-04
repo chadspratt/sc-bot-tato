@@ -4,6 +4,13 @@ from __future__ import annotations
 from loguru import logger
 from typing import Dict, List, Tuple
 
+from cython_extensions.general_utils import cy_in_pathing_grid_burny
+from cython_extensions.geometry import (
+    cy_distance_to,
+    cy_distance_to_squared,
+    cy_towards,
+)
+from cython_extensions.units_utils import cy_center, cy_closer_than, cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
@@ -83,7 +90,7 @@ class BaseUnitMicro(GeometryMixin):
                 return target
             repairers = self.bot.units.filter(lambda u: u.tag in self.repair_targets_prev_frame[unit.tag])
             if repairers:
-                repairer = repairers.closest_to(unit)
+                repairer = cy_closest_to(unit.position, repairers)
                 return repairer.position
         
         return target
@@ -189,7 +196,7 @@ class BaseUnitMicro(GeometryMixin):
                 unit.repair(target)
                 action_taken = UnitMicroType.REPAIR
         if action_taken == UnitMicroType.NONE:
-            if self.bot.time < 360 and target.distance_to_squared(self.bot.main_base_ramp.top_center) < 9:
+            if self.bot.time < 360 and cy_distance_to_squared(target.position, self.bot.main_base_ramp.top_center) < 9:
                 # keep ramp wall repaired early game
                 unit.repair(target)
                 action_taken = UnitMicroType.REPAIR
@@ -199,7 +206,7 @@ class BaseUnitMicro(GeometryMixin):
         if action_taken == UnitMicroType.NONE:
             action_taken = await self._retreat(unit, health_threshold=0.25)
         if action_taken == UnitMicroType.NONE:
-            if not target.is_structure and unit.distance_to(target) > unit.radius + target.radius + 0.5:
+            if not target.is_structure and cy_distance_to(unit.position, target.position) > unit.radius + target.radius + 0.5:
                 # sometimes they get in a weird state where they run from the target
                 unit.move(target.position)
                 action_taken = UnitMicroType.MOVE
@@ -263,16 +270,16 @@ class BaseUnitMicro(GeometryMixin):
             if number_of_effects == 1:
                 # move directly away from effect
                 if unit.position == effects_to_avoid[0]:
-                    new_position = unit.position.towards(self.bot.start_location, 2)
+                    new_position = Point2(cy_towards(unit.position, self.bot.start_location, 2))
                 else:
-                    new_position = unit.position.towards(effects_to_avoid[0], -2)
+                    new_position = Point2(cy_towards(unit.position, effects_to_avoid[0], -2))
                 unit.move(new_position)
                 return UnitMicroType.AVOID_EFFECTS
             average_x = sum(p.x for p in effects_to_avoid) / number_of_effects
             average_y = sum(p.y for p in effects_to_avoid) / number_of_effects
             average_position = Point2((average_x, average_y))
             # move out of effect radius
-            new_position = unit.position.towards(average_position, -2)
+            new_position = Point2(cy_towards(unit.position, average_position, -2))
             unit.move(new_position)
             return UnitMicroType.AVOID_EFFECTS
         return UnitMicroType.NONE
@@ -288,7 +295,7 @@ class BaseUnitMicro(GeometryMixin):
         if unit.tag in BaseUnitMicro.repair_targets_prev_frame and unit.health_percentage < 1.0:
             repairer_tags = BaseUnitMicro.repair_targets_prev_frame[unit.tag]
             repairers = self.bot.workers.filter(lambda w: w.tag in repairer_tags)
-            closest_repairer = repairers.closest_to(unit) if repairers else None
+            closest_repairer = cy_closest_to(unit.position, repairers) if repairers else None
             if closest_repairer and 1 < closest_repairer.distance_to_squared(unit) < 16:
                 unit.move(closest_repairer)
                 return UnitMicroType.MOVE
@@ -307,7 +314,7 @@ class BaseUnitMicro(GeometryMixin):
 
         if not self.valid_targets:
             return UnitMicroType.NONE
-        nearby_enemies = self.valid_targets.closer_than(20, unit).sorted(lambda u: u.health + u.shield)
+        nearby_enemies = Units(sorted(cy_closer_than(self.valid_targets, 20, unit.position), key=lambda u: u.health + u.shield), bot_object=self.bot)
         if not nearby_enemies:
             return UnitMicroType.NONE
         
@@ -373,7 +380,7 @@ class BaseUnitMicro(GeometryMixin):
         if unit.type_id == UnitTypeId.SCV and not threats and not unit.is_constructing_scv and unit.health_percentage == 1.0:
             injured_units = self.bot.units.filter(lambda u: u.health_percentage < 1.0 and u.tag != unit.tag and u.is_mechanical and u.type_id != UnitTypeId.MULE)
             if injured_units:
-                unit.repair(injured_units.closest_to(unit))
+                unit.repair(cy_closest_to(unit.position, injured_units))
                 return UnitMicroType.REPAIR
 
         # retreat if there is nothing this unit can attack and it's not an SCV which might be repairing
@@ -454,16 +461,16 @@ class BaseUnitMicro(GeometryMixin):
                 if distance_to_tank < 8:
                     # dive on sieged tanks
                     attack_range = 0
-                    target_position = nearest_sieged_tank.position.towards(unit, attack_range)
+                    target_position = Point2(cy_towards(nearest_sieged_tank.position, unit.position, attack_range))
                     return self._move_to_pathable_position(unit, target_position)
                 if distance_to_tank < 15:
                     attack_range = 14
-                    target_position = nearest_sieged_tank.position.towards(unit, attack_range)
+                    target_position = Point2(cy_towards(nearest_sieged_tank.position, unit.position, attack_range))
                     return self._move_to_pathable_position(unit, target_position)
 
         attack_range = UnitTypes.range_vs_target(unit, nearest_target)
-        future_enemy_position = targets.center
-        target_position = future_enemy_position.towards(unit, attack_range + unit.radius + nearest_target.radius + buffer)
+        future_enemy_position = Point2(cy_center(targets))
+        target_position = Point2(cy_towards(future_enemy_position, unit.position, attack_range + unit.radius + nearest_target.radius + buffer))
         return self._move_to_pathable_position(unit, target_position)
 
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
@@ -478,7 +485,7 @@ class BaseUnitMicro(GeometryMixin):
                 and attack_range > target_range > 0 and unit.movement_speed > target.movement_speed
             if do_kite:
                 # can attack while staying out of range
-                target_distance = self.distance(unit, target, self.enemy.predicted_position) - target.radius - unit.radius
+                target_distance = self.distance(unit, target, self.enemy.predicted_positions) - target.radius - unit.radius
                 if target.type_id in UnitTypes.WORKER_TYPES:
                     if target_distance < target_range + 2.0:
                         workers_to_avoid.append(target)
@@ -491,7 +498,7 @@ class BaseUnitMicro(GeometryMixin):
         if workers_to_avoid:
             # stay at minimum distance from workers instead of max attack range
             nearest_worker = self.closest_unit_to_unit(unit, workers_to_avoid)
-            target_position = workers_to_avoid.center.towards(unit, 2.5 + unit.radius + nearest_worker.radius)
+            target_position = Point2(cy_towards(Point2(cy_center(workers_to_avoid)), unit.position, 2.5 + unit.radius + nearest_worker.radius))
             if self._move_to_pathable_position(unit, target_position) == UnitMicroType.NONE:
                 unit.move(self._get_retreat_destination(unit, workers_to_avoid))
             return UnitMicroType.MOVE
@@ -510,13 +517,13 @@ class BaseUnitMicro(GeometryMixin):
             # interceptors can't be targeted directly
             unit.attack(target.position)
         elif target.age > 0:
-            unit.move(self.map.get_pathable_position(self.enemy.predicted_position[target.tag], unit))
+            unit.move(self.map.get_pathable_position(self.enemy.predicted_positions[target.tag], unit))
         else:
             unit.attack(target)
         return True
     
     def _move_to_pathable_position(self, unit: Unit, position: Point2) -> UnitMicroType:
-        if unit.is_flying and self.bot.in_map_bounds(position) or self.bot.in_pathing_grid(position):
+        if unit.is_flying and self.bot.in_map_bounds(position) or cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, position):
             unit.move(self.map.get_pathable_position(position, unit))
             return UnitMicroType.MOVE
         return UnitMicroType.NONE
@@ -531,7 +538,7 @@ class BaseUnitMicro(GeometryMixin):
                     try:
                         repairers: Units = self.bot.units.filter(lambda w: w.tag in BaseUnitMicro.repair_targets_prev_frame[unit.tag])
                         if repairers:
-                            repairer = repairers.closest_to(unit)
+                            repairer = cy_closest_to(unit.position, repairers)
                             ultimate_destination = repairer.position
                     except KeyError:
                         pass
@@ -542,7 +549,7 @@ class BaseUnitMicro(GeometryMixin):
                     if repairers and unit.type_id == UnitTypeId.SCV:
                         repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
                     if repairers:
-                        closest_repairer = repairers.closest_to(unit)
+                        closest_repairer = cy_closest_to(unit.position, repairers)
                         if closest_repairer.position.manhattan_distance(unit.position) < 1:
                             ultimate_destination = unit.position
                         else:
@@ -550,12 +557,12 @@ class BaseUnitMicro(GeometryMixin):
         else:
             medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC)
             if medivacs:
-                ultimate_destination = medivacs.closest_to(unit).position
+                ultimate_destination = cy_closest_to(unit.position, medivacs).position
         if ultimate_destination is None:
             bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
             if bunkers:
-                away_from_position = threats.center if threats else self.bot.game_info.map_center
-                ultimate_destination = bunkers.closest_to(unit).position.towards(away_from_position, -4)
+                away_from_position = Point2(cy_center(threats)) if threats else self.bot.game_info.map_center
+                ultimate_destination = Point2(cy_towards(cy_closest_to(unit.position, bunkers).position, away_from_position, -4))
         
         if not ultimate_destination:
             ultimate_destination = self.bot.game_info.player_start_location
@@ -571,16 +578,16 @@ class BaseUnitMicro(GeometryMixin):
         if retreat_vector.length == 0:
             retreat_vector = ultimate_destination - unit.position
         retreat_distance = 10 if unit.is_flying else 5
-        retreat_position = unit.position.towards(unit.position + retreat_vector, retreat_distance)
+        retreat_position = Point2(cy_towards(unit.position, unit.position + retreat_vector, retreat_distance))
         # questionable value for threat_position but might work
         threat_position = unit.position - retreat_vector
 
-        if unit.distance_to(ultimate_destination) < threat_position.distance_to(ultimate_destination) - 2:
+        if cy_distance_to(unit.position, ultimate_destination) < cy_distance_to(threat_position, ultimate_destination) - 2:
             return self.map.get_pathable_position(ultimate_destination, unit)
         if unit.is_flying:
             retreat_position = self.map.clamp_position_to_map_bounds(retreat_position, self.bot)
         if self._position_is_pathable(unit, retreat_position):
-            return self.map.get_pathable_position(retreat_position, unit)
+            return self.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
 
         if unit.position == threat_position:
             # avoid divide by zero
@@ -590,7 +597,7 @@ class BaseUnitMicro(GeometryMixin):
             return circle_around_position
     
     def _position_is_pathable(self, unit: Unit, position: Point2) -> bool:
-        if unit.is_flying and self.bot.in_map_bounds(position) or self.bot.in_pathing_grid(position):
+        if unit.is_flying and self.bot.in_map_bounds(position) or cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, position):
             return True
         return False
 
@@ -598,7 +605,7 @@ class BaseUnitMicro(GeometryMixin):
     def _retreat_to_medivac(self, unit: Unit) -> UnitMicroType:
         medivacs = self.bot.units.filter(lambda unit: unit.type_id == UnitTypeId.MEDIVAC and unit.energy > 5 and unit.cargo_used == 0)
         if medivacs:
-            nearest_medivac = medivacs.closest_to(unit)
+            nearest_medivac = cy_closest_to(unit.position, medivacs)
             if unit.distance_to_squared(nearest_medivac) > 16:
                 unit.move(nearest_medivac)
             else:
@@ -645,7 +652,7 @@ class BaseUnitMicro(GeometryMixin):
             )
         if not tank_targets:
             return False
-        closest_enemy = tank_targets.closest_to(unit)
+        closest_enemy = cy_closest_to(unit.position, tank_targets)
         closest_enemy_distance_sq = closest_enemy.distance_to_squared(unit)
         if closest_enemy_distance_sq > 225:
             return False
@@ -653,17 +660,17 @@ class BaseUnitMicro(GeometryMixin):
             # if enemy tank is close, dive on it instead of retreating
             return False
 
-        nearest_tank = tanks.closest_to(unit)
-        tank_to_enemy_distance_sq = self.distance_squared(nearest_tank, closest_enemy)
+        nearest_tank = cy_closest_to(unit.position, tanks)
+        tank_to_enemy_distance_sq = nearest_tank.distance_to_squared(closest_enemy)
         if tank_to_enemy_distance_sq < 900 and tank_to_enemy_distance_sq > (13.5 + nearest_tank.radius + closest_enemy.radius)**2:
             optimal_distance = 13.5 - UnitTypes.ground_range(closest_enemy) - unit.radius + nearest_tank.radius - 2.0
-            unit.move(nearest_tank.position.towards(unit.position, optimal_distance))
+            unit.move(Point2(cy_towards(nearest_tank.position, unit.position, optimal_distance)))
             if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
                 BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance_sq
             return True
         elif not can_attack and tank_to_enemy_distance_sq < unit.distance_to_squared(closest_enemy) * 0.3:
             # defend tank if it's closer to enemy than unit
-            unit.move(nearest_tank.position.towards(closest_enemy.position, 3))
+            unit.move(Point2(cy_towards(nearest_tank.position, closest_enemy.position, 3)))
             if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
                 BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance_sq
             return True
@@ -673,12 +680,12 @@ class BaseUnitMicro(GeometryMixin):
     def get_circle_around_position(self, unit: Unit, threat_position: Point2, destination: Point2) -> Point2:
         if destination == unit.position:
             return destination
-        if not unit.is_flying and unit.distance_to_squared(destination) > 225:
+        if not unit.is_flying and cy_distance_to_squared(unit.position, destination) > 225:
             path_to_destination = self.map.get_path_points(unit.position, destination)
             if len(path_to_destination) > 1:
                 for path_position in path_to_destination:
-                    distance_squared = unit.distance_to_squared(path_position)
-                    if distance_squared > threat_position._distance_squared(path_position):
+                    distance_squared = cy_distance_to_squared(unit.position, path_position)
+                    if distance_squared > cy_distance_to_squared(threat_position, path_position):
                         break
                     if distance_squared > 400 or path_position == path_to_destination[-1]:
                         # if no enemies along path, go to first node
@@ -690,9 +697,8 @@ class BaseUnitMicro(GeometryMixin):
             return destination
         tangent_vector1 = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
         tangent_vector2 = Point2((-tangent_vector1.x, -tangent_vector1.y))
-        # away_from_enemy_position = unit.position.towards(threat_position, -1)
         circle_around_positions = [Point2(unit.position + tangent_vector1),
                                     Point2(unit.position + tangent_vector2)]
-        circle_around_positions.sort(key=lambda pos: pos._distance_squared(destination))
-        circle_around_position = circle_around_positions[0].towards(threat_position, -1)
+        circle_around_positions.sort(key=lambda pos: cy_distance_to_squared(pos, destination))
+        circle_around_position = Point2(cy_towards(circle_around_positions[0], threat_position, -1))
         return self.map.get_pathable_position(circle_around_position, unit)

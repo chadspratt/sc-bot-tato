@@ -1,8 +1,14 @@
 from typing import Dict, List, Tuple
 
+from cython_extensions.general_utils import cy_in_pathing_grid_burny
+from cython_extensions.geometry import (
+    cy_distance_to,
+    cy_distance_to_squared,
+    cy_towards,
+)
+from cython_extensions.units_utils import cy_closer_than
 from sc2.bot_ai import BotAI
-from sc2.data import Race
-from sc2.data import race_townhalls
+from sc2.data import Race, race_townhalls
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -15,6 +21,7 @@ from bottato.map.map import Map
 from bottato.mixins import GeometryMixin
 from bottato.squad.scouting_location import ScoutingLocation
 from bottato.unit_reference_helper import UnitReferenceHelper
+
 
 class EnemyIntel(GeometryMixin):
     def __init__(self, bot: BotAI, map: Map, enemy: Enemy):
@@ -34,7 +41,7 @@ class EnemyIntel(GeometryMixin):
 
         self.scouting_locations: List[ScoutingLocation] = list()
         for expansion_location in self.bot.expansion_locations_list:
-            self.scouting_locations.append(ScoutingLocation(expansion_location, expansion_location.towards(self.bot.game_info.map_center, -5)))
+            self.scouting_locations.append(ScoutingLocation(expansion_location, Point2(cy_towards(expansion_location, self.bot.game_info.map_center, -5))))
         self.enemy_base_built_times: Dict[Point2, float] = {self.bot.enemy_start_locations[0]: 0.0}
 
     def mark_initial_scout_complete(self):
@@ -145,7 +152,7 @@ class EnemyIntel(GeometryMixin):
             self.add_detected_build(BuildType.RUSH)
         if self.bot.time < 60:
             rushing_enemy_workers = self.bot.enemy_units.filter(
-                lambda u: u.distance_to(self.bot.start_location) - 15 < u.distance_to(self.bot.enemy_start_locations[0]))
+                lambda u: cy_distance_to(u.position, self.bot.start_location) - 15 < cy_distance_to(u.position, self.bot.enemy_start_locations[0]))
             if rushing_enemy_workers.amount >= 3:
                 await LogHelper.add_chat("worker rush detected")
                 self.add_detected_build(BuildType.WORKER_RUSH)
@@ -207,7 +214,7 @@ class EnemyIntel(GeometryMixin):
             if lots_of_gateways or no_expansion:
                 self.add_detected_build(BuildType.RUSH)
             
-            if self.bot.time < 180 and len(self.bot.enemy_units) > 0 and len(self.bot.enemy_units.closer_than(30, self.bot.start_location)) > 5:
+            if self.bot.time < 180 and len(self.bot.enemy_units) > 0 and len(cy_closer_than(self.bot.enemy_units, 30, self.bot.start_location)) > 5:
                 await LogHelper.add_chat("early army detected near base")
                 self.add_detected_build(BuildType.RUSH)
 
@@ -239,22 +246,21 @@ class EnemyIntel(GeometryMixin):
                 if self.closest_distance_squared(transport, self.bot.townhalls) > 225:
                     # not near a base, not a drop
                     continue
-                enemy_non_transports = self.bot.enemy_units.exclude_type({UnitTypeId.MEDIVAC, UnitTypeId.WARPPRISM})
                 # exclude units that suddenly appeared since the transport was probably carrying them
-                appeared_from_the_fog_enemies = enemy_non_transports.filter(
-                    lambda u: u.tag not in self.enemy.suddenly_seen_units.tags)
+                appeared_from_the_fog_enemies = self.bot.enemy_units.filter(
+                    lambda u: u.type_id not in {UnitTypeId.MEDIVAC, UnitTypeId.WARPPRISM} and u.tag not in self.enemy.suddenly_seen_units.tags)
                 if appeared_from_the_fog_enemies:
-                    nearby_allies = appeared_from_the_fog_enemies.closer_than(5, transport)
+                    nearby_allies = cy_closer_than(appeared_from_the_fog_enemies, 5, transport.position)
                     if nearby_allies:
                         # transport is not alone, not a drop
                         continue
-                if self.bot.in_pathing_grid(transport.position):
+                if cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, transport.position):
                     self.enemy_drop_transports.append(transport)
                     i = len(self.enemy_drop_locations) - 1
                     already_recorded = False
                     while i >= 0:
                         drop_position, _ = self.enemy_drop_locations[i]
-                        if transport.distance_to_squared(drop_position) < 36:
+                        if cy_distance_to_squared(transport.position, drop_position) < 36:
                             self.enemy_drop_locations[i] = (drop_position, self.bot.time)
                             LogHelper.add_log(f"Updated enemy drop location at {drop_position}")
                             already_recorded = True

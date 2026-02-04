@@ -1,6 +1,8 @@
-from typing import Dict
 from loguru import logger
+from typing import Dict
 
+from cython_extensions.geometry import cy_distance_to, cy_towards
+from cython_extensions.units_utils import cy_center, cy_closer_than
 from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
@@ -77,7 +79,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             if cc.is_flying:
                 destination = self.command_center_destinations.get(cc.tag, None)
                 if destination:
-                    ccs_at_destination = self.bot.townhalls.closer_than(5, destination)
+                    ccs_at_destination = Units(cy_closer_than(self.bot.townhalls, 5, destination), bot_object=self.bot)
                     if ccs_at_destination and cc.tag not in ccs_at_destination.tags:
                         # spot was taken, find a new one
                         destination = None
@@ -94,24 +96,24 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     bunker = self.bot.structures(UnitTypeId.BUNKER)
                     if bunker:
                         if threats:
-                            cc.move(bunker.first.position.towards(threats.center, -2))
+                            cc.move(Point2(cy_towards(bunker.first.position, Point2(cy_center(threats)), -2)))
                         else:
                             cc.move(bunker.first.position)
                     else:
-                        cc.move(self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 5))
+                        cc.move(Point2(cy_towards(self.bot.main_base_ramp.top_center, self.bot.start_location, 5)))
                 elif threats:
-                    nearby_enemies = threats.closer_than(15, cc)
+                    nearby_enemies = Units(cy_closer_than(threats, 15, cc.position), bot_object=self.bot)
                     if nearby_enemies:
                         threats = nearby_enemies.filter(lambda enemy: UnitTypes.can_attack_air(enemy))
                         if cc.health_percentage < 0.9:
                             bunker = self.bot.structures(UnitTypeId.BUNKER)
                             if bunker:
                                 if threats:
-                                    cc.move(bunker.first.position.towards(threats.center, -2))
+                                    cc.move(Point2(cy_towards(bunker.first.position, Point2(cy_center(threats)), -2)))
                                 else:
                                     cc.move(bunker.first.position)
                             else:
-                                cc.move(self.bot.main_base_ramp.top_center.towards(self.bot.start_location, 5))
+                                cc.move(Point2(cy_towards(self.bot.main_base_ramp.top_center, self.bot.start_location, 5)))
                         elif threats:
                             cc.move(self.bot.main_base_ramp.top_center)
                         else:
@@ -124,7 +126,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     cc.move(destination)
             else:
                 for expansion_location in self.bot.expansion_locations_list:
-                    if cc.position.distance_to(expansion_location) < 5:
+                    if cy_distance_to(cc.position, expansion_location) < 5:
                         break
                 else:
                     cc(AbilityId.LIFT)
@@ -147,7 +149,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         desired_position = self.bot.main_base_ramp.barracks_correct_placement
         if desired_position is None:
             return
-        barracks = self.bot.structures([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING]).ready.closer_than(3, desired_position)
+        barracks = Units(cy_closer_than(self.bot.structures([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING]).ready, 3, desired_position), bot_object=self.bot)
         if barracks.amount != 1:
             return
         ramp_barracks = barracks.first
@@ -160,10 +162,10 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 ramp_barracks.move(desired_position)
         elif not is_in_position:
             # Check if natural townhall is in position
-            natural_townhalls = self.bot.townhalls.filter(lambda th: th.distance_to(self.map.natural_position) < 1)
+            natural_townhalls = cy_closer_than(self.bot.townhalls, 1, self.map.natural_position)
             if not natural_townhalls:
                 return
-            if self.bot.enemy_units.closer_than(25, ramp_barracks):
+            if cy_closer_than(self.bot.enemy_units, 25, ramp_barracks.position):
                 # don't move if enemies are nearby
                 return
             
@@ -200,7 +202,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     continue
                 for stuck_unit in stuck_units:
                     # Unit is touching if distance is less than sum of radii
-                    distance = structure.position.distance_to(stuck_unit.position)
+                    distance = cy_distance_to(structure.position, stuck_unit.position)
                     if distance < (structure.radius + stuck_unit.radius + 0.5):
                         LogHelper.write_log_to_db("debug", f"Lifting {structure} to untrap unit")
                         self.last_lift_for_unstuck[structure.tag] = self.bot.time
@@ -255,6 +257,6 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
 
         # find unit that has most hidden enemies nearby then scan center of the group
         if enemies_to_scan:
-            most_grouped_enemy, grouped_enemies = self.get_most_grouped_unit(enemies_to_scan, self.bot, 13)
-            orbital_with_energy(AbilityId.SCANNERSWEEP_SCAN, grouped_enemies.center)
+            _, grouped_enemies = self.get_most_grouped_unit(enemies_to_scan, self.bot, 13)
+            orbital_with_energy(AbilityId.SCANNERSWEEP_SCAN, Point2(cy_center(grouped_enemies)))
             self.last_scan_time = self.bot.time

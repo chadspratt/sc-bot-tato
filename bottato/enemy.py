@@ -2,6 +2,8 @@ from collections import deque
 from loguru import logger
 from typing import Dict, List
 
+from cython_extensions.general_utils import cy_in_pathing_grid_burny
+from cython_extensions.geometry import cy_distance_to_squared
 from sc2.bot_ai import BotAI
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -33,7 +35,7 @@ class Enemy(GeometryMixin):
         self.last_seen_step: Dict[int, int] = {}
         self.last_seen_position: Dict[int, Point2] = {}
         self.last_seen_positions: Dict[int, deque] = {}
-        self.predicted_position: Dict[int, Point2] = {}
+        self.predicted_positions: Dict[int, Point2] = {}
         self.predicted_frame_vector: Dict[int, Point2] = {}
         self.squads_by_unit_tag: Dict[int, EnemySquad] = {}
         self.all_seen: Dict[UnitTypeId, set[int]] = {}
@@ -97,11 +99,11 @@ class Enemy(GeometryMixin):
                             break
                         new_prediction1 += predicted_vector
                         new_prediction2 -= predicted_vector
-                self.predicted_position[enemy_unit.tag] = new_prediction
+                self.predicted_positions[enemy_unit.tag] = new_prediction
 
                 if time_since_last_seen <= self.unit_probably_moved_seconds:
                     self.bot.client.debug_box2_out(
-                        self.convert_point2_to_3(self.predicted_position[enemy_unit.tag], self.bot),
+                        self.convert_point2_to_3(self.predicted_positions[enemy_unit.tag], self.bot),
                         half_vertex_length=enemy_unit.radius,
                         color=(255, 0, 0)
                     )
@@ -120,7 +122,7 @@ class Enemy(GeometryMixin):
             if enemy_unit.tag not in self.last_seen_positions:
                 self.last_seen_positions[enemy_unit.tag] = deque(maxlen=self.frames_of_movement_history)
             self.last_seen_positions[enemy_unit.tag].append(enemy_unit.position)
-            self.predicted_position[enemy_unit.tag] = enemy_unit.position
+            self.predicted_positions[enemy_unit.tag] = enemy_unit.position
             self.predicted_frame_vector[enemy_unit.tag] = self.get_average_movement_per_step(self.last_seen_positions[enemy_unit.tag])
             if enemy_unit.tag not in self.first_seen:
                 self.first_seen[enemy_unit.tag] = self.bot.time
@@ -141,7 +143,7 @@ class Enemy(GeometryMixin):
                                 break
                     if not added:
                         self.enemies_out_of_view.append(enemy_unit)
-                        self.predicted_position[enemy_unit.tag] = self.get_predicted_position(enemy_unit, 0)
+                        self.predicted_positions[enemy_unit.tag] = self.get_predicted_position(enemy_unit, 0)
                         self.last_seen_positions[enemy_unit.tag].append(None)
                         self.bot.client.debug_box2_out(
                             enemy_unit,
@@ -172,7 +174,7 @@ class Enemy(GeometryMixin):
             return unit.position
         if unit.age > 0 and unit not in self.enemies_out_of_view:
             return unit.position
-        last_predicted_position = self.predicted_position[unit.tag] if unit.tag in self.predicted_position else self.last_seen_position[unit.tag]
+        last_predicted_position = self.predicted_positions[unit.tag] if unit.tag in self.predicted_positions else self.last_seen_position[unit.tag]
         frame_vector = self.predicted_frame_vector[unit.tag]
         return self.predict_future_unit_position(unit, last_predicted_position, seconds_ahead, self.bot, frame_vector=frame_vector)
         
@@ -209,7 +211,7 @@ class Enemy(GeometryMixin):
             if remaining_distance < 1:
                 forward_unit_vector *= remaining_distance
             potential_position = future_position + forward_unit_vector
-            if not bot.in_pathing_grid(potential_position):
+            if not cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, potential_position):
                 return future_position
 
             future_position = potential_position
@@ -261,8 +263,8 @@ class Enemy(GeometryMixin):
         if found:
             del self.first_seen[unit_tag]
             # del self.last_seen_position[unit_tag]
-            if unit_tag in self.predicted_position:
-                del self.predicted_position[unit_tag]
+            if unit_tag in self.predicted_positions:
+                del self.predicted_positions[unit_tag]
 
     all_enemies_cache: Dict[float, Units] = {}
     @timed
@@ -297,7 +299,7 @@ class Enemy(GeometryMixin):
 
         for enemy_unit in targets:
             attack_range_squared = self.get_attack_range_with_buffer_squared(unit, enemy_unit, attack_range_buffer)
-            distance_squared = self.distance_squared(unit, enemy_unit, self.predicted_position)
+            distance_squared = self.safe_distance_squared(unit, enemy_unit)
 
             if distance_squared <= attack_range_squared:
                 in_range.append(enemy_unit)
@@ -305,6 +307,18 @@ class Enemy(GeometryMixin):
                     break
 
         return in_range
+    
+    def safe_distance_squared(self, unit1: Unit, unit2: Unit) -> float:
+        # can be used with out of view enemies
+        if unit1.age == 0 and unit2.age == 0:
+            return unit1.distance_to_squared(unit2)
+        unit1_pos = unit1.position
+        unit2_pos = unit2.position
+        if unit1.age != 0 and unit1.tag in self.predicted_positions:
+            unit1_pos = self.predicted_positions[unit1.tag]
+        if unit2.age != 0 and unit2.tag in self.predicted_positions:
+            unit2_pos = self.predicted_positions[unit2.tag]
+        return cy_distance_to_squared(unit1_pos, unit2_pos)
 
     unseen_threat_types: set[UnitTypeId] = set((
         UnitTypeId.SIEGETANKSIEGED,
@@ -321,7 +335,7 @@ class Enemy(GeometryMixin):
         for enemy_unit in attackers:
             buffer = 1 if enemy_unit.is_structure else attack_range_buffer
             attack_range_squared = self.get_attack_range_with_buffer_squared(enemy_unit, unit, buffer)
-            distance_squared = self.distance_squared(unit, enemy_unit, self.predicted_position)
+            distance_squared = self.safe_distance_squared(unit, enemy_unit)
 
             if distance_squared <= attack_range_squared:
                 in_range.append(enemy_unit)
@@ -347,7 +361,7 @@ class Enemy(GeometryMixin):
                 self.get_attack_range_with_buffer_squared(enemy_unit, friendly_unit, attack_range_buffer),
                 self.get_attack_range_with_buffer_squared(friendly_unit, enemy_unit, attack_range_buffer)
             )
-            distance_squared = self.distance_squared(friendly_unit, enemy_unit, self.predicted_position)
+            distance_squared = self.safe_distance_squared(friendly_unit, enemy_unit)
 
             if distance_squared <= attack_range_squared:
                 in_range.append(enemy_unit)
@@ -388,7 +402,7 @@ class Enemy(GeometryMixin):
             range_limit = range_limits[enemy_unit.type_id]
             if range_limit == 0.0:
                 continue
-            if self.distance_squared(friendly_unit, enemy_unit, self.predicted_position) < range_limit:
+            if self.safe_distance_squared(friendly_unit, enemy_unit) < range_limit:
                 threats.append(enemy_unit)
         return threats
 
@@ -451,9 +465,9 @@ class Enemy(GeometryMixin):
         for enemy in candidates:
             enemy_distance: float
             if seconds_ahead > 0:
-                enemy_distance = friendly_unit.distance_to_squared(self.get_predicted_position(enemy, seconds_ahead))
+                enemy_distance = cy_distance_to_squared(friendly_unit.position, self.get_predicted_position(enemy, seconds_ahead))
             else:
-                enemy_distance = self.distance_squared(friendly_unit, enemy, self.predicted_position)
+                enemy_distance = self.safe_distance_squared(friendly_unit, enemy)
             if (enemy_distance < nearest_distance):
                 nearest_enemy = enemy
                 nearest_distance = enemy_distance
@@ -484,7 +498,7 @@ class Enemy(GeometryMixin):
         if friendly_unit.type_id != UnitTypeId.RAVEN:
             candidates = candidates.filter(lambda enemy: UnitTypes.can_attack_target(friendly_unit, enemy))
         for enemy in candidates:
-            enemy_distance: float = self.distance_squared(friendly_unit, enemy, self.predicted_position)
+            enemy_distance: float = self.safe_distance_squared(friendly_unit, enemy)
             in_range_distance = self.get_attack_range_with_buffer_squared(friendly_unit, enemy, within_attack_buffer)
             if (enemy_distance < nearest_distance):
                 closest_enemy = enemy
@@ -508,9 +522,9 @@ class Enemy(GeometryMixin):
             distance_limit = (max_distance + enemy.radius + friendly_unit.radius) ** 2
             enemy_distance: float
             if seconds_ahead > 0:
-                enemy_distance = friendly_unit.distance_to_squared(self.get_predicted_position(enemy, seconds_ahead))
+                enemy_distance = cy_distance_to_squared(friendly_unit.position, self.get_predicted_position(enemy, seconds_ahead))
             else:
-                enemy_distance = self.distance_squared(friendly_unit, enemy, self.predicted_position)
+                enemy_distance = self.safe_distance_squared(friendly_unit, enemy)
             if enemy_distance <= distance_limit:
                 return (enemy, enemy_distance ** 0.5 - enemy.radius - friendly_unit.radius)
         return (None, 9999)
@@ -520,7 +534,7 @@ class Enemy(GeometryMixin):
         enemies_in_range: Units = Units([], self.bot)
         candidates = self.get_candidates(include_structures, include_units, include_destructables, excluded_types=excluded_types)
         for candidate in candidates:
-            range = self.distance(friendly_unit, candidate, self.predicted_position) - friendly_unit.radius - candidate.radius
+            range = self.distance(friendly_unit, candidate) - friendly_unit.radius - candidate.radius
             attack_range = UnitTypes.range_vs_target(friendly_unit, candidate)
             if range <= attack_range:
                 enemies_in_range.append(candidate)

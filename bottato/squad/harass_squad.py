@@ -1,7 +1,9 @@
 from __future__ import annotations
+
 import random
 from typing import Dict
 
+from cython_extensions.geometry import cy_distance_to, cy_towards
 from sc2.bot_ai import BotAI
 from sc2.data import race_townhalls
 from sc2.position import Point2, Point3
@@ -31,7 +33,6 @@ class HarassSquad(Squad, GeometryMixin):
     async def harass(self, intel: EnemyIntel):
         if not self.units:
             return
-        
 
         for unit in self.units:
             if unit.tag not in self.harass_locations:
@@ -57,7 +58,7 @@ class HarassSquad(Squad, GeometryMixin):
             nearby_enemies = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_target(u, unit) and u.distance_to_squared(unit) < 225)
             threatening_structures = self.bot.enemy_structures.filter(
                 lambda structure: structure.is_ready and UnitTypes.can_attack_target(structure, unit)
-                    and structure.distance_to(unit) < UnitTypes.range_vs_target(structure, unit) + 3)
+                    and cy_distance_to(structure.position, unit.position) < UnitTypes.range_vs_target(structure, unit) + 3)
 
             if not nearby_enemies and not threatening_structures:
                 await micro.harass(unit, self.harass_locations[unit.tag])
@@ -79,7 +80,7 @@ class HarassSquad(Squad, GeometryMixin):
                     # kite enemies that we outrange
                     move_position = nearest_threat.position
                     if unit.weapon_cooldown != 0:
-                        move_position = nearest_threat.position.towards(unit, enemy_range + 1)
+                        move_position = Point2(cy_towards(nearest_threat.position, unit.position, enemy_range + 1))
                     self.bot.client.debug_line_out(nearest_threat, self.convert_point2_to_3(move_position, self.bot), (255, 0, 0))
                     self.bot.client.debug_sphere_out(self.convert_point2_to_3(move_position, self.bot), 0.2, (255, 0, 0))
                     await micro.harass(unit, move_position)

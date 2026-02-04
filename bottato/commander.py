@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from loguru import logger
 
+from cython_extensions.geometry import cy_distance_to, cy_towards
 from sc2.bot_ai import BotAI
 from sc2.game_data import Cost
 from sc2.ids.ability_id import AbilityId
@@ -24,7 +25,7 @@ from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.micro.structure_micro import StructureMicro
 from bottato.military import Military
-from bottato.mixins import GeometryMixin, timed_async
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.squad.bunker import Bunker
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.scouting import Scouting
@@ -65,13 +66,13 @@ class Commander(GeometryMixin):
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.bot.game_info.map_center), 1, (255, 255, 255))
         # ramp_to_natural_vector = (self.map.natural_position - self.bot.main_base_ramp.bottom_center).normalized
         # ramp_to_natural_perp_vector = Point2((-ramp_to_natural_vector.y, ramp_to_natural_vector.x))
-        # toward_natural = self.bot.main_base_ramp.bottom_center.towards(self.map.natural_position, 3)
+        # toward_natural = Point2(cy_towards(self.bot.main_base_ramp.bottom_center, self.map.natural_position, 3))
         # candidates = [toward_natural + ramp_to_natural_perp_vector * 3, toward_natural - ramp_to_natural_perp_vector * 3]
-        # candidates.sort(key=lambda p: p.distance_to(self.bot.game_info.map_center))
+        # candidates.sort(key=lambda p: cy_distance_to_squared(p, self.bot.game_info.map_center))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(toward_natural), 1, (0, 255, 0))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(candidates[0]), 1, (255, 255, 255))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(candidates[1]), 1, (255, 255, 0))
-        # self.bot.client.debug_sphere_out(self.convert_point2_to_3(toward_natural.towards(self.bot.game_info.map_center, 3)), 1, (0, 0, 255))
+        # self.bot.client.debug_sphere_out(self.convert_point2_to_3(Point2(cy_towards(toward_natural, self.bot.game_info.map_center, 3)), 1, (0, 0, 255))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(nearest_worker.position, self.bot), 3, (255, 0, 0))
 
         await self.map.refresh_map() # fast
@@ -105,6 +106,7 @@ class Commander(GeometryMixin):
         self.new_damage_by_unit.clear()
         self.new_damage_by_position.clear()
 
+    @timed
     def add_custom_effects_to_avoid(self):
         blueprints = self.build_order.get_blueprints()
         for blueprint in blueprints:
@@ -175,12 +177,13 @@ class Commander(GeometryMixin):
         self.production.add_builder(unit)
         if unit.type_id == UnitTypeId.BARRACKS and len(self.bot.structures(UnitTypeId.BARRACKS)) == 1:
             # set rally point for first barracks away from ramp
-            unit(AbilityId.RALLY_UNITS, unit.position.towards(self.bot.main_base_ramp.top_center, -2))
+            rally_point = Point2(cy_towards(unit.position, self.bot.main_base_ramp.top_center, -2))
+            unit(AbilityId.RALLY_UNITS, rally_point)
         elif unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT):
             unit(AbilityId.RALLY_UNITS, self.bot.game_info.map_center)
         elif unit.type_id == UnitTypeId.BUNKER:
             if not self.military.top_ramp_bunker.structure:
-                distance_to_top_ramp = unit.position.distance_to(self.bot.main_base_ramp.barracks_correct_placement) # type: ignore
+                distance_to_top_ramp = cy_distance_to(unit.position, self.bot.main_base_ramp.barracks_correct_placement) # type: ignore
                 if distance_to_top_ramp < 6:
                     self.military.top_ramp_bunker.structure = unit
                     return

@@ -24,5 +24,5 @@ build-backend = "hatchling.build"
 [tool.isort]
 profile = "black"
 extra_standard_library = ["loguru"]
-known_third_party = ["sc2", "MapAnalyzer"]
+known_third_party = ["sc2", "MapAnalyzer", "cython_extensions"]
 known_first_party = ["bottato"]

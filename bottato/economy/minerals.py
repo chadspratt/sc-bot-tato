@@ -2,15 +2,17 @@ import math
 from loguru import logger
 from typing import List
 
+from cython_extensions.geometry import cy_distance_to, cy_towards
+from cython_extensions.units_utils import cy_closer_than
 from sc2.bot_ai import BotAI
-from sc2.units import Units
-from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
+from sc2.unit import Unit
+from sc2.units import Units
 
+from bottato.economy.resources import ResourceNode, Resources
 from bottato.map.map import Map
 from bottato.mixins import timed
-from bottato.economy.resources import ResourceNode, Resources
 from bottato.unit_reference_helper import UnitReferenceHelper
 
 
@@ -77,7 +79,7 @@ class Minerals(Resources):
                 townhall_in_position = townhall.position.distance_to_closest(self.bot.expansion_locations_list) < 1
                 mineral_distance = 8 if townhall_in_position else 15
                 self.known_townhall_tags.append(townhall.tag)
-                for mineral in self.bot.mineral_field.closer_than(mineral_distance, townhall):
+                for mineral in cy_closer_than(self.bot.mineral_field, mineral_distance, townhall.position):
                     logger.debug(f"adding mineral patch {mineral}")
                     self.add_node(mineral)
                     self.add_mining_position(mineral, townhall)
@@ -98,8 +100,8 @@ class Minerals(Resources):
                 townhall_pos = townhall.position
             else:
                 townhall_pos = mineral_node.position.closest(self.bot.expansion_locations_list)
-            target = mineral_node.position.towards(townhall_pos, self.MINING_RADIUS)
-            close_minerals = self.bot.mineral_field.closer_than(self.MINING_RADIUS, target)
+            target = Point2(cy_towards(mineral_node.position, townhall_pos, self.MINING_RADIUS))
+            close_minerals = cy_closer_than(self.bot.mineral_field, self.MINING_RADIUS, target)
             for close_mineral in close_minerals:
                 if close_mineral.tag != mineral_node.tag:
                     candidates = mineral_node.position.circle_intersection(close_mineral.position, self.MINING_RADIUS)
@@ -117,7 +119,7 @@ class Minerals(Resources):
                 closest_distance = float('inf')
                 closest_node = None
                 for candidate, distance in mineral_distances.items():
-                    adjusted_distance = distance - candidate.distance_to(self.bot.enemy_start_locations[0])
+                    adjusted_distance = distance - cy_distance_to(candidate.position, self.bot.enemy_start_locations[0])
                     if adjusted_distance < closest_distance:
                         closest_distance = adjusted_distance
                         closest_node = candidate

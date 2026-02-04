@@ -2,6 +2,8 @@ import math
 import random
 from typing import Dict, List, Set, Tuple
 
+from cython_extensions.geometry import cy_distance_to, cy_towards
+from cython_extensions.units_utils import cy_closer_than, cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.game_data import Cost
@@ -93,7 +95,7 @@ class BuildOrder():
         if self.bot.time < 360 and (self.bot.enemy_units.filter(lambda u: u.type_id in (
                 UnitTypeId.TEMPEST, UnitTypeId.BATTLECRUISER, UnitTypeId.CARRIER,
                 UnitTypeId.WIDOWMINE, UnitTypeId.SWARMHOSTMP)) \
-                    or self.map.natural_position and self.bot.enemy_units.closer_than(25, self.map.natural_position).amount >= 10):
+                    or self.map.natural_position and len(cy_closer_than(self.bot.enemy_units, 25, self.map.natural_position)) >= 10):
             # abort static build order if we need a specialized response
             self.static_queue = self.static_queue[:10]
 
@@ -577,7 +579,7 @@ class BuildOrder():
     def queue_marines(self, detected_enemy_builds: Dict[BuildType, float], army_ratio: float) -> None:
         # use excess minerals and idle barracks
         need_early_marines: bool = self.bot.time < 300 and army_ratio < 0.8 and \
-            (BuildType.RUSH in detected_enemy_builds or self.bot.enemy_units.closer_than(20, self.map.natural_position).amount > 2)
+            (BuildType.RUSH in detected_enemy_builds or len(cy_closer_than(self.bot.enemy_units, 20, self.map.natural_position)) > 2)
             
         if need_early_marines and self.bot.minerals >= 50 and self.bot.structures(UnitTypeId.BARRACKSREACTOR):
             idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
@@ -716,8 +718,8 @@ class BuildOrder():
         if main_army_staging_location._distance_squared(self.bot.start_location) < 225:
             return
         bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
-        closest_bunker = bunkers.closest_to(main_army_staging_location) if bunkers else None
-        if closest_bunker and closest_bunker.distance_to(main_army_staging_location) < 10:
+        closest_bunker = cy_closest_to(main_army_staging_location, bunkers) if bunkers else None
+        if closest_bunker and cy_distance_to(closest_bunker.position, main_army_staging_location) < 10:
             # already have a bunker near main army
             return
         path_to_enemy = self.map.get_path(main_army_staging_location, self.bot.enemy_start_locations[0])
@@ -726,10 +728,11 @@ class BuildOrder():
         position_is_valid = await self.bot.can_place_single(UnitTypeId.BUNKER, placement_position)
         while not position_is_valid and len(path_to_enemy.zones) > 1:
             next_waypoint = path_to_enemy.zones[1].midpoint
-            placement_position = placement_position.towards(next_waypoint, 1, limit=True)
+            towards_distance = min(1, cy_distance_to(placement_position, next_waypoint))
+            placement_position = Point2(cy_towards(placement_position, next_waypoint, towards_distance))
             if placement_position.manhattan_distance(next_waypoint) < 0.1:
                 path_to_enemy.zones.pop(0)
-            if closest_bunker and closest_bunker.distance_to(placement_position) < 10:
+            if closest_bunker and cy_distance_to(closest_bunker.position, placement_position) < 10:
                 break
             position_is_valid = await self.bot.can_place_single(UnitTypeId.BUNKER, placement_position)
             

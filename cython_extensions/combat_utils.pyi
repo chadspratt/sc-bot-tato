@@ -63,7 +63,7 @@ def cy_get_turn_speed(unit: Unit, unit_type_id: UnitTypeId) -> float:
     """
     ...
 
-def cy_is_facing(unit: Unit, other_unit: int, angle_error: float) -> bool:
+def cy_is_facing(unit: Unit, other_unit: Unit, angle_error: float) -> bool:
     """Get whether unit is facing other unit
 
     Example:
@@ -83,7 +83,7 @@ def cy_is_facing(unit: Unit, other_unit: int, angle_error: float) -> bool:
 
     Args:
         unit: The actual unit we are checking.
-        other_unit: The unit type ID integer value.
+        other_unit: The other unit we are checking against.
         angle_error: Some leeway when deciding if a unit is facing the other unit.
         Defaults to 0.3.
 

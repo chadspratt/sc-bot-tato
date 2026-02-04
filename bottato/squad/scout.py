@@ -1,10 +1,13 @@
-from typing import List
 from loguru import logger
+from typing import List
 
+from cython_extensions.geometry import cy_distance_to, cy_distance_to_squared
+from cython_extensions.units_utils import cy_closer_than, cy_closest_to
 from sc2.bot_ai import BotAI
-from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.unit import Unit
 
+from bottato.economy.workers import WorkerJobType, Workers
 from bottato.enemy import Enemy
 from bottato.enums import ScoutType
 from bottato.log_helper import LogHelper
@@ -14,7 +17,6 @@ from bottato.micro.micro_factory import MicroFactory
 from bottato.military import Military
 from bottato.squad.scouting_location import ScoutingLocation
 from bottato.squad.squad import Squad
-from bottato.economy.workers import Workers, WorkerJobType
 from bottato.unit_reference_helper import UnitReferenceHelper
 
 
@@ -57,9 +59,9 @@ class Scout(Squad):
                     # add distance to nearest pathing grid point
                     path_points = map.get_path_points(previous_location.scouting_position, location.scouting_position)
                     for i in range(1, len(path_points)):
-                        total_distance += path_points[i-1].distance_to(path_points[i])
+                        total_distance += cy_distance_to(path_points[i-1], path_points[i])
                 else:
-                    total_distance += previous_location.scouting_position.distance_to(location.scouting_position)
+                    total_distance += cy_distance_to(previous_location.scouting_position, location.scouting_position)
                 if total_distance > best_distance:
                     break
                 previous_location = location
@@ -73,7 +75,7 @@ class Scout(Squad):
             return [current_route]
         routes: List[List[ScoutingLocation]] = []
         previous_location = current_route[-1]
-        sorted_unvisited = sorted(unvisited, key=lambda loc: previous_location.scouting_position._distance_squared(loc.scouting_position))
+        sorted_unvisited = sorted(unvisited, key=lambda loc: cy_distance_to_squared(previous_location.scouting_position, loc.scouting_position))
         for i in range(len(sorted_unvisited)):
             if i > 2:
                 # limit branching factor for performance
@@ -138,7 +140,7 @@ class Scout(Squad):
         elif scout_type == ScoutType.ANY and not self.complete:
             self.unit = workers.get_scout(self.bot.game_info.map_center)
         elif self.bot.is_visible(self.bot.enemy_start_locations[0]) and \
-                not self.bot.enemy_structures.closer_than(10, self.bot.enemy_start_locations[0]):
+                not cy_closer_than(self.bot.enemy_structures, 10, self.bot.enemy_start_locations[0]):
             # start territory scouting if enemy main is empty
             for unit in military.main_army.units:
                 if self.needs(unit):
@@ -167,10 +169,10 @@ class Scout(Squad):
         if self.unit.type_id == UnitTypeId.VIKINGFIGHTER:
             enemy_bcs = self.bot.enemy_units.of_type(UnitTypeId.BATTLECRUISER)
             if enemy_bcs:
-                await micro.scout(self.unit, enemy_bcs.closest_to(self.unit).position)
+                await micro.scout(self.unit, cy_closest_to(self.unit.position, enemy_bcs).position)
                 return
 
-        distance_to_next_location = self.unit.distance_to(assignment.scouting_position)
+        distance_to_next_location = cy_distance_to(self.unit.position, assignment.scouting_position)
         if distance_to_next_location < self.closest_distance_to_next_location:
             self.closest_distance_to_next_location = distance_to_next_location
             self.time_of_closest_distance = self.bot.time

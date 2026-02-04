@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from cython_extensions.units_utils import cy_closer_than
 from sc2.ids.buff_id import BuffId
 from sc2.position import Point2
 from sc2.unit import Unit
+from sc2.units import Units
 
 from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -26,7 +28,7 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
 
         if not self.valid_targets:
             return UnitMicroType.NONE
-        nearby_enemies = self.valid_targets.closer_than(20, unit).sorted(lambda u: u.health + u.shield)
+        nearby_enemies = Units(cy_closer_than(self.valid_targets, 20, unit.position), bot_object=self.bot).sorted(lambda u: u.health + u.shield)
         if not nearby_enemies:
             return UnitMicroType.NONE
         

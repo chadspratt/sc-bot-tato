@@ -5,13 +5,13 @@ from loguru import logger
 from time import perf_counter
 from typing import Dict, List
 
+from cython_extensions import cy_distance_to_squared
+from cython_extensions.geometry import cy_distance_to
+from cython_extensions.units_utils import cy_closer_than
 from sc2.bot_ai import BotAI
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
-
-from cython_extensions import cy_distance_to_squared
-from cython_extensions.geometry import cy_distance_to
 
 # Global timer storage for decorator
 _decorator_timers: Dict[str, float] = {}
@@ -130,8 +130,6 @@ class GeometryMixin:
 
     @staticmethod
     def distance(unit1: Unit | Point2, unit2: Unit | Point2, predicted_positions: Dict[int, Point2] | None = None) -> float:
-        if isinstance(unit1, Unit) and isinstance(unit2, Unit) and unit1.age == 0 and unit2.age == 0:
-            return unit1.distance_to(unit2)
         if predicted_positions is not None:
             if isinstance(unit1, Unit) and unit1.age != 0:
                 try:
@@ -146,20 +144,9 @@ class GeometryMixin:
         return cy_distance_to(unit1.position, unit2.position)
         
     @staticmethod
-    def distance_squared(unit1: Unit | Point2, unit2: Unit | Point2, predicted_positions: Dict[int, Point2] | None = None) -> float:
+    def distance_squared(unit1: Unit | Point2, unit2: Unit | Point2) -> float:
         if isinstance(unit1, Unit) and isinstance(unit2, Unit) and unit1.age == 0 and unit2.age == 0:
             return unit1.distance_to_squared(unit2)
-        if predicted_positions is not None:
-            if isinstance(unit1, Unit) and unit1.age != 0:
-                try:
-                    unit1 = predicted_positions[unit1.tag]
-                except KeyError:
-                    pass
-            if isinstance(unit2, Unit) and unit2.age != 0:
-                try:
-                    unit2 = predicted_positions[unit2.tag]
-                except KeyError:
-                    pass
         return cy_distance_to_squared(unit1.position, unit2.position)
 
     @staticmethod
@@ -207,7 +194,7 @@ class GeometryMixin:
 
     @staticmethod
     def get_triangle_point_c(point_a: Point2, point_b: Point2, a_c_distance: float, b_c_distance: float) -> tuple[Point2, Point2] | None:
-        a_b_distance = point_a.distance_to(point_b)
+        a_b_distance = cy_distance_to(point_a, point_b)
         if a_b_distance > a_c_distance + b_c_distance or a_c_distance > a_b_distance + b_c_distance or b_c_distance > a_b_distance + a_c_distance:
             return None
         a_b_distance_sq = a_b_distance ** 2
@@ -225,19 +212,19 @@ class GeometryMixin:
     def get_most_grouped_unit(units: Units, bot: BotAI, range: float = 10) -> tuple[Unit, Units]:
         assert units, "units list is empty"
         most_nearby_unit: Unit = units[0]
-        most_nearby_units: Units = Units([], bot_object=bot)
+        most_nearby_units: List[Unit] = [units[0]]
         for unit in units:
-            nearby_units = units.filter(lambda u: u.position.manhattan_distance(unit.position) < range)
-            if nearby_units.amount > most_nearby_units.amount:
+            nearby_units = cy_closer_than(units, range, unit.position)
+            if len(nearby_units) > len(most_nearby_units):
                 most_nearby_unit = unit
                 most_nearby_units = nearby_units
-        return (most_nearby_unit, most_nearby_units)
+        return (most_nearby_unit, Units(most_nearby_units, bot_object=bot))
     
     @staticmethod
     def position_is_between(point: Point2, point_a: Point2, point_b: Point2) -> bool:
-        ab_distance = point_a._distance_squared(point_b)
-        ap_distance = point_a._distance_squared(point)
-        pb_distance = point._distance_squared(point_b)
+        ab_distance = cy_distance_to_squared(point_a, point_b)
+        ap_distance = cy_distance_to_squared(point_a, point)
+        pb_distance = cy_distance_to_squared(point, point_b)
         return ap_distance < ab_distance and pb_distance < ab_distance 
     
     def vectors_go_same_direction(self, vec1: Point2, vec2: Point2) -> bool:

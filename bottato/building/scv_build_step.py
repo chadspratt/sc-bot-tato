@@ -2,6 +2,9 @@ import math
 from loguru import logger
 from typing import Dict
 
+from cython_extensions.geometry import cy_distance_to, cy_distance_to_squared
+from cython_extensions.type_checking.wrappers import cy_towards
+from cython_extensions.units_utils import cy_closer_than, cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
@@ -236,7 +239,7 @@ class SCVBuildStep(BuildStep):
                     candidates[offset_index] = candidate
                     offset_index = (offset_index + 1) % 3
                 # go a few more so it won't select a nearby low ground spot
-                candidate = candidate.towards(self.bot.start_location, distance=2)
+                candidate = Point2(cy_towards(candidate, self.bot.start_location, distance=2))
                 new_build_position = await self.bot.find_placement(
                     unit_type_id,
                     near=candidate,
@@ -252,7 +255,7 @@ class SCVBuildStep(BuildStep):
                 available_expansions = []
                 for location in sorted_expansions:
                     def is_near_to_expansion(t: Unit):
-                        return t.position.distance_to(location.expansion_position) < self.bot.EXPANSION_GAP_THRESHOLD
+                        return cy_distance_to(t.position, location.expansion_position) < self.bot.EXPANSION_GAP_THRESHOLD
 
                     if any(map(is_near_to_expansion, self.bot.townhalls)):
                         # already taken
@@ -298,15 +301,14 @@ class SCVBuildStep(BuildStep):
                     and self.no_position_count == 0:
                 # try to build near edge of high ground towards natural
                 # high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
-                ramp_barracks = self.bot.structures.of_type(UnitTypeId.BARRACKS).closest_to(self.bot.main_base_ramp.barracks_correct_placement) # type: ignore
+                ramp_barracks = cy_closest_to(self.bot.main_base_ramp.barracks_correct_placement, self.bot.structures.of_type(UnitTypeId.BARRACKS)) # type: ignore
                 candidates = await SpecialLocations.get_bunker_positions(
                     self.bot.main_base_ramp.bottom_center,
                     ramp_barracks.position,
                     self.bot
                 )
                 # candidates = [(depot_position + ramp_barracks.position) / 2 for depot_position in self.bot.main_base_ramp.corner_depots]
-                candidate = min(candidates, key=lambda p: self.bot.start_location.distance_to(p))
-                # candidate = candidate.towards(self.bot.main_base_ramp.top_center.towards(ramp_barracks.position, distance=2), distance=-1)
+                candidate = min(candidates, key=lambda p: cy_distance_to_squared(self.bot.start_location, p))
             elif self.bot.structures.of_type(UnitTypeId.BUNKER).amount < 2:
                 ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
                 # enemy_start: Point2 = self.bot.enemy_start_locations[0]
@@ -314,13 +316,13 @@ class SCVBuildStep(BuildStep):
                 ramp_to_natural_perp_vector = Point2((-ramp_to_natural_vector.x, ramp_to_natural_vector.y))
                 toward_natural = ramp_position + ramp_to_natural_vector * 3
                 candidates = [toward_natural + ramp_to_natural_perp_vector * 3, toward_natural - ramp_to_natural_perp_vector * 3]
-                candidates.sort(key=lambda p: p.distance_to(self.bot.game_info.map_center))
+                candidates.sort(key=lambda p: cy_distance_to_squared(p, self.bot.game_info.map_center))
                 candidate = candidates[0]
             else:
                 # find_placement only supports first 2 bunkers, 
                 return None
             retry_count = 0
-            while not new_build_position or new_build_position._distance_squared(self.map.natural_position) < 16:
+            while not new_build_position or cy_distance_to_squared(new_build_position, self.map.natural_position) < 16:
                 if retry_count > 5:
                     new_build_position = None
                     break
@@ -336,7 +338,7 @@ class SCVBuildStep(BuildStep):
                 if not turrets or self.closest_distance_squared(base, turrets) > 100: # 10 squared
                     new_build_position = await self.bot.find_placement(
                         unit_type_id,
-                        near=base.position.towards(self.bot.game_info.map_center, distance=-4),
+                        near=Point2(cy_towards(base.position, self.bot.game_info.map_center, distance=-4)),
                         placement_step=2,
                     )
                     break
@@ -354,7 +356,7 @@ class SCVBuildStep(BuildStep):
         if new_build_position:
             if self.bot.all_enemy_units:
                 threats = self.bot.all_enemy_units.filter(lambda u: UnitTypes.can_attack_ground(u) and u.type_id not in UnitTypes.WORKER_TYPES)
-                if threats and threats.closer_than(10, new_build_position):
+                if threats and cy_closer_than(threats, 10, new_build_position):
                     logger.debug(f"found enemy near proposed build position {new_build_position}, rejecting")
                     return None
                 
@@ -364,7 +366,7 @@ class SCVBuildStep(BuildStep):
                 else:
                     # build position isn't at the exact expansion location, may have been blocked
                     for build_pos in list(self.attempted_expansion_positions.keys()):
-                        if new_build_position.distance_to(build_pos) < 10:
+                        if cy_distance_to(new_build_position, build_pos) < 10:
                             self.attempted_expansion_positions[build_pos] += 1
                             break
         return new_build_position
@@ -471,7 +473,7 @@ class SCVBuildStep(BuildStep):
                 vespene_geysirs = vespene_geysirs.filter(
                     lambda geysir: self.bot.gas_buildings.closest_distance_to(geysir) > 1)
             if vespene_geysirs:
-                return vespene_geysirs.closest_to(self.bot.start_location)
+                return cy_closest_to(self.bot.start_location, vespene_geysirs)
         return None
 
     @timed_async
@@ -517,7 +519,7 @@ class SCVBuildStep(BuildStep):
                         LogHelper.add_log(f"{self} interrupted due to unit not constructing")
             if not interrupted:
                 if self.unit_being_built is None:
-                    if self.unit_in_charge.distance_to_squared(self.position) < 9 and \
+                    if cy_distance_to_squared(self.unit_in_charge.position, self.position) < 9 and \
                             self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
                         self.worker_in_position_time = self.bot.time
                     elif self.worker_in_position_time is not None and self.bot.time - self.worker_in_position_time > 5 and \
@@ -529,7 +531,7 @@ class SCVBuildStep(BuildStep):
                     self.unit_in_charge.smart(self.unit_being_built)
             if not interrupted:
                 # check for interruption due to nearby enemies
-                if self.position.distance_to(self.bot.start_location) < 15:
+                if cy_distance_to(self.position, self.bot.start_location) < 15:
                     # don't interrupt builds in main base
                     return False
                 threats = self.bot.enemy_units.filter(
@@ -549,7 +551,8 @@ class SCVBuildStep(BuildStep):
         return interrupted
     
     def set_interrupted(self):
-        self.position = None
+        if self.unit_type_id != UnitTypeId.BUNKER:
+            self.position = None
         self.geysir = None
         self.worker_in_position_time = None
         if self.unit_in_charge:

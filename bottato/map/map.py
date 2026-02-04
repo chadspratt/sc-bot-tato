@@ -5,6 +5,8 @@ from loguru import logger
 from typing import Dict, List, Set, Tuple
 
 import numpy as np
+from cython_extensions.geometry import cy_distance_to, cy_distance_to_squared
+from cython_extensions.units_utils import cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -58,7 +60,7 @@ class Map(GeometryMixin):
         # uses pathing so has to be called after map is initialized
         self.expansion_orders[ExpansionSelection.CLOSEST] = sorted(
             self.scouting_locations,
-            key=lambda loc: loc.expansion_position.distance_to(self.bot.start_location)
+            key=lambda loc: cy_distance_to_squared(loc.expansion_position, self.bot.start_location)
         )
         self.expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY] = sorted(
             self.scouting_locations,
@@ -70,7 +72,7 @@ class Map(GeometryMixin):
         # compute both for enemy because we don't know which they use
         self.enemy_expansion_orders[ExpansionSelection.CLOSEST] = sorted(
             self.scouting_locations,
-            key=lambda loc: loc.expansion_position.distance_to(self.bot.enemy_start_locations[0])
+            key=lambda loc: cy_distance_to_squared(loc.expansion_position, self.bot.enemy_start_locations[0])
         )
         self.enemy_expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY] = sorted(
             self.scouting_locations,
@@ -264,7 +266,7 @@ class Map(GeometryMixin):
                                 continue
                             average_midpoint1 = Point2.center([Point2(c) for c in zone.coords])
                             average_midpoint2 = Point2.center([Point2(c) for c in point_zone.coords])
-                            midpoint_distance = average_midpoint1.distance_to(average_midpoint2)
+                            midpoint_distance = cy_distance_to(average_midpoint1, average_midpoint2)
                             if midpoint_distance < 3 or current_distance_to_edge == distance_from_edge[neighbor] and midpoint_distance < 6:
                                 # merge zones if the result won't be too large
                                 for coords in point_zone.coords:
@@ -352,7 +354,7 @@ class Map(GeometryMixin):
                 if previous_point is None:
                     previous_point = path_point
                 else:
-                    distance += previous_point.distance_to(path_point)
+                    distance += cy_distance_to(previous_point, path_point)
                     previous_point = path_point
             if distance < shortest_distance:
                 shortest_distance = distance
@@ -370,7 +372,7 @@ class Map(GeometryMixin):
                 closest_unit = unit
         if closest_unit is None:
             # fallback to direct distance
-            closest_unit = units.closest_to(end)
+            closest_unit = cy_closest_to(end, units)
             self.get_path(units[0].position, end)
         return closest_unit
 
@@ -385,7 +387,7 @@ class Map(GeometryMixin):
                 closest_position = position
         if closest_position is None:
             for position in positions:
-                distance = position.distance_to(end)
+                distance = cy_distance_to(position, end)
                 if distance < shortest_distance:
                     shortest_distance = distance
                     closest_position = position
@@ -455,8 +457,7 @@ class Map(GeometryMixin):
                 pathable_cost = grid[int(pathable_position.x), int(pathable_position.y)]
             if position_cost <= pathable_cost and pathable_position._distance_squared(position) < 2.25:
                 pathable_position = position
-            elif unit:
-                # position is out of formation, mark it as an obstacle to other units
+            elif unit and not unit.is_flying:
                 self.influence_maps.add_cost((pathable_position[0], pathable_position[1]), unit.radius, self.ground_grid, np.inf)
         return pathable_position
 
@@ -520,7 +521,7 @@ class Map(GeometryMixin):
     def _distance_minus_enemy_distance(self, location: ScoutingLocation, start_position: Point2, enemy_start_position: Point2) -> float:
         """Helper function for sorting expansions by distance from enemy."""
         path = self.get_path(start_position, location.expansion_position)
-        return path.length - location.expansion_position.distance_to(enemy_start_position)
+        return path.length - cy_distance_to(location.expansion_position, enemy_start_position)
 
     checked_zones = set()
     zones_to_check: List[Zone] = []
@@ -539,7 +540,7 @@ class Map(GeometryMixin):
                     terrain_height = self.bot.get_terrain_z_height(point)
                     if terrain_height > 0:
                         # also avoid blocking natural with depot
-                        if self.natural_position and point.distance_to(self.natural_position) <= 4:
+                        if self.natural_position and cy_distance_to(point, self.natural_position) <= 4:
                             continue
                         can_place = await self.bot.can_place(UnitTypeId.SUPPLYDEPOT, [point])
                         if can_place[0]:

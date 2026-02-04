@@ -1,9 +1,12 @@
 from loguru import logger
 from typing import List
 
+from cython_extensions.general_utils import cy_in_pathing_grid_burny
+from cython_extensions.geometry import cy_distance_to, cy_towards
 from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
@@ -64,8 +67,8 @@ class InitialScout(Squad, GeometryMixin):
                 y_offset = radius * math.sin(angle_radians)
                 waypoint = Point2((enemy_start.x + x_offset, enemy_start.y + y_offset))
                 retries = 0
-                while not self.bot.in_pathing_grid(waypoint) and retries < 5:
-                    waypoint = waypoint.towards(enemy_start, 1)
+                while not cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, waypoint) and retries < 5:
+                    waypoint = Point2(cy_towards(waypoint, enemy_start, 1))
                     retries += 1
                 if retries != 5:
                     self.waypoints.append(waypoint)
@@ -117,15 +120,15 @@ class InitialScout(Squad, GeometryMixin):
         
         if self.unit.health_percentage < 0.7 or self.do_natural_check:
             self.waypoints = [self.map.enemy_natural_position]  # check natural before leaving
-            if self.unit.distance_to(self.map.enemy_natural_position) < 9:
-                if self.intel.enemy_race_confirmed == Race.Terran:
+            if cy_distance_to(self.unit.position, self.map.enemy_natural_position) < 9:
+                if self.intel.enemy_race_confirmed == Race.Terran and self.bot.enemy_structures(UnitTypeId.COMMANDCENTER).amount < 2:
                     # terran takes longer to start natural?
                     self.completed = self.bot.time > 150
                 else:
                     self.completed = True
                     self.intel.mark_initial_scout_complete()
         elif self.last_waypoint:
-            if self.unit.distance_to(self.waypoints[0]) <= 5:
+            if cy_distance_to(self.unit.position, self.waypoints[0]) <= 5:
                 if self.waypoints[0] == self.last_waypoint:
                     if self.intel.enemy_builds_detected:
                         self.completed = True
@@ -143,7 +146,7 @@ class InitialScout(Squad, GeometryMixin):
             i = 0
             while i < len(self.waypoints):
                 # remove waypoints as they are checked
-                if self.unit.distance_to(self.waypoints[i]) <= 5:
+                if cy_distance_to(self.unit.position, self.waypoints[i]) <= 5:
                     if not self.waypoints_completed and len(self.waypoints) == len(self.original_waypoints):
                         # first waypoint reached, reorder original waypoints to start from this one
                         self.original_waypoints = self.original_waypoints[i:] + self.original_waypoints[:i]

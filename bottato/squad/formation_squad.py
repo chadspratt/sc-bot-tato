@@ -3,6 +3,7 @@ from __future__ import annotations
 from loguru import logger
 from typing import Dict, List, Tuple
 
+from cython_extensions.units_utils import cy_center
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
@@ -72,7 +73,7 @@ class FormationSquad(Squad, GeometryMixin):
         if self.parent_formation.front_center:
             return self.parent_formation.front_center
         elif self.units:
-            return self.units.center
+            return Point2(cy_center(self.units))
         return self.bot.start_location
 
     def transfer(self, unit: Unit, to_squad: Squad):

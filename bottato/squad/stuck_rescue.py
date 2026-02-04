@@ -1,8 +1,9 @@
 
 from typing import Dict, List
 
-from sc2.ids.ability_id import AbilityId
+from cython_extensions.geometry import cy_distance_to_squared, cy_towards
 from sc2.bot_ai import BotAI
+from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -49,9 +50,9 @@ class StuckRescue(Squad):
                 self.is_loaded = False
                 self.dropoff = None
             else:
-                self.dropoff = self.main_army.position.towards(self.bot.start_location, 8)
+                self.dropoff = Point2(cy_towards(self.main_army.position, self.bot.start_location, 8))
                 self.transport.move(self.dropoff)
-                if self.transport.distance_to_squared(self.dropoff) < 25:
+                if cy_distance_to_squared(self.transport.position, self.dropoff) < 25:
                     self.transport(AbilityId.UNLOADALLAT, self.transport)
                     for tag in self.transport.passengers_tags:
                         self.pending_unload.add(tag)

@@ -1,11 +1,18 @@
 from __future__ import annotations
-from typing import Dict, Tuple
-from loguru import logger
 
-from sc2.position import Point2
-from sc2.unit import Unit
+from loguru import logger
+from typing import Dict, Tuple
+
+from cython_extensions.geometry import (
+    cy_distance_to,
+    cy_distance_to_squared,
+    cy_towards,
+)
+from cython_extensions.units_utils import cy_closer_than, cy_closest_to
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.position import Point2
+from sc2.unit import Unit
 
 from bottato.enums import UnitMicroType
 from bottato.log_helper import LogHelper
@@ -152,7 +159,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 # keep sieged if enemy might get lured closer, decrease extra buffer over time
                 unsiege_range = max(25 - min(time_since_last_transform, time_since_last_siege_attack), self.sieged_range)
             elif has_high_ground_advantage and closest_enemy:
-                closer_position = unit.position.towards(closest_enemy.position, 1)
+                closer_position = Point2(cy_towards(unit.position, closest_enemy.position, 1))
                 if self.bot.get_terrain_height(closer_position) < tank_height:
                     # be reluctant to leave high ground
                     unsiege_range += 5
@@ -162,7 +169,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         else:
         # elif closest_enemy and friendly_buffer_count >= 5 or closest_structure_distance < closest_distance:
             if has_high_ground_advantage and closest_enemy and closest_enemy_distance > self.sieged_range:
-                closer_position = closest_enemy.position.towards(unit, self.sieged_range)
+                closer_position = Point2(cy_towards(closest_enemy.position, unit.position, self.sieged_range))
                 if self.bot.get_terrain_height(closer_position) == tank_height:
                     unit.move(closer_position)
                     return UnitMicroType.MOVE
@@ -216,8 +223,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         return UnitMicroType.ATTACK
     
     def _early_game_siege_tank_micro(self, unit: Unit, is_sieged: bool) -> UnitMicroType:
-        enemies_near_ramp = self.bot.all_enemy_units.closer_than(20, self.bot.main_base_ramp.bottom_center)
-        closest_enemy_to_ramp = enemies_near_ramp.closest_to(unit) if enemies_near_ramp else None
+        enemies_near_ramp = cy_closer_than(self.bot.all_enemy_units, 20, self.bot.main_base_ramp.bottom_center)
+        closest_enemy_to_ramp = cy_closest_to(unit.position, enemies_near_ramp) if enemies_near_ramp else None
         enemy_out_of_range = False
         if closest_enemy_to_ramp:
             structure_in_range_distance = 10.5 if is_sieged else 10.8
@@ -246,7 +253,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                         return UnitMicroType.MOVE
                 else:
                     self.siege(unit)
-                    LogHelper.add_log(f"Early game siege tank sieging to cover ramp against {closest_enemy_to_ramp}, range {unit.distance_to(closest_enemy_to_ramp)}")
+                    LogHelper.add_log(f"Early game siege tank sieging to cover ramp against {closest_enemy_to_ramp}, range {cy_distance_to(unit.position, closest_enemy_to_ramp.position)}")
                     return UnitMicroType.USE_ABILITY
             if unit.tag in self.early_game_siege_positions:
                 tank_position = self.early_game_siege_positions[unit.tag]
@@ -254,39 +261,39 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 tank_position = None
                 bunkers = self.bot.structures(UnitTypeId.BUNKER)
                 bunker: Unit | None = bunkers.furthest_to(self.bot.main_base_ramp.top_center) if bunkers else None
-                if bunker and bunker.distance_to_squared(self.bot.main_base_ramp.top_center) > 36:
+                if bunker and cy_distance_to_squared(bunker.position, self.bot.main_base_ramp.top_center) > 36:
                     # bunker on low ground, position tank to cover it, a bit away from top of ramp
                     tank_positions = self.get_triangle_point_c(bunker.position, self.bot.main_base_ramp.top_center, 10.5, 5)
                     if tank_positions:
                         high_ground_height = self.bot.get_terrain_height(self.bot.main_base_ramp.top_center)
                         for position in tank_positions:
                             if abs(self.bot.get_terrain_height(position) - high_ground_height) < 5:
-                                if tank_position is None or tank_position._distance_squared(self.bot.game_info.map_center) > position._distance_squared(self.bot.game_info.map_center):
+                                if tank_position is None or cy_distance_to_squared(tank_position, self.bot.game_info.map_center) > cy_distance_to_squared(position, self.bot.game_info.map_center):
                                     tank_position = position
                     if not tank_position:
-                        tank_position = bunker.position.towards(unit, 10.5)
+                        tank_position = Point2(cy_towards(bunker.position, unit.position, 10.5))
 
             if tank_position:
-                current_distance = unit.distance_to(tank_position)
-                previous_distance = self.previous_positions[unit.tag].distance_to(tank_position)
+                current_distance = cy_distance_to(unit.position, tank_position)
+                previous_distance = cy_distance_to(self.previous_positions[unit.tag], tank_position)
                 if current_distance <= 0.5:
                     # don't block barracks addon from building
                     barracks = self.bot.structures(UnitTypeId.BARRACKS).ready
                     if barracks:
-                        barracks_addon_position = barracks.closest_to(unit).add_on_position
-                        addon_distance = barracks_addon_position.distance_to(unit)
+                        barracks_addon_position = cy_closest_to(unit.position, barracks).add_on_position
+                        addon_distance = cy_distance_to(barracks_addon_position, unit.position)
                         if addon_distance < 2:
-                            tank_position = barracks_addon_position.towards(unit.position, 1)
+                            tank_position = Point2(cy_towards(barracks_addon_position, unit.position, 1))
                             unit.move(tank_position)
                             return UnitMicroType.MOVE
                     self.siege(unit)
                     LogHelper.add_log(f"Early game siege tank sieging to cover ramp at desired position")
                 elif current_distance < 3 and (unit.position.manhattan_distance(self.previous_positions[unit.tag]) < 0.1 or current_distance > previous_distance):
                     # don't block depots from raising
-                    closest_depot = self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).closest_to(unit)
+                    closest_depot = cy_closest_to(unit.position, self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED))
                     depot_distance = min(abs(closest_depot.position.x - unit.position.x), abs(closest_depot.position.y - unit.position.y))
                     if depot_distance < 2.3:
-                        tank_position = closest_depot.position.towards(unit.position, 4)
+                        tank_position = Point2(cy_towards(closest_depot.position, unit.position, 4))
                         unit.move(tank_position)
                     else:
                         self.siege(unit)
@@ -294,7 +301,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 else:
                     unit.move(tank_position)
                 self.early_game_siege_positions[unit.tag] = tank_position
-            elif unit.distance_to(self.bot.main_base_ramp.bottom_center) > 9:
+            elif cy_distance_to(unit.position, self.bot.main_base_ramp.bottom_center) > 9:
                 unit.move(self.bot.main_base_ramp.bottom_center)
             else:
                 self.siege(unit)

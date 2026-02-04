@@ -1,7 +1,10 @@
 from __future__ import annotations
-from socket import close
-from typing import List, Dict, Tuple
 
+from socket import close
+from typing import Dict, List, Tuple
+
+from cython_extensions.geometry import cy_towards
+from cython_extensions.units_utils import cy_closer_than, cy_closest_to
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -20,44 +23,39 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
     target_assignments: dict[int, Unit] = {}  # viking tag -> enemy tag
     attack_health = 0.4
 
-    # @timed_async
-    # async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> UnitMicroType:
-    #     enemy_bcs = self.bot.enemy_units.of_type(UnitTypeId.BATTLECRUISER)
-    #     if enemy_bcs:
-    #         return await self.scout(unit, enemy_bcs.closest_to(unit).position)
-    #     return await super().move(unit, target, force_move, previous_position)
-
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
         if unit.tag in self.scout_tags:
             # scout mode, don't land
             return UnitMicroType.NONE
+        nearby_range = 25 if unit.is_flying else 27
+        nearby_enemies = Units(cy_closer_than(self.bot.enemy_units.exclude_type(UnitTypes.WORKER_TYPES), nearby_range, unit.position) +
+                               cy_closer_than(self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES), nearby_range, unit.position),
+                               bot_object=self.bot)
         if unit.is_flying:
             viking_count = self.bot.units.of_type(UnitTypeId.VIKINGFIGHTER).amount
             if viking_count < 4:
                 # don't land if we have few vikings
                 return UnitMicroType.NONE
-            nearby_enemies = self.bot.enemy_units.closer_than(25, unit) \
-                + self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES).closer_than(25, unit)
             if unit.health_percentage >= health_threshold:
                 # don't land if there are air targets nearby
                 if not nearby_enemies:
-                    nearby_enemies = self.bot.enemy_structures.closer_than(10, unit).filter(
+                    nearby_enemies = Units(cy_closer_than(self.bot.enemy_structures, 10, unit.position), bot_object=self.bot).filter(
                         lambda u: self.bot.get_terrain_height(u) <= self.bot.get_terrain_height(unit))
                 if nearby_enemies and len(nearby_enemies.filter(lambda u: u.is_flying or u.type_id == UnitTypeId.COLOSSUS)) == 0:
                     # land on enemy sieged tanks
-                    nearest_enemy = nearby_enemies.closest_to(unit)
+                    nearest_enemy = cy_closest_to(unit.position, nearby_enemies)
                     nearest_distance_sq = unit.distance_to_squared(nearest_enemy)
                     if nearest_enemy.type_id == UnitTypeId.SIEGETANKSIEGED:
                         if nearest_distance_sq > 3.24:
                             unit.move(self.map.get_pathable_position(nearest_enemy.position, unit))
                         elif nearest_distance_sq < 1.21:
-                            unit.move(self.map.get_pathable_position(nearest_enemy.position.towards(unit, 1.5), unit))
+                            unit.move(self.map.get_pathable_position(Point2(cy_towards(nearest_enemy.position, unit.position, 1.5)), unit))
                         else:
                             unit(AbilityId.MORPH_VIKINGASSAULTMODE)
                         return UnitMicroType.USE_ABILITY
                     if self.bot.enemy_structures:
-                        nearest_structure = self.bot.enemy_structures.closest_to(unit)
+                        nearest_structure = cy_closest_to(unit.position, self.bot.enemy_structures)
                         nearest_distance_sq = min(nearest_distance_sq, unit.distance_to_squared(nearest_structure))
                     if nearest_distance_sq < 144:
                         # wait to land until closer to enemies
@@ -72,8 +70,6 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                     unit(AbilityId.MORPH_VIKINGASSAULTMODE)
                     return UnitMicroType.USE_ABILITY
         else:
-            nearby_enemies = self.bot.enemy_units.exclude_type(UnitTypes.WORKER_TYPES).closer_than(27, unit) \
-                + self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES).closer_than(27, unit)
             if unit.health_percentage < health_threshold:
                 aerial_threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_air(u)
                                                        and not UnitTypes.can_attack_ground(u))
@@ -85,7 +81,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 if not ground_threats:
                     return UnitMicroType.NONE
             if not nearby_enemies:
-                nearby_enemies = self.bot.enemy_structures.closer_than(10, unit).filter(
+                nearby_enemies = Units(cy_closer_than(self.bot.enemy_structures, 10, unit.position), bot_object=self.bot).filter(
                     lambda u: self.bot.get_terrain_height(u) <= self.bot.get_terrain_height(unit))
             else:
                 anti_air_structures = nearby_enemies.filter(lambda u: u.type_id in (UnitTypeId.MISSILETURRET, UnitTypeId.SPORECRAWLER))
@@ -139,7 +135,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                     defenders_in_range[enemy.tag].append(defender)
                 if closest_enemy:
                     closest_counts[closest_enemy.tag] = closest_counts.get(closest_enemy.tag, 0) + 1
-                other_type_friendlies[defender.tag] = self.bot.units.exclude_type(UnitTypeId.VIKINGFIGHTER).closer_than(4, defender)
+                other_type_friendlies[defender.tag] = Units(cy_closer_than(self.bot.units.exclude_type(UnitTypeId.VIKINGFIGHTER), 4, defender.position), bot_object=self.bot)
 
             # sort enemies by how many vikings have them as closest
             enemy_order = sorted(defenders_in_range.keys(), key=lambda tag: closest_counts.get(tag, 0), reverse=True)
@@ -151,7 +147,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 if enemy_unit is None:
                     continue
                 enemy_type = enemy_unit.type_id
-                # other_nearby_threats = self.bot.enemy_units.closer_than(4, enemy_unit).filter(
+                # other_nearby_threats = Units(cy_closer_than(self.bot.enemy_units, 4, enemy_unit.position), bot_object=self.bot).filter(
                 #     lambda unit: UnitTypes.can_attack_air(unit) and unit.tag != enemy_tag)
                 same_type_threats = self.bot.enemy_units.filter(lambda u:
                                                                 UnitTypes.can_attack_air(u)
@@ -186,7 +182,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
 
         if can_attack and not unit.is_flying:
             # stick to assigned targets for flying but landed can target normally
-            closest_target = candidates.closest_to(unit)
+            closest_target = cy_closest_to(unit.position, candidates)
             if closest_target.is_structure:
                 unit.attack(closest_target)
                 return UnitMicroType.ATTACK

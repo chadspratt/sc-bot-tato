@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+from cython_extensions.geometry import cy_distance_to, cy_distance_to_squared
+from cython_extensions.units_utils import cy_closest_to
+from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
-from sc2.ids.ability_id import AbilityId
-from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.enums import UnitMicroType
-from bottato.unit_types import UnitTypes
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin, timed, timed_async
+from bottato.unit_types import UnitTypes
 
 
 class MedivacMicro(BaseUnitMicro, GeometryMixin):
@@ -43,7 +45,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.NONE
             elif force_move:
                 return UnitMicroType.NONE
-        target_distance_to_start = target._distance_squared(self.bot.start_location)
+        target_distance_to_start = cy_distance_to_squared(target, self.bot.start_location)
         enemy_distance_to_target = self.closest_distance_squared(target, self.bot.enemy_units) if self.bot.enemy_units else 999999
         # only ferry units on retreat
         if force_move and self.bot.time > 300 and unit.cargo_left > 0 and enemy_distance_to_target > 400:
@@ -53,8 +55,8 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 for u in self.bot.units:
                     if u.type_id == UnitTypeId.SIEGETANKSIEGED or u.is_flying or u.movement_speed >= unit.movement_speed:
                         continue
-                    u_distance_to_start = u.distance_to_squared(self.bot.start_location)
-                    u_distance_to_target = u.distance_to_squared(target)
+                    u_distance_to_start = cy_distance_to_squared(u.position, self.bot.start_location)
+                    u_distance_to_target = cy_distance_to_squared(u.position, target)
                     if 225 < u_distance_to_target < u_distance_to_start and target_distance_to_start < u_distance_to_start:
                         self.units_to_pick_up.append(u)
                 self.units_to_pick_up_potential_damage.clear()
@@ -68,13 +70,13 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                                 self.threat_damage[threat.type_id] = threat.calculate_damage_vs_target(unit)[0]
                             if self.threat_damage[threat.type_id] <= 0:
                                 continue
-                            if threat.distance_to(passenger) + self.pick_up_range <= UnitTypes.air_range(threat):
+                            if cy_distance_to(threat.position, passenger.position) + self.pick_up_range <= UnitTypes.air_range(threat):
                                 potential_damage += self.threat_damage[threat.type_id]
                         self.units_to_pick_up_potential_damage[passenger.tag] = potential_damage
                 # prioritize slower units, tiebreak with further from home
-                self.units_to_pick_up.sort(key=lambda u: u.movement_speed * 10000 - u.distance_to_squared(self.bot.start_location))
+                self.units_to_pick_up.sort(key=lambda u: u.movement_speed * 10000 - cy_distance_to_squared(u.position, self.bot.start_location))
             for passenger in self.units_to_pick_up:
-                if passenger.distance_to_squared(target) < unit.distance_to_squared(target):
+                if cy_distance_to_squared(passenger.position, target) < cy_distance_to_squared(unit.position, target):
                     # skip units that are already closer to the target
                     continue
                 if passenger.cargo_size <= unit.cargo_left and self.units_to_pick_up_potential_damage.get(passenger.tag, 0) < unit.health:
@@ -96,17 +98,17 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
             self.injured_bio = self.bot.units.filter(lambda u: u.is_biological and u.health_percentage < 1.0)
 
         if self.injured_bio:
-            nearest_injured = self.injured_bio.closest_to(unit)
-            if nearest_injured.distance_to_squared(unit) < 400:
-                if self.distance_squared(unit, nearest_injured) <= self.heal_range_sq:
-                    # prioritize closest otherwise it defaults to lowest which delays units rejoining battle
-                    unit(AbilityId.MEDIVACHEAL_HEAL, nearest_injured)
-                    # unit.stop()
-                    self.stopped_for_healing.add(unit.tag)
-                else:
-                    unit.move(self.map.get_pathable_position(nearest_injured.position, unit))
-                    if unit.tag in self.stopped_for_healing:
-                        self.stopped_for_healing.remove(unit.tag)
+            nearest_injured = cy_closest_to(unit.position, self.injured_bio)
+            nearest_injured_distance = nearest_injured.distance_to_squared(unit)
+            if nearest_injured_distance <= self.heal_range_sq:
+                # prioritize closest otherwise it defaults to lowest which delays units rejoining battle
+                unit(AbilityId.MEDIVACHEAL_HEAL, nearest_injured)
+                # unit.stop()
+                self.stopped_for_healing.add(unit.tag)
+            elif nearest_injured_distance < 400:
+                unit.move(self.map.get_pathable_position(nearest_injured.position, unit))
+                if unit.tag in self.stopped_for_healing:
+                    self.stopped_for_healing.remove(unit.tag)
 
         return UnitMicroType.USE_ABILITY if unit.tag in self.bot.unit_tags_received_action else UnitMicroType.NONE
 

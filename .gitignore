@@ -1,7 +1,14 @@
 
 *.pyc
+.env
 bot_tato.log
 *.log
 *.sc2replay
+*.so
 /sc2
 MapAnalyzer
+other_bots
+cython_extensions/*.c
+cython_extensions/*.h
+cython_extensions/*.pyd
+cython_extensions/build

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from sc2.position import Point2
-from sc2.unit import Unit
-from sc2.units import Units
+from cython_extensions.units_utils import cy_center
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from sc2.position import Point2
+from sc2.unit import Unit
+from sc2.units import Units
 
 from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -77,11 +78,11 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         nearby_enemy: Units
         attack_range_buffer = 0 if can_attack or unit.health_percentage <= self.harass_retreat_health else 5
         anti_banshee_structures = self.bot.enemy_structures.filter(
-            lambda s: s.type_id in (UnitTypeId.MISSILETURRET, UnitTypeId.SPORECRAWLER, UnitTypeId.PHOTONCANNON))
+            lambda s: s.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES and s.is_ready)
         incomplete_structures = self.bot.enemy_structures.filter(
             lambda s: not s.is_ready
                         and s.is_visible
-                        and (UnitTypes.can_attack_air(s) or s.health + s.shield < 50)
+                        and (s.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES or s.health + s.shield < 50)
                         and (not anti_banshee_structures or anti_banshee_structures.closest_distance_to(s) > 6)
             ).sorted(lambda s: s.health + s.shield)
         nearby_enemy = self.enemy.in_attack_range(unit, incomplete_structures, 6, first_only=True)
@@ -91,7 +92,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             if not nearby_enemy and attack_range_buffer == 0:
                 nearby_enemy = self.enemy.in_attack_range(unit, enemy_candidates, 5, first_only=True)
             if anti_banshee_structures:
-                nearby_enemy = nearby_enemy.filter(lambda u: anti_banshee_structures.closest_distance_to(u) > 6)
+                nearby_enemy = nearby_enemy.filter(lambda e: anti_banshee_structures.closest_distance_to(e) > 6)
 
         if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
             threat_range_buffer = 3 if nearby_enemy and can_attack and unit.health_percentage > self.harass_retreat_health else 5
@@ -104,11 +105,11 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 if unit.health_percentage < self.harass_attack_health:
                     return UnitMicroType.NONE
                 for threat in threats:
-                    if threat.is_structure and self.distance_squared(unit, threat, self.enemy.predicted_position) > self.enemy.get_attack_range_with_buffer_squared(threat, unit, 3):
+                    if threat.is_structure and self.enemy.safe_distance_squared(unit, threat) > self.enemy.get_attack_range_with_buffer_squared(threat, unit, 3):
                         continue
                     if threat.is_flying or UnitTypes.air_range(threat) >= unit.ground_range:
                         # don't attack enemies that outrange
-                        unit.move(self.get_circle_around_position(unit, threats.center, harass_location))
+                        unit.move(self.get_circle_around_position(unit, Point2(cy_center(threats)), harass_location))
                         return UnitMicroType.MOVE
 
         if nearby_enemy:

@@ -1,12 +1,13 @@
 from __future__ import annotations
-from typing import Dict
 
 from loguru import logger
-from sc2.unit import Unit
+from typing import Dict
+
+from cython_extensions.geometry import cy_distance_to
 from sc2.position import Point2
+from sc2.unit import Unit
 
 from bottato.squad.squad import Squad
-
 
 NEARBY_THRESHOLD = 5
 
@@ -22,17 +23,12 @@ class EnemySquad(Squad):
         self.last_seen_time_by_unit_tag: Dict[int, int] = {}
         self.last_known_position: Point2 | None = None
 
-    def update_references(self, units_by_tag: dict[int, Unit]):
-        self.units = self.get_updated_unit_references_by_tags(
-            list(self.units.tags), self.bot, units_by_tag
-        )
-
     def near(self, unit: Unit, predicted_position: dict[int, Point2]) -> bool:
         for squad_unit in self.units:
             target_position = squad_unit.position
             if squad_unit.tag in predicted_position:
                 target_position = predicted_position[squad_unit.tag]
-            if unit.distance_to(target_position) < NEARBY_THRESHOLD:
+            if cy_distance_to(unit.position, target_position) < NEARBY_THRESHOLD:
                 return True
         return False
 

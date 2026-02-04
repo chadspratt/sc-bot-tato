@@ -1,7 +1,10 @@
 from __future__ import annotations
-from typing import Dict, List, Tuple
-from loguru import logger
 
+from loguru import logger
+from typing import Dict, List, Tuple
+
+from cython_extensions.geometry import cy_distance_to, cy_distance_to_squared
+from cython_extensions.units_utils import cy_center
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -37,19 +40,19 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 # if target_unit.is_flying or target_unit.age > 0:
                 #     continue
                 # future_target_position = self.enemy.get_predicted_position(target_unit, self.grenade_timer)
-                # future_target_distance = future_target_position.distance_to(unit.position)
+                # future_target_distance = cy_distance_to(future_target_position, unit.position)
                 # if future_target_distance > 5:
                 #     continue
                 # grenade_target: Point2 = future_target_position
-                # if target_unit.is_facing(unit, angle_error=0.15):
+                # if cy_is_facing(target_unit, unit, angle_error=0.15):
                 #     # throw towards current position to avoid cutting off own retreat when predicted position is behind
-                #     grenade_target = unit.position.towards(target_unit.position, future_target_distance)
+                #     grenade_target = Point2(cy_towards(unit.position, target_unit.position, future_target_distance))
                 grenade_target: Point2 = target_unit.position
                 grenade_targets.append(grenade_target)
 
         if grenade_targets:
             # choose furthest to reduce chance of grenading self
-            grenade_target = min(grenade_targets, key=lambda p: unit.position._distance_squared(p))
+            grenade_target = min(grenade_targets, key=lambda p: cy_distance_to_squared(unit.position, p))
             logger.debug(f"{unit} grenading {grenade_target}")
             self.throw_grenade(unit, grenade_target)
             return UnitMicroType.USE_ABILITY
@@ -79,14 +82,14 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             # target lowest health but prioritize closest if very close
             target = nearby_workers.sorted(key=lambda t: t.shield + t.health).first
             closest_worker = self.closest_unit_to_unit(unit, nearby_workers)
-            if self.distance_squared(unit, closest_worker, self.enemy.predicted_position) < 9:
+            if self.enemy.safe_distance_squared(unit, closest_worker) < 9:
                 targets.append(closest_worker)
                 target = closest_worker
 
         if threats:
             closest_distance: float = float('inf')
             if target:
-                closest_distance = self.distance(unit, target, self.enemy.predicted_position) - UnitTypes.ground_range(target)
+                closest_distance = self.enemy.safe_distance_squared(unit, target) - UnitTypes.ground_range(target)
             for threat in threats:
                 if threat.age > 0 and is_low_health:
                     continue
@@ -95,11 +98,11 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                     # don't attack enemies that outrange or have more health
                     self.add_bad_harass_experience_location(unit, harass_location)
                     return UnitMicroType.NONE
-                threat_distance = self.distance(unit, threat, self.enemy.predicted_position) - threat_range
+                threat_distance = self.distance(unit, threat, self.enemy.predicted_positions) - threat_range
                 if unit.health_percentage < self.attack_health and unit.health < threat.health + threat.shield - 10 and threat_distance < 2:
                     self.add_bad_harass_experience_location(unit, harass_location)
                     return UnitMicroType.NONE
-                threat_distance_squared = self.distance_squared(unit, threat, self.enemy.predicted_position)
+                threat_distance_squared = self.enemy.safe_distance_squared(unit, threat)
                 reaper_range_distance = self.enemy.get_attack_range_with_buffer_squared(unit, threat, 0)
                 threat_is_in_range = threat_distance_squared <= reaper_range_distance
                 threat_range_distance = self.enemy.get_attack_range_with_buffer_squared(threat, unit, 1)
@@ -126,7 +129,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         return self._kite(unit, targets)
     
     def add_bad_harass_experience_location(self, unit: Unit, location: Point2):
-        if unit.distance_to_squared(location) <= 225:
+        if cy_distance_to_squared(unit.position, location) <= 225:
             # must be at spot to give bad review
             try:
                 curval = self.bad_harass_experience_locations[location]
@@ -206,18 +209,18 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 retreat_position = self._get_retreat_destination(unit, threats)
                 unit.move(retreat_position)
                 return UnitMicroType.RETREAT
-            # # retreat_to_start =  unit.health_percentage < health_threshold or unit.distance_to_squared(harass_location) < 400
+            # # retreat_to_start =  unit.health_percentage < health_threshold or cy_distance_to_squared(unit.position, harass_location) < 400
             # retreat_to_start =  True
             # if retreat_to_start:
             destination = self.bot.start_location
-            avg_threat_position = threats.center
-            if unit.distance_to(destination) < avg_threat_position.distance_to(destination) + 2:
+            avg_threat_position = Point2(cy_center(threats))
+            if cy_distance_to(unit.position, destination) < cy_distance_to(avg_threat_position, destination) + 2:
                 # if closer to start or already near enemy, move past them to go home
                 unit.move(destination)
                 return UnitMicroType.RETREAT
             # if retreat_to_start:
             retreat_position = self._get_retreat_destination(unit, threats)
-            # if self.bot.in_pathing_grid(retreat_position):
+            # if cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, retreat_position):
             #     unit.move(retreat_position)
             # else:
             #     if unit.position == avg_threat_position:
@@ -225,7 +228,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             #         unit.move(destination)
             #     else:
             #         circle_around_position = self.get_circle_around_position(unit, avg_threat_position, destination)
-            #         unit.move(circle_around_position.towards(destination, 2))
+            #         unit.move(Point2(cy_towards(circle_around_position, destination, 2)))
             return UnitMicroType.RETREAT
             # elif unit.health_percentage > self.attack_health:
             #     circle_around_position = self.get_circle_around_position(unit, avg_threat_position, harass_location)

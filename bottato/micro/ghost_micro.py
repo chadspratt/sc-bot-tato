@@ -1,10 +1,13 @@
 from __future__ import annotations
+
 from typing import Dict, Tuple
 
-from sc2.position import Point2
-from sc2.unit import Unit
+from cython_extensions.units_utils import cy_closer_than
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.position import Point2
+from sc2.unit import Unit
+from sc2.units import Units
 
 from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -70,40 +73,39 @@ class GhostMicro(BaseUnitMicro, GeometryMixin):
         if unit.energy < self.emp_energy_cost:
             return False
 
-        nearby_enemies = self.bot.enemy_units.closer_than(self.emp_range, unit)
-        protoss_targets = nearby_enemies.filter(lambda u: u.type_id in self.EMP_TARGETS)
-        
+        protoss_targets = cy_closer_than(self.bot.enemy_units.filter(lambda u: u.type_id in self.EMP_TARGETS),
+                                         self.emp_range,
+                                         unit.position)
+
         if not protoss_targets:
             return False
-        
+
         # Find the best cluster of units to hit with EMP
         best_target: Unit | None = None
         best_value = 0
-        
+
         for enemy in protoss_targets:
             # Count units within EMP radius of this target
-            units_in_radius = protoss_targets.closer_than(self.emp_radius, enemy)
-            
+            units_in_radius = cy_closer_than(protoss_targets, self.emp_radius, enemy.position)
+
             # Calculate value based on shields and energy
             value = 0
             for target_unit in units_in_radius:
-                # High value for units with lots of shields
                 if target_unit.shield_max > 0:
                     value += target_unit.shield
-                
-                # High value for units with energy (casters)
+
                 if target_unit.energy_max > 0:
                     value += target_unit.energy
-            
-            # Require at least 2 units or 1 high value target
+
             if value > best_value:
                 best_value = value
                 best_target = enemy
-        
-        if best_target and best_value > 200:
+
+        min_value_to_emp = 200 if unit.health_percentage >= 0.5 else 75
+        if best_target and best_value > min_value_to_emp:
             unit(AbilityId.EMP_EMP, best_target.position)
             return True
-        
+
         return False
     
     @timed_async
@@ -123,7 +125,7 @@ class GhostMicro(BaseUnitMicro, GeometryMixin):
         if not snipe_targets:
             return False
         
-        nearby_enemies = snipe_targets.closer_than(self.snipe_range, unit)
+        nearby_enemies = cy_closer_than(snipe_targets, self.snipe_range, unit.position)
         if not nearby_enemies:
             return False
         

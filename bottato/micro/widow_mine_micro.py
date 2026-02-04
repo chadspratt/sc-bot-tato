@@ -1,7 +1,13 @@
 from __future__ import annotations
-from typing import Dict, List
-from loguru import logger
 
+from loguru import logger
+from typing import Dict, List
+
+from cython_extensions.geometry import (
+    cy_distance_to,
+    cy_distance_to_squared,
+    cy_towards,
+)
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -11,8 +17,8 @@ from sc2.unit import Unit
 from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin, timed
-from bottato.unit_types import UnitTypes
 from bottato.unit_reference_helper import UnitReferenceHelper
+from bottato.unit_types import UnitTypes
 
 
 class WidowMineMicro(BaseUnitMicro, GeometryMixin):
@@ -53,7 +59,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
             for mine in all_mines:
                 if not latest_enemy_drop_locations:
                     break
-                closest_drop_location = min(latest_enemy_drop_locations, key=lambda loc: mine.distance_to_squared(loc))
+                closest_drop_location = min(latest_enemy_drop_locations, key=lambda loc: cy_distance_to_squared(mine.position, loc))
                 self.special_position[mine.tag] = closest_drop_location
                 latest_enemy_drop_locations.remove(closest_drop_location)
 
@@ -63,14 +69,14 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
         if unit.tag in self.special_position:
             special_pos = self.special_position[unit.tag]
             if not is_burrowed:
-                if unit.position.distance_to(special_pos) > 2:
+                if cy_distance_to(unit.position, special_pos) > 2:
                     unit.move(special_pos)
                     return UnitMicroType.MOVE
                 else:
                     self.burrow(unit)
                     return UnitMicroType.USE_ABILITY
             
-            if unit.position.distance_to(special_pos) > 5:
+            if cy_distance_to(unit.position, special_pos) > 5:
                 self.unburrow(unit)
                 return UnitMicroType.USE_ABILITY
             return UnitMicroType.NONE
@@ -152,14 +158,18 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                 burrow_position: Point2 | None = None
                 if bunkers:
                     bunker = bunkers.furthest_to(self.bot.start_location)
-                    burrow_position = bunker.position.towards(self.bot.start_location, bunker.radius)
+                    burrow_position = Point2(cy_towards(bunker.position, self.bot.start_location, bunker.radius))
                 elif self.bot.structures.of_type(UnitTypeId.BARRACKS):
-                    ramp_barracks = self.bot.structures.of_type(UnitTypeId.BARRACKS).closest_to(self.bot.main_base_ramp.barracks_correct_placement) # type: ignore
+                    ramp_barracks = cy_closest_to(self.bot.main_base_ramp.barracks_correct_placement, self.bot.structures.of_type(UnitTypeId.BARRACKS)) # type: ignore
                     candidates = [(depot_position + ramp_barracks.position) / 2 for depot_position in self.bot.main_base_ramp.corner_depots]
-                    candidate = min(candidates, key=lambda p: ramp_barracks.add_on_position.distance_to(p))
-                    burrow_position = candidate.towards(self.bot.main_base_ramp.top_center.towards(ramp_barracks.position, distance=2), distance=-1)
+                    candidate = min(candidates, key=lambda p: cy_distance_to_squared(ramp_barracks.add_on_position, p))
+                    burrow_position = Point2(cy_towards(candidate,
+                                                        Point2(cy_towards(self.bot.main_base_ramp.top_center,
+                                                                          ramp_barracks.position,
+                                                                          distance=2)),
+                                                        distance=-1))
                 if burrow_position:
-                    if unit.position.distance_to(burrow_position) < 1:
+                    if cy_distance_to(unit.position, burrow_position) < 1:
                         self.burrow(unit)
                         return UnitMicroType.USE_ABILITY
                     else:
@@ -212,8 +222,8 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
             if new_target and sieged_tanks:
                 closest_tank_to_enemy = self.closest_unit_to_unit(new_target, sieged_tanks)
                 if closest_tank_to_enemy:
-                    burrow_position = closest_tank_to_enemy.position.towards(new_target.position, closest_tank_to_enemy.radius + 1)
-                    if unit.distance_to_squared(burrow_position) > 4:
+                    burrow_position = Point2(cy_towards(closest_tank_to_enemy.position, new_target.position, closest_tank_to_enemy.radius + 1))
+                    if cy_distance_to_squared(unit.position, burrow_position) > 4:
                         unit.move(burrow_position)
                         return UnitMicroType.MOVE
                     else:

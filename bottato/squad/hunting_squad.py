@@ -1,6 +1,8 @@
 from __future__ import annotations
+
 from typing import Dict, List
 
+from cython_extensions.geometry import cy_distance_to_squared
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
@@ -59,7 +61,7 @@ class HuntingSquad(Squad, GeometryMixin):
                     self.unsafe_targets[target.tag] = self.bot.time
             else:
                 self.next_location = sorted(self.intel.scouting_locations, key=lambda loc: loc.last_seen)[0]
-                distance_to_next_location = unit.distance_to_squared(self.next_location.scouting_position)
+                distance_to_next_location = cy_distance_to_squared(unit.position, self.next_location.scouting_position)
                 if distance_to_next_location < self.closest_distance_to_next_location:
                     self.closest_distance_to_next_location = distance_to_next_location
                     self.time_of_closest_distance = self.bot.time

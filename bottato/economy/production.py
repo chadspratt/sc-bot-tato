@@ -1,6 +1,8 @@
-from typing import List
 from loguru import logger
+from typing import List
 
+from cython_extensions.geometry import cy_distance_to
+from cython_extensions.units_utils import cy_closer_than, cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.constants import abilityid_to_unittypeid
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
@@ -89,14 +91,14 @@ class Facility():
             if not closest_candidates:
                 self.addon_blocked = False
             else:
-                closest_structure_to_addon = closest_candidates.closest_to(updated_unit.add_on_position)
-                self.addon_blocked = closest_structure_to_addon.radius > closest_structure_to_addon.distance_to(updated_unit.add_on_position)
+                closest_structure_to_addon = cy_closest_to(updated_unit.add_on_position, closest_candidates)
+                self.addon_blocked = closest_structure_to_addon.radius > cy_distance_to(closest_structure_to_addon.position, updated_unit.add_on_position)
                 # not (await self.bot.can_place_single(UnitTypeId.SUPPLYDEPOT, updated_unit.add_on_position))
 
         # blocking main base ramp, don't move
         is_ramp_barracks = updated_unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING) \
                     and self.bot.main_base_ramp.barracks_in_middle \
-                    and updated_unit.position.manhattan_distance(self.bot.main_base_ramp.barracks_in_middle) < 3
+                    and cy_distance_to(updated_unit.position, self.bot.main_base_ramp.barracks_in_middle) < 3
         if self.was_lifted_to_unblock_addon:
             if not is_flying:
                 self.was_lifted_to_unblock_addon = False
@@ -569,7 +571,9 @@ class Production():
                         continue
                     if facility.unit.add_on_tag:
                         add_on = UnitReferenceHelper.get_updated_unit_reference_by_tag(facility.unit.add_on_tag)
-                        generic_type = list(UNIT_TECH_ALIAS[add_on.type_id])[0] if add_on.type_id not in (UnitTypeId.TECHLAB, UnitTypeId.REACTOR) else add_on.type_id
+                        generic_type = add_on.type_id
+                        if add_on.type_id not in (UnitTypeId.TECHLAB, UnitTypeId.REACTOR):
+                            generic_type = list(UNIT_TECH_ALIAS[add_on.type_id])[0]
                         self.facilities[facility_type][generic_type].append(facility)
                         self.facilities[facility_type][UnitTypeId.NOTAUNIT].remove(facility)
                         facility.set_add_on_type(generic_type)
@@ -643,7 +647,7 @@ class Production():
                     facility.addon_blocked = True
                     return True
                 # check that it isn't blocked by an enemy unit
-                if not self.bot.enemy_units.closer_than(1, facility.unit.add_on_position) and not self.bot.units.closer_than(1, facility.unit.add_on_position):
+                if not cy_closer_than(self.bot.enemy_units, 1, facility.unit.add_on_position) and not cy_closer_than(self.bot.units, 1, facility.unit.add_on_position):
                     if not await self.bot.can_place_single(UnitTypeId.SUPPLYDEPOT, facility.unit.add_on_position):
                         facility.addon_blocked = True
                         return True
