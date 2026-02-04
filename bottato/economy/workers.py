@@ -440,7 +440,7 @@ class Workers(GeometryMixin):
         defender_tags = set()
         nearby_enemy_structures = cy_closer_than(self.bot.enemy_structures.filter(lambda u: not u.is_flying), 23, position.position)
         if nearby_enemy_structures:
-            nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1000000 + cy_distance_to_squared(a, position.position))
+            nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1000000 + cy_distance_to_squared(a.position, position.position))
         nearby_enemy_range = 25 if nearby_enemy_structures else 12
         nearby_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
         nearby_enemies = cy_closer_than(nearby_enemies, nearby_enemy_range, position.position)
