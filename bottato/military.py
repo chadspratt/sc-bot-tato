@@ -306,7 +306,7 @@ class Military(GeometryMixin, DebugMixin):
             try:
                 unit = UnitReferenceHelper.get_updated_unit_reference(unit)
                 # unit didn't enter bunker, maybe got stuck behind wall
-                if unit.distance_to_squared(bunker.structure) <= 20:
+                if unit.distance_to_squared(bunker.structure) <= 40:
                     unit.smart(bunker.structure)
                 else:
                     micro = MicroFactory.get_unit_micro(unit)

@@ -8,8 +8,6 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 
-
-
 class SpecialLocation:
     def __init__(self, unit_type_id: UnitTypeId, position: Point2):
         self.is_started: bool = False
@@ -49,7 +47,9 @@ class SpecialLocations:
         return None
     
     @staticmethod
-    async def get_bunker_positions(ramp_bottom_center: Point2, barracks_position: Point2, bot: BotAI) -> List[Point2]:
+    async def get_bunker_positions(bot: BotAI) -> List[Point2]:
+        barracks_position: Point2 = bot.main_base_ramp.barracks_correct_placement # type: ignore
+        ramp_bottom_center = bot.main_base_ramp.bottom_center
         candidates: List[Point2] = []
         if barracks_position.x < ramp_bottom_center.x:
             # ramp goes right

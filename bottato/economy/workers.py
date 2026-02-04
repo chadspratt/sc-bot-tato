@@ -391,12 +391,15 @@ class Workers(GeometryMixin):
             targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
             for worker in self.bot.workers:
                 assignment = self.assignments_by_worker[worker.tag]
+                if assignment.job_type == WorkerJobType.SCOUT:
+                    continue
                 position = assignment.target if assignment.target and not worker_rush_detected else worker
                 nearby_enemies = cy_closer_than(targetable_enemies, 5, position.position)
                 if nearby_enemies:
                     if worker.health_percentage < 0.6 and assignment.job_type == WorkerJobType.BUILD and not assignment.on_attack_break:
                         # stop building if getting attacked
                         worker(AbilityId.HALT)
+                        LogHelper.add_log(f"Worker {worker} stopped building due to low health and attack")
 
                     # if worker.health_percentage > 0.5 and assignment.job_type == WorkerJobType.REPAIR:
                     #     continue
@@ -409,6 +412,7 @@ class Workers(GeometryMixin):
                         if needed_defender_count > 0:
                             predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
                             new_defenders = await self.send_defenders(nearby_enemy, predicted_position, healthy_workers, unhealthy_workers, needed_defender_count, worker_rush_detected)
+                            LogHelper.add_log(f"Assigning {len(new_defenders)} defenders to enemy {nearby_enemy} at {predicted_position}")
                             assigned_defender_counts[nearby_enemy.tag] += len(new_defenders)
                             defender_tags.update(new_defenders)
 
@@ -438,7 +442,7 @@ class Workers(GeometryMixin):
         if nearby_enemy_structures:
             nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1000000 + cy_distance_to_squared(a, position.position))
         nearby_enemy_range = 25 if nearby_enemy_structures else 12
-        nearby_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
+        nearby_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
         nearby_enemies = cy_closer_than(nearby_enemies, nearby_enemy_range, position.position)
         radius_squared = radius * radius
         for enemy in self.units_to_attack:
@@ -462,6 +466,7 @@ class Workers(GeometryMixin):
             needed_defender_count = target_defender_count - assigned_defender_counts[nearby_enemy.tag]
             if needed_defender_count > 0:
                 townhall_defenders = await self.send_defenders(nearby_enemy, predicted_position, healthy_workers, unhealthy_workers, needed_defender_count, worker_rush_detected)
+                LogHelper.add_log(f"Defending {position} with {len(townhall_defenders)} defenders from {nearby_enemy}")
                 if not townhall_defenders:
                     logger.debug(f"no attackers available for enemy {nearby_enemy}")
                     break
@@ -772,6 +777,7 @@ class Workers(GeometryMixin):
         if self.bot.minerals > 10:
             injured_units = self.units_needing_repair(enemy_builds_detected)
             if injured_units:
+                LogHelper.add_log(f"{len(injured_units)} injured units needing repair")
                 missing_health = 0
                 # limit to percentage of total workers
                 max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 5))
@@ -827,6 +833,7 @@ class Workers(GeometryMixin):
 
         # remove excess repairers
         if repairer_shortage < 0:
+            LogHelper.add_log(f"removing {-repairer_shortage} excess repairers")
             # don't retire mid-repair
             inactive_repairers: Units = current_repairers.filter(lambda unit: not unit.is_repairing)
             inactive_repairers.sort(key=lambda r: r.health)
@@ -868,6 +875,7 @@ class Workers(GeometryMixin):
 
         # add more repairers
         if repairer_shortage > 0:
+            LogHelper.add_log(f"need {repairer_shortage} more repairers")
             candidates: Units = Units([
                     worker for worker in self.bot.workers
                     if self.assignments_by_worker[worker.tag].job_type not in (WorkerJobType.BUILD, WorkerJobType.REPAIR)
