@@ -8,6 +8,7 @@ from cython_extensions.geometry import (
     cy_distance_to_squared,
     cy_towards,
 )
+from cython_extensions.units_utils import cy_closest_to
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
