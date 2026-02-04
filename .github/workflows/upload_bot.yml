@@ -32,7 +32,7 @@ jobs:
 
     # Runs a single command using the runners shell
     - name: Zip Files
-      run: zip -r bottato.zip sc2 bottato __init__.py ladderbots.json LICENSE README.md bot.py run.py
+      run: zip -r bottato.zip sc2 bottato cython_extensions __init__.py ladderbots.json LICENSE README.md bot.py run.py
     
     - name: Upload
       env:
