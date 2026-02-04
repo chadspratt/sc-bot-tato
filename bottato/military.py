@@ -452,7 +452,8 @@ class Military(GeometryMixin, DebugMixin):
             if closest_base is None:
                 closest_base = cy_closest_to(enemy_position, self.bot.townhalls)
             other_bases = self.bot.townhalls.filter(lambda base: base.tag != closest_base.tag)
-            second_closest_base = cy_closest_to(enemy_position, other_bases)
+            # second_closest_base = cy_closest_to(enemy_position, other_bases) # need to fix cy_closest_to to handle bigger distances
+            second_closest_base = other_bases.closest_to(enemy_position)
             path = self.map.get_path_points(second_closest_base.position, closest_base.position)
             backtrack_distance = 7
             i = 0
