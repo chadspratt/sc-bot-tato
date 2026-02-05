@@ -956,7 +956,7 @@ class Workers(GeometryMixin):
                                                     #  and (repair_scvs or unit.type_id != UnitTypeId.SCV)
                                                 and (
                                                     unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(unit) < 20
-                                                or len(self.enemy.threats_to_repairer(unit, attack_range_buffer=0)) == 0))
+                                                or self.enemy.threats_to_repairer(unit, attack_range_buffer=1).amount == 0))
         logger.debug(f"injured mechanical units {injured_units}")
 
         # can only repair fully built structures

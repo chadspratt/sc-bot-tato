@@ -60,7 +60,7 @@ class LogHelper:
         formatted_time = LogHelper.bot.time_formatted
         for message in LogHelper.new_messages:
             if message not in LogHelper.previous_messages:
-                logger.info(f"{formatted_time}: {message}")
+                logger.info(f"{iteration} - {formatted_time}: {message}")
                 LogHelper.previous_messages[message] = 1
             else:
                 LogHelper.previous_messages[message] += 1
