@@ -49,6 +49,8 @@ class SCVBuildStep(BuildStep):
 
     def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers, production: Production, map: Map) -> None:
         super().__init__(unit_type_id, bot, workers, production, map)
+        if unit_type_id == UnitTypeId.REFINERYRICH:
+            unit_type_id = UnitTypeId.REFINERY
         self.unit_type_id = unit_type_id
 
     def __repr__(self) -> str:
@@ -147,6 +149,8 @@ class SCVBuildStep(BuildStep):
     
     @timed_async
     async def execute_scv_build(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float], floating_building_destinations: Dict[int, Point2]) -> BuildResponseCode:
+        if self.unit_type_id == UnitTypeId.REFINERYRICH:
+            self.unit_type_id = UnitTypeId.REFINERY
         if self.unit_being_built:
             self.position = self.unit_being_built.position
             if self.start_time is None:
