@@ -117,7 +117,7 @@ class BotTato(BotAI):
         self.commander.update_completed_structure(unit)
 
     states_to_ignore = {UnitTypeId.SUPPLYDEPOTLOWERED,
-                        UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT,
+                        UnitTypeId.TECHLAB, UnitTypeId.REACTOR,
                         UnitTypeId.BARRACKSFLYING, UnitTypeId.FACTORYFLYING, UnitTypeId.STARPORTFLYING,
                         UnitTypeId.COMMANDCENTERFLYING, UnitTypeId.ORBITALCOMMANDFLYING}
 

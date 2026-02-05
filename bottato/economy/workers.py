@@ -388,7 +388,11 @@ class Workers(GeometryMixin):
             worker_rush_detected = BuildType.WORKER_RUSH in enemy_builds_detected
 
             assigned_defender_counts: Dict[int, int] = defaultdict(int)
-            targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
+            # targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
+            targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
+            ramp_is_blocked = self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount >= 2
+            if ramp_is_blocked:
+                targetable_enemies = targetable_enemies.filter(lambda u: cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) > 9)
             for worker in self.bot.workers:
                 assignment = self.assignments_by_worker[worker.tag]
                 if assignment.job_type == WorkerJobType.SCOUT:
