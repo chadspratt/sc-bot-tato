@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from loguru import logger
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 from cython_extensions.units_utils import cy_center
 from sc2.bot_ai import BotAI
@@ -10,7 +10,6 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bottato.building.build_step import BuildStep
 from bottato.enemy import Enemy
 from bottato.enums import SquadFormationType, UnitMicroType
 from bottato.map.map import Map
@@ -43,7 +42,7 @@ class FormationSquad(Squad, GeometryMixin):
         self.executed_positions: Dict[int, Point2] = {}
 
     def __repr__(self):
-        return f"FormationSquad({self.name},{len(self.units)}, {self.parent_formation})"
+        return f"FormationSquad({self.name},{len(self.units)} units, {len(self.parent_formation.formations)} formations)"
 
     @timed
     def draw_debug_box(self):

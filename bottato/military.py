@@ -476,7 +476,7 @@ class Military(GeometryMixin, DebugMixin):
         # force move is used for retreating. don't use if already near staging location
         staging_location = bunker_staging_location if bunker_staging_location else self.main_army.staging_location
         force_move = self.main_army.position._distance_squared(staging_location) >= 225
-        await self.main_army.move(staging_location, enemy_position, force_move=force_move)
+        await self.main_army.move(staging_location, self.bot.game_info.map_center, force_move=force_move)
 
     @timed_async
     async def regroup(self, target_position: Point2):

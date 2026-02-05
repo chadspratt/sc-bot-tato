@@ -93,7 +93,7 @@ class StuckRescue(Squad):
                     # don't queue first order so the unit orders don't keep growing
                     self.transport(AbilityId.LOAD, unit, queue_orders)
                     queue_orders = True
-                    cargo_left -= unit.cargo_size
+                cargo_left -= unit.cargo_size
         if cargo_left == self.transport.cargo_left:
             # everything loaded (next frame)
             self.is_loaded = True

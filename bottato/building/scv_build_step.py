@@ -301,7 +301,6 @@ class SCVBuildStep(BuildStep):
                     and self.no_position_count == 0:
                 # try to build near edge of high ground towards natural
                 # high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
-                ramp_barracks = cy_closest_to(self.bot.main_base_ramp.barracks_correct_placement, self.bot.structures.of_type(UnitTypeId.BARRACKS)) # type: ignore
                 candidates = await SpecialLocations.get_bunker_positions(self.bot)
                 # candidates = [(depot_position + ramp_barracks.position) / 2 for depot_position in self.bot.main_base_ramp.corner_depots]
                 candidate = min(candidates, key=lambda p: cy_distance_to_squared(self.bot.start_location, p))
@@ -472,6 +471,15 @@ class SCVBuildStep(BuildStep):
                 return cy_closest_to(self.bot.start_location, vespene_geysirs)
         return None
 
+    unit_types_to_finish_despite_enemies = {
+        UnitTypeId.BUNKER,
+        UnitTypeId.COMMANDCENTER,
+        UnitTypeId.ORBITALCOMMAND,
+        UnitTypeId.PLANETARYFORTRESS,
+        UnitTypeId.BARRACKS,
+        UnitTypeId.FACTORY,
+        UnitTypeId.STARPORT,
+    }
     @timed_async
     async def is_interrupted(self) -> bool:
         interrupted = False
@@ -487,11 +495,14 @@ class SCVBuildStep(BuildStep):
             )
             if not self.check_idle:
                 return False
-            
-            micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
-            if await micro._retreat(self.unit_in_charge, 0.8) == UnitMicroType.RETREAT:
-                interrupted = True
-                LogHelper.add_log(f"{self} interrupted due to retreating worker {self.unit_in_charge}")
+            flee_enemies = True
+            if self.unit_type_id in self.unit_types_to_finish_despite_enemies and self.unit_being_built and self.unit_being_built.build_progress > 0.7:
+                flee_enemies = False
+            if flee_enemies:
+                micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
+                if await micro._retreat(self.unit_in_charge, 0.8) == UnitMicroType.RETREAT:
+                    interrupted = True
+                    LogHelper.add_log(f"{self} interrupted due to retreating worker {self.unit_in_charge}")
 
             if not interrupted and not self.unit_in_charge.is_constructing_scv:
                 if self.unit_being_built:
@@ -525,7 +536,7 @@ class SCVBuildStep(BuildStep):
                         LogHelper.add_log(f"{self} interrupted due to unit waiting too long")
                 elif self.unit_in_charge.is_idle:
                     self.unit_in_charge.smart(self.unit_being_built)
-            if not interrupted:
+            if not interrupted and flee_enemies:
                 # check for interruption due to nearby enemies
                 if cy_distance_to(self.position, self.bot.start_location) < 15:
                     # don't interrupt builds in main base
@@ -538,7 +549,6 @@ class SCVBuildStep(BuildStep):
                     if not enemy_is_close:
                         return False
                     if self.unit_in_charge:
-                        self.unit_in_charge(AbilityId.HALT)
                         interrupted = True
                         LogHelper.add_log(f"{self} interrupted due threats")
 
@@ -553,6 +563,7 @@ class SCVBuildStep(BuildStep):
         self.worker_in_position_time = None
         if self.unit_in_charge:
             self.workers.set_as_idle(self.unit_in_charge)
+            self.unit_in_charge(AbilityId.HALT)
         self.unit_in_charge = None
 
     def cancel_construction(self):

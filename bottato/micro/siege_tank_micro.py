@@ -232,10 +232,13 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             enemy_out_of_range = unit.distance_to_squared(closest_enemy_to_ramp) >= in_range_distance_sq
         if unit.tag not in self.previous_positions:
             self.previous_positions[unit.tag] = unit.position
+        bunkers = self.bot.structures(UnitTypeId.BUNKER)
+        new_bunker_built = self.bunker_count != len(bunkers)
+        if new_bunker_built:
+            self.bunker_count = len(bunkers)
         if is_sieged:
-            if self.bunker_count != len(self.bot.structures(UnitTypeId.BUNKER)):
+            if new_bunker_built:
                 # reposition to cover new bunker
-                self.bunker_count = len(self.bot.structures(UnitTypeId.BUNKER))
                 self.unsiege(unit)
                 if unit.tag in self.early_game_siege_positions:
                     del self.early_game_siege_positions[unit.tag]
@@ -258,8 +261,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             if unit.tag in self.early_game_siege_positions:
                 tank_position = self.early_game_siege_positions[unit.tag]
             else:
+                # calculate high ground defensive position
                 tank_position = None
-                bunkers = self.bot.structures(UnitTypeId.BUNKER)
                 bunker: Unit | None = bunkers.furthest_to(self.bot.main_base_ramp.top_center) if bunkers else None
                 if bunker and cy_distance_to_squared(bunker.position, self.bot.main_base_ramp.top_center) > 36:
                     # bunker on low ground, position tank to cover it, a bit away from top of ramp

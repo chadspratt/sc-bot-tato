@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from sc2.position import Point2
-from sc2.unit import Unit
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
+from sc2.position import Point2
+from sc2.unit import Unit
 
 from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -13,7 +13,7 @@ from bottato.unit_types import UnitTypes
 
 
 class MarineMicro(BaseUnitMicro, GeometryMixin):
-    attack_health: float = 0.51
+    attack_health: float = 0.7
     last_stim_time: dict[int, float] = {}
     stim_researched: bool = False
     attack_range: float = 5.0

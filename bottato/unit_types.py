@@ -381,6 +381,19 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.OBSERVER,
     ]
 
+    FLYABLE_STRUCTURE_TYPES = [
+        UnitTypeId.COMMANDCENTER,
+        UnitTypeId.COMMANDCENTERFLYING,
+        UnitTypeId.ORBITALCOMMAND,
+        UnitTypeId.ORBITALCOMMANDFLYING,
+        UnitTypeId.BARRACKS,
+        UnitTypeId.BARRACKSFLYING,
+        UnitTypeId.FACTORY,
+        UnitTypeId.FACTORYFLYING,
+        UnitTypeId.STARPORT,
+        UnitTypeId.STARPORTFLYING,
+    ]
+
     @staticmethod
     def is_worker(unit_type_id: UnitTypeId) -> bool:
         """

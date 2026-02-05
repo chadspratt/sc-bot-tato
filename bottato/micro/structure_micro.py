@@ -39,7 +39,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         self.adjust_supply_depots_for_enemies()
         self.target_autoturrets()
         await self.move_command_centers()
-        self.move_ramp_barracks(army_ratio)
+        await self.move_ramp_barracks(army_ratio)
         self.scan()
         await self.untrap_stuck_units(stuck_units)
 
@@ -72,6 +72,21 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         for turret in self.bot.structures(UnitTypeId.AUTOTURRET):
             logger.debug(f"turret {turret} attacking")
             self._attack_something(turret, 0)
+
+    # @timed
+    # should more structures fly away or is it better for them to stay and die to delay the enemy
+    # def retreat_from_threats(self):
+    #     flyable_structures = self.bot.structures.of_type(UnitTypes.FLYABLE_STRUCTURE_TYPES).ready
+    #     for structure in flyable_structures:
+    #         threats = self.bot.enemy_units.filter(lambda enemy: enemy.type_id not in UnitTypes.NON_THREATS)
+    #         threats = self.enemy.threats_to_friendly_unit(structure, attack_range_buffer=2)
+    #         if threats:
+    #             nearby_enemies = Units(cy_closer_than(threats, 15, structure.position), bot_object=self.bot)
+    #             if nearby_enemies:
+    #                 threats = nearby_enemies.filter(lambda enemy: UnitTypes.can_attack_ground(enemy))
+    #                 if threats:
+    #                     structure.move(Point2(cy_towards(self.bot.main_base_ramp.top_center, self.bot.start_location, 5)))
+    #                     break
 
     @timed_async
     async def move_command_centers(self):
@@ -140,13 +155,15 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                             cc(AbilityId.CANCEL_LAST)
                             cc(AbilityId.LIFT)
 
-    @timed
-    def move_ramp_barracks(self, army_ratio: float):
+    ramp_barracks_in_position_time: float | None = None
+    ramp_barracks_desired_position: Point2 | None = None
+    @timed_async
+    async def move_ramp_barracks(self, army_ratio: float):
         if self.bot.structures(UnitTypeId.BARRACKSREACTOR):
             # reactor already started, don't move barracks
             return
 
-        desired_position = self.bot.main_base_ramp.barracks_correct_placement
+        desired_position = self.ramp_barracks_desired_position or self.bot.main_base_ramp.barracks_correct_placement
         if desired_position is None:
             return
         barracks = Units(cy_closer_than(self.bot.structures([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING]).ready, 3, desired_position), bot_object=self.bot)
@@ -156,8 +173,15 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         is_in_position = ramp_barracks.position == desired_position
         if ramp_barracks.is_flying:
             if is_in_position:
-                BaseUnitMicro.add_custom_effect(ramp_barracks.position, ramp_barracks.radius, self.bot.time, 0.5)
-                ramp_barracks(AbilityId.LAND, desired_position)
+                if self.ramp_barracks_in_position_time is None:
+                    self.ramp_barracks_in_position_time = self.bot.time
+                if self.bot.time - self.ramp_barracks_in_position_time > 5 and not self.bot.can_place_single(UnitTypeId.BARRACKS, desired_position):
+                    self.ramp_barracks_desired_position = await self.bot.find_placement(UnitTypeId.BARRACKS, desired_position, placement_step=1, addon_place=True)
+                    if self.ramp_barracks_desired_position:
+                        ramp_barracks.move(self.ramp_barracks_desired_position)
+                else:
+                    BaseUnitMicro.add_custom_effect(ramp_barracks.position, ramp_barracks.radius, self.bot.time, 0.5)
+                    ramp_barracks(AbilityId.LAND, desired_position)
             else:
                 ramp_barracks.move(desired_position)
         elif not is_in_position:

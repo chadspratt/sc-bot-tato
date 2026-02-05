@@ -1,7 +1,7 @@
-from typing import Dict
-from loguru import logger
 import os
 import random
+from loguru import logger
+from typing import Dict
 
 from sc2.bot_ai import BotAI
 from sc2.data import Result
@@ -116,7 +116,10 @@ class BotTato(BotAI):
         logger.debug(f"building complete {unit}")
         self.commander.update_completed_structure(unit)
 
-    states_to_ignore = {UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.BARRACKSFLYING, UnitTypeId.FACTORYFLYING, UnitTypeId.STARPORTFLYING, UnitTypeId.COMMANDCENTERFLYING, UnitTypeId.ORBITALCOMMANDFLYING}
+    states_to_ignore = {UnitTypeId.SUPPLYDEPOTLOWERED,
+                        UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT,
+                        UnitTypeId.BARRACKSFLYING, UnitTypeId.FACTORYFLYING, UnitTypeId.STARPORTFLYING,
+                        UnitTypeId.COMMANDCENTERFLYING, UnitTypeId.ORBITALCOMMANDFLYING}
 
     async def on_unit_type_changed(self, unit: Unit, previous_type: UnitTypeId):
         logger.debug(f"transformation complete {previous_type} to {unit.type_id}")

@@ -281,7 +281,8 @@ class BuildOrder():
                 UnitTypeId.STARPORTTECHLAB,
                 UpgradeId.BANSHEECLOAK,
                 UnitTypeId.BANSHEE], self.static_queue)
-            self.add_to_build_queue([UnitTypeId.BANSHEE], queue=self.static_queue)
+            self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.static_queue)
+            self.add_to_build_queue([UnitTypeId.BANSHEE], queue=self.static_queue, remove_duplicates=False)
     
     def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep], position: int | None = None) -> bool:
         for step in from_queue:
@@ -686,7 +687,7 @@ class BuildOrder():
         if intel.enemy_race_confirmed == Race.Protoss and UnitTypeId.STARGATE not in intel.first_building_time:
             # protoss without stargate likely adepts or zealots, don't build turrets
             return
-        if self.bot.time > 300:
+        if self.bot.structures(UnitTypeId.ENGINEERINGBAY).ready:
             turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
             turret_count = len(turrets.ready)
             construction_started_count = len(turrets) - turret_count

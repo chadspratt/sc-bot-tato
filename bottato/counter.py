@@ -2,10 +2,11 @@ import math
 from typing import List
 
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.units import Units
 from sc2.unit import Unit
+from sc2.units import Units
 
 from bottato.unit_types import UnitTypes
+
 
 class Counter():
     counters: dict[UnitTypeId, dict[UnitTypeId, float]] = {
@@ -90,8 +91,7 @@ class Counter():
         },
         # Terran units
         UnitTypeId.BANSHEE: { # 3
-            UnitTypeId.MARINE: 0.4,
-            UnitTypeId.VIKINGFIGHTER: 0.6
+            UnitTypeId.VIKINGFIGHTER: 1
         },
         UnitTypeId.BATTLECRUISER: { # 6
             UnitTypeId.VIKINGFIGHTER: 2.5,

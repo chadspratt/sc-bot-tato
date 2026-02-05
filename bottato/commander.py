@@ -118,9 +118,14 @@ class Commander(GeometryMixin):
                                                 0.3)
         for nova in self.bot.enemy_units.of_type(UnitTypeId.DISRUPTORPHASED):
             BaseUnitMicro.add_custom_effect(nova.position,
-                                            1.5,
+                                            1.5 + 1,
                                             self.bot.time,
-                                            0.5)
+                                            0.05)
+        for baneling in self.bot.enemy_units.of_type(UnitTypeId.BANELING):
+            BaseUnitMicro.add_custom_effect(baneling.position,
+                                            2.2 + 1,
+                                            self.bot.time,
+                                            0.05)
 
     @timed_async
     async def detect_stuck_units(self, iteration: int):
