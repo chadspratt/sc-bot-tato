@@ -233,7 +233,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if unit.tag not in self.previous_positions:
             self.previous_positions[unit.tag] = unit.position
         bunkers = self.bot.structures(UnitTypeId.BUNKER)
-        new_bunker_built = self.bunker_count != len(bunkers)
+        new_bunker_built = self.bunker_count < len(bunkers)
         if new_bunker_built:
             self.bunker_count = len(bunkers)
         if is_sieged:

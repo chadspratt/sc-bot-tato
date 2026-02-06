@@ -462,10 +462,10 @@ class UnitTypes(GeometryMixin):
             return unit.ground_range
         elif unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED}:
             return 5.0
-        elif unit.type_id in {UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY}:
+        elif unit.type_id in {UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BUNKER}:
             return 6.0
         elif unit.type_id == UnitTypeId.BANELING:
-            return 1.0  # Banelings have melee range
+            return 2.2
         else:
             return 0.0
         
@@ -478,7 +478,7 @@ class UnitTypes(GeometryMixin):
             return unit.air_range
         elif unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED}:
             return 5.0
-        elif unit.type_id in {UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY}:
+        elif unit.type_id in {UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BUNKER}:
             return 6.0
         else:
             return 0.0
@@ -554,8 +554,6 @@ class UnitTypes(GeometryMixin):
             return attacker.sight_range # treat detection as a weapon to be avoided
         if target.is_flying:
             return UnitTypes.air_range(attacker)
-        if attacker.type_id == UnitTypeId.BUNKER:
-            return 6
         elif target.type_id == UnitTypeId.COLOSSUS:
             return max(UnitTypes.ground_range(attacker), UnitTypes.air_range(attacker))
         else:

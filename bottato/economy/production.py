@@ -211,15 +211,16 @@ class Production():
                         await facility.update_references()
                     except UnitReferenceHelper.UnitNotFound:
                         addon_type.remove(facility)
-                    # check if add-on was destroyed
                     if facility.unit.has_add_on and facility.add_on_type == UnitTypeId.NOTAUNIT:
+                        # check if existing add-on was connected (newly built is handled through add_builder)
                         add_on_unit = self.bot.structures.find_by_tag(facility.unit.add_on_tag)
                         if add_on_unit:
                             type_id = facility.unit.unit_alias if facility.unit.unit_alias else facility.unit.type_id
-                            facility.add_on_type = UNIT_TECH_ALIAS.get(add_on_unit.type_id, {add_on_unit.type_id}).pop()
+                            facility.add_on_type = list(UNIT_TECH_ALIAS.get(add_on_unit.type_id, {add_on_unit.type_id}))[0]
                             self.facilities[type_id][UnitTypeId.NOTAUNIT].remove(facility)
                             self.facilities[type_id][facility.add_on_type].append(facility)
                     elif not facility.unit.has_add_on and facility.add_on_type != UnitTypeId.NOTAUNIT:
+                        # check if add-on was destroyed
                         facility.addon_destroyed_time = self.bot.time
                         type_id = facility.unit.unit_alias if facility.unit.unit_alias else facility.unit.type_id
                         self.facilities[type_id][facility.add_on_type].remove(facility)
