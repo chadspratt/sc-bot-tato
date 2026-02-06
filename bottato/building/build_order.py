@@ -193,7 +193,7 @@ class BuildOrder():
         #     return
         # prioritize blocking ramp
         self.make_one_time_build_change(BuildType.WORKER_RUSH, BuildOrderChange.WORKER_RUSH, detected_enemy_builds)
-        self.make_one_time_build_change(BuildType.BATTLECRUISER_RUSH, BuildOrderChange.BATTLECRUISER, detected_enemy_builds)
+        self.make_one_time_build_change(BuildType.BATTLECRUISER_RUSH, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.MULTIPLE_REAPER, BuildOrderChange.REAPER, detected_enemy_builds)
         if BuildType.BATTLECRUISER_RUSH not in detected_enemy_builds:
             self.make_one_time_build_change(BuildType.RUSH, BuildOrderChange.RUSH, detected_enemy_builds)
@@ -204,9 +204,10 @@ class BuildOrder():
 
         # make persistent changes to build order
         if BuildOrderChange.ANTI_AIR in self.changes_enacted:
-            min_vikings = 10 if BuildType.FLEET_BEACON in detected_enemy_builds else 6
-            if self.bot.units(UnitTypeId.VIKINGFIGHTER).amount + self.get_queued_count(UnitTypeId.VIKINGFIGHTER) < min_vikings:
-                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.static_queue)
+            min_vikings = 10 if BuildType.FLEET_BEACON in detected_enemy_builds or BuildType.BATTLECRUISER_RUSH in detected_enemy_builds else 6
+            viking_count = self.bot.units.of_type({UnitTypeId.VIKINGFIGHTER, UnitTypeId.VIKINGASSAULT}).amount + self.get_queued_count(UnitTypeId.VIKINGFIGHTER)
+            if viking_count < min_vikings:
+                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * (min_vikings - viking_count), queue=self.static_queue)
 
     def make_one_time_build_change(self, enemy_build_type: BuildType | bool, change: BuildOrderChange,
                                 detected_enemy_builds: Dict[BuildType, float]) -> None:
@@ -220,12 +221,9 @@ class BuildOrder():
         
         if change == BuildOrderChange.WORKER_RUSH:
             self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.static_queue)
-            self.remove_step_from_queue(UnitTypeId.REFINERY, self.static_queue)
-            self.remove_step_from_queue(UnitTypeId.REFINERY, self.static_queue)
+            self.remove_step_from_queue(UnitTypeId.REFINERY, self.static_queue, remove_all=True)
             self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue, position=0)
             self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT], position=1, queue=self.priority_queue)
-        elif change == BuildOrderChange.BATTLECRUISER:
-            self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 2, position=0, queue=self.priority_queue)
         elif change == BuildOrderChange.REAPER:
             # queue one hellion in case of reaper rush
             self.add_to_build_queue([UnitTypeId.HELLION] * 2, position=0, queue=self.priority_queue)
@@ -267,12 +265,11 @@ class BuildOrder():
         elif change == BuildOrderChange.ANTI_AIR:
             self.remove_step_from_queue(UnitTypeId.STARPORTTECHLAB, self.static_queue)
             self.add_to_build_queue([UnitTypeId.STARPORTREACTOR], queue=self.priority_queue)
-            self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue)
-            self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue)
+            self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue, remove_all=True)
+            self.remove_step_from_queue(UnitTypeId.SIEGETANK, self.static_queue, remove_all=True)
             self.remove_step_from_queue(UnitTypeId.MEDIVAC, self.static_queue)
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 3, queue=self.priority_queue)
-            if not self.substitute_steps_in_queue(UnitTypeId.SIEGETANK, [UnitTypeId.CYCLONE], self.static_queue):
-                self.add_to_build_queue([UnitTypeId.CYCLONE], queue=self.static_queue)
+            self.add_to_build_queue([UnitTypeId.CYCLONE], queue=self.static_queue)
             self.remove_step_from_queue(UpgradeId.BANSHEECLOAK, self.static_queue)
             self.add_to_build_queue([UnitTypeId.STARPORT, UnitTypeId.STARPORTREACTOR], queue=self.static_queue, remove_duplicates=False)
         elif change == BuildOrderChange.BANSHEE_HARASS:
@@ -308,17 +305,20 @@ class BuildOrder():
                 return True
         return False
     
-    def remove_step_from_queue(self, unit_type: UnitTypeId | UpgradeId, queue: List[BuildStep]) -> bool:
-        for step in queue:
+    def remove_step_from_queue(self, unit_type: UnitTypeId | UpgradeId, queue: List[BuildStep], remove_all: bool = False) -> bool:
+        removed = False
+        for step in queue[:]:
             if isinstance(unit_type, UnitTypeId):
                 if step.is_unit_type(unit_type):
                     queue.remove(step)
-                    return True
+                    if not remove_all:
+                        return True
+                    removed = True
             else:
                 if step.is_upgrade_type(unit_type):
                     queue.remove(step)
                     return True
-        return False
+        return removed
 
     @timed
     def add_to_build_queue(self, unit_types: List[UnitTypeId | UpgradeId],
