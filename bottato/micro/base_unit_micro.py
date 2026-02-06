@@ -303,6 +303,7 @@ class BaseUnitMicro(GeometryMixin):
 
     @timed
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
+        # attack best target in range or move towards best target if none in range
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.NONE
 
@@ -318,28 +319,28 @@ class BaseUnitMicro(GeometryMixin):
         if not nearby_enemies:
             return UnitMicroType.NONE
         
+        # attack enemy in range
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if can_attack:
             bonus_distance = -2 if unit.health_percentage < health_threshold else -0.5
             if UnitTypes.range(unit) < 1:
                 bonus_distance = 1
-            # attack enemy in range
             attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance)
             if attack_target:
                 self._attack(unit, attack_target)
                 return UnitMicroType.ATTACK
         
-        # don't attack if low health and there are threats
+        # don't move towards threats if low health
         if unit.health_percentage < health_threshold:
             if self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6, first_only=True):
                 return UnitMicroType.NONE
             
-        # no enemy in range, stay near tanks
+        # stay near tanks
         if self._retreat_to_tank(unit, can_attack):
             return UnitMicroType.RETREAT
             
+        # venture out a bit further to attack
         if can_attack:
-            # venture out to attack further enemy but don't chase too far
             if move_position is not None and move_position.manhattan_distance(unit.position) < 20:
                 attack_target = self._get_attack_target(unit, nearby_enemies, 5)
                 if attack_target:
@@ -356,14 +357,13 @@ class BaseUnitMicro(GeometryMixin):
 
     @timed_async
     async def _retreat(self, unit: Unit, health_threshold: float) -> UnitMicroType:
+        # retreat from any threats, or full retreat if below health threshold
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.NONE
-        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=4)
 
-        if not threats:
-            if unit.health_percentage >= health_threshold:
-                return UnitMicroType.NONE
-        else:
+        is_low_health = unit.health_percentage < health_threshold
+        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=4)
+        if not is_low_health:
             if not unit.health_max:
                 # rare weirdness
                 return UnitMicroType.NONE
@@ -373,27 +373,29 @@ class BaseUnitMicro(GeometryMixin):
             for threat in threats:
                 current_health -= threat.calculate_damage_vs_target(unit)[0]
                 if current_health < hp_threshold:
+                    is_low_health = True
                     break
-            else:
-                return UnitMicroType.NONE
 
-        if unit.type_id == UnitTypeId.SCV and not threats and not unit.is_constructing_scv and unit.health_percentage == 1.0:
-            injured_units = self.bot.units.filter(lambda u: u.health_percentage < 1.0 and u.tag != unit.tag and u.is_mechanical and u.type_id != UnitTypeId.MULE)
-            if injured_units:
-                unit.repair(cy_closest_to(unit.position, injured_units))
-                return UnitMicroType.REPAIR
+        if is_low_health or threats:
+            retreat_position = self._get_retreat_destination(unit, threats)
+            unit.move(retreat_position)
+            return UnitMicroType.RETREAT
 
-        # retreat if there is nothing this unit can attack and it's not an SCV which might be repairing
-        if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
-            visible_threats = threats.filter(lambda t: t.age == 0)
-            targets = self.enemy.in_attack_range(unit, visible_threats, 3, first_only=True)
-            if not targets:
-                unit(AbilityId.UNSIEGE_UNSIEGE)
-                return UnitMicroType.USE_ABILITY
+        # if unit.type_id == UnitTypeId.SCV and not unit.is_constructing_scv and unit.health_percentage == 1.0:
+        #     injured_units = self.bot.units.filter(lambda u: u.health_percentage < 1.0 and u.tag != unit.tag and u.is_mechanical and u.type_id != UnitTypeId.MULE)
+        #     if injured_units:
+        #         unit.repair(cy_closest_to(unit.position, injured_units))
+        #         return UnitMicroType.REPAIR
 
-        retreat_position = self._get_retreat_destination(unit, threats)
-        unit.move(retreat_position)
-        return UnitMicroType.RETREAT
+        # # retreat if there is nothing this unit can attack and it's not an SCV which might be repairing
+        # if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
+        #     visible_threats = threats.filter(lambda t: t.age == 0)
+        #     targets = self.enemy.in_attack_range(unit, visible_threats, 3, first_only=True)
+        #     if not targets:
+        #         unit(AbilityId.UNSIEGE_UNSIEGE)
+        #         return UnitMicroType.USE_ABILITY
+
+        return UnitMicroType.NONE
     
     @timed_async
     async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> UnitMicroType:
@@ -640,7 +642,7 @@ class BaseUnitMicro(GeometryMixin):
             return False
         if unit.health_percentage >= 0.9:
             injured_friendlies = self.bot.units.filter(lambda u: u.health_percentage < 0.9 and u.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER))
-            # poke out at full health otherwise enemy might never be engaged
+            # poke out at full health to lure enemy. only go if no nearby units are injured to promote grouping up
             if not self.unit_is_closer_than(unit, injured_friendlies, 5):
                 return False
 

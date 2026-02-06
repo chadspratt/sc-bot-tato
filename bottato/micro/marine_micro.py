@@ -52,15 +52,15 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     def is_stimmed(self, unit: Unit) -> bool:
         return unit.tag in self.last_stim_time and self.bot.time - self.last_stim_time[unit.tag] < 11
 
-    @timed_async
-    async def _retreat(self, unit: Unit, health_threshold: float) -> UnitMicroType:
-        if unit.health_percentage < 0.7:
-            if self._retreat_to_medivac(unit) != UnitMicroType.NONE:
-                return UnitMicroType.RETREAT
-            return await super()._retreat(unit, health_threshold)
-        elif unit.tag in self.healing_unit_tags:
-            if unit.health_percentage < 0.9:
-                return self._retreat_to_medivac(unit)
-            else:
-                self.healing_unit_tags.remove(unit.tag)
-        return UnitMicroType.NONE
+    # @timed_async
+    # async def _retreat(self, unit: Unit, health_threshold: float) -> UnitMicroType:
+    #     if unit.health_percentage < 0.7:
+    #         if self._retreat_to_medivac(unit) != UnitMicroType.NONE:
+    #             return UnitMicroType.RETREAT
+    #         return await super()._retreat(unit, health_threshold)
+    #     elif unit.tag in self.healing_unit_tags:
+    #         if unit.health_percentage < 0.9:
+    #             return self._retreat_to_medivac(unit)
+    #         else:
+    #             self.healing_unit_tags.remove(unit.tag)
+    #     return UnitMicroType.NONE

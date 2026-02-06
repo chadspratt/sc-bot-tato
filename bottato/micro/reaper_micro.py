@@ -29,6 +29,8 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     unconfirmed_grenade_throwers: List[int] = []
     retreat_scout_location: Point2 | None = None
     bad_harass_experience_locations: Dict[Point2, Tuple[int, float]] = {}
+    previous_elevation: dict[int, float] = {}
+    last_hop_down_time: dict[int, float] = {}
 
     excluded_types = [UnitTypeId.EGG, UnitTypeId.LARVA]
     @timed_async
@@ -165,8 +167,10 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             return UnitMicroType.NONE
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
 
+        do_retreat = False
+
         if not threats:
-            if unit.health_percentage >= health_threshold:
+            if unit.health_percentage >= health_threshold and not do_retreat:
                 self.retreat_scout_location = None
                 return UnitMicroType.NONE
             # scout next enemy expansion location
@@ -190,7 +194,6 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             # rare weirdness
             return UnitMicroType.NONE
 
-        do_retreat = False
         # check if incoming damage will bring unit below health threshold
         hp_threshold = unit.health_max * health_threshold
         current_health = unit.health
@@ -204,14 +207,26 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 break
             current_health -= threat.calculate_damage_vs_target(unit)[0]
 
+        current_elevation = self.bot.get_terrain_z_height(unit)
+        if unit.tag not in self.previous_elevation:
+            self.previous_elevation[unit.tag] = current_elevation
+        last_elevation = self.previous_elevation[unit.tag]
+        if current_elevation - last_elevation < -1:
+            if do_retreat:
+                self.last_hop_down_time[unit.tag] = self.bot.time
+            self.previous_elevation[unit.tag] = current_elevation
+        elif current_elevation - last_elevation > 1:
+            self.previous_elevation[unit.tag] = current_elevation
+        if self.bot.time - self.last_hop_down_time.get(unit.tag, 0) < 1:
+            # recently hopped down while retreating, don't immediately go back up
+            do_retreat = True
+
         if do_retreat:
             if unit.health_percentage < health_threshold:
                 retreat_position = self._get_retreat_destination(unit, threats)
                 unit.move(retreat_position)
                 return UnitMicroType.RETREAT
-            # # retreat_to_start =  unit.health_percentage < health_threshold or cy_distance_to_squared(unit.position, harass_location) < 400
-            # retreat_to_start =  True
-            # if retreat_to_start:
+
             destination = self.bot.start_location
             avg_threat_position = Point2(cy_center(threats))
             if cy_distance_to(unit.position, destination) < cy_distance_to(avg_threat_position, destination) + 2:
@@ -220,20 +235,9 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.RETREAT
             # if retreat_to_start:
             retreat_position = self._get_retreat_destination(unit, threats)
-            # if cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, retreat_position):
-            #     unit.move(retreat_position)
-            # else:
-            #     if unit.position == avg_threat_position:
-            #         # avoid divide by zero
-            #         unit.move(destination)
-            #     else:
-            #         circle_around_position = self.get_circle_around_position(unit, avg_threat_position, destination)
-            #         unit.move(Point2(cy_towards(circle_around_position, destination, 2)))
+
             return UnitMicroType.RETREAT
-            # elif unit.health_percentage > self.attack_health:
-            #     circle_around_position = self.get_circle_around_position(unit, avg_threat_position, harass_location)
-            #     unit.move(circle_around_position)
-            #     return UnitMicroType.MOVE
+
         self.retreat_scout_location = None
         return UnitMicroType.NONE
 
