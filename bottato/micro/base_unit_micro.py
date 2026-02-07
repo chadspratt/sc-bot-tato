@@ -12,6 +12,7 @@ from cython_extensions.geometry import (
 )
 from cython_extensions.units_utils import cy_center, cy_closer_than, cy_closest_to
 from sc2.bot_ai import BotAI
+from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.ids.effect_id import EffectId
@@ -439,7 +440,7 @@ class BaseUnitMicro(GeometryMixin):
         # except for zerg structures that spawn broodlings when they die
         is_nonthreat_structure = nearest_target.is_structure \
             and nearest_target.type_id not in UnitTypes.OFFENSIVE_STRUCTURE_TYPES \
-            and nearest_target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS
+            and (nearest_target.race != Race.Zerg or nearest_target.type_id in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS)
         is_passive_unit = not nearest_target.is_structure and not UnitTypes.can_attack(nearest_target)
         if is_passive_unit or is_nonthreat_structure:
             # nearest target isn't a threat, check for nearby threats before closing
@@ -480,6 +481,7 @@ class BaseUnitMicro(GeometryMixin):
     def _kite(self, unit: Unit, targets: Units) -> UnitMicroType:
         targets_to_avoid = Units([], bot_object=self.bot)
         workers_to_avoid = Units([], bot_object=self.bot)
+        distance_to_advance: float = float('inf')
         for target in targets:
             attack_range = UnitTypes.range_vs_target(unit, target)
             target_range = UnitTypes.range_vs_target(target, unit)
@@ -488,11 +490,16 @@ class BaseUnitMicro(GeometryMixin):
             if do_kite:
                 # can attack while staying out of range
                 target_distance = self.distance(unit, target, self.enemy.predicted_positions) - target.radius - unit.radius
-                if target.type_id in UnitTypes.WORKER_TYPES:
-                    if target_distance < target_range + 2.0:
+                desired_distance = target_range + 2.0 if target.type_id in UnitTypes.WORKER_TYPES else max(attack_range - 1.0, target_range + 0.5)
+                excess_distance = target_distance - desired_distance
+                if excess_distance < distance_to_advance:
+                    distance_to_advance = excess_distance
+                if excess_distance < 0:
+                    if target.type_id in UnitTypes.WORKER_TYPES:
                         workers_to_avoid.append(target)
-                elif target_distance < attack_range - 1.0 or target_distance < target_range + 0.5:
-                    targets_to_avoid.append(target)
+                    else:
+                        targets_to_avoid.append(target)
+                    
         if targets_to_avoid:
             if self._stay_at_max_range(unit, targets_to_avoid) == UnitMicroType.NONE:
                 unit.move(self._get_retreat_destination(unit, targets_to_avoid))
@@ -505,13 +512,13 @@ class BaseUnitMicro(GeometryMixin):
                 unit.move(self._get_retreat_destination(unit, workers_to_avoid))
             return UnitMicroType.MOVE
 
+        target = sorted(targets, key=lambda t: t.health + t.shield)[0]
         if unit.weapon_cooldown < self.time_in_frames_to_attack:
-            target = sorted(targets, key=lambda t: t.health + t.shield)[0]
             self._attack(unit, target)
             return UnitMicroType.ATTACK
-        
-        if self._stay_at_max_range(unit, targets) == UnitMicroType.NONE:
-            unit.move(self._get_retreat_destination(unit, targets))
+        unit.move(unit.position.towards(target.position, distance_to_advance))
+        # if self._stay_at_max_range(unit, targets) == UnitMicroType.NONE:
+        #     unit.move(self._get_retreat_destination(unit, targets))
         return UnitMicroType.MOVE
     
     def _attack(self, unit: Unit, target: Unit) -> bool:

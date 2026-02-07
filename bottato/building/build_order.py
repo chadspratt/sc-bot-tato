@@ -204,7 +204,9 @@ class BuildOrder():
 
         # make persistent changes to build order
         if BuildOrderChange.ANTI_AIR in self.changes_enacted:
-            min_vikings = 10 if BuildType.FLEET_BEACON in detected_enemy_builds or BuildType.BATTLECRUISER_RUSH in detected_enemy_builds else 6
+            min_vikings = 3
+            if BuildType.FLEET_BEACON in detected_enemy_builds or BuildType.BATTLECRUISER_RUSH in detected_enemy_builds:
+                min_vikings = 8
             viking_count = self.bot.units.of_type({UnitTypeId.VIKINGFIGHTER, UnitTypeId.VIKINGASSAULT}).amount + self.get_queued_count(UnitTypeId.VIKINGFIGHTER)
             if viking_count < min_vikings:
                 self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * (min_vikings - viking_count), queue=self.static_queue)
