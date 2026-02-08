@@ -400,10 +400,11 @@ class Workers(GeometryMixin):
                 position = assignment.target if assignment.target and not worker_rush_detected else worker
                 nearby_enemies = cy_closer_than(targetable_enemies, 5, position.position)
                 if nearby_enemies:
-                    if worker.health_percentage < 0.6 and assignment.job_type == WorkerJobType.BUILD and not assignment.on_attack_break:
-                        # stop building if getting attacked
-                        worker(AbilityId.HALT)
-                        LogHelper.add_log(f"Worker {worker} stopped building due to low health and attack")
+                    if assignment.job_type == WorkerJobType.BUILD and not assignment.on_attack_break:
+                        in_melee_range = cy_distance_to(cy_closest_to(worker.position, nearby_enemies).position, worker.position) < 3
+                        if in_melee_range:
+                            worker(AbilityId.HALT)
+                            LogHelper.add_log(f"Worker {worker} stopped building due to low health and attack")
 
                     # if worker.health_percentage > 0.5 and assignment.job_type == WorkerJobType.REPAIR:
                     #     continue
@@ -636,8 +637,12 @@ class Workers(GeometryMixin):
                 self.units_to_attack.remove(existing_enemy)
                 break
 
-    def get_builder(self, building_position: Point2):
+    def get_builder(self, building_position: Point2, current_builder: Unit | None = None) -> Unit | None:
         builder = None
+        if current_builder:
+            current_assignment = self.assignments_by_worker[current_builder.tag]
+            if not current_assignment.on_attack_break:
+                return current_builder
         candidates: Units = (
             self.availiable_workers_on_job(WorkerJobType.IDLE)
             + self.availiable_workers_on_job(WorkerJobType.VESPENE)

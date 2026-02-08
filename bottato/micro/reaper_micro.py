@@ -128,6 +128,19 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                     return self._kite(unit, nearest_workers)
             return UnitMicroType.NONE
 
+        current_elevation = self.bot.get_terrain_z_height(unit)
+        if unit.tag not in self.previous_elevation:
+            self.previous_elevation[unit.tag] = current_elevation
+        last_elevation = self.previous_elevation[unit.tag]
+        if current_elevation - last_elevation < -1:
+            self.last_hop_down_time[unit.tag] = self.bot.time
+            self.previous_elevation[unit.tag] = current_elevation
+        elif current_elevation - last_elevation > 1:
+            self.previous_elevation[unit.tag] = current_elevation
+        if self.bot.time - self.last_hop_down_time.get(unit.tag, 0) < 1:
+            # recently hopped down while retreating, don't immediately go back up
+            return UnitMicroType.NONE
+
         return self._kite(unit, targets)
     
     def add_bad_harass_experience_location(self, unit: Unit, location: Point2):
@@ -169,6 +182,10 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         do_retreat = False
 
+        if self.bot.time - self.last_hop_down_time.get(unit.tag, 0) < 1:
+            # recently hopped down while retreating, don't immediately go back up
+            do_retreat = True
+
         if not threats:
             if unit.health_percentage >= health_threshold and not do_retreat:
                 self.retreat_scout_location = None
@@ -190,36 +207,23 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             # unit.stop()
             # return True
 
-        if not unit.health_max:
-            # rare weirdness
-            return UnitMicroType.NONE
+        if not do_retreat:
+            if not unit.health_max:
+                # rare weirdness
+                return UnitMicroType.NONE
 
-        # check if incoming damage will bring unit below health threshold
-        hp_threshold = unit.health_max * health_threshold
-        current_health = unit.health
-        for threat in threats:
-            if current_health < hp_threshold:
-                do_retreat = True
-                break
-            if UnitTypes.ground_range(threat) > unit.ground_range:
-                # just run away from threats that outrange
-                do_retreat = True
-                break
-            current_health -= threat.calculate_damage_vs_target(unit)[0]
-
-        current_elevation = self.bot.get_terrain_z_height(unit)
-        if unit.tag not in self.previous_elevation:
-            self.previous_elevation[unit.tag] = current_elevation
-        last_elevation = self.previous_elevation[unit.tag]
-        if current_elevation - last_elevation < -1:
-            if do_retreat:
-                self.last_hop_down_time[unit.tag] = self.bot.time
-            self.previous_elevation[unit.tag] = current_elevation
-        elif current_elevation - last_elevation > 1:
-            self.previous_elevation[unit.tag] = current_elevation
-        if self.bot.time - self.last_hop_down_time.get(unit.tag, 0) < 1:
-            # recently hopped down while retreating, don't immediately go back up
-            do_retreat = True
+            # check if incoming damage will bring unit below health threshold
+            hp_threshold = unit.health_max * health_threshold
+            current_health = unit.health
+            for threat in threats:
+                if current_health < hp_threshold:
+                    do_retreat = True
+                    break
+                if UnitTypes.ground_range(threat) > unit.ground_range:
+                    # just run away from threats that outrange
+                    do_retreat = True
+                    break
+                current_health -= threat.calculate_damage_vs_target(unit)[0]
 
         if do_retreat:
             if unit.health_percentage < health_threshold:

@@ -172,8 +172,7 @@ class SCVBuildStep(BuildStep):
                     self.no_position_count += 1
                     return BuildResponseCode.NO_LOCATION
 
-        if self.unit_in_charge is None:
-            self.unit_in_charge = self.workers.get_builder(self.position)
+        self.unit_in_charge = self.workers.get_builder(self.position, self.unit_in_charge)
         if self.unit_in_charge is None:
             return BuildResponseCode.NO_BUILDER
 

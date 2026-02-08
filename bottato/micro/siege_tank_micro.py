@@ -153,7 +153,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
         if is_sieged:
             unsiege_range = self.sieged_range
-            if time_since_last_siege_attack < 2.0:
+            if time_since_last_siege_attack < 4.0:
                 unsiege_range += 2
             if not siege_aggressively and friendly_buffer_count >= 5:
                 # keep sieged if enemy might get lured closer, decrease extra buffer over time

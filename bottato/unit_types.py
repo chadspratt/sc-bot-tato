@@ -460,6 +460,8 @@ class UnitTypes(GeometryMixin):
         """
         if unit.can_attack_ground:
             return unit.ground_range
+        elif unit.type_id == UnitTypeId.ORACLE:
+            return 4.0
         elif unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED}:
             return 5.0
         elif unit.type_id in {UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BUNKER}:

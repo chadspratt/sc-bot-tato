@@ -7,7 +7,7 @@ cd /root/bot/cython_extensions
 PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}{sys.version_info.minor}")')
 SO_FILES=$(ls *.cpython-${PYTHON_VERSION}*.so 2>/dev/null | wc -l)
 
-if [ "$SO_FILES" -lt 10 ]; then
+if [ "$SO_FILES" -lt 13 ]; then
     echo "Building Cython extensions for Python ${PYTHON_VERSION}..."
     uv pip install cython numpy setuptools
     uv run python setup.py build_ext --inplace

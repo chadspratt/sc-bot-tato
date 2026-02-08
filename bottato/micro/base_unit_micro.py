@@ -4,6 +4,7 @@ from __future__ import annotations
 from loguru import logger
 from typing import Dict, List, Tuple
 
+from cython_extensions.combat_utils import cy_is_facing
 from cython_extensions.general_utils import cy_in_pathing_grid_burny
 from cython_extensions.geometry import (
     cy_distance_to,
@@ -192,12 +193,12 @@ class BaseUnitMicro(GeometryMixin):
         action_taken: UnitMicroType = self._avoid_effects(unit, force_move=False)
         if action_taken == UnitMicroType.NONE:
             if target.type_id in (UnitTypeId.BUNKER, UnitTypeId.PLANETARYFORTRESS, UnitTypeId.MISSILETURRET, UnitTypeId.SIEGETANKSIEGED) \
-                    and (distance_sq < 16 or distance_sq < self.closest_distance_squared(unit, self.bot.enemy_units)):
+                    and (distance_sq < 25 or distance_sq < self.closest_distance_squared(unit, self.bot.enemy_units)):
                 # repair defensive structures regardless of risk
                 unit.repair(target)
                 action_taken = UnitMicroType.REPAIR
         if action_taken == UnitMicroType.NONE:
-            if self.bot.time < 360 and cy_distance_to_squared(target.position, self.bot.main_base_ramp.top_center) < 9:
+            if self.bot.time < 360 and cy_distance_to_squared(target.position, self.bot.main_base_ramp.top_center) < 25:
                 # keep ramp wall repaired early game
                 unit.repair(target)
                 action_taken = UnitMicroType.REPAIR
@@ -494,7 +495,7 @@ class BaseUnitMicro(GeometryMixin):
                 excess_distance = target_distance - desired_distance
                 if excess_distance < distance_to_advance:
                     distance_to_advance = excess_distance
-                if excess_distance < 0:
+                if excess_distance < 0.2:
                     if target.type_id in UnitTypes.WORKER_TYPES:
                         workers_to_avoid.append(target)
                     else:
@@ -515,6 +516,9 @@ class BaseUnitMicro(GeometryMixin):
         target = sorted(targets, key=lambda t: t.health + t.shield)[0]
         if unit.weapon_cooldown < self.time_in_frames_to_attack:
             self._attack(unit, target)
+            if cy_is_facing(target, unit, 0.15):
+                # queue a move away from target after attacking if they're coming toward us
+                unit.move(Point2(cy_towards(unit.position, target.position, -1.0)), queue=True)
             return UnitMicroType.ATTACK
         unit.move(unit.position.towards(target.position, distance_to_advance))
         # if self._stay_at_max_range(unit, targets) == UnitMicroType.NONE:
@@ -582,7 +586,10 @@ class BaseUnitMicro(GeometryMixin):
         retreat_vector: Point2 = Point2((0,0))
         for threat in threats:
             if unit.position != threat.position:
-                threat_vector = (unit.position - threat.position).normalized
+                threat_vector = unit.position - threat.position
+                threat_distance = cy_distance_to((0,0), threat_vector)
+                # normalize and weight by distance so closer threats have more influence on retreat direction
+                threat_vector /= threat_distance * 2
                 retreat_vector += threat_vector
         if retreat_vector.length == 0:
             retreat_vector = ultimate_destination - unit.position
