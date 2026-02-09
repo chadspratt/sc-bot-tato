@@ -393,6 +393,7 @@ class Workers(GeometryMixin):
             ramp_is_blocked = self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount >= 2
             if ramp_is_blocked:
                 targetable_enemies = targetable_enemies.filter(lambda u: cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) > 9)
+                self.units_to_attack = set([u for u in self.units_to_attack if cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) > 9])
             for worker in self.bot.workers:
                 assignment = self.assignments_by_worker[worker.tag]
                 if assignment.job_type == WorkerJobType.SCOUT:
