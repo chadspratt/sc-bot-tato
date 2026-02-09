@@ -240,7 +240,7 @@ class Production():
                         facility.remove_queued_unit_id(queued_type)
                         return
 
-    def get_builder(self, unit_type: UnitTypeId) -> Unit | None:
+    def get_builder(self, unit_type: UnitTypeId) -> Facility | None:
         candidates = []
         builder_type: UnitTypeId = self.get_cheapest_builder_type(unit_type)
         usable_add_ons: List[UnitTypeId]
@@ -263,8 +263,7 @@ class Production():
                     continue
 
                 if candidate.has_capacity:
-                    candidate.add_queued_unit_id(unit_type)
-                    return candidate.unit
+                    return candidate
                 else:
                     logger.debug(f"candidate {candidate.unit} has no capacity - orders: {len(candidate.unit.orders)}, queued: {len(candidate.queued_unit_ids)}, capacity: {candidate.capacity}")
 

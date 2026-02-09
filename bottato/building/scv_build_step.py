@@ -196,7 +196,10 @@ class SCVBuildStep(BuildStep):
                     self.unit_type_id, self.position
                 )
 
-        return BuildResponseCode.SUCCESS if build_response else BuildResponseCode.FAILED
+        if build_response:
+            self.start_time = self.bot.time
+            return BuildResponseCode.SUCCESS
+        return BuildResponseCode.FAILED
 
     async def position_worker(self,
                               special_locations: SpecialLocations,
@@ -490,6 +493,8 @@ class SCVBuildStep(BuildStep):
             interrupted = True
             LogHelper.add_log(f"{self} interrupted due to no worker {self.unit_in_charge} or position {self.position}")
         else:
+            if self.start_time == 0.0 or self.bot.time - self.start_time < 0.5:
+                return False
             self.check_idle: bool = (
                 self.check_idle
                 or (
@@ -499,7 +504,7 @@ class SCVBuildStep(BuildStep):
             if not self.check_idle:
                 return False
             flee_enemies = True
-            if self.unit_type_id in self.unit_types_to_finish_despite_enemies and self.unit_being_built and self.unit_being_built.build_progress > 0.7:
+            if self.unit_type_id in self.unit_types_to_finish_despite_enemies and self.unit_being_built and self.unit_being_built.build_progress > 0.6:
                 flee_enemies = False
             if flee_enemies:
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
@@ -529,6 +534,17 @@ class SCVBuildStep(BuildStep):
                         LogHelper.add_log(f"{self} interrupted due to unit not constructing")
             if not interrupted:
                 if self.unit_being_built is None:
+                    if self.unit_in_charge.is_constructing_scv:
+                        order_position = self.unit_in_charge.orders[0].target
+                        if isinstance(order_position, Point2):
+                            if order_position == self.position:
+                                in_progress_structures = self.bot.structures.filter(lambda s: not s.is_ready)
+                                if in_progress_structures:
+                                    construction = cy_closer_than(in_progress_structures, 1, order_position)
+                                    if construction and construction[0].type_id == self.unit_type_id:
+                                        self.unit_being_built = construction[0]
+                                        self.position = construction[0].position
+                                        return False
                     if cy_distance_to_squared(self.unit_in_charge.position, self.position) < 9 and \
                             self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
                         self.worker_in_position_time = self.bot.time
@@ -566,8 +582,8 @@ class SCVBuildStep(BuildStep):
         self.worker_in_position_time = None
         if self.unit_in_charge:
             self.workers.set_as_idle(self.unit_in_charge)
-            self.unit_in_charge(AbilityId.HALT)
         self.unit_in_charge = None
+        self.start_time = 0.0
 
     def cancel_construction(self):
         logger.debug(f"canceling build of {self.unit_being_built}")
@@ -585,5 +601,5 @@ class SCVBuildStep(BuildStep):
         self.worker_in_position_time = None
         self.is_in_progress = False
         self.check_idle = False
-        self.start_time = None
+        self.start_time = 0.0
         self.completed_time = None

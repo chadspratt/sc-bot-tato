@@ -111,11 +111,13 @@ class Military(GeometryMixin, DebugMixin):
         
         self.army_ratio = self.calculate_army_ratio()
         enemies_in_base_ratio = self.calculate_army_ratio(self.enemies_in_base)
+        avg_enemy_age = self.enemy.get_average_enemy_age()
+        required_ratio_for_offense = 1.2 + avg_enemy_age * 0.005
 
         ignore_ratio_threshold = min(195, 160 + self.aborted_attack_count * 5)
-        army_is_big_enough = self.army_ratio > 1.3 \
+        army_is_big_enough = self.army_ratio > required_ratio_for_offense \
             or self.bot.supply_used > ignore_ratio_threshold \
-            or self.offense_started and self.army_ratio > 0.85
+            or self.offense_started and self.army_ratio > required_ratio_for_offense - 0.5
         army_is_grouped = self.main_army.is_grouped()
         mount_offense = army_is_big_enough and not defend_with_main_army
 
@@ -137,7 +139,7 @@ class Military(GeometryMixin, DebugMixin):
             self.aborted_attack_count += 1
         self.offense_started = mount_offense
     
-        self.status_message = f"m {self.bot.minerals} g {self.bot.vespene} s {self.bot.supply_used}/{self.bot.supply_cap} army ratio {self.army_ratio:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
+        self.status_message = f"m{self.bot.minerals}, g{self.bot.vespene}, s{self.bot.supply_used}/{self.bot.supply_cap}, army ratio {self.army_ratio:.2f}, avg enemy age {avg_enemy_age:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
         closest_bunker_to_center: Bunker | None = None
         closest_bunker_to_center_distance: float = float('inf')
@@ -279,7 +281,7 @@ class Military(GeometryMixin, DebugMixin):
         buffer = 2 if is_currently_occupied else 1
         if self.bot.townhalls.filter(lambda th: th.is_ready and not th.is_flying).amount < 2:
             buffer += 2  # be more cautious with only one base
-        visible_enemies = enemies_in_base.filter(lambda unit: unit.age == 0)
+        visible_enemies = enemies_in_base.filter(lambda unit: unit.age == 0 and unit.type_id not in (UnitTypeId.ADEPTPHASESHIFT,))
         enemy_distance_to_bunker = float('inf')
         enemy_is_too_far = False
         if visible_enemies:
@@ -370,10 +372,10 @@ class Military(GeometryMixin, DebugMixin):
     async def manage_special_squads(self):
         hunter_types: List[UnitTypeId] = []
         prey_types: List[UnitTypeId] = []
-        if self.intel.enemy_race_confirmed == Race.Zerg:
+        if self.intel.enemy_race == Race.Zerg:
             hunter_types = [UnitTypeId.VIKINGFIGHTER, UnitTypeId.VIKINGASSAULT]
             prey_types = [UnitTypeId.OVERLORD, UnitTypeId.OVERSEER]
-        elif self.intel.enemy_race_confirmed == Race.Terran:
+        elif self.intel.enemy_race == Race.Terran:
             hunter_types = [UnitTypeId.VIKINGFIGHTER, UnitTypeId.VIKINGASSAULT]
             prey_types = [UnitTypeId.MEDIVAC]
         if hunter_types:
@@ -448,12 +450,11 @@ class Military(GeometryMixin, DebugMixin):
             self.main_army.staging_location = Point2(cy_towards(self.map.natural_position, self.bot.main_base_ramp.bottom_center, 5))
             LogHelper.add_log(f"squad {self.main_army} staging near natural with smaller army ratio")
         elif len(self.bot.townhalls) > 1:
-            closest_base = self.map.get_closest_unit_by_path(self.bot.townhalls, enemy_position)
-            if closest_base is None:
-                closest_base = cy_closest_to(enemy_position, self.bot.townhalls)
+            sorted_bases = self.map.sort_units_by_path_distance(enemy_position, self.bot.townhalls)
+            closest_base = sorted_bases[0]
             other_bases = self.bot.townhalls.filter(lambda base: base.tag != closest_base.tag)
             # second_closest_base = cy_closest_to(enemy_position, other_bases) # need to fix cy_closest_to to handle bigger distances
-            second_closest_base = other_bases.closest_to(enemy_position)
+            second_closest_base = self.map.get_closest_unit_by_path(other_bases, enemy_position)
             path = self.map.get_path_points(second_closest_base.position, closest_base.position)
             backtrack_distance = 7
             i = 0

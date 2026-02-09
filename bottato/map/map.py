@@ -407,6 +407,9 @@ class Map(GeometryMixin):
             path = self.get_path(start, unit.position)
             distances_by_unit[unit] = path.length
         return distances_by_unit
+    
+    def sort_units_by_path_distance(self, start: Point2, units: Units) -> List[Unit]:
+        return sorted(units, key=lambda unit: self.get_path(start, unit.position).length)
 
     @timed
     def get_path_points(self, start: Point2, end: Point2) -> List[Point2]:

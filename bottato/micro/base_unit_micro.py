@@ -380,7 +380,11 @@ class BaseUnitMicro(GeometryMixin):
 
         if is_low_health or threats:
             retreat_position = self._get_retreat_destination(unit, threats)
-            unit.move(retreat_position)
+            if unit.is_constructing_scv:
+                unit(AbilityId.HALT)
+                unit.move(retreat_position, queue=True)
+            else:
+                unit.move(retreat_position)
             return UnitMicroType.RETREAT
 
         # if unit.type_id == UnitTypeId.SCV and not unit.is_constructing_scv and unit.health_percentage == 1.0:

@@ -33,7 +33,7 @@ class EnemyIntel(GeometryMixin):
         self.enemy_main_scouted: bool = False
         self.type_positions_seen: Dict[UnitTypeId, List[Point2]] = {}
         self.first_building_time: Dict[UnitTypeId, float] = {}
-        self.enemy_race_confirmed: Race | None = None
+        self.enemy_race: Race = self.bot.enemy_race
         self.enemy_builds_detected: Dict[BuildType, float] = {}
         self.proxy_buildings: Units = Units([], self.bot)
         self.enemy_drop_transports: Units = Units([], self.bot)
@@ -63,12 +63,8 @@ class EnemyIntel(GeometryMixin):
             self.add_type(unit, self.bot.time)
         
         # Detect race if not already confirmed
-        if not self.enemy_race_confirmed:
-            if self.bot.enemy_race != Race.Random:
-                self.enemy_race_confirmed = self.bot.enemy_race
-            elif self.bot.enemy_structures:
-                first_enemy: Unit = self.bot.all_enemy_units[0]
-                self.enemy_race_confirmed = first_enemy.race
+        if self.enemy_race == Race.Random and self.bot.enemy_structures:
+            self.enemy_race = self.bot.enemy_structures[0].race
 
     def add_type(self, unit: Unit, time: float):
         if unit.type_id not in self.type_positions_seen:
@@ -144,7 +140,7 @@ class EnemyIntel(GeometryMixin):
         return next_locations
 
     async def detect_enemy_builds(self):
-        if self.enemy_race_confirmed is None:
+        if self.enemy_race == Race.Random:
             return
         if self.proxy_detected():
             await LogHelper.add_chat("proxy suspected")
@@ -157,7 +153,7 @@ class EnemyIntel(GeometryMixin):
                 await LogHelper.add_chat("worker rush detected")
                 self.add_detected_build(BuildType.WORKER_RUSH)
                 self.add_detected_build(BuildType.RUSH)
-        if self.enemy_race_confirmed == Race.Zerg:
+        if self.enemy_race == Race.Zerg:
             early_pool = self.first_building_time.get(UnitTypeId.SPAWNINGPOOL, 9999) < 40
             no_gas = self.initial_scout_completed and self.number_seen(UnitTypeId.EXTRACTOR) == 0
             no_expansion = self.initial_scout_completed and self.number_seen(UnitTypeId.HATCHERY) == 1
@@ -177,7 +173,7 @@ class EnemyIntel(GeometryMixin):
                 self.add_detected_build(BuildType.SPIRE)
             if early_pool or no_expansion or zergling_rush:
                 self.add_detected_build(BuildType.RUSH)
-        elif self.enemy_race_confirmed == Race.Terran:
+        elif self.enemy_race == Race.Terran:
             # no_expansion = self.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
             battlecruiser = self.bot.time < 360 and \
                 (self.number_seen(UnitTypeId.FUSIONCORE) > 0 or
@@ -227,14 +223,14 @@ class EnemyIntel(GeometryMixin):
             LogHelper.write_log_to_db('Enemy build detected', build_type.name)
 
     def proxy_detected(self) -> bool:
-        if self.enemy_race_confirmed is None or self.bot.time > 120:
+        if self.enemy_race == Race.Random or self.bot.time > 120:
             return False
         if self.proxy_buildings:
             return True
-        if self.enemy_race_confirmed == Race.Zerg:
+        if self.enemy_race == Race.Zerg:
             # are zerg proxy a thing?
             return False
-        if self.enemy_race_confirmed == Race.Terran:
+        if self.enemy_race == Race.Terran:
             if self.bot.enemy_units(UnitTypeId.BATTLECRUISER) and self.number_seen(UnitTypeId.STARPORT) == 0:
                 return True
             return self.enemy_main_scouted and self.number_seen(UnitTypeId.BARRACKS) == 0

@@ -218,7 +218,15 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         targets = self.enemy.in_attack_range(unit, self.bot.enemy_units)
         if not targets:
             return UnitMicroType.NONE
-        target = self.get_most_grouped_unit(targets, self.bot, range=1.25)[0]
+        sorted_targets = sorted(targets, key=lambda t: t.health + t.shield, reverse=True)
+        target = sorted_targets[0]
+        for target_candidate in sorted_targets:
+            # find weakest target but stop if we find a target that will die from one hit
+            target = target_candidate
+            if target_candidate.health + target_candidate.shield < 70:
+                if target_candidate.is_armored or target_candidate.health + target_candidate.shield < 40:
+                    break
+        # target = self.get_most_grouped_unit(targets, self.bot, range=1.25)[0]
         unit.attack(target)
         return UnitMicroType.ATTACK
     

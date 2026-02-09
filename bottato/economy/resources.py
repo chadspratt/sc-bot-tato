@@ -14,6 +14,7 @@ from sc2.units import Units
 from bottato.mixins import GeometryMixin, timed
 from bottato.unit_reference_helper import UnitReferenceHelper
 
+WORKERS_PER_LONG_DISTANCE_NODE = 4
 
 class ResourceNode():
     def __init__(self, node: Unit, max_workers: int, max_mules: int, is_long_distance: bool = False):
@@ -28,12 +29,13 @@ class ResourceNode():
     def needed_workers(self):
         if self.is_long_distance:
             # put more workers on long distance nodes to compensate for travel time
-            return 6 - len(self.worker_tags)
+            return WORKERS_PER_LONG_DISTANCE_NODE - len(self.worker_tags)
         if not self.node.is_mineral_field and self.node.vespene_contents == 0:
             return 0
         return self.max_workers - len(self.worker_tags)
 
 class Resources(GeometryMixin):
+    
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
 

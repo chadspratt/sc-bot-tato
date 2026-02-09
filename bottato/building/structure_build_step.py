@@ -1,30 +1,32 @@
-from typing import Dict
 from loguru import logger
+from typing import Dict
 
 from sc2.bot_ai import BotAI
-from sc2.unit import Unit
+from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
-from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
+from sc2.unit import Unit
 
-from bottato.mixins import timed, timed_async
-from bottato.log_helper import LogHelper
-from bottato.enums import BuildResponseCode, BuildType
-from bottato.unit_types import UnitTypes
-from bottato.map.map import Map
-from bottato.economy.workers import Workers
-from bottato.economy.production import Production
 from bottato.building.build_step import BuildStep
 from bottato.building.special_locations import SpecialLocations
+from bottato.economy.production import Facility, Production
+from bottato.economy.workers import Workers
+from bottato.enums import BuildResponseCode, BuildType
+from bottato.log_helper import LogHelper
+from bottato.map.map import Map
+from bottato.mixins import timed, timed_async
 from bottato.tech_tree import TECH_TREE
 from bottato.unit_reference_helper import UnitReferenceHelper
+from bottato.unit_types import UnitTypes
+
 
 class StructureBuildStep(BuildStep):
     unit_type_id: UnitTypeId
     unit_being_built: Unit | None = None
     position: Point2 | None = None
+    facility: Facility | None = None
 
     def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers, production: Production, map: Map):
         super().__init__(unit_type_id, bot, workers, production, map)
@@ -121,20 +123,21 @@ class StructureBuildStep(BuildStep):
 
     @timed_async
     async def execute_facility_build(self) -> BuildResponseCode:
-        response = None
+        response = BuildResponseCode.FAILED
         # not built by scv
         logger.debug(
             f"Trying to train unit {self.unit_type_id} with {self.builder_type}"
         )
 
         if self.builder_type.intersection({UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT}):
-            self.unit_in_charge = self.production.get_builder(self.unit_type_id)
+            self.facility = self.production.get_builder(self.unit_type_id)
+            self.unit_in_charge = self.facility.unit if self.facility else None
             if self.unit_type_id in self.production.add_on_types and self.unit_in_charge:
                 if self.interrupted_count > 5:
                     LogHelper.add_log(f"addon {self.unit_type_id} interrupted too many times ({self.interrupted_count}), setting addon blocked")
                     if await self.production.set_addon_blocked(self.unit_in_charge, self.interrupted_count):
                         self.interrupted_count = 0
-                        self.unit_in_charge = None
+                        self.unit_in_charge = self.facility = None
                 else:
                     self.position = self.unit_in_charge.add_on_position
         elif self.unit_type_id == UnitTypeId.SCV:
@@ -158,8 +161,12 @@ class StructureBuildStep(BuildStep):
                 self.unit_being_built = self.unit_in_charge
             # self.pos = self.unit_in_charge.position
             logger.debug(f"Found training facility {self.unit_in_charge}")
+            if self.facility:
+                self.facility.add_queued_unit_id(self.unit_type_id)
             build_response = self.unit_in_charge(self.get_build_ability())
-            response = BuildResponseCode.SUCCESS if build_response else BuildResponseCode.FAILED
+            if build_response:
+                response = BuildResponseCode.SUCCESS
+                self.start_time = self.bot.time
         return response
 
     def get_build_ability(self) -> AbilityId:
@@ -182,8 +189,12 @@ class StructureBuildStep(BuildStep):
         if self.unit_in_charge is None:
             self.is_in_progress = False
             return True
+        elapsed_time = self.bot.time - self.start_time if self.start_time else 0
+        if elapsed_time < 0.5:
+            return False
 
-        if self.unit_in_charge.is_idle:
+        if self.unit_in_charge.is_idle and elapsed_time < 1:
+            # if more time elapsed then it probably finished
             self.production.remove_type_from_facilty_queue(self.unit_in_charge, self.unit_type_id)
             self.is_in_progress = False
             return True
@@ -199,5 +210,5 @@ class StructureBuildStep(BuildStep):
         self.position = None
         self.is_in_progress = False
         self.check_idle = False
-        self.start_time = None
+        self.start_time = 0.0
         self.completed_time = None

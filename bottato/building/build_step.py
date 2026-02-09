@@ -1,23 +1,24 @@
 from typing import Dict
+
 from sc2.bot_ai import BotAI
-from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
+from sc2.unit import Unit
 
+from bottato.building.special_locations import SpecialLocations
+from bottato.economy.production import Production
+from bottato.economy.workers import Workers
+from bottato.enums import BuildResponseCode, BuildType
 from bottato.map.map import Map
 from bottato.mixins import GeometryMixin
-from bottato.economy.workers import Workers
-from bottato.economy.production import Production
-from bottato.building.special_locations import SpecialLocations
-from bottato.enums import BuildResponseCode, BuildType
 
 
 class BuildStep(GeometryMixin):
     unit_in_charge: Unit | None = None
     check_idle: bool = False
     last_cancel_time: float = -10
-    start_time: float | None = None
+    start_time: float = 0.0
     completed_time: float | None = None
     is_in_progress: bool = False
     interrupted_count: int = 0

@@ -66,6 +66,10 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 return self._kite(unit, Units([nearest_priority], bot_object=self.bot))
             else:
                 return self._stay_at_max_range(unit, Units([nearest_priority], bot_object=self.bot))
+        if self.cloak_researched and self.bot.enemy_units((UnitTypeId.OBSERVER, UnitTypeId.OVERSEER, UnitTypeId.RAVEN)).amount == 0:
+            nearest_enemy, enemy_distance = self.enemy.get_closest_target(unit, include_structures=False)
+            if nearest_enemy and enemy_distance < 20 and can_attack:
+                return self._kite(unit, Units([nearest_enemy], bot_object=self.bot))
         return UnitMicroType.NONE
 
     @timed

@@ -686,7 +686,7 @@ class BuildOrder():
 
     @timed
     def queue_turret(self, intel: EnemyIntel) -> None:
-        if intel.enemy_race_confirmed == Race.Protoss and UnitTypeId.STARGATE not in intel.first_building_time:
+        if intel.enemy_race == Race.Protoss and UnitTypeId.STARGATE not in intel.first_building_time:
             # protoss without stargate likely adepts or zealots, don't build turrets
             return
         if self.bot.structures(UnitTypeId.ENGINEERINGBAY).ready:
@@ -871,6 +871,10 @@ class BuildOrder():
         failed_types: List[UnitTypeId] = []
         if remaining_resources is None:
             remaining_resources = Cost(self.bot.minerals, self.bot.vespene)
+            for pending in self.started:
+                if isinstance(pending, SCVBuildStep) and pending.unit_being_built is None:
+                    # if we have pending builds that haven't started yet, subtract their cost from available resources
+                    remaining_resources = remaining_resources - pending.cost
 
         while execution_index < len(build_queue):
             execution_index += 1
@@ -925,17 +929,22 @@ class BuildOrder():
                 continue
 
             percent_affordable = 1.0
+            added_cost: Cost = Cost(0, 0)
             if not isinstance(build_step, SCVBuildStep) or build_step.unit_being_built is None:
                 percent_affordable = self.percent_affordable(remaining_resources, build_step.cost)
-                remaining_resources = remaining_resources - build_step.cost
+                added_cost = build_step.cost
+                remaining_resources = remaining_resources - added_cost
             if percent_affordable < 1.0:
                 if only_build_units:
                     # builder_type = build_step.builder_type
                     # if build_step.get_unit_type_id() in self.production.needs_tech_lab:
                     #     builder_type = self.production.add_on_type_lookup[build_step.builder_type][UnitTypeId.TECHLAB]
                     # skip ahead more aggressively to try to use any production capacity
-                    remaining_resources = remaining_resources + build_step.cost
+                    remaining_resources = remaining_resources + added_cost
                     continue
+                if remaining_resources.vespene < 0:
+                    # don't reserve minerals for missing gas
+                    remaining_resources.minerals -= remaining_resources.vespene
                 build_response = BuildResponseCode.NO_RESOURCES
                 if percent_affordable >= 0.75 and isinstance(build_step, SCVBuildStep) \
                         and self.bot.tech_requirement_progress(build_step.unit_type_id) == 1.0:
@@ -967,7 +976,7 @@ class BuildOrder():
                     remaining_resources.minerals = 0
                     break
                 if self.bot.time > 60:
-                    remaining_resources = remaining_resources + build_step.cost
+                    remaining_resources = remaining_resources + added_cost
                 if build_response == BuildResponseCode.NO_LOCATION:
                     continue
                 unit_type = build_step.get_unit_type_id()

@@ -10,7 +10,11 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bottato.economy.resources import ResourceNode, Resources
+from bottato.economy.resources import (
+    WORKERS_PER_LONG_DISTANCE_NODE,
+    ResourceNode,
+    Resources,
+)
 from bottato.map.map import Map
 from bottato.mixins import timed
 from bottato.unit_reference_helper import UnitReferenceHelper
@@ -51,7 +55,7 @@ class Minerals(Resources):
         self.add_mineral_fields_for_townhalls()
         for node in self.nodes:
             self.bot.client.debug_text_3d(
-                f"{len(node.worker_tags)}/{node.max_workers if not node.is_long_distance else 6}\n{node.node.tag}",
+                f"{len(node.worker_tags)}/{node.max_workers if not node.is_long_distance else WORKERS_PER_LONG_DISTANCE_NODE}\n{node.node.tag}",
                 node.node.position3d, size=8, color=(255, 255, 255))
 
     def record_non_worker_death(self, unit_tag: int):
@@ -111,23 +115,16 @@ class Minerals(Resources):
 
     def add_long_distance_minerals(self, idle_worker_count: int) -> int:
         added = 0
-        nodes_to_add = math.ceil(idle_worker_count / 6)
+        nodes_to_add = math.ceil(idle_worker_count / WORKERS_PER_LONG_DISTANCE_NODE)
         if self.bot.townhalls:
             candidates = Units([mf for mf in self.bot.mineral_field if mf.tag not in self.nodes_by_tag], self.bot)
-            mineral_distances = self.map.get_unit_distances_by_path(self.bot.start_location, candidates)
-            while added < nodes_to_add:
-                closest_distance = float('inf')
-                closest_node = None
-                for candidate, distance in mineral_distances.items():
-                    adjusted_distance = distance - cy_distance_to(candidate.position, self.bot.enemy_start_locations[0])
-                    if adjusted_distance < closest_distance:
-                        closest_distance = adjusted_distance
-                        closest_node = candidate
-                if closest_node is None:
+            sorted_candidates = self.map.sort_units_by_path_distance(self.bot.start_location, candidates)
+            for i in range(nodes_to_add):
+                if i >= len(sorted_candidates):
                     break
+                closest_node = sorted_candidates[i]
                 self.add_node(closest_node)
                 self.add_mining_position(closest_node)
-                del mineral_distances[closest_node]
                 added += 1
         return added
 

@@ -108,7 +108,7 @@ class InitialScout(Squad, GeometryMixin):
             target = self.waypoints[0] if self.waypoints else self.map.enemy_natural_position
             self.unit = workers.get_scout(target)
 
-        if self.intel.enemy_race_confirmed == Race.Zerg:
+        if self.intel.enemy_race == Race.Zerg:
             self.initial_scout_complete_time = 100
     
     async def move_scout(self):
@@ -121,7 +121,7 @@ class InitialScout(Squad, GeometryMixin):
         if self.unit.health_percentage < 0.7 or self.do_natural_check:
             self.waypoints = [self.map.enemy_natural_position]  # check natural before leaving
             if cy_distance_to(self.unit.position, self.map.enemy_natural_position) < 9:
-                if self.intel.enemy_race_confirmed == Race.Terran and self.bot.enemy_structures(UnitTypeId.COMMANDCENTER).amount < 2:
+                if self.intel.enemy_race == Race.Terran and self.bot.enemy_structures(UnitTypeId.COMMANDCENTER).amount < 2:
                     # terran takes longer to start natural?
                     self.completed = self.bot.time > 150
                 else:

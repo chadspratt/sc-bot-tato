@@ -5,6 +5,7 @@ from typing import Dict, List
 from cython_extensions.general_utils import cy_in_pathing_grid_burny
 from cython_extensions.geometry import cy_distance_to_squared
 from sc2.bot_ai import BotAI
+from sc2.data import Race
 from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -44,13 +45,15 @@ class Enemy(GeometryMixin):
         self.suddenly_seen_units: Units = Units([], bot)
         self.stuck_enemies: Units = Units([], bot)
         self.stuck_check_position: Point2 | None = None
+        self.enemy_race: Race = self.bot.enemy_race
 
     @timed
     def update_references(self):
         self.unit_distance_squared_cache.clear()
 
         new_visible_enemies: Units = self.bot.enemy_units + self.bot.enemy_structures
-        
+        if self.enemy_race == Race.Random and new_visible_enemies:
+            self.enemy_race = new_visible_enemies[0].race
         self.detect_suddenly_seen_units(new_visible_enemies)
         self.update_out_of_view()
         self.set_last_seen_for_visible(new_visible_enemies)
@@ -682,3 +685,10 @@ class Enemy(GeometryMixin):
             if distance == 0:
                 self.stuck_enemies.append(unit)
                 self.bot.client.debug_text_3d("STUCK", unit.position3d)
+    
+    def get_average_enemy_age(self) -> float:
+        if not self.enemies_in_view:
+            return 0.0
+        age_limit = 180 if self.enemy_race == Race.Zerg else 240
+        total_age = sum(enemy.age for enemy in self.enemies_out_of_view if enemy.age < age_limit and enemy.type_id not in UnitTypes.NON_THREATS)
+        return total_age / (len(self.enemies_in_view) + len(self.enemies_out_of_view))

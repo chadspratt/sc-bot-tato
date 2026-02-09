@@ -1,5 +1,5 @@
-from typing import Dict
 from loguru import logger
+from typing import Dict
 
 from sc2.bot_ai import BotAI
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
@@ -16,8 +16,9 @@ from bottato.economy.workers import Workers
 from bottato.enums import BuildResponseCode, BuildType
 from bottato.map.map import Map
 from bottato.mixins import timed
-from bottato.upgrades import RESEARCH_ABILITIES
 from bottato.unit_reference_helper import UnitReferenceHelper
+from bottato.upgrades import RESEARCH_ABILITIES
+
 
 class UpgradeBuildStep(BuildStep):
     upgrade_id: UpgradeId
@@ -94,6 +95,7 @@ class UpgradeBuildStep(BuildStep):
             if successful_action:
                 response = BuildResponseCode.SUCCESS
                 self.is_in_progress = True
+                self.start_time = self.bot.time
     
         if response is None:
             logger.debug("upgrade failed to start")
@@ -102,7 +104,12 @@ class UpgradeBuildStep(BuildStep):
         return response
 
     async def is_interrupted(self) -> bool:
-        if self.unit_in_charge is None or self.unit_in_charge.is_idle:
+        if self.unit_in_charge is None:
             self.is_in_progress = False
-            return True        
+            return True
+        elapsed_time = self.bot.time - self.start_time
+        if self.unit_in_charge.is_idle and elapsed_time < 1:
+            # if more time elapsed then it probably finished
+            self.is_in_progress = False
+            self.start_time = 0.0
         return False
