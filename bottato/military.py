@@ -141,18 +141,15 @@ class Military(GeometryMixin, DebugMixin):
     
         self.status_message = f"m{self.bot.minerals}, g{self.bot.vespene}, s{self.bot.supply_used}/{self.bot.supply_cap}, army ratio {self.army_ratio:.2f}, avg enemy age {avg_enemy_age:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
-        closest_bunker_to_center: Bunker | None = None
-        closest_bunker_to_center_distance: float = float('inf')
-        for bunker in self.bunkers:
-            if not bunker.structure:
-                continue
-            distance_to_center = cy_distance_to_squared(bunker.structure.position, self.bot.game_info.map_center) if bunker.structure else float('inf')
-            if distance_to_center < closest_bunker_to_center_distance:
-                closest_bunker_to_center = bunker
-                closest_bunker_to_center_distance = distance_to_center
-        for bunker in self.bunkers:
-            is_closest = bunker == closest_bunker_to_center
-            await self.manage_bunker(bunker, self.enemies_in_base, is_closest)
+
+        bunkers = Units([b.structure for b in self.bunkers if b.structure], self.bot)
+        if bunkers:
+            forward_bunker: Unit = self.map.get_closest_unit_by_path(bunkers, self.bot.enemy_start_locations[0])
+            for bunker in self.bunkers:
+                if not bunker.structure:
+                    continue
+                is_closest = bunker.structure.tag == forward_bunker.tag
+                await self.manage_bunker(bunker, self.enemies_in_base, is_closest)
 
         if self.main_army.units:
             self.main_army.draw_debug_box()

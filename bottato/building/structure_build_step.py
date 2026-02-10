@@ -1,5 +1,5 @@
 from loguru import logger
-from typing import Dict
+from typing import Dict, override
 
 from sc2.bot_ai import BotAI
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
@@ -59,16 +59,13 @@ class StructureBuildStep(BuildStep):
 
     def is_unit(self) -> bool:
         return self.unit_type_id in UnitTypes.TERRAN
-    
+
     def is_unit_production_facility(self) -> bool:
         return self.unit_type_id in (
-            UnitTypeId.BARRACKS,
             UnitTypeId.BARRACKSREACTOR,
             UnitTypeId.BARRACKSTECHLAB,
-            UnitTypeId.FACTORY,
             UnitTypeId.FACTORYREACTOR,
             UnitTypeId.FACTORYTECHLAB,
-            UnitTypeId.STARPORT,
             UnitTypeId.STARPORTREACTOR,
             UnitTypeId.STARPORTTECHLAB,
         )

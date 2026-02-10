@@ -512,7 +512,7 @@ class BaseUnitMicro(GeometryMixin):
         if workers_to_avoid:
             # stay at minimum distance from workers instead of max attack range
             nearest_worker = self.closest_unit_to_unit(unit, workers_to_avoid)
-            target_position = Point2(cy_towards(Point2(cy_center(workers_to_avoid)), unit.position, 2.5 + unit.radius + nearest_worker.radius))
+            target_position = Point2(cy_towards(Point2(cy_center(workers_to_avoid)), unit.position, 3.0 + unit.radius + nearest_worker.radius))
             if self._move_to_pathable_position(unit, target_position) == UnitMicroType.NONE:
                 unit.move(self._get_retreat_destination(unit, workers_to_avoid))
             return UnitMicroType.MOVE

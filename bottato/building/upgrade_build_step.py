@@ -107,9 +107,9 @@ class UpgradeBuildStep(BuildStep):
         if self.unit_in_charge is None:
             self.is_in_progress = False
             return True
-        elapsed_time = self.bot.time - self.start_time
-        if self.unit_in_charge.is_idle and elapsed_time < 1:
+        if self.unit_in_charge.is_idle and (self.start_time == 0.0 or self.bot.time - self.start_time < 1):
             # if more time elapsed then it probably finished
             self.is_in_progress = False
             self.start_time = 0.0
+            return True
         return False

@@ -103,6 +103,13 @@ class SCVBuildStep(BuildStep):
         if unit_type_id in (UnitTypeId.REFINERY, UnitTypeId.REFINERYRICH):
             return self.unit_type_id in (UnitTypeId.REFINERY, UnitTypeId.REFINERYRICH)
         return self.unit_type_id == unit_type_id
+    
+    def is_unit_production_facility(self) -> bool:
+        return self.unit_type_id in (
+            UnitTypeId.BARRACKS,
+            UnitTypeId.FACTORY,
+            UnitTypeId.STARPORT,
+        )
 
     def get_unit_type_id(self) -> UnitTypeId:
         return self.unit_type_id
@@ -560,7 +567,7 @@ class SCVBuildStep(BuildStep):
                 if cy_distance_to(self.position, self.bot.start_location) < 15:
                     # don't interrupt builds in main base
                     return False
-                threats = self.bot.enemy_units.filter(
+                threats = self.bot.all_enemy_units.filter(
                     lambda u: UnitTypes.can_attack_ground(u) \
                         and u.type_id not in UnitTypes.WORKER_TYPES)
                 if threats:

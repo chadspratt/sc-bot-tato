@@ -1,5 +1,5 @@
 from loguru import logger
-from typing import List
+from typing import Dict, List, Set
 
 from cython_extensions.geometry import cy_distance_to
 from cython_extensions.units_utils import cy_closer_than, cy_closest_to
@@ -412,138 +412,85 @@ class Production():
         return max_readiness
 
     @timed
-    def additional_needed_production(self, unit_types: List[UnitTypeId]):
+    def additional_needed_production(self, unit_types: List[UnitTypeId], available_resources: Cost) -> List[UnitTypeId]:
         production_capacity = {
             UnitTypeId.BARRACKS: {
-                "tech": {
-                    "available": 0,
-                    "needed": 0,
-                    "net": 0,
-                },
-                "normal": {
-                    "available": 0,
-                    "needed": 0,
-                    "net": 0,
-                }
+                "tech": 0,
+                "normal": 0,
             },
             UnitTypeId.FACTORY: {
-                "tech": {
-                    "available": 0,
-                    "needed": 0,
-                    "net": 0,
-                },
-                "normal": {
-                    "available": 0,
-                    "needed": 0,
-                    "net": 0,
-                }
+                "tech": 0,
+                "normal": 0,
             },
             UnitTypeId.STARPORT: {
-                "tech": {
-                    "available": 0,
-                    "needed": 0,
-                    "net": 0,
-                },
-                "normal": {
-                    "available": 0,
-                    "needed": 0,
-                    "net": 0,
-                }
+                "tech": 0,
+                "normal": 0,
             },
         }
         for builder_type in self.facilities.keys():
             for facility in self.facilities[builder_type][UnitTypeId.TECHLAB]:
-                production_capacity[builder_type]["tech"]["available"] += facility.get_available_capacity()
+                production_capacity[builder_type]["tech"] += facility.get_available_capacity()
             for facility in self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
-                production_capacity[builder_type]["normal"]["available"] += facility.get_available_capacity()
+                production_capacity[builder_type]["normal"] += facility.get_available_capacity()
             for facility in self.facilities[builder_type][UnitTypeId.REACTOR]:
-                production_capacity[builder_type]["normal"]["available"] += facility.get_available_capacity()
+                production_capacity[builder_type]["normal"] += facility.get_available_capacity()
 
+        no_capacity_types: Dict[str, List[UnitTypeId]] = {"tech": [], "normal": []}
         for unit_type in unit_types:
-            if isinstance(unit_type, UpgradeId):
-                continue
-            if unit_type in self.add_on_types:
-                continue
+            if available_resources.minerals < 0 or available_resources.vespene < 0:
+                logger.debug("not enough resources to build additional tech lab")
+                break
             builder_type = self.get_cheapest_builder_type(unit_type)
             if builder_type not in production_capacity.keys():
                 continue
-            if unit_type in self.needs_tech_lab:
-                production_capacity[builder_type]["tech"]["needed"] += 1
+            # assign as much as possible to available production
+            addon_type = "tech" if unit_type in self.needs_tech_lab else "normal"
+            available_capacity = production_capacity[builder_type][addon_type]
+            if available_capacity <= 0:
+                no_capacity_types[addon_type].append(unit_type)
             else:
-                production_capacity[builder_type]["normal"]["needed"] += 1
+                production_capacity[builder_type][addon_type] -= 1
+                available_resources = self.subtract_costs(available_resources, [unit_type])
 
         upgraded_facility_tags = {
             UnitTypeId.BARRACKS: [],
             UnitTypeId.FACTORY: [],
             UnitTypeId.STARPORT: [],
         }
-        needed_resources: Cost = Cost(self.bot.minerals, self.bot.vespene)
-        additional_production: List[UnitTypeId | UpgradeId] = []
-        prereqs_added: List[UnitTypeId] = []
-        for builder_type in self.facilities.keys():
-            production_capacity[builder_type]["tech"]["net"] = production_capacity[builder_type]["tech"]["available"] - production_capacity[builder_type]["tech"]["needed"]
-            production_capacity[builder_type]["normal"]["net"] = production_capacity[builder_type]["normal"]["available"] - production_capacity[builder_type]["normal"]["needed"]
-            tech_balance = production_capacity[builder_type]["tech"]["net"]
-            normal_balance = production_capacity[builder_type]["normal"]["net"]
+        no_addon_facility_types: Set[UnitTypeId] = set()
+        additional_production: List[UnitTypeId] = []
+        while available_resources.minerals > 0 and available_resources.vespene > 0 and (len(no_capacity_types["tech"]) > 0 or len(no_capacity_types["normal"]) > 0):
+            prioritize_tech = len(no_capacity_types["tech"]) * 2 > len(no_capacity_types["normal"])
+            next_unit_type: UnitTypeId = no_capacity_types["tech"].pop(0) if prioritize_tech else no_capacity_types["normal"].pop(0)
+            builder_type = self.get_cheapest_builder_type(next_unit_type)
+            no_addon_facility: Facility | None = None
+            # look for facility with no add-on to upgrade
+            for facility in self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
+                if facility.is_building_addon():
+                    continue
+                if facility.unit.tag not in upgraded_facility_tags[builder_type]:
+                    upgraded_facility_tags[builder_type].append(facility.unit.tag)
+                    no_addon_facility = facility
+                    break
 
-            if tech_balance < 0:
-                for i in range(abs(tech_balance)):
-                    if needed_resources.minerals < 0 or needed_resources.vespene < 0:
-                        logger.debug("not enough resources to build additional tech lab")
-                        break
-                    facility: Facility
-                    # look for facility with no add-on to upgrade
-                    for facility in self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
-                        if facility.is_building_addon():
-                            continue
-                        if facility.unit.tag not in upgraded_facility_tags[builder_type]:
-                            upgraded_facility_tags[builder_type].append(facility.unit.tag)
-                            break
-                    else:
-                        if builder_type in prereqs_added:
-                            additional_production.append(builder_type)
-                        else:
-                            additional_production.extend(self.build_order_with_prereqs(builder_type))
-                            prereqs_added.append(builder_type)
-                        needed_resources = self.subtract_costs(needed_resources, [builder_type])
+            if no_addon_facility or builder_type in no_addon_facility_types:
+                if prioritize_tech:
                     additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.TECHLAB])
-                    needed_resources = self.subtract_costs(needed_resources, [UnitTypeId.TECHLAB])
+                    available_resources = self.subtract_costs(available_resources, [UnitTypeId.TECHLAB])
+                else:
+                    additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.REACTOR])
+                    available_resources = self.subtract_costs(available_resources, [UnitTypeId.REACTOR])
+                if no_addon_facility is None:
+                    no_addon_facility_types.remove(builder_type)
+            else:
+                additional_production.append(builder_type)
+                available_resources = self.subtract_costs(available_resources, [builder_type])
+                if prioritize_tech:
+                    additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.TECHLAB])
+                    available_resources = self.subtract_costs(available_resources, [UnitTypeId.TECHLAB])
+                else:
+                    no_addon_facility_types.add(builder_type)
 
-            # use leftover tech facilities
-            if tech_balance > 0:
-                normal_balance += tech_balance
-            extra_facility = False
-
-            if normal_balance < 0:
-                for i in range(abs(normal_balance)):
-                    if needed_resources.minerals < 0 or needed_resources.vespene < 0:
-                        logger.debug("not enough resources to build additional reactor/facility")
-                        break
-                    facility: Facility
-                    for facility in self.facilities[builder_type][UnitTypeId.NOTAUNIT]:
-                        if facility.is_building_addon():
-                            continue
-                        if facility.unit.tag not in upgraded_facility_tags[builder_type] and not facility.addon_blocked:
-                            upgraded_facility_tags[builder_type].append(facility.unit.tag)
-                            additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.REACTOR])
-                            needed_resources = self.subtract_costs(needed_resources, [UnitTypeId.REACTOR])
-                            break
-                    else:
-                        if extra_facility:
-                            additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.REACTOR])
-                            needed_resources = self.subtract_costs(needed_resources, [UnitTypeId.REACTOR])
-                            extra_facility = False
-                        else:
-                            if builder_type in prereqs_added:
-                                additional_production.append(builder_type)
-                            else:
-                                additional_production.extend(self.build_order_with_prereqs(builder_type))
-                                prereqs_added.append(builder_type)
-                            needed_resources = self.subtract_costs(needed_resources, [builder_type])
-                            extra_facility = True
-
-        logger.debug(f"production capacity {production_capacity}")
-        logger.debug(f"additional production {additional_production}")
         return additional_production
 
     def add_builder(self, unit: Unit) -> None:
