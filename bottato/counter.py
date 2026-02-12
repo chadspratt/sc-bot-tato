@@ -99,7 +99,8 @@ class Counter():
         },
         UnitTypeId.CYCLONE: { # 3
             UnitTypeId.SIEGETANK: 0.5,
-            UnitTypeId.MARINE: 1.5
+            UnitTypeId.MARINE: 1.5,
+            UnitTypeId.BANSHEE: -0.75
         },
         UnitTypeId.GHOST: { # 3
             UnitTypeId.MARAUDER: 1.5
@@ -133,7 +134,8 @@ class Counter():
             UnitTypeId.BANSHEE: 0.8
         },
         UnitTypeId.THOR: { # 6
-            UnitTypeId.MARAUDER: 3
+            UnitTypeId.MARAUDER: 3,
+            UnitTypeId.BANSHEE: -1
         },
         UnitTypeId.VIKINGFIGHTER: { # 2
             UnitTypeId.VIKINGFIGHTER: 1.15

@@ -116,7 +116,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
         # doesn't have an attack
         if unit.health_percentage > self.health_threshold_for_healing:
-            if self._retreat_to_tank(unit, can_attack=False):
+            if self._retreat_to_better_unit(unit, can_attack=False):
                 return UnitMicroType.RETREAT
         return UnitMicroType.NONE
 

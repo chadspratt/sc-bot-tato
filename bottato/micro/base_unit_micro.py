@@ -203,7 +203,7 @@ class BaseUnitMicro(GeometryMixin):
                 unit.repair(target)
                 action_taken = UnitMicroType.REPAIR
         if action_taken == UnitMicroType.NONE:
-            if self._retreat_to_tank(unit, can_attack=True):
+            if self._retreat_to_better_unit(unit, can_attack=True):
                 action_taken = UnitMicroType.RETREAT
         if action_taken == UnitMicroType.NONE:
             action_taken = await self._retreat(unit, health_threshold=0.25)
@@ -338,7 +338,7 @@ class BaseUnitMicro(GeometryMixin):
                 return UnitMicroType.NONE
             
         # stay near tanks
-        if self._retreat_to_tank(unit, can_attack):
+        if self._retreat_to_better_unit(unit, can_attack):
             return UnitMicroType.RETREAT
             
         # venture out a bit further to attack
@@ -636,64 +636,60 @@ class BaseUnitMicro(GeometryMixin):
         else:
             return UnitMicroType.NONE
         return UnitMicroType.RETREAT
-    
-    retreat_to_tank_excluded_types: set[UnitTypeId] = set((
-            UnitTypeId.PROBE,
-            UnitTypeId.SCV,
-            UnitTypeId.DRONE,
-            UnitTypeId.DRONEBURROWED,
-            UnitTypeId.MULE,
-            UnitTypeId.OBSERVER,
-            UnitTypeId.LARVA,
-            UnitTypeId.EGG
-    ))
+
     @timed
-    def _retreat_to_tank(self, unit: Unit, can_attack: bool) -> bool:
-        if unit.type_id in {UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED}:
-            return False
+    def _retreat_to_better_unit(self, unit: Unit, can_attack: bool) -> bool:
+        # retreat toward a unit that is better able to deal with whatever is threatening this unit.
         if not UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
             return False
-        tanks = self.bot.units.of_type(UnitTypeId.SIEGETANKSIEGED)
-        if not tanks:
-            tanks = self.bot.units.of_type(UnitTypeId.SIEGETANK)
-        if not tanks:
-            return False
+
         if unit.health_percentage >= 0.9:
             injured_friendlies = self.bot.units.filter(lambda u: u.health_percentage < 0.9 and u.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER))
             # poke out at full health to lure enemy. only go if no nearby units are injured to promote grouping up
             if not self.unit_is_closer_than(unit, injured_friendlies, 5):
                 return False
 
-        tank_targets = self.bot.enemy_units.filter(
-            lambda u: u.type_id not in UnitTypes.NON_THREATS
-                and not u.is_flying
-                and UnitTypes.can_attack_ground(u)
-                and u.unit_alias != UnitTypeId.CHANGELING
-            )
-        if not tank_targets:
+        threats = self.enemy.threats_to_friendly_unit(unit, 1)
+        if not threats:
             return False
-        closest_enemy = cy_closest_to(unit.position, tank_targets)
-        closest_enemy_distance_sq = closest_enemy.distance_to_squared(unit)
-        if closest_enemy_distance_sq > 225:
+        closest_threat = sorted(threats, key=lambda t: self.distance_squared(t, unit) - self.enemy.get_attack_range_with_buffer_squared(t, unit, 0))[0]
+        closest_threat_distance_sq = closest_threat.distance_to_squared(unit)
+        if closest_threat_distance_sq > 225:
             return False
-        if closest_enemy.type_id == UnitTypeId.SIEGETANKSIEGED and closest_enemy_distance_sq < 7:
+        if closest_threat.type_id == UnitTypeId.SIEGETANKSIEGED and closest_threat_distance_sq < 49:
             # if enemy tank is close, dive on it instead of retreating
             return False
 
-        nearest_tank = cy_closest_to(unit.position, tanks)
-        tank_to_enemy_distance_sq = nearest_tank.distance_to_squared(closest_enemy)
-        if tank_to_enemy_distance_sq < 900 and tank_to_enemy_distance_sq > (13.5 + nearest_tank.radius + closest_enemy.radius)**2:
-            optimal_distance = 13.5 - UnitTypes.ground_range(closest_enemy) - unit.radius + nearest_tank.radius - 2.0
-            unit.move(Point2(cy_towards(nearest_tank.position, unit.position, optimal_distance)))
-            if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
-                BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance_sq
+        type_to_retreat_to = UnitTypeId.SIEGETANKSIEGED
+        if closest_threat.is_flying:
+            if unit.type_id == UnitTypeId.VIKINGFIGHTER:
+                type_to_retreat_to = UnitTypeId.MARINE
+            else:
+                type_to_retreat_to = UnitTypeId.VIKINGFIGHTER
+        units_to_retreat_to = self.bot.units.of_type(type_to_retreat_to)
+        if not units_to_retreat_to and type_to_retreat_to == UnitTypeId.SIEGETANKSIEGED:
+            units_to_retreat_to = self.bot.units.of_type(UnitTypeId.SIEGETANK)
+        if not units_to_retreat_to:
+            return False
+
+        nearest_unit_to_retreat_to = cy_closest_to(unit.position, units_to_retreat_to)
+        ally_to_enemy_distance_sq = self.distance_squared(nearest_unit_to_retreat_to, closest_threat)
+
+        if ally_to_enemy_distance_sq < 900 and ally_to_enemy_distance_sq > self.enemy.get_attack_range_with_buffer_squared(nearest_unit_to_retreat_to, closest_threat, 0):
+            optimal_distance = UnitTypes.range_vs_target(nearest_unit_to_retreat_to, closest_threat) - UnitTypes.range_vs_target(closest_threat, nearest_unit_to_retreat_to) - unit.radius + nearest_unit_to_retreat_to.radius - 2.0
+            unit.move(Point2(cy_towards(nearest_unit_to_retreat_to.position, unit.position, optimal_distance)))
+            if nearest_unit_to_retreat_to.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED) \
+                and (nearest_unit_to_retreat_to.tag not in BaseUnitMicro.tanks_being_retreated_to \
+                     or ally_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_unit_to_retreat_to.tag]):
+                BaseUnitMicro.tanks_being_retreated_to[nearest_unit_to_retreat_to.tag] = ally_to_enemy_distance_sq
             return True
-        elif not can_attack and tank_to_enemy_distance_sq < unit.distance_to_squared(closest_enemy) * 0.3:
+        elif not can_attack and ally_to_enemy_distance_sq < self.distance_squared(unit, closest_threat) * 0.3:
             # defend tank if it's closer to enemy than unit
-            unit.move(Point2(cy_towards(nearest_tank.position, closest_enemy.position, 3)))
-            if nearest_tank.tag not in BaseUnitMicro.tanks_being_retreated_to or tank_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag]:
-                BaseUnitMicro.tanks_being_retreated_to[nearest_tank.tag] = tank_to_enemy_distance_sq
+            unit.move(Point2(cy_towards(nearest_unit_to_retreat_to.position, closest_threat.position, 3)))
+            if nearest_unit_to_retreat_to.tag not in BaseUnitMicro.tanks_being_retreated_to or ally_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_unit_to_retreat_to.tag]:
+                BaseUnitMicro.tanks_being_retreated_to[nearest_unit_to_retreat_to.tag] = ally_to_enemy_distance_sq
             return True
+
         return False
     
     @timed

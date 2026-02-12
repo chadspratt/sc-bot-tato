@@ -48,7 +48,7 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
             return UnitMicroType.NONE
             
         # no enemy in range, stay near tanks
-        if self._retreat_to_tank(unit, can_attack):
+        if self._retreat_to_better_unit(unit, can_attack):
             return UnitMicroType.RETREAT
             
         if can_attack:

@@ -34,7 +34,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
         closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=UnitTypes.WORKER_TYPES)
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if closest_distance <= self.attack_range:
-            if self._retreat_to_tank(unit, can_attack):
+            if self._retreat_to_better_unit(unit, can_attack):
                 return UnitMicroType.RETREAT
             if closest_enemy and closest_enemy.age > 0:
                 return UnitMicroType.NONE

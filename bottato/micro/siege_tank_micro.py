@@ -83,7 +83,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if enemy_distance:
             if is_sieged:
                 return UnitMicroType.NONE
-            if enemy_distance < 18:
+            if enemy_distance < 20:
                 self.siege(unit)
                 return UnitMicroType.USE_ABILITY
 
