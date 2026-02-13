@@ -425,7 +425,7 @@ class Workers(GeometryMixin):
                         if needed_defender_count > 0:
                             predicted_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
                             new_defenders = await self.send_defenders(nearby_enemy, predicted_position, healthy_workers, unhealthy_workers, needed_defender_count, worker_rush_detected)
-                            LogHelper.add_log(f"Assigning {len(new_defenders)} defenders to enemy {nearby_enemy} at {predicted_position}")
+                            LogHelper.add_log(f"Assigning {len(new_defenders)} defenders to enemy {nearby_enemy}")
                             assigned_defender_counts[nearby_enemy.tag] += len(new_defenders)
                             defender_tags.update(new_defenders)
 

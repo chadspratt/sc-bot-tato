@@ -42,7 +42,8 @@ class LogHelper:
     def add_log(message: str):
         if LogHelper.testing:
             return
-        LogHelper.new_messages.append(message)
+        if message not in LogHelper.new_messages:
+            LogHelper.new_messages.append(message)
 
     @staticmethod
     async def add_chat(message: str):
@@ -58,12 +59,7 @@ class LogHelper:
         if LogHelper.testing:
             return
         formatted_time = LogHelper.bot.time_formatted
-        for message in LogHelper.new_messages:
-            if message not in LogHelper.previous_messages:
-                logger.info(f"{iteration} - {formatted_time}: {message}")
-                LogHelper.previous_messages[message] = 1
-            else:
-                LogHelper.previous_messages[message] += 1
+
         to_delete = []
         for message in LogHelper.previous_messages:
             if message not in LogHelper.new_messages:
@@ -72,6 +68,13 @@ class LogHelper:
                     logger.info(f"{iteration} - {formatted_time}: ended ({LogHelper.previous_messages[message]}x): {message}")
         for message in to_delete:
             del LogHelper.previous_messages[message]
+
+        for message in LogHelper.new_messages:
+            if message not in LogHelper.previous_messages:
+                logger.info(f"{iteration} - {formatted_time}: {message}")
+                LogHelper.previous_messages[message] = 1
+            else:
+                LogHelper.previous_messages[message] += 1
         LogHelper.new_messages = []
 
     @staticmethod

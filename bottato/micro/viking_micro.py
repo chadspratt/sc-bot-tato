@@ -167,7 +167,9 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if can_attack and unit.tag in self.target_assignments:
             target = self.target_assignments[unit.tag]
-            return self._kite(unit, Units([target], self.bot))
+            threats = self.enemy.threats_to_friendly_unit(unit, 2)
+            threats.append(target)
+            return self._kite(unit, threats)
 
         enemies = self.bot.enemy_units + self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES)
         attack_range_buffer = 2 if unit.is_flying else 4

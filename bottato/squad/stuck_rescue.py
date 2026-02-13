@@ -85,14 +85,9 @@ class StuckRescue(Squad):
             if cargo_left < unit.cargo_size:
                 break
             else:
-                for order in self.transport.orders:
-                    if order.target == unit.tag:
-                        # already queued
-                        break
-                else:
-                    # don't queue first order so the unit orders don't keep growing
-                    self.transport(AbilityId.LOAD, unit, queue_orders)
-                    queue_orders = True
+                # don't queue first order so the unit orders don't keep growing
+                self.transport(AbilityId.LOAD, unit, queue_orders)
+                queue_orders = True
                 cargo_left -= unit.cargo_size
         if cargo_left == self.transport.cargo_left:
             # everything loaded (next frame)

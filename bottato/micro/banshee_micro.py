@@ -55,21 +55,25 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         attack_range_buffer = 0 if can_attack else 5
         enemy_candidates = self.enemy.get_candidates(include_out_of_view=False).sorted(lambda u: u.health + u.shield)
         attack_target = self._get_attack_target(unit, enemy_candidates, attack_range_buffer)
+        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=2)
         if attack_target:
-            return self._kite(unit, Units([attack_target], bot_object=self.bot))
+            threats.append(attack_target)
+            return self._kite(unit, threats)
 
         if force_move:
             return UnitMicroType.NONE
         nearest_priority, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.CYCLONE, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK, UnitTypeId.LURKERMP, UnitTypeId.LURKERMPBURROWED])
         if nearest_priority:
             if can_attack:
-                return self._kite(unit, Units([nearest_priority], bot_object=self.bot))
+                threats.append(nearest_priority)
+                return self._kite(unit, threats)
             else:
                 return self._stay_at_max_range(unit, Units([nearest_priority], bot_object=self.bot))
         if self.cloak_researched and self.bot.enemy_units((UnitTypeId.OBSERVER, UnitTypeId.OVERSEER, UnitTypeId.RAVEN)).amount == 0:
             nearest_enemy, enemy_distance = self.enemy.get_closest_target(unit, include_structures=False)
             if nearest_enemy and enemy_distance < 20 and can_attack:
-                return self._kite(unit, Units([nearest_enemy], bot_object=self.bot))
+                threats.append(nearest_enemy)
+                return self._kite(unit, threats)
         return UnitMicroType.NONE
 
     @timed

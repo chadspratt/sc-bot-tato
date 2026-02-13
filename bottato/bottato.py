@@ -16,6 +16,7 @@ from bottato.enums import ActionErrorCode
 from bottato.log_helper import LogHelper
 from bottato.mixins import print_decorator_timers, timed_async
 from bottato.unit_reference_helper import UnitReferenceHelper
+from bottato.unit_types import UnitTypes
 
 
 class BotTato(BotAI):
@@ -103,6 +104,7 @@ class BotTato(BotAI):
         if self.time - self.last_build_order_print > interval:
             self.last_build_order_print = self.time
             LogHelper.add_log(self.commander.military.status_message)
+            LogHelper.add_log(', '.join([f"{unit_type.name}: {count}" for unit_type, count in UnitTypes.count_units_by_type(self.units).items()]))
             LogHelper.add_log(f"{self.commander.build_order.get_build_queue_string()}")
 
     def disable_logging(self):

@@ -867,7 +867,9 @@ class BuildOrder():
         if remaining_resources is None:
             remaining_resources = Cost(self.bot.minerals, self.bot.vespene)
             for pending in self.started:
-                if isinstance(pending, SCVBuildStep) and pending.unit_being_built is None:
+                if isinstance(pending, SCVBuildStep) \
+                        and pending.unit_being_built is None \
+                        and pending.unit_in_charge and not pending.unit_in_charge.is_constructing_scv:
                     # if we have pending builds that haven't started yet, subtract their cost from available resources
                     remaining_resources = remaining_resources - pending.cost
 

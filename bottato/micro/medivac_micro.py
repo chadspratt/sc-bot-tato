@@ -84,7 +84,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                     passenger.move(unit.position) # possible passenger already received an order, but shouldn't hurt
                     self.units_to_pick_up.remove(passenger)
                     return UnitMicroType.USE_ABILITY
-        if unit.cargo_used > 0 and (unit.distance_to_squared(target) < 100 or enemy_distance_to_target <= 400):
+        if unit.cargo_used > 0 and unit.distance_to_squared(target) < 100 and self.closest_distance_squared(unit, self.bot.enemy_units) > 100:
             unit(AbilityId.UNLOADALLAT, unit)
             return UnitMicroType.USE_ABILITY
         if not self.heal_available(unit):

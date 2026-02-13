@@ -93,6 +93,10 @@ class Military(GeometryMixin, DebugMixin):
 
     def rescue_stuck_units(self, stuck_units: List[Unit]):
         self.stuck_rescue.rescue(stuck_units)
+        if self.stuck_rescue.transport:
+            self.transfer(self.stuck_rescue.transport, self.main_army, self.stuck_rescue)
+        else:
+            self.transfer_all(self.stuck_rescue, self.main_army)
 
     @timed_async
     async def manage_squads(self, iteration: int,
@@ -154,7 +158,7 @@ class Military(GeometryMixin, DebugMixin):
         if self.main_army.units:
             self.main_army.draw_debug_box()
             self.main_army.update_formation()
-            if defend_with_main_army and (self.bot.time > 420 or enemies_in_base_ratio >= 1.0):
+            if defend_with_main_army and (self.bot.time > 420 or enemies_in_base_ratio >= 0.8 or self.main_army.units.amount < 5):
                 LogHelper.add_log(f"squad {self.main_army.name} mounting defense")
                 await self.main_army.move(cy_closest_to(self.main_army.position, self.enemies_in_base).position)
             elif mount_offense and len(proxy_buildings) > 0 and self.bot.time < 420:

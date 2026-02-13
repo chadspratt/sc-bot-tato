@@ -175,7 +175,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             if is_in_position:
                 if self.ramp_barracks_in_position_time is None:
                     self.ramp_barracks_in_position_time = self.bot.time
-                if self.bot.time - self.ramp_barracks_in_position_time > 5 and not self.bot.can_place_single(UnitTypeId.BARRACKS, desired_position):
+                if self.bot.time - self.ramp_barracks_in_position_time > 2 and not await self.bot.can_place_single(UnitTypeId.BARRACKS, desired_position):
                     self.ramp_barracks_desired_position = await self.bot.find_placement(UnitTypeId.BARRACKS, desired_position, placement_step=1, addon_place=True)
                     if self.ramp_barracks_desired_position:
                         ramp_barracks.move(self.ramp_barracks_desired_position)

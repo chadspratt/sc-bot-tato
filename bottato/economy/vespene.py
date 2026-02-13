@@ -16,7 +16,7 @@ class Vespene(Resources):
     @timed
     def update_references(self):
         super().update_references()
-        missing_refineries = self.bot.structures(UnitTypeId.REFINERY).ready.tags - set(self.nodes_by_tag.keys())
+        missing_refineries = self.bot.structures.filter(lambda u: u.type_id == UnitTypeId.REFINERY and u.is_ready and u.vespene_contents > 0 and u.tag not in self.nodes_by_tag).tags
         for refinery_tag in missing_refineries:
             refinery = self.bot.structures.by_tag(refinery_tag)
             self.add_node(refinery)

@@ -42,7 +42,6 @@ class SCVBuildStep(BuildStep):
     unit_type_id: UnitTypeId
     position: Point2 | None = None
     unit_being_built: Unit | None = None
-    position: Point2 | None = None
     geysir: Unit | None = None
     worker_in_position_time: float | None = None
     no_position_count: int = 0
@@ -207,6 +206,9 @@ class SCVBuildStep(BuildStep):
             self.start_time = self.bot.time
             return BuildResponseCode.SUCCESS
         return BuildResponseCode.FAILED
+    
+    def set_position(self, x, y):
+        self.position = Point2((x, y))
 
     async def position_worker(self,
                               special_locations: SpecialLocations,
