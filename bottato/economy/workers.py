@@ -382,7 +382,7 @@ class Workers(GeometryMixin):
     async def attack_nearby_enemies(self, enemy_builds_detected: Dict[BuildType, float]) -> None:
         defender_tags = set()
         if self.bot.townhalls and self.bot.workers and self.bot.time < 200:
-            available_workers = self.bot.workers.filter(lambda u: self.assignments_by_worker[u.tag].job_type in {WorkerJobType.MINERALS, WorkerJobType.VESPENE})
+            available_workers = self.bot.workers.filter(lambda u: self.assignments_by_worker[u.tag].on_attack_break or self.assignments_by_worker[u.tag].job_type in {WorkerJobType.MINERALS, WorkerJobType.VESPENE})
             healthy_workers = available_workers.filter(lambda u: u.health_percentage > 0.5)
             unhealthy_workers = available_workers.filter(lambda u: u.health_percentage <= 0.5)
             worker_rush_detected = BuildType.WORKER_RUSH in enemy_builds_detected
@@ -392,7 +392,7 @@ class Workers(GeometryMixin):
             targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
             ramp_is_blocked = self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount >= 2
             if ramp_is_blocked:
-                targetable_enemies = targetable_enemies.filter(lambda u: cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) > 9)
+                # targetable_enemies = targetable_enemies.filter(lambda u: cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) > 9)
                 self.units_to_attack = set([u for u in self.units_to_attack if cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) > 9])
             for worker in self.bot.workers:
                 assignment = self.assignments_by_worker[worker.tag]
@@ -402,10 +402,14 @@ class Workers(GeometryMixin):
                 nearby_enemies = cy_closer_than(targetable_enemies, 5, position.position)
                 if nearby_enemies:
                     if assignment.job_type == WorkerJobType.BUILD and not assignment.on_attack_break:
-                        in_melee_range = cy_distance_to(cy_closest_to(worker.position, nearby_enemies).position, worker.position) < 3
+                        closest_enemy = cy_closest_to(worker.position, nearby_enemies)
+                        in_melee_range = closest_enemy.distance_to_squared(worker) < 4
                         if in_melee_range:
                             worker(AbilityId.HALT)
-                            LogHelper.add_log(f"Worker {worker} stopped building due to low health and attack")
+                            assignment.on_attack_break = True
+                            worker.attack(closest_enemy, queue=True)
+                            assigned_defender_counts[closest_enemy.tag] += 1
+                            LogHelper.add_log(f"Worker {worker} stopped building and attack nearby enemy")
 
                     # if worker.health_percentage > 0.5 and assignment.job_type == WorkerJobType.REPAIR:
                     #     continue
@@ -413,6 +417,9 @@ class Workers(GeometryMixin):
                     if len(nearby_enemies) >= len(available_workers) and not worker_rush_detected:
                         continue
                     for nearby_enemy in nearby_enemies:
+                        if ramp_is_blocked and cy_distance_to_squared(nearby_enemy.position, self.bot.main_base_ramp.top_center) < 9:
+                            # ignore enemies near top of ramp if wall is up since workers can't reach them
+                            continue
                         num_defenders_per_enemy = 2 if nearby_enemy.type_id in UnitTypes.WORKER_TYPES else 3
                         needed_defender_count = num_defenders_per_enemy - assigned_defender_counts[nearby_enemy.tag]
                         if needed_defender_count > 0:
@@ -797,7 +804,9 @@ class Workers(GeometryMixin):
                                 and not self.assignments_by_worker[worker.tag].on_attack_break
                             ], bot_object=self.bot)
 
+                structure_is_injured = False
                 for injured_unit in injured_units:
+                    structure_is_injured = structure_is_injured or injured_unit.is_structure
                     if injured_unit.type_id == UnitTypeId.BUNKER and len(injured_unit.passengers) > 0:
                         assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 5, candidates))
                     elif injured_unit.type_id == UnitTypeId.MISSILETURRET:
@@ -818,7 +827,7 @@ class Workers(GeometryMixin):
                         if self.bot.time < 300:
                             units_with_no_repairer.append(injured_unit)
 
-                if missing_health > 0 and self.bot.time < 180:
+                if missing_health > 0 and self.bot.time < 180 and structure_is_injured:
                     # early game, just assign a bunch so wall isn't broken by a rush
                     needed_repairers = max(needed_repairers, 5)
                 else:
