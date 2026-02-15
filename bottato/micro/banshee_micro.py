@@ -42,7 +42,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         return UnitMicroType.NONE
     
     @timed
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
+    def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.health_percentage <= self.retreat_health:
             return UnitMicroType.NONE
         if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()) \
@@ -109,7 +109,8 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 if nearby_enemy and can_attack:
                     threats_are_just_detectors = min([u.is_structure or u.type_id in UnitTypes.NON_THREAT_DETECTORS for u in threats])
                     if threats_are_just_detectors:
-                        return self._kite(unit, nearby_enemy)
+                        threats.extend(nearby_enemy)
+                        return self._kite(unit, threats)
                 if unit.health_percentage < self.harass_attack_health:
                     return UnitMicroType.NONE
                 for threat in threats:

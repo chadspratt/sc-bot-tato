@@ -16,7 +16,7 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
     attack_health: float = 0.4
 
     @timed
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
+    def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.NONE
 

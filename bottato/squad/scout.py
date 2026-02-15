@@ -167,9 +167,9 @@ class Scout(Squad):
 
         logger.debug(f"scout {self.unit} previous assignment: {assignment}")
         if self.unit.type_id == UnitTypeId.VIKINGFIGHTER:
-            enemy_bcs = self.bot.enemy_units.of_type(UnitTypeId.BATTLECRUISER)
-            if enemy_bcs:
-                await micro.scout(self.unit, cy_closest_to(self.unit.position, enemy_bcs).position)
+            priority_enemy_targets = self.bot.enemy_units.of_type((UnitTypeId.BATTLECRUISER, UnitTypeId.BANSHEE, UnitTypeId.ORACLE, UnitTypeId.VOIDRAY))
+            if priority_enemy_targets:
+                await micro.scout(self.unit, cy_closest_to(self.unit.position, priority_enemy_targets).position)
                 return
 
         distance_to_next_location = cy_distance_to(self.unit.position, assignment.scouting_position)
@@ -197,6 +197,10 @@ class Scout(Squad):
                 # full cycle, none need scouting
                 break
             assignment: ScoutingLocation = self.scouting_locations[next_index]
+            if not self.unit.is_flying:
+                is_pathable = self.bot.client.query_pathing(self.unit.position, assignment.scouting_position)
+                if not is_pathable:
+                    assignment.last_seen = self.bot.time
             self.closest_distance_to_next_location = 9999
         self.scouting_locations_index = next_index
         LogHelper.add_log(f"scout {self.unit} new assignment: {assignment}")

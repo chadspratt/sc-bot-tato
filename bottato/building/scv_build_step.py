@@ -403,6 +403,8 @@ class SCVBuildStep(BuildStep):
             UnitTypeId.FUSIONCORE,
             UnitTypeId.ARMORY,
         )
+        go_away_from_map_center = unit_type_id in UnitTypes.TECH_STRUCTURE_TYPES
+        distance_towards_map_center = -8 if go_away_from_map_center else 8
         map_center = self.bot.game_info.map_center
         max_distance = 20
         retry_count = 0
@@ -426,7 +428,7 @@ class SCVBuildStep(BuildStep):
                     for townhall in preferred_townhalls:
                         new_build_position = await self.bot.find_placement(
                             unit_type_id,
-                            near=townhall.position.towards_with_random_angle(map_center, distance=8, max_difference=1.6),
+                            near=townhall.position.towards_with_random_angle(map_center, distance=distance_towards_map_center, max_difference=1.6),
                             placement_step=2,
                             addon_place=addon_place,
                             max_distance=max_distance,

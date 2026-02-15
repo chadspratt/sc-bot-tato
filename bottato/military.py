@@ -6,7 +6,7 @@ from cython_extensions.geometry import (
     cy_distance_to_squared,
     cy_towards,
 )
-from cython_extensions.units_utils import cy_center, cy_closest_to
+from cython_extensions.units_utils import cy_center, cy_closer_than, cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
@@ -116,7 +116,7 @@ class Military(GeometryMixin, DebugMixin):
         self.army_ratio = self.calculate_army_ratio()
         enemies_in_base_ratio = self.calculate_army_ratio(self.enemies_in_base)
         avg_enemy_age = self.enemy.get_average_enemy_age()
-        required_ratio_for_offense = 1.2 + avg_enemy_age * 0.005
+        required_ratio_for_offense = 1.2 + avg_enemy_age * 0.01
 
         ignore_ratio_threshold = min(195, 160 + self.aborted_attack_count * 5)
         army_is_big_enough = self.army_ratio > required_ratio_for_offense \
@@ -478,6 +478,15 @@ class Military(GeometryMixin, DebugMixin):
         # force move is used for retreating. don't use if already near staging location
         staging_location = bunker_staging_location if bunker_staging_location else self.main_army.staging_location
         force_move = self.main_army.position._distance_squared(staging_location) >= 225
+        # check if enemies are along path to staging location, if so don't force move
+        if force_move and self.bot.enemy_units:
+            path = self.map.get_path_points(self.main_army.position, staging_location)
+            enemies_to_avoid = self.bot.enemy_units.filter(lambda unit: unit.type_id not in UnitTypes.NON_THREATS)
+            for point in path[:5]:
+                close_enemies = cy_closer_than(enemies_to_avoid, 10, point)
+                if close_enemies:
+                    force_move = False
+                    break
         await self.main_army.move(staging_location, self.bot.game_info.map_center, force_move=force_move)
 
     @timed_async
@@ -522,8 +531,8 @@ class Military(GeometryMixin, DebugMixin):
         # account for rebuilt units earlier in game when they make up a bigger portion
         enemies = enemies_in_base
         if enemies is None:
-            seconds_since_killed = min(60, 60 - (self.bot.time - 300) // 2)
-            enemies = self.enemy.get_army(seconds_since_killed=seconds_since_killed).filter(lambda unit: not unit.is_structure)
+            # seconds_since_killed = min(60, 60 - (self.bot.time - 270) // 2)
+            enemies = self.enemy.get_army(seconds_since_killed=60).filter(lambda unit: not unit.is_structure)
         friendlies = self.main_army.units.copy()
         for friendly in friendlies + self.top_ramp_bunker.units + self.natural_bunker.units:
             if hasattr(friendly, "build_progress"):

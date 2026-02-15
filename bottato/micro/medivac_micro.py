@@ -32,8 +32,10 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     units_to_pick_up_potential_damage: dict[int, float] = {}
     threat_damage: dict[UnitTypeId, float] = {}
 
-    @timed_async
-    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
+    # @timed_async
+    # async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
+        
+    def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         threats = self.enemy.threats_to_friendly_unit(unit, 4)
         if unit.health_percentage < self.health_threshold_for_healing:
             if threats:
@@ -45,8 +47,8 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.NONE
             elif force_move:
                 return UnitMicroType.NONE
-        target_distance_to_start = cy_distance_to_squared(target, self.bot.start_location)
-        enemy_distance_to_target = self.closest_distance_squared(target, self.bot.enemy_units) if self.bot.enemy_units else 999999
+        target_distance_to_start = cy_distance_to_squared(move_position, self.bot.start_location)
+        enemy_distance_to_target = self.closest_distance_squared(move_position, self.bot.enemy_units) if self.bot.enemy_units else 999999
         # only ferry units on retreat
         if force_move and self.bot.time > 300 and unit.cargo_left > 0 and enemy_distance_to_target > 400:
             if self.units_to_pick_up_last_update != self.bot._total_steps_iterations:
@@ -56,7 +58,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                     if u.type_id == UnitTypeId.SIEGETANKSIEGED or u.is_flying or u.movement_speed >= unit.movement_speed:
                         continue
                     u_distance_to_start = cy_distance_to_squared(u.position, self.bot.start_location)
-                    u_distance_to_target = cy_distance_to_squared(u.position, target)
+                    u_distance_to_target = cy_distance_to_squared(u.position, move_position)
                     if 225 < u_distance_to_target < u_distance_to_start and target_distance_to_start < u_distance_to_start:
                         self.units_to_pick_up.append(u)
                 self.units_to_pick_up_potential_damage.clear()
@@ -76,15 +78,15 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 # prioritize slower units, tiebreak with further from home
                 self.units_to_pick_up.sort(key=lambda u: u.movement_speed * 10000 - cy_distance_to_squared(u.position, self.bot.start_location))
             for passenger in self.units_to_pick_up:
-                if cy_distance_to_squared(passenger.position, target) < cy_distance_to_squared(unit.position, target):
-                    # skip units that are already closer to the target
+                if cy_distance_to_squared(passenger.position, move_position) < cy_distance_to_squared(unit.position, move_position):
+                    # skip units that are already closer to the move_position
                     continue
                 if passenger.cargo_size <= unit.cargo_left and self.units_to_pick_up_potential_damage.get(passenger.tag, 0) < unit.health:
                     unit(AbilityId.LOAD, passenger)
                     passenger.move(unit.position) # possible passenger already received an order, but shouldn't hurt
                     self.units_to_pick_up.remove(passenger)
                     return UnitMicroType.USE_ABILITY
-        if unit.cargo_used > 0 and unit.distance_to_squared(target) < 100 and self.closest_distance_squared(unit, self.bot.enemy_units) > 100:
+        if unit.cargo_used > 0 and unit.distance_to_squared(move_position) < 100 and self.closest_distance_squared(unit, self.bot.enemy_units) > 100:
             unit(AbilityId.UNLOADALLAT, unit)
             return UnitMicroType.USE_ABILITY
         if not self.heal_available(unit):
@@ -112,13 +114,13 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
 
         return UnitMicroType.USE_ABILITY if unit.tag in self.bot.unit_tags_received_action else UnitMicroType.NONE
 
-    @timed
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
-        # doesn't have an attack
-        if unit.health_percentage > self.health_threshold_for_healing:
-            if self._retreat_to_better_unit(unit, can_attack=False):
-                return UnitMicroType.RETREAT
-        return UnitMicroType.NONE
+    # @timed
+    # def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
+    #     # doesn't have an attack
+    #     if unit.health_percentage > self.health_threshold_for_healing:
+    #         if self._retreat_to_better_unit(unit, can_attack=False):
+    #             return UnitMicroType.RETREAT
+    #     return UnitMicroType.NONE
 
     def heal_available(self, unit: Unit) -> bool:
         if unit.tag in self.stopped_for_healing:

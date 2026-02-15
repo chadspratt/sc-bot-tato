@@ -63,6 +63,8 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
     @timed
     def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
+        if unit.tag in self.bot.unit_tags_received_action:
+            return UnitMicroType.ATTACK
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
 
         is_low_health = unit.health_percentage < self.attack_health
@@ -101,9 +103,9 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                     self.add_bad_harass_experience_location(unit, harass_location)
                     return UnitMicroType.NONE
                 threat_distance = self.distance(unit, threat, self.enemy.predicted_positions) - threat_range
-                if unit.health_percentage < self.attack_health and unit.health < threat.health + threat.shield - 10 and threat_distance < 2:
-                    self.add_bad_harass_experience_location(unit, harass_location)
-                    return UnitMicroType.NONE
+                # if unit.health_percentage < self.attack_health and unit.health < threat.health + threat.shield - 10 and threat_distance < 2:
+                #     self.add_bad_harass_experience_location(unit, harass_location)
+                #     return UnitMicroType.NONE
                 threat_distance_squared = self.enemy.safe_distance_squared(unit, threat)
                 reaper_range_distance = self.enemy.get_attack_range_with_buffer_squared(unit, threat, 0)
                 threat_is_in_range = threat_distance_squared <= reaper_range_distance

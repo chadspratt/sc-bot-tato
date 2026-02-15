@@ -59,7 +59,7 @@ class Enemy(GeometryMixin):
         self.set_last_seen_for_visible(new_visible_enemies)
         self.add_new_out_of_view()
 
-        self.enemies_in_view = new_visible_enemies
+        self.enemies_in_view = new_visible_enemies.filter(lambda u: u.health > 0)
 
     @timed
     def update_out_of_view(self):
@@ -269,17 +269,13 @@ class Enemy(GeometryMixin):
             if unit_tag in self.predicted_positions:
                 del self.predicted_positions[unit_tag]
 
-    all_enemies_cache: Dict[float, Units] = {}
     @timed
     def threats_to_friendly_unit(self, friendly_unit: Unit, attack_range_buffer=0, visible_only=False, first_only: bool = False) -> Units:
         enemies: Units
         if visible_only:
             enemies = self.enemies_in_view
         else:
-            if self.bot.time not in self.all_enemies_cache:
-                self.all_enemies_cache.clear()
-                self.all_enemies_cache[self.bot.time] = self.enemies_in_view + self.recent_out_of_view()
-            enemies = self.all_enemies_cache[self.bot.time]
+            enemies = self.get_enemies()
         return self.threats_to(friendly_unit, enemies, attack_range_buffer, first_only=first_only)
     
     def in_friendly_attack_range(self, friendly_unit: Unit, targets: Units | None = None, attack_range_buffer:float=0) -> Units:
@@ -296,9 +292,10 @@ class Enemy(GeometryMixin):
     def in_attack_range(self, unit: Unit, targets: Units, attack_range_buffer: float=0, first_only: bool = False) -> Units:
         in_range = Units([], self.bot)
 
-        targets = targets.filter(lambda u: UnitTypes.can_attack_target(unit, u)
-                                and u.armor < 10
-                                and BuffId.NEURALPARASITE not in u.buffs)
+        targets = targets.filter(lambda t: UnitTypes.can_attack_target(unit, t)
+                                 and UnitTypes.can_be_attacked(t, self.bot, self.get_army())
+                                 and t.armor < 10
+                                 and BuffId.NEURALPARASITE not in t.buffs)
 
         for enemy_unit in targets:
             attack_range_squared = self.get_attack_range_with_buffer_squared(unit, enemy_unit, attack_range_buffer)
@@ -409,8 +406,12 @@ class Enemy(GeometryMixin):
                 threats.append(enemy_unit)
         return threats
 
+    all_enemies_cache: Dict[float, Units] = {}
     def get_enemies(self) -> Units:
-        return self.enemies_in_view + self.recent_out_of_view()
+        if self.bot.time not in self.all_enemies_cache:
+            self.all_enemies_cache.clear()
+            self.all_enemies_cache[self.bot.time] = self.enemies_in_view + self.recent_out_of_view()
+        return self.all_enemies_cache[self.bot.time]
 
     non_army_unit_types = {
         UnitTypeId.SCV,
@@ -434,23 +435,28 @@ class Enemy(GeometryMixin):
     }
 
     def get_army(self, include_scouts: bool = False, seconds_since_killed: float = 0) -> Units:
+        rebuild_time = 30
+        rebuild_cutoff_time = self.bot.time - rebuild_time
         excluded_types = self.non_army_non_scout_unit_types if include_scouts else self.non_army_unit_types
-        enemies = (self.enemies_in_view + self.enemies_out_of_view)
-        if seconds_since_killed > 0:
+        enemies = (self.enemies_in_view + self.enemies_out_of_view).filter(lambda unit: not unit.is_structure and unit.type_id not in excluded_types)
+        if seconds_since_killed > rebuild_time:
             killed_types: Dict[UnitTypeId, int] = {}
             cutoff_time = self.bot.time - seconds_since_killed
             killed_units = Units([], self.bot)
             for i in range(len(self.enemies_killed)-1, -1, -1):
                 enemy_unit, death_time = self.enemies_killed[i]
+                if enemy_unit.type_id in excluded_types:
+                    continue
                 killed_added = killed_types.get(enemy_unit.type_id, 0)
-                if death_time >= cutoff_time:
+                # include killed units again after a delay to simulate them being rebuilt, but only add a certain number back to avoid inflating the army count
+                if rebuild_cutoff_time > death_time >= cutoff_time:
                     if killed_added < 10:
                         killed_units.append(enemy_unit)
                         killed_types[enemy_unit.type_id] = killed_added + 1
                 else:
                     break
             enemies += killed_units
-        return enemies.filter(lambda unit: unit.type_id not in excluded_types)
+        return enemies
 
     @timed
     def get_closest_target(self, friendly_unit: Unit, distance_limit=999999,
@@ -688,7 +694,7 @@ class Enemy(GeometryMixin):
     
     def get_average_enemy_age(self) -> float:
         if not self.enemies_in_view:
-            return 0.0
+            return 100.0
         age_limit = 180 if self.enemy_race == Race.Zerg else 240
         total_age = sum(enemy.age for enemy in self.enemies_out_of_view if enemy.age < age_limit and enemy.type_id not in UnitTypes.NON_THREATS)
         return total_age / (len(self.enemies_in_view) + len(self.enemies_out_of_view))

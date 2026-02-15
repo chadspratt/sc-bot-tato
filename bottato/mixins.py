@@ -95,6 +95,19 @@ class GeometryMixin:
         if angle < 0:
             angle += math.pi * 2
         return angle
+    
+    @staticmethod
+    def get_vector_towards_biggest_gap(unit_position: Point2, enemy_positions: List[Point2]) -> Point2:
+        angles = sorted([GeometryMixin.get_facing(unit_position, enemy_pos) for enemy_pos in enemy_positions])
+        angles.append(angles[0] + 2 * math.pi)  # wrap around for circular comparison
+        biggest_gap = 0
+        best_facing = 0
+        for i in range(len(angles) - 1):
+            gap = angles[i + 1] - angles[i]
+            if gap > biggest_gap:
+                biggest_gap = gap
+                best_facing = (angles[i] + angles[i + 1]) / 2 % (2 * math.pi)
+        return Point2((math.cos(best_facing), math.sin(best_facing)))
 
     @staticmethod
     def apply_rotation(angle: float, point: Point2, reverse_direction: bool = False) -> Point2:

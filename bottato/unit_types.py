@@ -394,6 +394,13 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.STARPORTFLYING,
     ]
 
+    TECH_STRUCTURE_TYPES = [
+        UnitTypeId.ARMORY,
+        UnitTypeId.ENGINEERINGBAY,
+        UnitTypeId.FUSIONCORE,
+        UnitTypeId.GHOSTACADEMY,
+    ]
+
     @staticmethod
     def is_worker(unit_type_id: UnitTypeId) -> bool:
         """

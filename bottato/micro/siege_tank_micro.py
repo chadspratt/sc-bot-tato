@@ -100,7 +100,9 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                         natural_in_place = True
                         break
         if self.bot.time < 300 or self.bot.time < 420 and not natural_in_place or target._distance_squared(self.bot.start_location) < 225:
-            return self._early_game_siege_tank_micro(unit, is_sieged)
+            response = self._early_game_siege_tank_micro(unit, is_sieged)
+            if response != UnitMicroType.NONE:
+                return response
 
         # remove missing
         self.sieged_tags = self.bot.units.tags.intersection(self.sieged_tags)
@@ -207,11 +209,11 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             logger.debug(f"{unit.tag} not in sieged_tags")
 
     @timed
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
+    def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.type_id == UnitTypeId.SIEGETANK:
             if force_move:
                 return UnitMicroType.NONE
-            return super()._attack_something(unit, health_threshold, force_move)
+            return super()._attack_something(unit, health_threshold, move_position, force_move=force_move)
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if not can_attack:
             return UnitMicroType.NONE
@@ -251,11 +253,16 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 if unit.tag in self.early_game_siege_positions:
                     del self.early_game_siege_positions[unit.tag]
                 return UnitMicroType.USE_ABILITY
-            if closest_enemy_to_ramp and closest_enemy_to_ramp.is_structure and enemy_out_of_range:
-                # creep out to clear structures
-                LogHelper.add_log(f"Early game siege tank micro for {unit}, closest enemy to ramp: {closest_enemy_to_ramp}")
-                self.unsiege(unit)
-                return UnitMicroType.USE_ABILITY
+            if closest_enemy_to_ramp and enemy_out_of_range:
+                if closest_enemy_to_ramp.is_structure:
+                    # creep out to clear structures
+                    LogHelper.add_log(f"Early game siege tank micro for {unit}, closest enemy to ramp: {closest_enemy_to_ramp}")
+                    self.unsiege(unit)
+                    return UnitMicroType.USE_ABILITY
+                else:
+                    # stay sieged and attack if enemy is out of range, even if visible, to threaten the ramp
+                    LogHelper.add_log(f"Early game siege tank micro for {unit}, closest enemy to ramp: {closest_enemy_to_ramp}, staying sieged to threaten ramp")
+                    return UnitMicroType.NONE
         else:
             if closest_enemy_to_ramp:
                 if enemy_out_of_range:

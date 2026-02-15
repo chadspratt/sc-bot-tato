@@ -249,11 +249,18 @@ class BuildOrder():
                     self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
             self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue)
             self.move_between_queues(UnitTypeId.BARRACKSREACTOR, self.static_queue, self.priority_queue)
-            self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
+            if self.bot.structures(UnitTypeId.FACTORY).amount == 0 and self.get_in_progress_count(UnitTypeId.FACTORY) == 0:
+                self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
             if not self.move_between_queues(UnitTypeId.FACTORYTECHLAB, self.static_queue, self.priority_queue):
                 self.add_to_build_queue([UnitTypeId.FACTORYTECHLAB], queue=self.priority_queue)
             if not self.move_between_queues(UnitTypeId.SIEGETANK, self.static_queue, self.priority_queue):
                 self.add_to_build_queue([UnitTypeId.SIEGETANK], queue=self.priority_queue)
+            # undo banshee harass if enemy rush detected. might still be good vs zerg
+            if self.enemy.enemy_race != Race.Zerg:
+                self.move_between_queues(UnitTypeId.STARPORT, self.priority_queue, self.static_queue, position=2)
+                self.remove_step_from_queue(UnitTypeId.STARPORTTECHLAB, self.static_queue)
+                self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue, remove_all=True)
+                self.remove_step_from_queue(UpgradeId.BANSHEECLOAK, self.static_queue, remove_all=True)
             if BuildType.PROXY not in detected_enemy_builds:
                 if self.bot.structures([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED]).amount + in_progress_depots < 2:
                     # make sure to build second depot before bunker
@@ -268,13 +275,13 @@ class BuildOrder():
             self.remove_step_from_queue(UnitTypeId.STARPORTTECHLAB, self.static_queue)
             self.add_to_build_queue([UnitTypeId.STARPORTREACTOR], queue=self.priority_queue)
             self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue, remove_all=True)
-            if enemy_build_type == BuildType.BATTLECRUISER_RUSH:
-                self.remove_step_from_queue(UnitTypeId.SIEGETANK, self.static_queue, remove_all=True)
             self.remove_step_from_queue(UnitTypeId.MEDIVAC, self.static_queue)
-            self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 3, queue=self.priority_queue)
+            self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 2, queue=self.priority_queue)
             self.add_to_build_queue([UnitTypeId.CYCLONE], queue=self.static_queue)
             self.remove_step_from_queue(UpgradeId.BANSHEECLOAK, self.static_queue)
-            self.add_to_build_queue([UnitTypeId.STARPORT, UnitTypeId.STARPORTREACTOR], queue=self.static_queue, remove_duplicates=False)
+            if enemy_build_type == BuildType.BATTLECRUISER_RUSH:
+                self.remove_step_from_queue(UnitTypeId.SIEGETANK, self.static_queue, remove_all=True)
+                self.add_to_build_queue([UnitTypeId.STARPORT, UnitTypeId.STARPORTREACTOR], queue=self.static_queue, remove_duplicates=False)
         elif change == BuildOrderChange.BANSHEE_HARASS:
             self.move_between_queues(UnitTypeId.STARPORT, self.static_queue, self.priority_queue)
             self.substitute_steps_in_queue(UnitTypeId.VIKINGFIGHTER, [
@@ -292,6 +299,9 @@ class BuildOrder():
                     to_queue.insert(position, step)
                 else:
                     to_queue.append(step)
+                if isinstance(step, SCVBuildStep) and step.unit_type_id == UnitTypeId.BUNKER:
+                    # clear postion in case low-ground needs to move to high-ground location
+                    step.position = None
                 return True
         return False
     
@@ -327,20 +337,23 @@ class BuildOrder():
     def add_to_build_queue(self, unit_types: List[UnitTypeId | UpgradeId],
                            position: int | None = None,
                            queue: List[BuildStep] | None = None,
-                           add_prereqs: bool = True,
                            remove_duplicates: bool = True) -> List[BuildStep]:
         if queue is None:
             queue = self.build_queue
         all_prereqs: List[UnitTypeId | UpgradeId] = []
-        if add_prereqs:
-            for unit_type in unit_types:
-                if isinstance(unit_type, UpgradeId):
+        for unit_type in unit_types:
+            if isinstance(unit_type, UpgradeId):
+                continue
+            prereqs = self.production.build_order_with_prereqs(unit_type)
+            for prereq in prereqs:
+                if isinstance(prereq, UpgradeId) or \
+                        self.get_queued_count(prereq) > 0 or \
+                        self.get_in_progress_count(prereq) > 0 or \
+                        self.bot.structures(prereq).amount > 0:
                     continue
-                prereqs = self.production.build_order_with_prereqs(unit_type)
-                for prereq in prereqs:
-                    if prereq != unit_type and prereq not in all_prereqs:
-                        all_prereqs.append(prereq)
-            unit_types = all_prereqs + unit_types
+                if prereq != unit_type and prereq not in all_prereqs:
+                    all_prereqs.append(prereq)
+        unit_types = all_prereqs + unit_types
         
         if remove_duplicates:
             for build_step in queue:
@@ -603,7 +616,7 @@ class BuildOrder():
             idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
             priority_queue_count = self.get_queued_count(UnitTypeId.MARINE, self.priority_queue)
             if idle_capacity > 0 and priority_queue_count == 0:
-                if not self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue, position=0):
+                if not self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue):
                     self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue)
         elif self.bot.minerals > 500 and self.bot.supply_left > 15:
             idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)

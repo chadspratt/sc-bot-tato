@@ -71,7 +71,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         turret: Unit
         for turret in self.bot.structures(UnitTypeId.AUTOTURRET):
             logger.debug(f"turret {turret} attacking")
-            self._attack_something(turret, 0)
+            self._attack_something(turret, 0, move_position=turret.position)
 
     # @timed
     # should more structures fly away or is it better for them to stay and die to delay the enemy
@@ -153,7 +153,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                         if threats:
                             self.command_center_destinations[cc.tag] = cc.position
                             cc(AbilityId.CANCEL_LAST)
-                            cc(AbilityId.LIFT)
+                            cc(AbilityId.CANCEL, queue=True)
+                            cc(AbilityId.LIFT, queue=True)
 
     ramp_barracks_in_position_time: float | None = None
     ramp_barracks_desired_position: Point2 | None = None

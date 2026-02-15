@@ -50,10 +50,11 @@ class StuckRescue(Squad):
                 self.is_loaded = False
                 self.dropoff = None
             else:
+                self.transport(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)
                 self.dropoff = Point2(cy_towards(self.main_army.position, self.bot.start_location, 8))
                 self.transport.move(self.dropoff)
                 if cy_distance_to_squared(self.transport.position, self.dropoff) < 25:
-                    self.transport(AbilityId.UNLOADALLAT, self.transport)
+                    self.transport(AbilityId.UNLOADALLAT, self.transport, True)
                     for tag in self.transport.passengers_tags:
                         self.pending_unload.add(tag)
             return
@@ -80,14 +81,13 @@ class StuckRescue(Squad):
                 self.squads_by_unit_tag[self.transport.tag] = None
 
         cargo_left = self.transport.cargo_left
-        queue_orders = False
+        self.transport(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)
         for unit in stuck_units:
             if cargo_left < unit.cargo_size:
                 break
             else:
                 # don't queue first order so the unit orders don't keep growing
-                self.transport(AbilityId.LOAD, unit, queue_orders)
-                queue_orders = True
+                self.transport(AbilityId.LOAD, unit, True)
                 cargo_left -= unit.cargo_size
         if cargo_left == self.transport.cargo_left:
             # everything loaded (next frame)

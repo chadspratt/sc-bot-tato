@@ -78,7 +78,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         
 
     @timed
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
+    def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         if force_move:
             return UnitMicroType.NONE
         if unit.health_percentage < health_threshold:

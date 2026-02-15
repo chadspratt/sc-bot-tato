@@ -264,6 +264,6 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
         else:
             logger.debug(f"{unit.tag} not in burrowed_tags")
 
-    def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
+    def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         # just use auto attack
         return UnitMicroType.ATTACK if unit.tag in self.burrowed_tags else UnitMicroType.NONE

@@ -10,6 +10,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.unit import Unit
+from sc2.units import Units
 
 from bottato.commander import Commander
 from bottato.enums import ActionErrorCode
@@ -104,7 +105,13 @@ class BotTato(BotAI):
         if self.time - self.last_build_order_print > interval:
             self.last_build_order_print = self.time
             LogHelper.add_log(self.commander.military.status_message)
-            LogHelper.add_log(', '.join([f"{unit_type.name}: {count}" for unit_type, count in UnitTypes.count_units_by_type(self.units).items()]))
+            passengers = Units([], self)
+            for unit_with_cargo in self.units.filter(lambda u: u.cargo_used > 0):
+                passengers.extend(unit_with_cargo.passengers)
+            friendly_units = self.units + passengers
+            LogHelper.add_log('army: ' + ', '.join([f"{unit_type.name}: {count}" for unit_type, count in UnitTypes.count_units_by_type(friendly_units).items()]))
+            enemy_units = self.commander.enemy.get_enemies().filter(lambda unit: not unit.is_structure)
+            LogHelper.add_log('enemy: ' + ', '.join([f"{unit_type.name}: {count}" for unit_type, count in UnitTypes.count_units_by_type(enemy_units).items()]))
             LogHelper.add_log(f"{self.commander.build_order.get_build_queue_string()}")
 
     def disable_logging(self):
