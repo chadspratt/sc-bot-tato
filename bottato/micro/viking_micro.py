@@ -112,6 +112,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             # update targets once per frame
             self.last_enemies_in_range_update = self.bot.time
             defenders_in_range: dict[int, List[Unit]] = {}
+            all_enemies: Dict[int, Unit] = {}
             self.target_assignments.clear()
             vikings = self.bot.units.filter(lambda unit: unit.type_id == UnitTypeId.VIKINGFIGHTER
                                             and unit.is_flying and unit.health_percentage >= health_threshold)
@@ -124,6 +125,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 closest_enemy: Unit | None = None
                 closest_distance: float = float('inf')
                 for enemy in enemies:
+                    all_enemies[enemy.tag] = enemy
                     if enemy.type_id not in damage_vs_type:
                         damage_vs_type[enemy.type_id] = defender.calculate_damage_vs_target(enemy)[0]
                     if enemy.tag not in defenders_in_range:
@@ -140,14 +142,14 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             # sort enemies by how many vikings have them as closest
             # enemies.sort(key=lambda e: e.health + e.shield)
             def enemy_sort_key(enemy_tag: int) -> float:
-                enemy_unit = self.bot.enemy_units.by_tag(enemy_tag)
+                enemy_unit = all_enemies[enemy_tag]
                 return enemy_unit.health + enemy_unit.shield - damage_vs_type[enemy_unit.type_id] * closest_counts.get(enemy_tag, 0)
             enemy_order = sorted(defenders_in_range.keys(), key=enemy_sort_key)
 
             # for each enemy compare number of vikings that can attack it to number of nearby threats of same type
             for enemy_tag in enemy_order:
                 defenders = defenders_in_range[enemy_tag]
-                enemy_unit = self.bot.enemy_units.find_by_tag(enemy_tag)
+                enemy_unit = all_enemies.get(enemy_tag)
                 if enemy_unit is None:
                     continue
                 other_nearby_threats = Units(cy_closer_than(self.bot.enemy_units, 4, enemy_unit.position), bot_object=self.bot).filter(
