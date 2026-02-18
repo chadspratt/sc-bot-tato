@@ -398,7 +398,8 @@ class BaseUnitMicro(GeometryMixin):
             retreat_position = self._get_retreat_destination(unit, threats)
             if unit.is_constructing_scv:
                 unit(AbilityId.HALT)
-                unit.move(retreat_position, queue=True)
+            elif isinstance(retreat_position, Unit) and retreat_position.type_id == UnitTypeId.SCV and unit.type_id == UnitTypeId.SCV and retreat_position.health_percentage < 1.0:
+                unit.repair(retreat_position)
             else:
                 unit.move(retreat_position)
             return UnitMicroType.RETREAT
@@ -569,12 +570,12 @@ class BaseUnitMicro(GeometryMixin):
         return UnitMicroType.NONE
             
     @timed
-    def _get_retreat_destination(self, unit: Unit, threats: Units | None = None) -> Point2:
+    def _get_retreat_destination(self, unit: Unit, threats: Units | None = None) -> Point2 | Unit:
         if threats is None:
             threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=2)
         else:
             threats = self.enemy.threats_to(unit, threats, attack_range_buffer=2)
-        ultimate_destination: Point2 | None = None
+        ultimate_destination: Point2 | Unit | None = None
         if unit.is_mechanical:
             if not threats or not threats.filter(lambda t: t.can_attack):
                 repairer: Unit | None = None
@@ -583,7 +584,7 @@ class BaseUnitMicro(GeometryMixin):
                         repairers: Units = self.bot.units.filter(lambda w: w.tag in BaseUnitMicro.repair_targets_prev_frame[unit.tag])
                         if repairers:
                             repairer = cy_closest_to(unit.position, repairers)
-                            ultimate_destination = repairer.position
+                            ultimate_destination = repairer
                     except KeyError:
                         pass
                 if repairer is None:
@@ -595,13 +596,13 @@ class BaseUnitMicro(GeometryMixin):
                     if repairers:
                         closest_repairer = cy_closest_to(unit.position, repairers)
                         if closest_repairer.position.manhattan_distance(unit.position) < 1:
-                            ultimate_destination = unit.position
+                            ultimate_destination = unit
                         else:
-                            ultimate_destination = closest_repairer.position
+                            ultimate_destination = closest_repairer
         else:
             medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC)
             if medivacs:
-                ultimate_destination = cy_closest_to(unit.position, medivacs).position
+                ultimate_destination = cy_closest_to(unit.position, medivacs)
         if ultimate_destination is None:
             bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
             if bunkers:
@@ -612,38 +613,26 @@ class BaseUnitMicro(GeometryMixin):
             ultimate_destination = self.bot.game_info.player_start_location
         
         if not threats:
+            if isinstance(ultimate_destination, Unit):
+                return ultimate_destination
             return self.map.get_pathable_position(ultimate_destination, unit)
 
         threat_center = Point2(cy_center(threats))
+        closest_threat_to_destination = cy_closest_to(ultimate_destination.position, threats)
+        if unit.position == threat_center or \
+            cy_distance_to(unit.position, ultimate_destination.position) < cy_distance_to(closest_threat_to_destination.position, ultimate_destination.position) - 2:
+            return self.map.get_pathable_position(ultimate_destination.position, unit)
+
         retreat_vector = GeometryMixin.get_vector_towards_biggest_gap(unit.position, [threat.position for threat in threats])
-        # retreat_vector: Point2 = Point2((0,0))
-        # for threat in threats:
-        #     if unit.position != threat.position:
-        #         threat_vector = unit.position - threat.position
-        #         threat_distance = threat_vector.length
-        #         # normalize and weight by distance so closer threats have more influence on retreat direction
-        #         threat_vector /= threat_distance * 2
-        #         retreat_vector += threat_vector
-        # if retreat_vector.length == 0:
-        #     retreat_vector = ultimate_destination - unit.position
         retreat_distance = 10 if unit.is_flying else 5
         retreat_position = Point2(cy_towards(unit.position, unit.position + retreat_vector, retreat_distance))
-        # retreat_position = Point2(cy_towards(unit.position, threat_center, -retreat_distance))
-        # questionable value for threat_position but might work
-        # threat_position = unit.position - retreat_vector
-        closest_threat_to_destination = cy_closest_to(ultimate_destination, threats)
-
-        if unit.position == threat_center or \
-            cy_distance_to(unit.position, ultimate_destination) < cy_distance_to(closest_threat_to_destination.position, ultimate_destination) - 2:
-            return self.map.get_pathable_position(ultimate_destination, unit)
-
         if unit.is_flying:
             retreat_position = self.map.clamp_position_to_map_bounds(retreat_position, self.bot)
             return self.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
         if self._position_is_pathable(unit, retreat_position):
             return self.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
 
-        circle_around_position = self.get_circle_around_position(unit, closest_threat_to_destination.position, ultimate_destination)
+        circle_around_position = self.get_circle_around_position(unit, closest_threat_to_destination.position, ultimate_destination.position)
         return circle_around_position
     
     def _position_is_pathable(self, unit: Unit, position: Point2) -> bool:
