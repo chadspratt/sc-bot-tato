@@ -1,15 +1,16 @@
 from __future__ import annotations
-from typing import Any, Dict
+
 from loguru import logger
+from typing import Any, Dict
 
 from sc2.bot_ai import BotAI
-from sc2.unit import Unit
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.unit import Unit
 
-from bottato.map.map import Map
 from bottato.enemy import Enemy
-from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.map.map import Map
 from bottato.micro.banshee_micro import BansheeMicro
+from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.ghost_micro import GhostMicro
 from bottato.micro.hellion_micro import HellionMicro
 from bottato.micro.marauder_micro import MarauderMicro
@@ -23,7 +24,7 @@ from bottato.micro.structure_micro import StructureMicro
 from bottato.micro.viking_micro import VikingMicro
 from bottato.micro.widow_mine_micro import WidowMineMicro
 from bottato.squad.enemy_intel import EnemyIntel
-
+from bottato.tactics import Tactics
 
 micro_instances: Dict[UnitTypeId, BaseUnitMicro] = {}
 micro_lookup = {
@@ -52,30 +53,31 @@ common_objects: dict[str, Any] = {
 
 class MicroFactory:
     @staticmethod
-    def set_common_objects(bot: BotAI, enemy: Enemy, map: Map, intel: EnemyIntel):
+    def set_common_objects(bot: BotAI, tactics: Tactics):
         common_objects["bot"] = bot
-        common_objects["enemy"] = enemy
-        common_objects["map"] = map
-        common_objects["intel"] = intel
+        common_objects["enemy"] = tactics.enemy
+        common_objects["map"] = tactics.map
+        common_objects["intel"] = tactics.intel
 
     @staticmethod
-    def get_unit_micro(unit: Unit) -> BaseUnitMicro:
-        type_id = unit.unit_alias if unit.unit_alias else unit.type_id
-        if type_id not in micro_instances:
-            if type_id in micro_lookup:
-                logger.debug(f"creating {type_id} micro for {unit}")
-                micro_class = micro_lookup[type_id]
-                micro_instances[type_id] = micro_class(common_objects["bot"],
+    def get_unit_micro(unit_type: Unit | UnitTypeId) -> BaseUnitMicro:
+        if isinstance(unit_type, Unit):
+            unit_type = unit_type.unit_alias if unit_type.unit_alias else unit_type.type_id
+        if unit_type not in micro_instances:
+            if unit_type in micro_lookup:
+                logger.debug(f"creating {unit_type} micro for {unit_type}")
+                micro_class = micro_lookup[unit_type]
+                micro_instances[unit_type] = micro_class(common_objects["bot"],
                                                        common_objects["enemy"],
                                                        common_objects["map"],
                                                        common_objects["intel"])
             else:
-                logger.debug(f"creating generic micro for {unit}")
+                logger.debug(f"creating generic micro for {unit_type}")
                 if UnitTypeId.NOTAUNIT not in micro_instances:
                     micro_instances[UnitTypeId.NOTAUNIT] = BaseUnitMicro(common_objects["bot"],
                                                                          common_objects["enemy"],
                                                                          common_objects["map"],
                                                                          common_objects["intel"])
-                micro_instances[type_id] = micro_instances[UnitTypeId.NOTAUNIT]
+                micro_instances[unit_type] = micro_instances[UnitTypeId.NOTAUNIT]
 
-        return micro_instances[type_id]
+        return micro_instances[unit_type]

@@ -34,6 +34,7 @@ class HuntingSquad(Squad, GeometryMixin):
         self.next_location: ScoutingLocation | None = None
         self.closest_distance_to_next_location = float('inf')
         self.time_of_closest_distance = 0
+        self.had_units = False
 
     def __repr__(self):
         return f"HuntingSquad({self.name},{len(self.units)})"
@@ -43,8 +44,9 @@ class HuntingSquad(Squad, GeometryMixin):
     async def hunt(self, target_types: List[UnitTypeId]):
         if not self.units:
             return
+        self.had_units = True
 
-        targets = self.enemy.get_enemies().filter(lambda u: u.type_id in target_types)
+        targets = self.enemy.get_recent_enemies().filter(lambda u: u.type_id in target_types)
         safe_targets = targets.filter(lambda u: u.tag not in self.unsafe_targets or self.bot.time - self.unsafe_targets[u.tag] > 20)
         if not safe_targets:     
             safe_targets = targets.filter(lambda u: u.tag not in self.unsafe_targets or self.bot.time - self.unsafe_targets[u.tag] > 5)
@@ -72,4 +74,4 @@ class HuntingSquad(Squad, GeometryMixin):
                     self.next_location = None
                     self.closest_distance_to_next_location = float('inf')
                 else:
-                    await micro.move(unit, self.next_location.scouting_position)
+                    await micro.harass(unit, self.next_location.scouting_position)

@@ -20,13 +20,12 @@ from sc2.units import Units
 from bottato.economy.minerals import Minerals
 from bottato.economy.resources import ResourceNode, Resources
 from bottato.economy.vespene import Vespene
-from bottato.enemy import Enemy
 from bottato.enums import BuildType, UnitMicroType, WorkerJobType
 from bottato.log_helper import LogHelper
-from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import GeometryMixin, timed, timed_async
+from bottato.tactics import Tactics
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 
@@ -49,10 +48,10 @@ class WorkerAssignment():
 
 
 class Workers(GeometryMixin):
-    def __init__(self, bot: BotAI, enemy: Enemy, map: Map) -> None:
+    def __init__(self, bot: BotAI, tactics: Tactics) -> None:
         self.bot: BotAI = bot
-        self.enemy = enemy
-        self.map = map
+        self.enemy = tactics.enemy
+        self.map = tactics.map
 
         self.last_worker_stop = -1000
         self.assignments_by_worker: dict[int, WorkerAssignment] = {}
@@ -389,7 +388,7 @@ class Workers(GeometryMixin):
 
             assigned_defender_counts: Dict[int, int] = defaultdict(int)
             # targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
-            targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
+            targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_recent_enemies()))
             ramp_is_blocked = self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount >= 2
             if ramp_is_blocked:
                 # targetable_enemies = targetable_enemies.filter(lambda u: cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) > 9)
@@ -455,7 +454,7 @@ class Workers(GeometryMixin):
         if nearby_enemy_structures:
             nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1000000 + cy_distance_to_squared(a.position, position.position))
         nearby_enemy_range = 25 if nearby_enemy_structures else 12
-        nearby_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
+        nearby_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_recent_enemies()))
         nearby_enemies = cy_closer_than(nearby_enemies, nearby_enemy_range, position.position)
         radius_squared = radius * radius
         for enemy in self.units_to_attack:
@@ -701,8 +700,8 @@ class Workers(GeometryMixin):
             self.update_assigment(worker, WorkerJobType.IDLE, None)
 
     builder_idle_time: dict[int, float] = {}
-    @timed
-    def distribute_idle(self):
+    @timed_async
+    async def distribute_idle(self):
         if self.bot.workers.idle:
             logger.debug(f"idle workers {self.bot.workers.idle}")
         tags_to_remove = [tag for tag in self.builder_idle_time if tag not in self.bot.workers.idle.tags]
@@ -749,7 +748,7 @@ class Workers(GeometryMixin):
                     reassigned_count += 1
                     continue
 
-                if self.minerals.add_long_distance_minerals((idle_count - reassigned_count)) > 0:
+                if await self.minerals.add_long_distance_minerals((idle_count - reassigned_count)) > 0:
                     LogHelper.add_log(f"adding {worker.tag} to long-distance")
                     self.update_assigment(worker, WorkerJobType.MINERALS, None)
                 else:
@@ -768,7 +767,7 @@ class Workers(GeometryMixin):
     @timed_async
     async def redistribute_workers(self, remaining_resources: Cost, enemy_builds_detected: Dict[BuildType, float]) -> int:
         await self.update_repairers(enemy_builds_detected)
-        self.distribute_idle()
+        await self.distribute_idle()
 
         remaining_cooldown = 3 - (self.bot.time - self.last_worker_stop)
         if remaining_cooldown > 0:

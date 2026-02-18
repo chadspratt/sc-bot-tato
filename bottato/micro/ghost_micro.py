@@ -51,7 +51,7 @@ class GhostMicro(BaseUnitMicro, GeometryMixin):
     }
 
     @timed_async
-    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
+    async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
         # Try to use EMP against Protoss
         if await self._use_emp(unit):
             return UnitMicroType.USE_ABILITY

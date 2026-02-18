@@ -13,11 +13,10 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.building.build_order import BuildOrder
-from bottato.building.build_step import BuildStep
 from bottato.economy.production import Production
 from bottato.economy.workers import Workers
 from bottato.enemy import Enemy
-from bottato.enums import WorkerJobType
+from bottato.enums import BuildType, CustomEffectType, Tactic, WorkerJobType
 from bottato.log_helper import LogHelper
 from bottato.map.destructibles import BUILDING_RADIUS
 from bottato.map.map import Map
@@ -29,6 +28,7 @@ from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.squad.bunker import Bunker
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.scouting import Scouting
+from bottato.tactics import Tactics
 from bottato.unit_reference_helper import UnitReferenceHelper
 
 
@@ -38,18 +38,18 @@ class Commander(GeometryMixin):
 
         self.enemy: Enemy = Enemy(bot)
         self.map = Map(bot)
-        self.production: Production = Production(bot)
 
         self.intel = EnemyIntel(bot, self.map, self.enemy)
-        MicroFactory.set_common_objects(bot, self.enemy, self.map, self.intel)
-        self.structure_micro: StructureMicro = StructureMicro(bot, self.enemy, self.map, self.intel)
-        self.my_workers: Workers = Workers(bot, self.enemy, self.map)
-        self.military: Military = Military(bot, self.enemy, self.map, self.my_workers, self.intel)
+        self.tactics: Tactics = Tactics(bot, self.enemy, self.map, self.intel)
+        self.production: Production = Production(bot, self.tactics)
+        MicroFactory.set_common_objects(bot, self.tactics)
+        self.structure_micro: StructureMicro = StructureMicro(bot, self.tactics)
+        self.my_workers: Workers = Workers(bot, self.tactics)
+        self.military: Military = Military(bot, self.tactics, self.my_workers)
         self.build_order: BuildOrder = BuildOrder(
-            "pig_b2gm", bot=bot, workers=self.my_workers, production=self.production, map=self.map,
-            military=self.military, intel=self.intel, enemy=self.enemy
+            "pig_b2gm", bot, self.tactics, self.my_workers, self.production
         )
-        self.scouting = Scouting(bot, self.enemy, self.map, self.my_workers, self.military, self.intel)
+        self.scouting = Scouting(bot, self.tactics, self.my_workers, self.military)
 
         self.new_damage_by_unit: dict[int, float] = {}
         self.new_damage_by_position: dict[Point2, float] = {}
@@ -82,12 +82,14 @@ class Commander(GeometryMixin):
         self.map.update_influence_maps(self.new_damage_by_position) # fast
         BaseUnitMicro.reset_tag_sets()
 
-        await self.structure_micro.execute(self.military.army_ratio, self.stuck_units) # fast
+        await self.structure_micro.execute(self.intel.army_ratio, self.stuck_units) # fast
+
+        # do before build_order so scouts can be freed if they're done. mostly applies to building proxy barracks in response to early expansion
+        await self.scout() # fast
 
         # XXX slow, 17% of command time
         remaining_resources: Cost = await self.build_order.execute(self.structure_micro.destinations)
 
-        await self.scout() # fast
 
         self.add_custom_effects_to_avoid()
         # very slow, 70% of command time
@@ -112,20 +114,23 @@ class Commander(GeometryMixin):
         for blueprint in blueprints:
             position = blueprint.get_position()
             if position:
-                BaseUnitMicro.add_custom_effect(position,
-                                                BUILDING_RADIUS[blueprint.get_unit_type_id()],
-                                                self.bot.time,
-                                                0.3)
+                BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
+                                                position=position,
+                                                radius=BUILDING_RADIUS[blueprint.get_unit_type_id()],
+                                                start_time=self.bot.time,
+                                                duration=0.3)
         for nova in self.bot.enemy_units.of_type(UnitTypeId.DISRUPTORPHASED):
-            BaseUnitMicro.add_custom_effect(nova,
-                                            1.5 + 1,
-                                            self.bot.time,
-                                            0.05)
+            BaseUnitMicro.add_custom_effect(CustomEffectType.ENEMY,
+                                            position=nova,
+                                            radius=1.5 + 1,
+                                            start_time=self.bot.time,
+                                            duration=0.05)
         # for baneling in self.bot.enemy_units.of_type(UnitTypeId.BANELING):
-        #     BaseUnitMicro.add_custom_effect(baneling,
-        #                                     2.2,
-        #                                     self.bot.time,
-        #                                     0.05)
+        #     BaseUnitMicro.add_custom_effect(CustomEffectType.ENEMY,
+        #                                     position=baneling,
+        #                                     radius=2.2,
+        #                                     start_time=self.bot.time,
+        #                                     duration=0.05)
 
     @timed_async
     async def detect_stuck_units(self, iteration: int):
@@ -134,18 +139,9 @@ class Commander(GeometryMixin):
             # skip if ramp depots are raised
             if self.unit_is_closer_than(self.bot.main_base_ramp.top_center, self.bot.structures(UnitTypeId.SUPPLYDEPOT), 5):
                 return
-            if self.pathable_position is None:
-                self.pathable_position = await self.bot.find_placement(UnitTypeId.MISSILETURRET,self.bot.game_info.map_center, 25, placement_step = 5)
-            else:
-                # check that position still pathable
-                miners = self.my_workers.availiable_workers_on_job(WorkerJobType.MINERALS)
-                if not miners:
-                    return
-                furthest_miner = miners.furthest_to(self.pathable_position)
-                if await self.bot.client.query_pathing(furthest_miner, self.pathable_position) is None:
-                    self.pathable_position = await self.bot.find_placement(UnitTypeId.MISSILETURRET,self.bot.game_info.map_center, 25, placement_step = 5)
-            if self.pathable_position is not None:
-                paths_to_check = [[unit, self.pathable_position] for unit in self.bot.units
+            path_checking_position = await self.map.get_path_checking_position()
+            if path_checking_position is not None:
+                paths_to_check = [[unit, path_checking_position] for unit in self.bot.units
                                   if unit.type_id != UnitTypeId.SIEGETANKSIEGED and not unit.is_flying
                                   and unit.position.manhattan_distance(self.bot.start_location) < 60]
                 if paths_to_check:
@@ -161,13 +157,14 @@ class Commander(GeometryMixin):
     @timed_async
     async def scout(self):
         self.scouting.update_visibility()
-        await self.scouting.scout(self.new_damage_by_unit)
         await self.intel.update()
+        await self.scouting.scout(self.new_damage_by_unit)
 
     @timed_async
     async def update_references(self):
         self.my_workers.update_references(self.build_order.get_assigned_worker_tags())
         self.military.update_references()
+        self.tactics.update_references()
         self.enemy.update_references()
         await self.build_order.update_references()
         await self.production.update_references()

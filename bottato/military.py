@@ -18,7 +18,7 @@ from bottato.building.build_step import BuildStep
 from bottato.counter import Counter
 from bottato.economy.workers import Workers
 from bottato.enemy import Enemy
-from bottato.enums import BuildType
+from bottato.enums import BuildType, ExpansionSelection, Tactic
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.micro_factory import MicroFactory
@@ -30,24 +30,25 @@ from bottato.squad.harass_squad import HarassSquad
 from bottato.squad.hunting_squad import HuntingSquad
 from bottato.squad.squad import Squad
 from bottato.squad.stuck_rescue import StuckRescue
+from bottato.tactics import Tactics
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 
 
 class Military(GeometryMixin, DebugMixin):
-    def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers, intel: EnemyIntel) -> None:
+    def __init__(self, bot: BotAI, tactics: Tactics, workers: Workers) -> None:
         self.bot = bot
-        self.enemy = enemy
-        self.map = map
+        self.tactics = tactics
+        self.enemy = tactics.enemy
+        self.map = tactics.map
+        self.intel = tactics.intel
         self.workers = workers
-        self.intel = intel
 
         self.squads: List[Squad] = []
         self.squads_by_unit_tag: Dict[int, Squad | None] = {}
         self.created_squad_type_counts: Dict[int, int] = {}
         self.offense_start_supply = 200
         self.offense_started = False
-        self.army_ratio: float = 1.0
         self.status_message = ""
         self.units_by_tag: Dict[int, Unit] = {}
         self.enemies_in_base: Units = Units([], self.bot)
@@ -57,8 +58,8 @@ class Military(GeometryMixin, DebugMixin):
         # special squads
         self.main_army = FormationSquad(
             bot=bot,
-            enemy=enemy,
-            map=map,
+            enemy=self.enemy,
+            map=self.map,
             color=self.random_color(),
             name='main',
         )
@@ -113,15 +114,15 @@ class Military(GeometryMixin, DebugMixin):
             return  # nydus response handled in get_enemies_in_base, don't conflict with it
         defend_with_main_army, countered_enemies = await self.counter_enemies_in_base(detected_enemy_builds)
         
-        self.army_ratio = self.calculate_army_ratio()
+        self.intel.army_ratio = self.calculate_army_ratio()
         enemies_in_base_ratio = self.calculate_army_ratio(self.enemies_in_base)
         avg_enemy_age = self.enemy.get_average_enemy_age()
         required_ratio_for_offense = 1.2 + avg_enemy_age * 0.01
 
         ignore_ratio_threshold = min(195, 160 + self.aborted_attack_count * 5)
-        army_is_big_enough = self.army_ratio > required_ratio_for_offense \
+        army_is_big_enough = self.intel.army_ratio > required_ratio_for_offense \
             or self.bot.supply_used > ignore_ratio_threshold \
-            or self.offense_started and self.army_ratio > required_ratio_for_offense - 0.5
+            or self.offense_started and self.intel.army_ratio > required_ratio_for_offense - 0.5
         army_is_grouped = self.main_army.is_grouped()
         mount_offense = army_is_big_enough and not defend_with_main_army
 
@@ -136,14 +137,17 @@ class Military(GeometryMixin, DebugMixin):
                 mount_offense = False
             elif self.bot.supply_used < 50: # previously 110
                 mount_offense = False
-        if not mount_offense and self.enemies_in_base and self.army_ratio > 1.0:
+        if self.tactics.is_active(Tactic.PROXY_BARRACKS) and self.bot.units(UnitTypeId.MARINE).amount > 3:
+            # if enemy expands early, attack early
+            mount_offense = True
+        if not mount_offense and self.enemies_in_base and self.intel.army_ratio > 1.0:
             defend_with_main_army = True
 
         if self.offense_started and not mount_offense:
             self.aborted_attack_count += 1
         self.offense_started = mount_offense
     
-        self.status_message = f"m{self.bot.minerals}, g{self.bot.vespene}, s{self.bot.supply_used}/{self.bot.supply_cap}, army ratio {self.army_ratio:.2f}, avg enemy age {avg_enemy_age:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
+        self.status_message = f"m{self.bot.minerals}, g{self.bot.vespene}, s{self.bot.supply_used}/{self.bot.supply_cap}, army ratio {self.intel.army_ratio:.2f}, avg enemy age {avg_enemy_age:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
 
         bunkers = Units([b.structure for b in self.bunkers if b.structure], self.bot)
@@ -173,7 +177,7 @@ class Military(GeometryMixin, DebugMixin):
                     if target_position:
                         await self.main_army.move(target_position) # slow, 50%+ of command time
             else:
-                await self.move_army_to_staging_location(newest_enemy_base, detected_enemy_builds, self.army_ratio)
+                await self.move_army_to_staging_location(newest_enemy_base, detected_enemy_builds, self.intel.army_ratio)
 
     @timed_async
     async def get_enemies_in_base(self) -> Units:
@@ -195,8 +199,7 @@ class Military(GeometryMixin, DebugMixin):
             enemy_units = enemy_units.exclude_type([UnitTypeId.OVERLORD])
 
         enemies_in_base.extend(enemy_units.filter(lambda unit: self.closest_distance_squared(unit, base_structures) < 625))
-        if self.main_army.staging_location:
-            enemies_in_base.extend(enemy_units.filter(lambda unit: self.main_army.staging_location._distance_squared(unit.position) < 625))
+        enemies_in_base.extend(enemy_units.filter(lambda unit: self.intel.main_army_staging_location._distance_squared(unit.position) < 625))
         out_of_view_in_base = []
         for enemy in self.enemy.recent_out_of_view():
             if self.closest_distance_squared(self.enemy.predicted_positions[enemy.tag], base_structures) < 625:
@@ -269,6 +272,10 @@ class Military(GeometryMixin, DebugMixin):
     @timed_async
     async def manage_bunker(self, bunker: Bunker, enemies_in_base: Units, is_closest_to_enemy: bool = False):
         if not bunker.structure:
+            self.empty_bunker(bunker)
+            return
+        
+        if self.tactics.is_active(Tactic.PROXY_BARRACKS):
             self.empty_bunker(bunker)
             return
         
@@ -384,7 +391,8 @@ class Military(GeometryMixin, DebugMixin):
                 self.hunting_squad = HuntingSquad(self.bot, self.enemy, self.intel, f"{prey_types[0].name} hunt", (255, 0, 255))
                 LogHelper.add_log(f"created hunting squad {self.hunting_squad.name}")
                 self.squads.append(self.hunting_squad)
-            if not self.hunting_squad.units:
+            if not self.hunting_squad.units.exists and not self.hunting_squad.had_units:
+                # squad has never had units, assign initial
                 hunters = self.main_army.units(hunter_types)
                 if hunters:
                     self.transfer(hunters.first, self.main_army, self.hunting_squad)
@@ -397,7 +405,7 @@ class Military(GeometryMixin, DebugMixin):
         target_position: Point2
         attackable_enemies = self.enemy.enemies_in_view.filter(
             lambda unit: not unit.is_structure
-                and UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies())
+                and UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_recent_enemies())
                 and unit.armor < 10
                 and unit.tag not in countered_enemies)
         
@@ -438,31 +446,31 @@ class Military(GeometryMixin, DebugMixin):
         # generally a retreat due to being outnumbered
         enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
         bunker_staging_location: Point2 | None = None
-        if BuildType.RUSH in detected_enemy_builds and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
+        if self.tactics.is_active(Tactic.PROXY_BARRACKS):
+            self.intel.main_army_staging_location = self.map.enemy_expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY][2].expansion_position
+        elif BuildType.RUSH in detected_enemy_builds and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
             ramp_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOT).filter(lambda depot: depot.position.manhattan_distance(self.bot.main_base_ramp.top_center) < 5)
             if len(ramp_depots) >= 2:
                 # depots are raised, crowd around ramp to defend
-                self.main_army.staging_location = self.bot.main_base_ramp.top_center
+                self.intel.main_army_staging_location = self.bot.main_base_ramp.top_center
                 LogHelper.add_log(f"squad {self.main_army} staging at main base ramp due to raised depots")
             else:
-                self.main_army.staging_location = Point2(cy_towards(self.bot.main_base_ramp.top_center, self.bot.start_location, 5))
+                self.intel.main_army_staging_location = Point2(cy_towards(self.bot.main_base_ramp.top_center, self.bot.start_location, 5))
                 LogHelper.add_log(f"squad {self.main_army} staging near main base ramp with small army")
-        elif BuildType.RUSH in detected_enemy_builds and len(self.bot.townhalls) <= 3 and self.army_ratio < 1.0:
-            self.main_army.staging_location = Point2(cy_towards(self.map.natural_position, self.bot.main_base_ramp.bottom_center, 5))
+        elif BuildType.RUSH in detected_enemy_builds and len(self.bot.townhalls) <= 3 and self.intel.army_ratio < 1.0:
+            self.intel.main_army_staging_location = Point2(cy_towards(self.map.natural_position, self.bot.main_base_ramp.bottom_center, 5))
             LogHelper.add_log(f"squad {self.main_army} staging near natural with smaller army ratio")
         elif len(self.bot.townhalls) > 1:
             sorted_bases = self.map.sort_units_by_path_distance(enemy_position, self.bot.townhalls)
             closest_base = sorted_bases[0]
-            other_bases = self.bot.townhalls.filter(lambda base: base.tag != closest_base.tag)
-            # second_closest_base = cy_closest_to(enemy_position, other_bases) # need to fix cy_closest_to to handle bigger distances
-            second_closest_base = self.map.get_closest_unit_by_path(other_bases, enemy_position)
+            second_closest_base = sorted_bases[1]
             path = self.map.get_path_points(second_closest_base.position, closest_base.position)
             backtrack_distance = 7
             i = 0
             while backtrack_distance > 0 and i + 1 < len(path):
                 next_node_distance = cy_distance_to(path[i], path[i + 1])
                 if backtrack_distance <= next_node_distance:
-                    self.main_army.staging_location = Point2(cy_towards(path[i], path[i + 1], backtrack_distance))
+                    self.intel.main_army_staging_location = Point2(cy_towards(path[i], path[i + 1], backtrack_distance))
                     LogHelper.add_log(f"squad {self.main_army} staging between closest bases to enemy")
                     break
                 backtrack_distance -= next_node_distance
@@ -470,20 +478,20 @@ class Military(GeometryMixin, DebugMixin):
 
             bunkers = self.bot.structures(UnitTypeId.BUNKER)
             if bunkers and army_ratio < 0.8:
-                closest_bunker = cy_closest_to(self.main_army.staging_location, bunkers)
+                closest_bunker = cy_closest_to(self.intel.main_army_staging_location, bunkers)
                 bunker_staging_location = closest_bunker.position
         else:
-            self.main_army.staging_location = Point2(cy_towards(self.bot.start_location, enemy_position, 5))
+            self.intel.main_army_staging_location = Point2(cy_towards(self.bot.start_location, enemy_position, 5))
             LogHelper.add_log(f"squad {self.main_army} staging near only base")
         # force move is used for retreating. don't use if already near staging location
-        staging_location = bunker_staging_location if bunker_staging_location else self.main_army.staging_location
+        staging_location = bunker_staging_location if bunker_staging_location else self.intel.main_army_staging_location
         force_move = self.main_army.position._distance_squared(staging_location) >= 225
         # check if enemies are along path to staging location, if so don't force move
         if force_move and self.bot.enemy_units:
             path = self.map.get_path_points(self.main_army.position, staging_location)
             enemies_to_avoid = self.bot.enemy_units.filter(lambda unit: unit.type_id not in UnitTypes.NON_THREATS)
-            for point in path[:5]:
-                close_enemies = cy_closer_than(enemies_to_avoid, 10, point)
+            for point in path[1:5]:
+                close_enemies = cy_closer_than(enemies_to_avoid, 8, point)
                 if close_enemies:
                     force_move = False
                     break
@@ -632,7 +640,7 @@ class Military(GeometryMixin, DebugMixin):
         remaining_dps: Dict[int, float] = {}
         remaining_health: Dict[int, float] = {}
 
-        unmatched_enemies: Units = self.enemy.get_enemies().filter(lambda unit: not unit.is_structure)
+        unmatched_enemies: Units = self.enemy.get_recent_enemies().filter(lambda unit: not unit.is_structure)
         unmatched_friendlies: Units = self.bot.units.copy()
         unattackable_enemies: Units = Units([], bot_object=self.bot).filter(lambda unit: not unit.armor < 10)
         unattackable_friendly_tags = unmatched_friendlies.tags

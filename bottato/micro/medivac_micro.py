@@ -39,10 +39,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
         threats = self.enemy.threats_to_friendly_unit(unit, 4)
         if unit.health_percentage < self.health_threshold_for_healing:
             if threats:
-                if unit.tag not in self.last_afterburner_time or self.bot.time - self.last_afterburner_time[unit.tag] > 14.0:
-                    unit(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)
-                    self.last_afterburner_time[unit.tag] = self.bot.time
-                elif unit.cargo_used > 0 and unit.health_percentage < 0.3:
+                if not self.use_booster(unit) and unit.cargo_used > 0 and unit.health_percentage < 0.3:
                     unit(AbilityId.UNLOADALLAT, unit)
                 return UnitMicroType.NONE
             elif force_move:
@@ -131,3 +128,10 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 return False
         else:
             return unit.energy >= self.heal_start_cost
+        
+    def use_booster(self, unit: Unit) -> bool:
+        if unit.tag in self.last_afterburner_time and self.bot.time - self.last_afterburner_time[unit.tag] < 14.0:
+            return False
+        unit(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)
+        self.last_afterburner_time[unit.tag] = self.bot.time
+        return True

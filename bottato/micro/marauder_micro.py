@@ -21,7 +21,7 @@ class MarauderMicro(BaseUnitMicro, GeometryMixin):
     time_in_frames_to_attack: float = 0.3 * 22.4  # 0.3 seconds
 
     @timed_async
-    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
+    async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.health <= 35:
             return UnitMicroType.NONE
         if not self.stim_researched:

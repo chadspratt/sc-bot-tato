@@ -18,6 +18,7 @@ from sc2.unit import Unit
 
 from bottato.log_helper import LogHelper
 from bottato.mixins import timed, timed_async
+from bottato.tactics import Tactics
 from bottato.tech_tree import TECH_TREE
 from bottato.unit_reference_helper import UnitReferenceHelper
 
@@ -148,8 +149,9 @@ class Facility():
         return False
 
 class Production():
-    def __init__(self, bot: BotAI) -> None:
+    def __init__(self, bot: BotAI, tactics: Tactics) -> None:
         self.bot = bot
+        self.tactics = tactics
         self.facilities: dict[UnitTypeId, dict[UnitTypeId, List[Facility]]] = {
             UnitTypeId.BARRACKS: {
                 UnitTypeId.TECHLAB: [],
@@ -258,9 +260,13 @@ class Production():
                 # somehow is_flying isn't sufficient, also check type_id
                 if candidate.unit.is_flying or candidate.unit.type_id in (UnitTypeId.BARRACKSFLYING, UnitTypeId.FACTORYFLYING, UnitTypeId.STARPORTFLYING):
                     continue
-                if unit_type in self.add_on_types and (candidate.addon_blocked or self.bot.time - candidate.addon_destroyed_time < 8):
-                    logger.debug(f"can't build addon {unit_type} at {candidate} - addon_blocked: {candidate.addon_blocked}, time_since_destruction: {self.bot.time - candidate.addon_destroyed_time}")
-                    continue
+                if unit_type in self.add_on_types:
+                    if candidate.unit == self.tactics.proxy_barracks:
+                        # don't build addon on proxy barracks
+                        continue
+                    if candidate.addon_blocked or self.bot.time - candidate.addon_destroyed_time < 8:
+                        logger.debug(f"can't build addon {unit_type} at {candidate} - addon_blocked: {candidate.addon_blocked}, time_since_destruction: {self.bot.time - candidate.addon_destroyed_time}")
+                        continue
 
                 if candidate.has_capacity:
                     return candidate

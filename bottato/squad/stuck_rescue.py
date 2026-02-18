@@ -8,6 +8,8 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
+from bottato.micro.medivac_micro import MedivacMicro
+from bottato.micro.micro_factory import MicroFactory
 from bottato.squad.formation_squad import FormationSquad
 from bottato.squad.squad import Squad
 from bottato.unit_reference_helper import UnitReferenceHelper
@@ -24,6 +26,7 @@ class StuckRescue(Squad):
         self.dropoff: Point2 | None = None
 
         self.pending_unload: set[int] = set()
+        self.medivac_micro: MedivacMicro = MicroFactory.get_unit_micro(UnitTypeId.MEDIVAC) # type: ignore
 
     def update_references(self):
         if self.transport:
@@ -49,8 +52,7 @@ class StuckRescue(Squad):
             if not self.transport.passengers_tags:
                 self.is_loaded = False
                 self.dropoff = None
-            else:
-                self.transport(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)
+            elif not self.medivac_micro.use_booster(self.transport):
                 self.dropoff = Point2(cy_towards(self.main_army.position, self.bot.start_location, 8))
                 self.transport.move(self.dropoff)
                 if cy_distance_to_squared(self.transport.position, self.dropoff) < 25:
@@ -81,14 +83,14 @@ class StuckRescue(Squad):
                 self.squads_by_unit_tag[self.transport.tag] = None
 
         cargo_left = self.transport.cargo_left
-        self.transport(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)
-        for unit in stuck_units:
-            if cargo_left < unit.cargo_size:
-                break
-            else:
-                # don't queue first order so the unit orders don't keep growing
-                self.transport(AbilityId.LOAD, unit, True)
-                cargo_left -= unit.cargo_size
-        if cargo_left == self.transport.cargo_left:
-            # everything loaded (next frame)
-            self.is_loaded = True
+        if not self.medivac_micro.use_booster(self.transport):
+            for unit in stuck_units:
+                if cargo_left < unit.cargo_size:
+                    break
+                else:
+                    # don't queue first order so the unit orders don't keep growing
+                    self.transport(AbilityId.LOAD, unit)
+                    cargo_left -= unit.cargo_size
+            if cargo_left == self.transport.cargo_left:
+                # everything loaded (next frame)
+                self.is_loaded = True

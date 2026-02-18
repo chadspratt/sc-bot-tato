@@ -110,7 +110,7 @@ class BotTato(BotAI):
                 passengers.extend(unit_with_cargo.passengers)
             friendly_units = self.units + passengers
             LogHelper.add_log('army: ' + ', '.join([f"{unit_type.name}: {count}" for unit_type, count in UnitTypes.count_units_by_type(friendly_units).items()]))
-            enemy_units = self.commander.enemy.get_enemies().filter(lambda unit: not unit.is_structure)
+            enemy_units = self.commander.enemy.get_army().filter(lambda unit: not unit.is_structure)
             LogHelper.add_log('enemy: ' + ', '.join([f"{unit_type.name}: {count}" for unit_type, count in UnitTypes.count_units_by_type(enemy_units).items()]))
             LogHelper.add_log(f"{self.commander.build_order.get_build_queue_string()}")
 

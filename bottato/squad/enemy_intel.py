@@ -38,6 +38,8 @@ class EnemyIntel(GeometryMixin):
         self.proxy_buildings: Units = Units([], self.bot)
         self.enemy_drop_transports: Units = Units([], self.bot)
         self.enemy_drop_locations: List[Tuple[Point2, float]] = []
+        self.army_ratio: float = 1.0
+        self.main_army_staging_location: Point2 = self.bot.start_location
 
         self.scouting_locations: List[ScoutingLocation] = list()
         for expansion_location in self.bot.expansion_locations_list:
@@ -75,10 +77,17 @@ class EnemyIntel(GeometryMixin):
             self.type_positions_seen[unit.type_id].append(unit.position)
 
         if unit.type_id not in self.first_building_time:
-            start_time: float = time - unit.build_progress * unit._type_data.cost.time / 22.4 # type: ignore
-            self.first_building_time[unit.type_id] = start_time
-            LogHelper.add_log(f"EnemyIntel: first {unit.type_id} started at time {start_time:.1f}")
-            LogHelper.write_log_to_db('Enemy type started', unit.type_id.name, start_time)
+            # Skip main base townhalls so first_building_time shows expansion timing
+            is_main_base_townhall = False
+            if unit.type_id in race_townhalls[self.enemy_race]:
+                # Check if townhall is at enemy main base location
+                is_main_base_townhall = unit.position.distance_to(self.bot.enemy_start_locations[0]) < 10
+            
+            if not is_main_base_townhall:
+                start_time: float = time - unit.build_progress * unit._type_data.cost.time / 22.4 # type: ignore
+                self.first_building_time[unit.type_id] = start_time
+                LogHelper.add_log(f"EnemyIntel: first {unit.type_id} started at time {start_time:.1f}")
+                LogHelper.write_log_to_db('Enemy type started', unit.type_id.name, start_time)
 
     def update_location_visibility(self, scout_units: List[Unit]):
         enemy_townhalls = self.bot.enemy_structures.of_type(race_townhalls[self.bot.enemy_race])
@@ -142,21 +151,36 @@ class EnemyIntel(GeometryMixin):
     async def detect_enemy_builds(self):
         if self.enemy_race == Race.Random:
             return
-        if self.proxy_detected():
+        if BuildType.PROXY not in self.enemy_builds_detected and self.proxy_detected():
             await LogHelper.add_chat("proxy suspected")
             self.add_detected_build(BuildType.PROXY)
             self.add_detected_build(BuildType.RUSH)
-        if self.bot.time < 60:
+
+        if BuildType.WORKER_RUSH not in self.enemy_builds_detected and self.bot.time < 60:
             rushing_enemy_workers = self.bot.enemy_units.filter(
                 lambda u: cy_distance_to(u.position, self.bot.start_location) - 15 < cy_distance_to(u.position, self.bot.enemy_start_locations[0]))
             if rushing_enemy_workers.amount >= 3:
                 await LogHelper.add_chat("worker rush detected")
                 self.add_detected_build(BuildType.WORKER_RUSH)
                 self.add_detected_build(BuildType.RUSH)
+
+        # Detect early expansion for any race
+        if BuildType.EARLY_EXPANSION not in self.enemy_builds_detected:
+            # if self.bot.time > 60:
+            #     await LogHelper.add_chat("early expansion detected")
+            #     self.add_detected_build(BuildType.EARLY_EXPANSION)
+            # XXX uncomment above for testing
+            for th_type in race_townhalls[self.enemy_race]:
+                start_time = self.first_building_time.get(th_type, 9999)
+                if start_time <= 70:
+                    await LogHelper.add_chat("early expansion detected")
+                    self.add_detected_build(BuildType.EARLY_EXPANSION)
+                    break
+
         if self.enemy_race == Race.Zerg:
             early_pool = self.first_building_time.get(UnitTypeId.SPAWNINGPOOL, 9999) < 40
             no_gas = self.initial_scout_completed and self.number_seen(UnitTypeId.EXTRACTOR) == 0
-            no_expansion = self.initial_scout_completed and self.number_seen(UnitTypeId.HATCHERY) == 1
+            no_expansion = BuildType.EARLY_EXPANSION not in self.enemy_builds_detected and self.initial_scout_completed and self.number_seen(UnitTypeId.HATCHERY) == 1
             zergling_rush = self.enemy.get_total_count_of_type_seen(UnitTypeId.ZERGLING) >= 8 and self.bot.time < 180
             spire_detected = self.number_seen(UnitTypeId.SPIRE) > 0
             if early_pool:
@@ -194,7 +218,7 @@ class EnemyIntel(GeometryMixin):
         else:
             # Protoss
             lots_of_gateways = not self.initial_scout_completed and self.number_seen(UnitTypeId.GATEWAY) > 2
-            no_expansion = self.initial_scout_completed and self.number_seen(UnitTypeId.NEXUS) == 1
+            no_expansion = BuildType.EARLY_EXPANSION not in self.enemy_builds_detected and self.initial_scout_completed and self.number_seen(UnitTypeId.NEXUS) == 1
             stargate_detected = self.number_seen(UnitTypeId.STARGATE) > 0
             fleet_beacon = self.number_seen(UnitTypeId.FLEETBEACON) > 0
             if lots_of_gateways:
@@ -223,6 +247,9 @@ class EnemyIntel(GeometryMixin):
             LogHelper.write_log_to_db('Enemy build detected', build_type.name)
 
     def proxy_detected(self) -> bool:
+        if BuildType.WORKER_RUSH in self.enemy_builds_detected or BuildType.EARLY_EXPANSION in self.enemy_builds_detected:
+            # these trigger scouting to stop so can't apply proxy detection logic. also probably not a proxy
+            return False
         if self.enemy_race == Race.Random or self.bot.time > 120:
             return False
         if self.proxy_buildings:

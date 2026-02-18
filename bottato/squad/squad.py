@@ -1,13 +1,14 @@
 from __future__ import annotations
-from typing import Dict, Tuple
 
 from loguru import logger
+from typing import Dict, Tuple
+
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
 from sc2.units import Units
-from sc2.position import Point2
 
 from bottato.unit_reference_helper import UnitReferenceHelper
+
 
 class Squad():
     def __init__(
@@ -21,7 +22,6 @@ class Squad():
         self.name = name
 
         self.units: Units = Units([], bot_object=bot)
-        self.staging_location: Point2 = self.bot.start_location
 
     def draw_debug_box(self):
         return

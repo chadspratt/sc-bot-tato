@@ -48,6 +48,7 @@ class Map(GeometryMixin):
             ExpansionSelection.CLOSEST: [],
             ExpansionSelection.AWAY_FROM_ENEMY: []
         }
+        self.path_checking_position: Point2 | None = None
 
     async def init(self, scouting_locations: List[ScoutingLocation]):
         self.scouting_locations = scouting_locations
@@ -393,23 +394,27 @@ class Map(GeometryMixin):
                     closest_position = position
         return closest_position
     
+    def get_distance_by_path(self, start: Point2, end: Point2) -> float:
+        path = self.get_path(start, end)
+        if path.length < 9999:
+            return path.length
+        return cy_distance_to(start, end)
+    
     def get_distances_by_path(self, start: Point2, positions: List[Point2]) -> Dict[Point2, float]:
         distances_by_position: Dict[Point2, float] = {}
         position: Point2
         for position in positions:
-            path = self.get_path(start, position)
-            distances_by_position[position] = path.length
+            distances_by_position[position] = self.get_distance_by_path(start, position)
         return distances_by_position
     
     def get_unit_distances_by_path(self, start: Point2, units: Units) -> Dict[Unit, float]:
         distances_by_unit: Dict[Unit, float] = {}
         for unit in units:
-            path = self.get_path(start, unit.position)
-            distances_by_unit[unit] = path.length
+            distances_by_unit[unit] = self.get_distance_by_path(start, unit.position)
         return distances_by_unit
     
     def sort_units_by_path_distance(self, start: Point2, units: Units) -> List[Unit]:
-        return sorted(units, key=lambda unit: self.get_path(start, unit.position).length)
+        return sorted(units, key=lambda unit: self.get_distance_by_path(start, unit.position))
 
     @timed
     def get_path_points(self, start: Point2, end: Point2) -> List[Point2]:
@@ -463,6 +468,13 @@ class Map(GeometryMixin):
             elif unit and not unit.is_flying:
                 self.influence_maps.add_cost((pathable_position[0], pathable_position[1]), unit.radius, self.ground_grid, np.inf)
         return pathable_position
+    
+    async def get_path_checking_position(self) -> Point2 | None:
+        if self.path_checking_position is None or \
+                not await self.bot.can_place_single(UnitTypeId.MISSILETURRET, self.bot.game_info.map_center):
+            self.path_checking_position = await self.bot.find_placement(UnitTypeId.MISSILETURRET, self.bot.game_info.map_center, 25, placement_step = 5)
+
+        return self.path_checking_position
 
     anti_air_structures: Set[UnitTypeId] = set([
         UnitTypeId.MISSILETURRET,

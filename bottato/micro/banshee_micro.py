@@ -23,29 +23,30 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
     cloak_energy_threshold: float = 40.0
 
     @timed_async
-    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
+    async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
         if not self.cloak_researched:
             if UpgradeId.BANSHEECLOAK in self.bot.state.upgrades:
                 self.cloak_researched = True
             else:
                 return UnitMicroType.NONE
         if not unit.is_cloaked:
-            threats = self.enemy.get_enemies().filter(
+            threats = self.enemy.get_recent_enemies().filter(
                 lambda u: not u.is_detector)
             if unit.energy >= self.cloak_energy_threshold and self.enemy.threats_to(unit, threats, 2):
                 unit(AbilityId.BEHAVIOR_CLOAKON_BANSHEE)
                 return UnitMicroType.USE_ABILITY
         else:
-            if unit.health_percentage < self.harass_attack_health and not self.unit_is_closer_than(unit, self.enemy.get_enemies(), 15):
+            if not self.unit_is_closer_than(unit, self.enemy.get_recent_enemies(), 15):
                 unit(AbilityId.BEHAVIOR_CLOAKOFF_BANSHEE)
                 return UnitMicroType.USE_ABILITY
         return UnitMicroType.NONE
     
     @timed
     def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
+        # below retreat_health: do nothing
         if unit.health_percentage <= self.retreat_health:
             return UnitMicroType.NONE
-        if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()) \
+        if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_recent_enemies()) \
                 and unit.health_percentage < self.attack_health \
                 and self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3):
             return UnitMicroType.NONE
@@ -53,16 +54,18 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if force_move and not can_attack:
             return UnitMicroType.NONE
         attack_range_buffer = 0 if can_attack else 5
-        enemy_candidates = self.enemy.get_candidates(include_out_of_view=False).sorted(lambda u: u.health + u.shield)
-        attack_target = self._get_attack_target(unit, enemy_candidates, attack_range_buffer)
+        target_candidates = self.enemy.get_candidates(include_out_of_view=False).sorted(lambda u: u.health + u.shield)
+        attack_target = self._get_attack_target(unit, target_candidates, attack_range_buffer)
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=2)
-        if attack_target:
+        if attack_target and (can_attack
+                              or attack_target.type_id in {UnitTypeId.MISSILETURRET, UnitTypeId.PHOTONCANNON, UnitTypeId.SPORECRAWLER} and attack_target.build_progress < 0.85
+                              or not attack_target.is_structure):
             threats.append(attack_target)
             return self._kite(unit, threats)
 
         if force_move:
             return UnitMicroType.NONE
-        nearest_priority, _ = self.enemy.get_closest_target(unit, included_types=[UnitTypeId.CYCLONE, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK, UnitTypeId.LURKERMP, UnitTypeId.LURKERMPBURROWED])
+        nearest_priority, _ = self.enemy.get_closest_target(unit, included_types=UnitTypes.get_priority_target_types(unit))
         if nearest_priority:
             if can_attack:
                 threats.append(nearest_priority)
@@ -78,8 +81,9 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
 
     @timed
     def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
-        # if unit.health_percentage <= self.harass_retreat_health:
-        #     return UnitMicroType.NONE
+        # below harass_retreat_health: do nothing
+        if unit.health_percentage <= self.harass_retreat_health:
+            return UnitMicroType.NONE
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if force_move and not can_attack:
             return UnitMicroType.NONE
@@ -102,7 +106,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             if anti_banshee_structures:
                 nearby_enemy = nearby_enemy.filter(lambda e: anti_banshee_structures.closest_distance_to(e) > 6)
 
-        if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies()):
+        if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_recent_enemies()):
             threat_range_buffer = 3 if nearby_enemy and can_attack and unit.health_percentage > self.harass_retreat_health else 5
             threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=threat_range_buffer)
             if threats:
@@ -111,7 +115,8 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                     if threats_are_just_detectors:
                         threats.extend(nearby_enemy)
                         return self._kite(unit, threats)
-                if unit.health_percentage < self.harass_attack_health:
+                # below harass_attack_health: if threats and no target in range, do nothing
+                if unit.health_percentage < self.harass_attack_health and not nearby_enemy:
                     return UnitMicroType.NONE
                 for threat in threats:
                     if threat.is_structure and self.enemy.safe_distance_squared(unit, threat) > self.enemy.get_attack_range_with_buffer_squared(threat, unit, 3):
@@ -123,7 +128,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
 
         if nearby_enemy:
             return self._kite(unit, nearby_enemy)
-        if force_move or unit.health_percentage <= self.harass_retreat_health:
+        if force_move:
             return UnitMicroType.NONE
         # if can_attack:
         #     enemy_structures = self.bot.enemy_structures.sorted(lambda u: u.health + u.shield)
@@ -143,42 +148,41 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
 
     @timed_async
     async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> UnitMicroType:
+        # below harass_retreat_health: always retreat
+        # below harass_attack_health: retreat if threats
+        # above harass_attack_health: do nothing
         if unit.tag in self.bot.unit_tags_received_action:
-            return UnitMicroType.NONE        
-
-        do_retreat = unit.health_percentage <= self.harass_retreat_health
-
-        can_be_attacked = UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_enemies())
-        if not can_be_attacked:
-            if do_retreat:
-                unit.move(self._get_retreat_destination(unit))
-                return UnitMicroType.RETREAT
             return UnitMicroType.NONE
-        
-        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5)
-        if not do_retreat:
-            if not threats:
-                if unit.health_percentage >= self.harass_attack_health:
-                    return UnitMicroType.NONE
-                do_retreat = True
-            else:
-                # retreat if there is nothing this unit can attack
-                visible_threats = threats.filter(lambda t: t.age == 0 and t.is_visible)
-                target = self.enemy.in_attack_range(unit, visible_threats, 3, first_only=True)
-                if not target:
-                    do_retreat = True
 
-        # check if incoming damage will bring unit below health threshold
-        if not do_retreat:
-            total_potential_damage = sum([threat.calculate_damage_vs_target(unit)[0] for threat in threats])
+        # above harass_attack_health: do nothing
+        if unit.health_percentage >= self.harass_attack_health:
+            return UnitMicroType.NONE
+
+        can_be_attacked = UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_recent_enemies())
+        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5) if can_be_attacked else None
+
+        is_below_attack_health = unit.health_percentage < self.harass_attack_health
+        is_below_retreat_health = unit.health_percentage <= self.harass_retreat_health
+        # check if incoming damage will bring unit below harass_retreat_health
+        if not is_below_attack_health and threats:
             if not unit.health_max:
                 # rare weirdness
                 return UnitMicroType.RETREAT
-            if (unit.health - total_potential_damage) / unit.health_max < self.harass_attack_health:
-                do_retreat = True
+            
+            attack_threshold = unit.health_max * self.harass_attack_health
+            current_health = unit.health
+            for threat in threats:
+                current_health -= threat.calculate_damage_vs_target(unit)[0]
+                if current_health < attack_threshold:
+                    is_below_attack_health = True
+                    break
 
-        if do_retreat:
+        # below harass_retreat_health: always retreat
+        # below harass_attack_health: retreat if threats
+        if threats or is_below_retreat_health:
             retreat_position = self._get_retreat_destination(unit, threats)
             unit.move(retreat_position)
             return UnitMicroType.RETREAT
+
+        # not can_be_attacked and not below retreat: no need to retreat
         return UnitMicroType.NONE

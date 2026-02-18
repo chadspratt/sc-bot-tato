@@ -1,4 +1,3 @@
-from typing import Dict
 
 from cython_extensions.geometry import cy_distance_to
 from sc2.bot_ai import BotAI
@@ -6,32 +5,29 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.economy.workers import Workers
-from bottato.enemy import Enemy
 from bottato.enums import BuildType, ExpansionSelection, ScoutType
 from bottato.log_helper import LogHelper
-from bottato.map.map import Map
 from bottato.military import Military
 from bottato.mixins import DebugMixin, timed_async
-from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.initial_scout import InitialScout
 from bottato.squad.scout import Scout
 from bottato.squad.squad import Squad
+from bottato.tactics import Tactics
 from bottato.unit_reference_helper import UnitReferenceHelper
 
 
 class Scouting(Squad, DebugMixin):
-    def __init__(self, bot: BotAI, enemy: Enemy, map: Map, workers: Workers,
-                 military: Military, intel: EnemyIntel):
+    def __init__(self, bot: BotAI, tactics: Tactics, workers: Workers, military: Military):
         super().__init__(bot=bot, color=self.random_color(), name="scouting")
-        self.enemy = enemy
-        self.map = map
+        self.enemy = tactics.enemy
+        self.map = tactics.map
+        self.intel = tactics.intel
         self.workers = workers
         self.military = military
-        self.intel = intel
         self.initial_scan_done: bool = False
 
-        self.friendly_territory = Scout("friendly territory", self.bot, enemy)
-        self.enemy_territory = Scout("enemy territory", self.bot, enemy)
+        self.friendly_territory = Scout("friendly territory", self.bot, self.enemy)
+        self.enemy_territory = Scout("enemy territory", self.bot, self.enemy)
         self.initial_scout = InitialScout(self.bot, self.map, self.enemy, self.intel)
         self.newest_enemy_base = self.bot.enemy_start_locations[0]
 

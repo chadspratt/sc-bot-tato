@@ -4,7 +4,7 @@ from typing import List
 from cython_extensions.general_utils import cy_in_pathing_grid_burny
 from cython_extensions.geometry import cy_distance_to, cy_towards
 from sc2.bot_ai import BotAI
-from sc2.data import Race
+from sc2.data import Race, race_townhalls
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -12,6 +12,7 @@ from sc2.unit import Unit
 
 from bottato.economy.workers import Workers
 from bottato.enemy import Enemy
+from bottato.enums import BuildType
 from bottato.map.map import Map
 from bottato.mixins import GeometryMixin
 from bottato.squad.enemy_intel import EnemyIntel
@@ -95,11 +96,13 @@ class InitialScout(Squad, GeometryMixin):
                 self.unit = None
                 # scout lost, don't send another
                 self.completed = True
-                self.intel.mark_initial_scout_complete()
                 return
+            if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected:
+                self.completed = True
 
             if self.completed:
                 workers.set_as_idle(self.unit)
+                self.intel.mark_initial_scout_complete()
                 self.unit = None
                 return
                 
@@ -119,14 +122,15 @@ class InitialScout(Squad, GeometryMixin):
             return
         
         if self.unit.health_percentage < 0.7 or self.do_natural_check:
-            self.waypoints = [self.map.enemy_natural_position]  # check natural before leaving
+            # self.waypoints = [self.map.enemy_natural_position]  # check natural before leaving
             if cy_distance_to(self.unit.position, self.map.enemy_natural_position) < 9:
                 if self.intel.enemy_race == Race.Terran and self.bot.enemy_structures(UnitTypeId.COMMANDCENTER).amount < 2:
                     # terran takes longer to start natural?
                     self.completed = self.bot.time > 150
-                else:
+                elif self.bot.time > self.initial_scout_complete_time:
                     self.completed = True
                     self.intel.mark_initial_scout_complete()
+                self.do_natural_check = False
         elif self.last_waypoint:
             if cy_distance_to(self.unit.position, self.waypoints[0]) <= 5:
                 if self.waypoints[0] == self.last_waypoint:
@@ -141,6 +145,8 @@ class InitialScout(Squad, GeometryMixin):
                     self.waypoints_completed = True
                     self.intel.mark_enemy_main_scouted()
                     self.waypoints = list(self.original_waypoints)  # reset to keep scouting
+                    if self.bot.time > 70 and self.bot.enemy_structures(race_townhalls[self.bot.enemy_race]).amount < 2:
+                        self.do_natural_check = True
         else:
             # find initial waypoint
             i = 0
@@ -160,5 +166,7 @@ class InitialScout(Squad, GeometryMixin):
         #     self.bot.client.debug_box2_out(self.convert_point2_to_3(waypoint))
             
         # Move to current waypoint
-        if self.waypoints:
+        if self.do_natural_check:
+            self.unit.move(self.map.enemy_natural_position)
+        elif self.waypoints:
             self.unit.move(self.waypoints[0])

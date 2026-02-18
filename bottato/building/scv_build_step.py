@@ -159,7 +159,7 @@ class SCVBuildStep(BuildStep):
             self.unit_type_id = UnitTypeId.REFINERY
         if self.unit_being_built:
             self.position = self.unit_being_built.position
-            if self.start_time is None:
+            if self.start_time == 0:
                 self.start_time = self.bot.time
         else:
             if self.unit_type_id == UnitTypeId.REFINERY:
@@ -172,7 +172,7 @@ class SCVBuildStep(BuildStep):
                 # try to reset position to highground if it was set to low before rush was detected
                 # if self.unit_type_id == UnitTypeId.BUNKER and BuildType.RUSH in detected_enemy_builds and self.unit_being_built is None:
                 #     self.position = None
-                if self.position is None or (self.start_time is not None and self.start_time - self.bot.time > 7):
+                if self.position is None or (self.start_time != 0 and self.bot.time - self.start_time > 3 and self.bot.minerals >= self.cost.minerals and self.bot.vespene >= self.cost.vespene):
                     self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds, floating_building_destinations)
                 if self.position is None:
                     self.no_position_count += 1
@@ -231,7 +231,7 @@ class SCVBuildStep(BuildStep):
                     self.unit_in_charge = self.workers.get_builder(self.position)
                 if self.unit_in_charge is not None:
                     unit_micro = MicroFactory.get_unit_micro(self.unit_in_charge)
-                    await unit_micro.move(self.unit_in_charge, self.position)
+                    await unit_micro.scout(self.unit_in_charge, self.position)
     
     attempted_expansion_positions = {}
     async def find_placement(self,
@@ -360,6 +360,8 @@ class SCVBuildStep(BuildStep):
                 new_build_position = special_locations.find_placement(unit_type_id)
             if new_build_position is None:
                 new_build_position = await self.map.get_non_visible_position_in_main()
+        elif unit_type_id == UnitTypeId.BARRACKS and BuildType.EARLY_EXPANSION in detected_enemy_builds and self.bot.structures(UnitTypeId.BARRACKS).amount < 2:
+            new_build_position = self.map.enemy_expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY][2].expansion_position
         else:
             new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
 

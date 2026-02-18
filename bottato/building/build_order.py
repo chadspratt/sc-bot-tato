@@ -22,12 +22,19 @@ from bottato.counter import Counter
 from bottato.economy.production import Production
 from bottato.economy.workers import Workers
 from bottato.enemy import Enemy
-from bottato.enums import BuildOrderChange, BuildResponseCode, BuildType, WorkerJobType
+from bottato.enums import (
+    BuildOrderChange,
+    BuildResponseCode,
+    BuildType,
+    Tactic,
+    WorkerJobType,
+)
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.military import Military
 from bottato.mixins import timed, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
+from bottato.tactics import Tactics
 from bottato.tech_tree import TECH_TREE
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
@@ -48,16 +55,16 @@ class BuildOrder():
     # next_unfinished_step_index: int
     tech_tree: Dict[UnitTypeId, List[UnitTypeId]] = {}
     rush_defense_enacted: bool = False
+    time_to_deviate_from_build_order = 50
 
-    def __init__(self, build_name: str, bot: BotAI, workers: Workers, production: Production, map: Map
-                 , military: Military, intel: EnemyIntel, enemy: Enemy) -> None:
+    def __init__(self, build_name: str, bot: BotAI, tactics: Tactics, workers: Workers, production: Production) -> None:
         self.bot = bot
         self.workers = workers
         self.production = production
-        self.map = map
-        self.military = military
-        self.intel = intel
-        self.enemy = enemy
+        self.tactics = tactics
+        self.map = tactics.map
+        self.intel = tactics.intel
+        self.enemy = tactics.enemy
 
         self.counter = Counter()
         self.unit_types = UnitTypes()
@@ -89,7 +96,6 @@ class BuildOrder():
     @timed_async
     async def execute(self, floating_building_destinations: Dict[int, Point2]) -> Cost:
         self.floating_building_destinations = floating_building_destinations
-        army_ratio = self.military.army_ratio
         detected_enemy_builds = self.intel.enemy_builds_detected
         self.enact_build_changes(detected_enemy_builds)
         if self.bot.time < 360 and (self.bot.enemy_units.filter(lambda u: u.type_id in (
@@ -105,12 +111,12 @@ class BuildOrder():
 
         self.queue_townhall_work(detected_enemy_builds)
         self.queue_supply()
-        self.queue_command_center(army_ratio, detected_enemy_builds)
+        self.queue_command_center(self.intel.army_ratio, detected_enemy_builds)
         self.queue_upgrade(self.changes_enacted)
-        self.queue_marines(detected_enemy_builds, army_ratio)
+        self.queue_marines(detected_enemy_builds, self.intel.army_ratio)
         if len(self.static_queue) < 5 or self.bot.time > 300:
             self.queue_turret(self.intel)
-            await self.queue_bunker(self.military.main_army.staging_location)
+            await self.queue_bunker(self.intel.main_army_staging_location)
 
             # randomize unit queue so it doesn't get stuck on one unit type
             military_queue, priority_military_queue = self.get_military_queue(self.enemy, self.intel)
@@ -121,7 +127,7 @@ class BuildOrder():
             self.add_to_build_queue(priority_military_queue, queue=self.build_queue)
             self.add_to_build_queue(military_queue, queue=self.build_queue)
 
-            self.only_build_units = self.bot.supply_left > 6 and 0.0 < army_ratio < 0.6
+            self.only_build_units = self.bot.supply_left > 6 and 0.0 < self.intel.army_ratio < 0.6
             if self.only_build_units:
                 capacity_available = self.production.can_build_any(military_queue)
                 if not capacity_available:
@@ -185,7 +191,7 @@ class BuildOrder():
                     self.interrupted_queue.insert(0, build_step)
 
     def enact_build_changes(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
-        if self.bot.time < 60:
+        if self.bot.time < self.time_to_deviate_from_build_order:
             # wait so the very initial build order is not disrupted
             return
         # if self.bot.time > 300 or self.bot.townhalls.amount > 2 or BuildType.RUSH not in detected_enemy_builds:
@@ -201,6 +207,7 @@ class BuildOrder():
         self.make_one_time_build_change(self.bot.enemy_race == Race.Terran, BuildOrderChange.BANSHEE_HARASS, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.STARGATE, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.SPIRE, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
+        self.make_one_time_build_change(BuildType.EARLY_EXPANSION, BuildOrderChange.PROXY_BARRACKS, detected_enemy_builds)
 
         # make persistent changes to build order
         if BuildOrderChange.ANTI_AIR in self.changes_enacted:
@@ -249,6 +256,7 @@ class BuildOrder():
                     self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
             self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue)
             self.move_between_queues(UnitTypeId.BARRACKSREACTOR, self.static_queue, self.priority_queue)
+            self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
             if self.bot.structures(UnitTypeId.FACTORY).amount == 0 and self.get_in_progress_count(UnitTypeId.FACTORY) == 0:
                 self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
             if not self.move_between_queues(UnitTypeId.FACTORYTECHLAB, self.static_queue, self.priority_queue):
@@ -258,7 +266,7 @@ class BuildOrder():
             # undo banshee harass if enemy rush detected. might still be good vs zerg
             if self.enemy.enemy_race != Race.Zerg:
                 self.move_between_queues(UnitTypeId.STARPORT, self.priority_queue, self.static_queue, position=2)
-                self.remove_step_from_queue(UnitTypeId.STARPORTTECHLAB, self.static_queue)
+                self.substitute_steps_in_queue(UnitTypeId.STARPORTTECHLAB, [UnitTypeId.VIKINGFIGHTER], self.static_queue)
                 self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue, remove_all=True)
                 self.remove_step_from_queue(UpgradeId.BANSHEECLOAK, self.static_queue, remove_all=True)
             if BuildType.PROXY not in detected_enemy_builds:
@@ -290,6 +298,15 @@ class BuildOrder():
                 UnitTypeId.BANSHEE], self.static_queue)
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.static_queue)
             self.add_to_build_queue([UnitTypeId.BANSHEE], queue=self.static_queue, remove_duplicates=False)
+        elif change == BuildOrderChange.PROXY_BARRACKS:
+            self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue, position=0)
+            if self.bot.structures(UnitTypeId.BARRACKS).amount == 0:
+                # move second if first hasn't started yet
+                self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue, position=0)
+            self.remove_step_from_queue(UnitTypeId.REAPER, self.static_queue)
+            self.remove_step_from_queue(UnitTypeId.REAPER, self.priority_queue)
+            self.remove_step_from_queue(UnitTypeId.BUNKER, self.static_queue, remove_all=True)
+            self.remove_step_from_queue(UnitTypeId.BUNKER, self.priority_queue, remove_all=True)
     
     def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep], position: int | None = None) -> bool:
         for step in from_queue:
@@ -300,7 +317,7 @@ class BuildOrder():
                 else:
                     to_queue.append(step)
                 if isinstance(step, SCVBuildStep) and step.unit_type_id == UnitTypeId.BUNKER:
-                    # clear postion in case low-ground needs to move to high-ground location
+                    # clear position in case low-ground needs to move to high-ground location
                     step.position = None
                 return True
         return False
@@ -608,6 +625,10 @@ class BuildOrder():
 
     @timed
     def queue_marines(self, detected_enemy_builds: Dict[BuildType, float], army_ratio: float) -> None:
+        if self.tactics.is_active(Tactic.PROXY_BARRACKS):
+            # if enemy expands early, prioritize marines to punish
+            self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue, position=0)
+            return
         # use excess minerals and idle barracks
         need_early_marines: bool = self.bot.time < 300 and army_ratio < 0.8 and \
             (BuildType.RUSH in detected_enemy_builds or len(cy_closer_than(self.bot.enemy_units, 20, self.map.natural_position)) > 2)
@@ -861,7 +882,7 @@ class BuildOrder():
                 break
 
     async def execute_pending_builds(self, only_build_units: bool, detected_enemy_builds: Dict[BuildType, float]) -> Cost:
-        allow_skip = self.bot.time > 60
+        allow_skip = self.bot.time > self.time_to_deviate_from_build_order
         remaining_resources: Cost = await self.build_from_queue(self.interrupted_queue, only_build_units, detected_enemy_builds, allow_skip)
         if remaining_resources.minerals > 0:
             remaining_resources: Cost = await self.build_from_queue(self.priority_queue, only_build_units, detected_enemy_builds, allow_skip, remaining_resources)
@@ -956,9 +977,13 @@ class BuildOrder():
                     # don't reserve minerals for missing gas
                     remaining_resources.minerals -= remaining_resources.vespene
                 build_response = BuildResponseCode.NO_RESOURCES
-                if percent_affordable >= 0.75 and isinstance(build_step, SCVBuildStep) \
-                        and self.bot.tech_requirement_progress(build_step.unit_type_id) == 1.0:
-                    await build_step.position_worker(self.special_locations, detected_enemy_builds, self.floating_building_destinations)
+                if isinstance(build_step, SCVBuildStep):
+                    if (build_step.is_unit_type(UnitTypeId.BARRACKS)
+                            and BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected
+                            and self.bot.time < 200
+                        ) or (percent_affordable >= 0.75
+                            and self.bot.tech_requirement_progress(build_step.unit_type_id) == 1.0):
+                        await build_step.position_worker(self.special_locations, detected_enemy_builds, self.floating_building_destinations)
                 if remaining_resources.minerals < 50:
                     break
                 continue

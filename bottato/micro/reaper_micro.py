@@ -34,7 +34,18 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
     excluded_types = [UnitTypeId.EGG, UnitTypeId.LARVA]
     @timed_async
-    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
+    async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
+        # do this here so it gets done reliably
+        current_elevation = self.bot.get_terrain_z_height(unit)
+        if unit.tag not in self.previous_elevation:
+            self.previous_elevation[unit.tag] = current_elevation
+        last_elevation = self.previous_elevation[unit.tag]
+        if current_elevation - last_elevation < -1:
+            self.last_hop_down_time[unit.tag] = self.bot.time
+            self.previous_elevation[unit.tag] = current_elevation
+        elif current_elevation - last_elevation > 1:
+            self.previous_elevation[unit.tag] = current_elevation
+
         targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False, excluded_types=self.excluded_types)
         grenade_targets: List[Point2] = []
         if targets and await self.grenade_available(unit):
@@ -65,13 +76,16 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.ATTACK
+        # below retreat_health: do nothing
+        if unit.health_percentage < self.retreat_health:
+            return UnitMicroType.NONE
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
 
         is_low_health = unit.health_percentage < self.attack_health
         if is_low_health and not can_attack:
             return UnitMicroType.NONE
         # nearby_enemies: Units
-        candidates = self.enemy.get_candidates(included_types=[UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE])
+        candidates = self.enemy.get_candidates(included_types={UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE})
         worker_buffer = 0 if can_attack else 5
         nearby_workers = self.enemy.in_attack_range(unit, candidates, worker_buffer)
         if not nearby_workers and worker_buffer == 0:
@@ -130,15 +144,6 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                     return self._kite(unit, nearest_workers)
             return UnitMicroType.NONE
 
-        current_elevation = self.bot.get_terrain_z_height(unit)
-        if unit.tag not in self.previous_elevation:
-            self.previous_elevation[unit.tag] = current_elevation
-        last_elevation = self.previous_elevation[unit.tag]
-        if current_elevation - last_elevation < -1:
-            self.last_hop_down_time[unit.tag] = self.bot.time
-            self.previous_elevation[unit.tag] = current_elevation
-        elif current_elevation - last_elevation > 1:
-            self.previous_elevation[unit.tag] = current_elevation
         if self.bot.time - self.last_hop_down_time.get(unit.tag, 0) < 1:
             # recently hopped down while retreating, don't immediately go back up
             return UnitMicroType.NONE
@@ -178,59 +183,54 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
     @timed_async
     async def _harass_retreat(self, unit: Unit, health_threshold: float, harass_location: Point2) -> UnitMicroType:
+        # below retreat_health: always retreat
+        # below attack_health: retreat if threats
+        # above attack_health: do nothing
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.NONE
+
+        # above attack_health: do nothing
+        if unit.health_percentage >= self.attack_health:
+            self.retreat_scout_location = None
+            return UnitMicroType.NONE
+
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
 
-        do_retreat = False
+        # recently hopped down while retreating, don't immediately go back up
+        recently_hopped = self.bot.time - self.last_hop_down_time.get(unit.tag, 0) < 1
 
-        if self.bot.time - self.last_hop_down_time.get(unit.tag, 0) < 1:
-            # recently hopped down while retreating, don't immediately go back up
-            do_retreat = True
-
-        if not threats:
-            if unit.health_percentage >= health_threshold and not do_retreat:
-                self.retreat_scout_location = None
-                return UnitMicroType.NONE
-            # scout next enemy expansion location
-            if self.retreat_scout_location is None or self.bot.is_visible(self.retreat_scout_location):
-                scout_locations = self.intel.get_next_enemy_expansion_scout_locations()
-                # pick a location that isn't visible
-                self.retreat_scout_location = min(scout_locations, key=lambda loc: self.bot.is_visible(loc.expansion_position)).expansion_position
-            path = self.map.get_path(unit.position, self.retreat_scout_location)
-            if path.zones:
-                # follow path to avoid hopping back up a cliff
-                unit.move(path.zones[1].midpoint)
-            else:
-                # might be on a double ledge with no pathing
-                unit.move(self.bot.start_location)
-            return UnitMicroType.RETREAT
-            # # just stop and wait for regen
-            # unit.stop()
-            # return True
-
-        if not do_retreat:
+        is_below_retreat_health = unit.health_percentage < health_threshold
+        # check if incoming damage would bring unit below retreat_health
+        if not is_below_retreat_health and threats:
             if not unit.health_max:
-                # rare weirdness
                 return UnitMicroType.NONE
-
-            # check if incoming damage will bring unit below health threshold
             hp_threshold = unit.health_max * health_threshold
             current_health = unit.health
             for threat in threats:
-                if current_health < hp_threshold:
-                    do_retreat = True
-                    break
                 if UnitTypes.ground_range(threat) > unit.ground_range:
-                    # just run away from threats that outrange
-                    do_retreat = True
+                    # outranged, treat as below retreat
+                    is_below_retreat_health = True
                     break
                 current_health -= threat.calculate_damage_vs_target(unit)[0]
+                if current_health < hp_threshold:
+                    is_below_retreat_health = True
+                    break
 
-        if do_retreat:
-            if unit.health_percentage < health_threshold:
-                retreat_position = self._get_retreat_destination(unit, threats)
-                unit.move(retreat_position)
+        # below retreat_health: always retreat
+        if is_below_retreat_health or recently_hopped:
+            if not threats:
+                # scout next enemy expansion location
+                if self.retreat_scout_location is None or self.bot.is_visible(self.retreat_scout_location):
+                    scout_locations = self.intel.get_next_enemy_expansion_scout_locations()
+                    # pick a location that isn't visible
+                    self.retreat_scout_location = min(scout_locations, key=lambda loc: self.bot.is_visible(loc.expansion_position)).expansion_position
+                path = self.map.get_path(unit.position, self.retreat_scout_location)
+                if path.zones:
+                    # follow path to avoid hopping back up a cliff
+                    unit.move(path.zones[1].midpoint)
+                else:
+                    # might be on a double ledge with no pathing
+                    unit.move(self.bot.start_location)
                 return UnitMicroType.RETREAT
 
             destination = self.bot.start_location
@@ -241,7 +241,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.RETREAT
             # if retreat_to_start:
             retreat_position = self._get_retreat_destination(unit, threats)
-
+            unit.move(retreat_position)
             return UnitMicroType.RETREAT
 
         self.retreat_scout_location = None

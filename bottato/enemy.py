@@ -1,6 +1,6 @@
 from collections import deque
 from loguru import logger
-from typing import Dict, List
+from typing import Dict, List, Set
 
 from cython_extensions.general_utils import cy_in_pathing_grid_burny
 from cython_extensions.geometry import cy_distance_to_squared
@@ -46,6 +46,13 @@ class Enemy(GeometryMixin):
         self.stuck_enemies: Units = Units([], bot)
         self.stuck_check_position: Point2 | None = None
         self.enemy_race: Race = self.bot.enemy_race
+
+        self.attack_range_squared_cache[UnitTypeId.NOTAUNIT] = {
+            # buffer distance
+            0: {
+                UnitTypeId.NOTAUNIT: 53180.08
+            }
+        }
 
     @timed
     def update_references(self):
@@ -275,7 +282,7 @@ class Enemy(GeometryMixin):
         if visible_only:
             enemies = self.enemies_in_view
         else:
-            enemies = self.get_enemies()
+            enemies = self.get_recent_enemies()
         return self.threats_to(friendly_unit, enemies, attack_range_buffer, first_only=first_only)
     
     def in_friendly_attack_range(self, friendly_unit: Unit, targets: Units | None = None, attack_range_buffer:float=0) -> Units:
@@ -407,7 +414,7 @@ class Enemy(GeometryMixin):
         return threats
 
     all_enemies_cache: Dict[float, Units] = {}
-    def get_enemies(self) -> Units:
+    def get_recent_enemies(self) -> Units:
         if self.bot.time not in self.all_enemies_cache:
             self.all_enemies_cache.clear()
             self.all_enemies_cache[self.bot.time] = self.enemies_in_view + self.recent_out_of_view()
@@ -434,7 +441,12 @@ class Enemy(GeometryMixin):
         UnitTypeId.EGG,
     }
 
+    army_cache: Dict[float, Units] = {}
     def get_army(self, include_scouts: bool = False, seconds_since_killed: float = 0) -> Units:
+        use_cache = seconds_since_killed == 0 and not include_scouts
+        if use_cache and self.bot.time in self.army_cache:
+            return self.army_cache[self.bot.time]
+                
         rebuild_time = 30
         rebuild_cutoff_time = self.bot.time - rebuild_time
         excluded_types = self.non_army_non_scout_unit_types if include_scouts else self.non_army_unit_types
@@ -456,12 +468,17 @@ class Enemy(GeometryMixin):
                 else:
                     break
             enemies += killed_units
+        if use_cache:
+            self.army_cache.clear()
+            self.army_cache[self.bot.time] = enemies
         return enemies
 
     @timed
     def get_closest_target(self, friendly_unit: Unit, distance_limit=999999,
                            include_structures=True, include_units=True, include_destructables=False,
-                           include_out_of_view=True, excluded_types=[], included_types=[], seconds_ahead: float=0) -> tuple[Unit | None, float]:
+                           include_out_of_view=True,
+                           excluded_types: Set[UnitTypeId]=set(), included_types: Set[UnitTypeId]=set(),
+                           seconds_ahead: float=0) -> tuple[Unit | None, float]:
         nearest_enemy: Unit | None = None
         nearest_distance = distance_limit
 
@@ -495,7 +512,8 @@ class Enemy(GeometryMixin):
     @timed
     def get_closest_targets(self, friendly_unit: Unit, within_attack_buffer: float=0,
                            include_structures=True, include_units=True, include_destructables=False,
-                           include_out_of_view=True, excluded_types=[], included_types=[]) -> Units:
+                           include_out_of_view=True,
+                           excluded_types: Set[UnitTypeId]=set(), included_types: Set[UnitTypeId]=set()) -> Units:
         nearest_enemies: Units = Units([], self.bot)
 
         candidates: Units = self.get_candidates(include_structures, include_units, include_destructables,
@@ -524,7 +542,7 @@ class Enemy(GeometryMixin):
     @timed
     def get_target_closer_than(self, friendly_unit: Unit, max_distance: float,
                                include_structures=True, include_units=True, include_destructables=False,
-                               excluded_types=[], seconds_ahead: float=0) -> tuple[Unit | None, float]:
+                               excluded_types: Set[UnitTypeId]=set(), seconds_ahead: float=0) -> tuple[Unit | None, float]:
         candidates: Units = self.get_candidates(include_structures, include_units, include_destructables,
                                                 excluded_types=excluded_types)
         for enemy in candidates:
@@ -551,7 +569,8 @@ class Enemy(GeometryMixin):
 
     @timed
     def get_candidates(self, include_structures=True, include_units=True, include_destructables=False,
-                       include_out_of_view=True, excluded_types=[], included_types=[]):
+                       include_out_of_view=True,
+                       excluded_types: Set[UnitTypeId]=set(), included_types: Set[UnitTypeId]=set()):
         candidates: Units = Units([], self.bot)
         if include_structures and include_units:
             candidates = self.bot.enemy_units + self.bot.enemy_structures

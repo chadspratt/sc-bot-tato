@@ -12,23 +12,27 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.enemy import Enemy
-from bottato.enums import ExpansionSelection
+from bottato.enums import BuildType, CustomEffectType, ExpansionSelection, Tactic
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.custom_effect import CustomEffect
 from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
+from bottato.tactics import Tactics
+from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 
 
 class StructureMicro(BaseUnitMicro, GeometryMixin):
-    def __init__(self, bot: BotAI, enemy: Enemy, map: Map, intel: EnemyIntel) -> None:
+    def __init__(self, bot: BotAI, tactics: Tactics) -> None:
         self.bot: BotAI = bot
-        self.enemy: Enemy = enemy
-        self.map: Map = map
-        self.intel: EnemyIntel = intel
-        self.command_center_destinations: Dict[int, Point2 | None] = {}
+        self.tactics: Tactics = tactics
+        self.enemy: Enemy = tactics.enemy
+        self.map: Map = tactics.map
+        self.intel: EnemyIntel = tactics.intel
+        self.building_destinations: Dict[int, Point2 | None] = {}
+        self.building_in_position_times: Dict[int, float | None] = {}
         self.last_scan_time: float = 0
         self.last_lift_for_unstuck: Dict[int, float] = {}
         self.destinations: Dict[int, Point2] = {}
@@ -40,6 +44,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         self.target_autoturrets()
         await self.move_command_centers()
         await self.move_ramp_barracks(army_ratio)
+        await self.move_proxy_barracks()
         self.scan()
         await self.untrap_stuck_units(stuck_units)
 
@@ -54,7 +59,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 if self.distance(enemy_unit, depot) < distance_threshold - 2:
                     depot(AbilityId.MORPH_SUPPLYDEPOT_RAISE)
                     # fake effect to tell units to get off the depot
-                    BaseUnitMicro.custom_effects_to_avoid.append(CustomEffect(depot.position, depot.radius, self.bot.time, 1))
+                    BaseUnitMicro.custom_effects_to_avoid.append(CustomEffect(CustomEffectType.BUILDING_FOOTPRINT, depot.position, depot.radius, self.bot.time, 1))
                     break
         # Lower depots when no enemies are nearby
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:
@@ -92,7 +97,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
     async def move_command_centers(self):
         for cc in self.bot.structures((UnitTypeId.COMMANDCENTER, UnitTypeId.COMMANDCENTERFLYING, UnitTypeId.ORBITALCOMMAND, UnitTypeId.ORBITALCOMMANDFLYING)).ready:
             if cc.is_flying:
-                destination = self.command_center_destinations.get(cc.tag, None)
+                destination = self.building_destinations.get(cc.tag, None)
                 if destination:
                     ccs_at_destination = Units(cy_closer_than(self.bot.townhalls, 5, destination), bot_object=self.bot)
                     if ccs_at_destination and cc.tag not in ccs_at_destination.tags:
@@ -100,7 +105,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                         destination = None
                 if destination is None:
                     destination = self.map.get_next_expansion()
-                    self.command_center_destinations[cc.tag] = destination
+                    self.building_destinations[cc.tag] = destination
                     if destination is None:
                         cc(AbilityId.LAND, cc.position)
                         continue
@@ -135,7 +140,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                             cc.move(destination)
                         continue
                 if cc.position == destination:
-                    BaseUnitMicro.add_custom_effect(cc.position, cc.radius + 0.5, self.bot.time, 0.5)
+                    BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT, cc.position, cc.radius + 0.5, self.bot.time, 0.5)
                     cc(AbilityId.LAND, destination)
                 else:
                     cc.move(destination)
@@ -151,41 +156,31 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     if nearby_enemies:
                         threats = nearby_enemies.filter(lambda enemy: UnitTypes.can_attack_ground(enemy))
                         if threats:
-                            self.command_center_destinations[cc.tag] = cc.position
+                            self.building_destinations[cc.tag] = cc.position
                             cc(AbilityId.CANCEL_LAST)
                             cc(AbilityId.CANCEL, queue=True)
                             cc(AbilityId.LIFT, queue=True)
 
-    ramp_barracks_in_position_time: float | None = None
-    ramp_barracks_desired_position: Point2 | None = None
     @timed_async
     async def move_ramp_barracks(self, army_ratio: float):
         if self.bot.structures(UnitTypeId.BARRACKSREACTOR):
             # reactor already started, don't move barracks
             return
 
-        desired_position = self.ramp_barracks_desired_position or self.bot.main_base_ramp.barracks_correct_placement
-        if desired_position is None:
-            return
-        barracks = Units(cy_closer_than(self.bot.structures([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING]).ready, 3, desired_position), bot_object=self.bot)
-        if barracks.amount != 1:
+        barracks = Units(cy_closer_than(self.bot.structures([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING]).ready, 5, self.bot.main_base_ramp.top_center), bot_object=self.bot)
+        if barracks.amount == 0:
             return
         ramp_barracks = barracks.first
+
+        desired_position = self.building_destinations.get(ramp_barracks.tag)
+        if desired_position is None:
+            desired_position = self.bot.main_base_ramp.barracks_correct_placement
+            if desired_position is None:
+                return
+            self.building_destinations[ramp_barracks.tag] = desired_position
+
         is_in_position = ramp_barracks.position == desired_position
-        if ramp_barracks.is_flying:
-            if is_in_position:
-                if self.ramp_barracks_in_position_time is None:
-                    self.ramp_barracks_in_position_time = self.bot.time
-                if self.bot.time - self.ramp_barracks_in_position_time > 2 and not await self.bot.can_place_single(UnitTypeId.BARRACKS, desired_position):
-                    self.ramp_barracks_desired_position = await self.bot.find_placement(UnitTypeId.BARRACKS, desired_position, placement_step=1, addon_place=True)
-                    if self.ramp_barracks_desired_position:
-                        ramp_barracks.move(self.ramp_barracks_desired_position)
-                else:
-                    BaseUnitMicro.add_custom_effect(ramp_barracks.position, ramp_barracks.radius, self.bot.time, 0.5)
-                    ramp_barracks(AbilityId.LAND, desired_position)
-            else:
-                ramp_barracks.move(desired_position)
-        elif not is_in_position:
+        if not is_in_position:
             # Check if natural townhall is in position
             natural_townhalls = cy_closer_than(self.bot.townhalls, 1, self.map.natural_position)
             if not natural_townhalls:
@@ -194,8 +189,61 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 # don't move if enemies are nearby
                 return
             
-            if len(ramp_barracks.orders) == 0:
-                ramp_barracks(AbilityId.LIFT)
+            await self.move_structure(ramp_barracks)
+
+    async def move_structure(self, structure: Unit) -> bool:
+        destination = self.building_destinations.get(structure.tag)
+        if destination is None:
+            destination = await self.get_unit_placement(structure)
+            if destination is None:
+                return False
+            self.building_destinations[structure.tag] = destination
+        distance = destination.manhattan_distance(structure.position)
+        if distance > 1:
+            if structure.is_flying:
+                await self.move(structure, destination)
+            else:
+                structure(AbilityId.LIFT)
+        else:
+            if structure.is_flying:
+                in_position_time = self.building_in_position_times.get(structure.tag)
+                if in_position_time is None:
+                    self.building_in_position_times[structure.tag] = self.bot.time
+                elif self.bot.time - in_position_time > 2 and not await self.bot.can_place_single(UnitTypeId.BARRACKS, destination):
+                    # unable to land, find new position
+                    type_id = structure.unit_alias if structure.unit_alias else structure.type_id
+                    new_destination = self.building_destinations[structure.tag] = await self.bot.find_placement(type_id, destination, placement_step=1, addon_place=True)
+                    self.building_in_position_times[structure.tag] = None
+                    if new_destination:
+                        await self.move(structure, new_destination)
+                else:
+                    BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT, structure.position, structure.radius, self.bot.time, 0.5)
+                    structure(AbilityId.LAND, destination)
+            else:
+                # landed in position
+                self.building_destinations[structure.tag] = None
+                self.building_in_position_times[structure.tag] = None
+                return True
+        return False
+
+    async def move_proxy_barracks(self):
+        if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected:
+            proxy_is_active = self.tactics.is_active(Tactic.PROXY_BARRACKS)
+            if self.tactics.proxy_barracks and not proxy_is_active:
+                move_complete = await self.move_structure(self.tactics.proxy_barracks)
+                if move_complete:
+                    self.tactics.proxy_barracks = None
+
+    async def get_unit_placement(self, unit: Unit, near: Point2 | None = None) -> Point2 | None:
+        if near is None:
+            near = self.map.natural_position.towards(self.bot.game_info.map_center, 8)
+        if unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING):
+            return await self.bot.find_placement(UnitTypeId.BARRACKS, near, placement_step=1, addon_place=True)
+        elif unit.type_id in (UnitTypeId.FACTORY, UnitTypeId.FACTORYFLYING):
+            return await self.bot.find_placement(UnitTypeId.FACTORY, near, placement_step=1, addon_place=True)
+        elif unit.type_id in (UnitTypeId.STARPORT, UnitTypeId.STARPORTFLYING):
+            return await self.bot.find_placement(UnitTypeId.STARPORT, near, placement_step=1, addon_place=True)
+        return None
 
     @timed_async
     async def untrap_stuck_units(self, stuck_units: Units):

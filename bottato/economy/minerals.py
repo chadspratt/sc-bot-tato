@@ -113,12 +113,20 @@ class Minerals(Resources):
                         target = townhall_pos.closest(candidates)
             resource_node.mining_position = target
 
-    def add_long_distance_minerals(self, idle_worker_count: int) -> int:
+    async def add_long_distance_minerals(self, idle_worker_count: int) -> int:
         added = 0
         nodes_to_add = math.ceil(idle_worker_count / WORKERS_PER_LONG_DISTANCE_NODE)
         if self.bot.townhalls:
             candidates = Units([mf for mf in self.bot.mineral_field if mf.tag not in self.nodes_by_tag], self.bot)
-            sorted_candidates = self.map.sort_units_by_path_distance(self.bot.start_location, candidates)
+            pathable_nodes = Units([], self.bot)
+            path_checking_position = await self.map.get_path_checking_position()
+            paths_to_check = [[unit, path_checking_position] for unit in candidates]
+            if paths_to_check:
+                distances = await self.bot.client.query_pathings(paths_to_check)
+                for path, distance in zip(paths_to_check, distances):
+                    if distance > 0:
+                        pathable_nodes.append(path[0])
+            sorted_candidates = self.map.sort_units_by_path_distance(self.bot.start_location, pathable_nodes)
             for i in range(nodes_to_add):
                 if i >= len(sorted_candidates):
                     break

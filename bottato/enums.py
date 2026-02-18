@@ -62,6 +62,7 @@ class BuildType(enum.Enum):
     WORKER_RUSH = 7
     SPIRE = 8
     MULTIPLE_REAPER = 9
+    EARLY_EXPANSION = 10
 
 class BuildOrderChange(enum.Enum):
     RUSH = 0
@@ -71,6 +72,11 @@ class BuildOrderChange(enum.Enum):
     ANTI_AIR = 4
     ZERGLING_RUSH = 5
     WORKER_RUSH = 6
+    PROXY_BARRACKS = 7
+
+class Tactic(enum.Enum):
+    BANSHEE_HARASS = 0
+    PROXY_BARRACKS = 1
 
 class ExpansionSelection(enum.Enum):
     CLOSEST = 0
@@ -84,6 +90,12 @@ class UnitMicroType(enum.Enum):
     RETREAT = 4
     MOVE = 5
     REPAIR = 6
+
+class CustomEffectType(enum.Enum):
+    BUILDING_FOOTPRINT = 0
+    ENEMY = 1
+    ENEMY_EFFECT = 2
+
 
 class ActionErrorCode(enum.Enum):
   Success = 1

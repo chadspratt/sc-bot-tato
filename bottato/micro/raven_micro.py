@@ -10,7 +10,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from bottato.enums import UnitMicroType
+from bottato.enums import CustomEffectType, UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.custom_effect import CustomEffect
 from bottato.mixins import GeometryMixin, timed, timed_async
@@ -36,11 +36,11 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                       UnitTypeId.ZERGLING, UnitTypeId.BROODLING]
                         
     @timed_async
-    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
+    async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.tag in self.last_missile_launch:
             enemy_unit, last_time, energy_before_launch, launch_detected = self.last_missile_launch[unit.tag]
             if self.bot.time - last_time < 11 and unit.energy < energy_before_launch and not launch_detected:
-                BaseUnitMicro.add_custom_effect(enemy_unit, 3.5, self.bot.time, 3.0)
+                BaseUnitMicro.add_custom_effect(CustomEffectType.ENEMY, enemy_unit, 3.5, self.bot.time, 3.0)
                 self.last_missile_launch[unit.tag] = (enemy_unit, last_time, energy_before_launch, True)
         if unit.energy < self.turret_energy_cost:
             # not enough energy for cheapest spell
@@ -81,12 +81,16 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         if force_move:
             return UnitMicroType.NONE
-        if unit.health_percentage < health_threshold:
+        # below retreat_health: do nothing
+        if unit.health_percentage < self.retreat_health:
             return UnitMicroType.NONE
         # stay safe
         threats = self.bot.enemy_units.filter(lambda enemy: UnitTypes.can_attack_air(enemy)) \
             + self.bot.enemy_structures.filter(lambda enemy: UnitTypes.can_attack_air(enemy))
         if threats:
+            # below attack_health: if threats, do nothing
+            if unit.health_percentage < health_threshold:
+                return UnitMicroType.NONE
             nearest_threat = cy_closest_to(unit.position, threats)
             if nearest_threat.distance_to_squared(unit) < unit.sight_range ** 2:
                 is_near_destination = move_position is not None and move_position._distance_squared(unit.position) < 9

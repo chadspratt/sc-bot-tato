@@ -154,7 +154,8 @@ class Counter():
             UnitTypeId.VIKINGFIGHTER: 1
         },
         UnitTypeId.CORRUPTOR: { # 2
-            UnitTypeId.MARINE: 2.5,
+            UnitTypeId.MARINE: 1.5,
+            UnitTypeId.VIKINGFIGHTER: 0.3,
         },
         UnitTypeId.HYDRALISK: { # 2
             UnitTypeId.SIEGETANK: 0.5,
@@ -172,9 +173,9 @@ class Counter():
             UnitTypeId.BANSHEE: 0.5
         },
         UnitTypeId.MUTALISK: { # 2
-            UnitTypeId.WIDOWMINE: 0.2,
-            UnitTypeId.MARINE: 0.3,
-            UnitTypeId.VIKINGFIGHTER: 0.3,
+            UnitTypeId.WIDOWMINE: 0.15,
+            UnitTypeId.MARINE: 0.4,
+            UnitTypeId.VIKINGFIGHTER: 0.4,
             UnitTypeId.BANSHEE: -0.5,
             UnitTypeId.SIEGETANK: -0.2,
         },

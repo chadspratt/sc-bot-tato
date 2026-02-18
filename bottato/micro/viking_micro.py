@@ -4,7 +4,7 @@ from socket import close
 from typing import Dict, List, Tuple
 
 from cython_extensions.geometry import cy_towards
-from cython_extensions.units_utils import cy_closer_than, cy_closest_to
+from cython_extensions.units_utils import cy_center, cy_closer_than, cy_closest_to
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -25,7 +25,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
     time_in_frames_to_attack = 0.5 * 22.4
 
     @timed_async
-    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
+    async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.tag in self.scout_tags:
             # scout mode, don't land
             return UnitMicroType.NONE
@@ -38,7 +38,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             if viking_count < 4:
                 # don't land if we have few vikings
                 return UnitMicroType.NONE
-            if unit.health_percentage >= health_threshold:
+            if unit.health_percentage >= self.ability_health:
                 # don't land if there are air targets nearby
                 if not nearby_enemies:
                     nearby_enemies = Units(cy_closer_than(self.bot.enemy_structures, 10, unit.position), bot_object=self.bot).filter(
@@ -71,7 +71,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                     unit(AbilityId.MORPH_VIKINGASSAULTMODE)
                     return UnitMicroType.USE_ABILITY
         else:
-            if unit.health_percentage < health_threshold:
+            if unit.health_percentage < self.ability_health:
                 aerial_threats = nearby_enemies.filter(lambda u: UnitTypes.can_attack_air(u)
                                                        and not UnitTypes.can_attack_ground(u))
                 if not aerial_threats:
@@ -105,7 +105,8 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             return UnitMicroType.NONE
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.NONE
-        if unit.is_flying and unit.health_percentage < health_threshold:
+        # below retreat_health: do nothing
+        if unit.is_flying and unit.health_percentage < self.retreat_health:
             return UnitMicroType.NONE
 
         if self.last_enemies_in_range_update != self.bot.time:
@@ -186,11 +187,17 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
         candidates = self.enemy.in_attack_range(unit, enemies, attack_range_buffer)
         if not candidates:
             candidates = self.enemy.in_attack_range(unit, self.bot.enemy_structures, attack_range_buffer)
+
         if not candidates:
             return UnitMicroType.NONE
 
         if self._retreat_to_better_unit(unit, can_attack):
             return UnitMicroType.RETREAT
+
+        # below attack_health: if threats and no target in range, do nothing
+        if unit.is_flying and unit.health_percentage < health_threshold:
+            if self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6, first_only=True):
+                return UnitMicroType.NONE
 
         if can_attack and not unit.is_flying:
             # stick to assigned targets for flying but landed can target normally
@@ -201,3 +208,61 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             return self._kite(unit, candidates)
 
         return self._stay_at_max_range(unit, candidates)
+    
+    # copied from banshee micro
+    @timed
+    def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
+        # below harass_retreat_health: do nothing
+        if unit.health_percentage <= self.harass_retreat_health:
+            return UnitMicroType.NONE
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+        if force_move and not can_attack:
+            return UnitMicroType.NONE
+        nearby_enemies: Units
+        attack_range_buffer = 0 if can_attack or unit.health_percentage <= self.harass_retreat_health else 5
+
+        enemy_candidates = self.enemy.get_candidates(include_structures=False, include_out_of_view=False).sorted(lambda u: u.health + u.shield)
+        nearby_enemies = self.enemy.in_attack_range(unit, enemy_candidates, attack_range_buffer, first_only=True)
+        if not nearby_enemies and attack_range_buffer == 0:
+            nearby_enemies = self.enemy.in_attack_range(unit, enemy_candidates, 5, first_only=True)
+
+        # exclude enemies that are too close to anti-air structures
+        anti_air_structures = self.bot.enemy_structures.filter(
+            lambda s: s.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES and s.is_ready)
+        if anti_air_structures:
+            nearby_enemies = nearby_enemies.filter(lambda e: self.closest_distance_squared(e, anti_air_structures) > 36)
+
+        if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_recent_enemies()):
+            threat_range_buffer = 3 if nearby_enemies and can_attack and unit.health_percentage > self.harass_retreat_health else 5
+            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=threat_range_buffer)
+            if threats:
+                # below harass_attack_health: if threats and no target in range, do nothing
+                if unit.health_percentage < self.harass_attack_health and not nearby_enemies:
+                    return UnitMicroType.NONE
+                for threat in threats:
+                    if threat.is_structure and self.enemy.safe_distance_squared(unit, threat) > self.enemy.get_attack_range_with_buffer_squared(threat, unit, 3):
+                        continue
+                    if not threat.is_flying or UnitTypes.air_range(threat) >= unit.air_range:
+                        # don't attack enemies that outrange
+                        unit.move(self.get_circle_around_position(unit, Point2(cy_center(threats)), harass_location))
+                        return UnitMicroType.MOVE
+
+        if nearby_enemies:
+            return self._kite(unit, nearby_enemies)
+        if force_move:
+            return UnitMicroType.NONE
+        # if can_attack:
+        #     enemy_structures = self.bot.enemy_structures.sorted(lambda u: u.health + u.shield)
+        #     nearby_enemy = self.enemy.in_attack_range(unit, enemy_structures, attack_range_buffer, first_only=True)
+        #     if nearby_enemy:
+        #         self._attack(unit, nearby_enemy.first)
+        #         return UnitMicroType.ATTACK
+        if unit.tag in self.harass_location_reached_tags:
+            nearest_workers = self.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
+            if anti_air_structures:
+                nearest_workers = nearest_workers.filter(lambda u: not self.unit_is_closer_than(u, anti_air_structures, 6))
+            if nearest_workers:
+                target = sorted(nearest_workers, key=lambda t: t.health + t.shield)[0]
+                self._attack(unit, target)
+                return UnitMicroType.ATTACK
+        return UnitMicroType.NONE

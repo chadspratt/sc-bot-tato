@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Set, Tuple
 
 from sc2.bot_ai import BotAI
 from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
@@ -338,30 +338,30 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.LURKERMP,
     }
 
-    OFFENSIVE_STRUCTURE_TYPES = (
+    OFFENSIVE_STRUCTURE_TYPES = {
         UnitTypeId.BUNKER,
         UnitTypeId.PHOTONCANNON,
         UnitTypeId.MISSILETURRET,
         UnitTypeId.SPINECRAWLER,
         UnitTypeId.SPORECRAWLER,
         UnitTypeId.PLANETARYFORTRESS,
-    )
+    }
 
-    ANTI_AIR_STRUCTURE_TYPES = (
+    ANTI_AIR_STRUCTURE_TYPES = {
         UnitTypeId.MISSILETURRET,
         UnitTypeId.SPORECRAWLER,
         UnitTypeId.PHOTONCANNON,
-    )
+    }
 
-    WORKER_TYPES = [
+    WORKER_TYPES = {
         UnitTypeId.DRONE,
         UnitTypeId.DRONEBURROWED,
         UnitTypeId.PROBE,
         UnitTypeId.SCV,
         UnitTypeId.MULE,
-    ]
+    }
 
-    NON_THREATS = [
+    NON_THREATS = {
         UnitTypeId.LARVA,
         UnitTypeId.EGG,
         UnitTypeId.OVERLORD,
@@ -373,15 +373,15 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.SCV,
         UnitTypeId.MULE,
         UnitTypeId.ADEPTPHASESHIFT,
-    ]
+    }
 
-    NON_THREAT_DETECTORS = [
+    NON_THREAT_DETECTORS = {
         UnitTypeId.OVERSEER,
         UnitTypeId.RAVEN,
         UnitTypeId.OBSERVER,
-    ]
+    }
 
-    FLYABLE_STRUCTURE_TYPES = [
+    FLYABLE_STRUCTURE_TYPES = {
         UnitTypeId.COMMANDCENTER,
         UnitTypeId.COMMANDCENTERFLYING,
         UnitTypeId.ORBITALCOMMAND,
@@ -392,14 +392,14 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.FACTORYFLYING,
         UnitTypeId.STARPORT,
         UnitTypeId.STARPORTFLYING,
-    ]
+    }
 
-    TECH_STRUCTURE_TYPES = [
+    TECH_STRUCTURE_TYPES = {
         UnitTypeId.ARMORY,
         UnitTypeId.ENGINEERINGBAY,
         UnitTypeId.FUSIONCORE,
         UnitTypeId.GHOSTACADEMY,
-    ]
+    }
 
     @staticmethod
     def is_worker(unit_type_id: UnitTypeId) -> bool:
@@ -431,27 +431,14 @@ class UnitTypes(GeometryMixin):
         """
         Check if a unit type can attack air units.
         """
-        return unit.can_attack_air or unit.type_id in {
-            UnitTypeId.BUNKER,
-            UnitTypeId.BATTLECRUISER, 
-            UnitTypeId.SENTRY, 
-            UnitTypeId.VOIDRAY, 
-            UnitTypeId.WIDOWMINE,
-        }
+        return UnitTypes.air_range(unit) > 0
     
     @staticmethod
     def can_attack_ground(unit: Unit) -> bool:
         """
         Check if a unit type can attack air units.
         """
-        return unit.can_attack_ground or unit.type_id in {
-            UnitTypeId.BANELING,
-            UnitTypeId.BATTLECRUISER,
-            UnitTypeId.BUNKER,
-            UnitTypeId.SENTRY,
-            UnitTypeId.VOIDRAY,
-            UnitTypeId.WIDOWMINE,
-        }
+        return UnitTypes.air_range(unit) > 0
 
     @staticmethod
     def can_attack(unit: Unit) -> bool:
@@ -465,9 +452,7 @@ class UnitTypes(GeometryMixin):
         """
         Get the ground attack range of a unit type.
         """
-        if unit.can_attack_ground:
-            return unit.ground_range
-        elif unit.type_id == UnitTypeId.ORACLE:
+        if unit.type_id == UnitTypeId.ORACLE:
             return 4.0
         elif unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED}:
             return 5.0
@@ -475,6 +460,8 @@ class UnitTypes(GeometryMixin):
             return 6.0
         elif unit.type_id == UnitTypeId.BANELING:
             return 2.2
+        elif unit.can_attack_ground:
+            return unit.ground_range
         else:
             return 0.0
         
@@ -483,12 +470,12 @@ class UnitTypes(GeometryMixin):
         """
         Get the air attack range of a unit type.
         """
-        if unit.can_attack_air:
-            return unit.air_range
-        elif unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED}:
+        if unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED}:
             return 5.0
         elif unit.type_id in {UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BUNKER}:
             return 6.0
+        elif unit.can_attack_air:
+            return unit.air_range
         else:
             return 0.0
         
@@ -604,6 +591,22 @@ class UnitTypes(GeometryMixin):
                     if UnitTypes.distance_squared(position, unit) <= (13 + unit.radius) ** 2:
                         return True
         return False
+    
+    @staticmethod
+    def get_priority_target_types(unit: Unit) -> Set[UnitTypeId]:
+        if unit.type_id == UnitTypeId.BANSHEE:
+            return {UnitTypeId.SIEGETANK,
+                    UnitTypeId.INFESTOR, UnitTypeId.LURKERMP,
+                    UnitTypeId.HIGHTEMPLAR, UnitTypeId.IMMORTAL,
+                    UnitTypeId.PHOTONCANNON, UnitTypeId.MISSILETURRET, UnitTypeId.SPORECRAWLER}
+        if unit.type_id == UnitTypeId.VIKINGFIGHTER:
+            return {UnitTypeId.BANSHEE, UnitTypeId.BATTLECRUISER, UnitTypeId.VIKINGFIGHTER,
+                    UnitTypeId.COLOSSUS, UnitTypeId.TEMPEST, UnitTypeId.CARRIER,
+                    UnitTypeId.BROODLORD, UnitTypeId.MUTALISK, UnitTypeId.CORRUPTOR
+                    }
+        if unit.type_id == UnitTypeId.HELLION:
+            return {UnitTypeId.ZERGLING, UnitTypeId.BANELING, UnitTypeId.ZEALOT, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
+        return UnitTypes.HIGH_PRIORITY_TARGETS
 
     @staticmethod
     def count_units_by_type(units: Units, use_common_type: bool = True) -> Dict[UnitTypeId, int]:

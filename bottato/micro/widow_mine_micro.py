@@ -40,7 +40,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
     last_special_position_update_time: float = 0.0
 
     @timed
-    async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
+    async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.tag not in self.known_tags:
             self.known_tags.add(unit.tag)
             self.unburrowed_tags.add(unit.tag)
@@ -178,7 +178,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                         return UnitMicroType.MOVE
             return UnitMicroType.NONE
                     
-        excluded_enemy_types = [UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.ADEPTPHASESHIFT] if is_burrowed else UnitTypes.NON_THREATS
+        excluded_enemy_types = {UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.ADEPTPHASESHIFT} if is_burrowed else UnitTypes.NON_THREATS
         new_target, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
                                                                         excluded_types=excluded_enemy_types)
 
