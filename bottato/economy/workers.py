@@ -404,10 +404,14 @@ class Workers(GeometryMixin):
                         closest_enemy = cy_closest_to(worker.position, nearby_enemies)
                         in_melee_range = closest_enemy.distance_to_squared(worker) < 4
                         if in_melee_range:
-                            worker(AbilityId.HALT)
-                            assignment.on_attack_break = True
-                            worker.attack(closest_enemy, queue=True)
+                            if not assignment.on_attack_break:
+                                worker(AbilityId.HALT)
+                                assignment.on_attack_break = True
+                                worker.attack(closest_enemy, queue=True)
+                            else:
+                                worker.attack(closest_enemy)
                             assigned_defender_counts[closest_enemy.tag] += 1
+                            defender_tags.add(worker.tag)
                             LogHelper.add_log(f"Worker {worker} stopped building and attack nearby enemy")
 
                     # if worker.health_percentage > 0.5 and assignment.job_type == WorkerJobType.REPAIR:

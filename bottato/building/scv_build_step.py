@@ -361,7 +361,11 @@ class SCVBuildStep(BuildStep):
             if new_build_position is None:
                 new_build_position = await self.map.get_non_visible_position_in_main()
         elif unit_type_id == UnitTypeId.BARRACKS and BuildType.EARLY_EXPANSION in detected_enemy_builds and self.bot.structures(UnitTypeId.BARRACKS).amount < 2:
-            new_build_position = self.map.enemy_expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY][2].expansion_position
+            proxy_base_index = 2
+            if detected_enemy_builds[BuildType.EARLY_EXPANSION] < 50:
+                # very fast expansion, they might go for a fast third and discover the proxy so use 4th instead
+                proxy_base_index = 3
+            new_build_position = self.map.enemy_expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY][proxy_base_index].expansion_position
         else:
             new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
 
