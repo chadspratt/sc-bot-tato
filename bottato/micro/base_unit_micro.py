@@ -510,6 +510,15 @@ class BaseUnitMicro(GeometryMixin):
                     unit.attack(target)
                     return UnitMicroType.ATTACK
                 if target_range == 0:
+                    if target.is_structure and target.race == Race.Zerg \
+                            and target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS:
+                        # keep distance from zerg structures that spawn broodlings on death
+                        desired_distance = attack_range
+                        excess_distance = target_distance - desired_distance
+                        if excess_distance < distance_to_advance:
+                            distance_to_advance = excess_distance
+                        if excess_distance < 0:
+                            targets_to_avoid.append(target)
                     continue
                 desired_distance = 0
                 if target.type_id in UnitTypes.WORKER_TYPES:

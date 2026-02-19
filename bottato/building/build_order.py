@@ -654,7 +654,7 @@ class BuildOrder():
             marine_count += sum(p.type_id == UnitTypeId.MARINE for p in bunker.passengers)
             marauder_count += sum(p.type_id == UnitTypeId.MARAUDER for p in bunker.passengers)
         medivac_count = self.bot.units.of_type(UnitTypeId.MEDIVAC).amount + self.get_in_progress_count(UnitTypeId.MEDIVAC)
-        desired_medivac_count = min(6, math.floor(marine_count / 8 + marauder_count / 4 + 0.5))
+        desired_medivac_count = min(8, math.floor(marine_count / 8 + marauder_count / 4 + 0.5))
         queue_count = desired_medivac_count - medivac_count
         # use excess minerals and idle starports
         if queue_count > 0:
