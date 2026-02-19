@@ -724,6 +724,8 @@ class BaseUnitMicro(GeometryMixin):
                     if distance_squared > 400 or path_position == path_to_destination[-1]:
                         # if no enemies along path, go to first node
                         return path_to_destination[1]
+        if unit.position == threat_position:
+            return destination
         threat_to_unit_vector = (unit.position - threat_position).normalized
         unit_to_destination_vector = (destination - unit.position).normalized
         if self.vectors_go_same_direction(threat_to_unit_vector, unit_to_destination_vector):
