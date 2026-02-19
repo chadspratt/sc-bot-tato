@@ -303,6 +303,8 @@ class BuildOrder():
             if self.bot.structures(UnitTypeId.BARRACKS).amount == 0:
                 # move second if first hasn't started yet
                 self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue, position=0)
+            # will have a lot of injured marines
+            self.add_to_build_queue([UnitTypeId.MEDIVAC], queue=self.priority_queue)
             self.remove_step_from_queue(UnitTypeId.REAPER, self.static_queue)
             self.remove_step_from_queue(UnitTypeId.REAPER, self.priority_queue)
             self.remove_step_from_queue(UnitTypeId.BUNKER, self.static_queue, remove_all=True)

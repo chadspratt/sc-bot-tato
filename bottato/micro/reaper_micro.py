@@ -193,24 +193,21 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.NONE
 
-        # recently hopped down a cliff - move away from the edge before doing
-        # anything else so the reaper doesn't immediately hop back up
         recently_hopped = self.bot.time - self.last_hop_down_time.get(unit.tag, 0) < 1
-        if recently_hopped:
-            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
-            if threats:
-                away_position = Point2(cy_towards(unit.position, Point2(cy_center(threats)), -5))
-            else:
-                away_position = Point2(cy_towards(unit.position, harass_location, -5))
-            unit.move(self.map.get_pathable_position(away_position, unit))
-            return UnitMicroType.RETREAT
-
+        
         # above attack_health: do nothing
-        if unit.health_percentage >= self.attack_health:
+        if not recently_hopped and unit.health_percentage >= self.attack_health:
             self.retreat_scout_location = None
             return UnitMicroType.NONE
 
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
+
+        # recently hopped down a cliff - move away from the edge before doing
+        # anything else so the reaper doesn't immediately hop back up
+        if recently_hopped and threats:
+            away_position = Point2(cy_towards(unit.position, Point2(cy_center(threats)), -5))
+            unit.move(self.map.get_pathable_position(away_position, unit))
+            return UnitMicroType.RETREAT
 
         is_below_retreat_health = unit.health_percentage < health_threshold
         # check if incoming damage would bring unit below retreat_health
