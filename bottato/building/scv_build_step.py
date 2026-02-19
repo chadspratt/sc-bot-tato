@@ -510,6 +510,9 @@ class SCVBuildStep(BuildStep):
             interrupted = True
             LogHelper.add_log(f"{self} interrupted due to no worker {self.unit_in_charge} or position {self.position}")
         else:
+            if self.unit_in_charge.tag in self.workers.assignments_by_worker \
+                    and self.workers.assignments_by_worker[self.unit_in_charge.tag].on_attack_break:
+                return False
             if self.start_time == 0.0 or self.bot.time - self.start_time < 0.5:
                 return False
             self.check_idle: bool = (

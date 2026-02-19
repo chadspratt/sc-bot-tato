@@ -400,18 +400,21 @@ class Workers(GeometryMixin):
                 position = assignment.target if assignment.target and not worker_rush_detected else worker
                 nearby_enemies = cy_closer_than(targetable_enemies, 5, position.position)
                 if nearby_enemies:
-                    if assignment.job_type == WorkerJobType.BUILD and not assignment.on_attack_break:
+                    if assignment.job_type == WorkerJobType.BUILD:
                         closest_enemy = cy_closest_to(worker.position, nearby_enemies)
                         in_melee_range = closest_enemy.distance_to_squared(worker) < 4
                         if in_melee_range:
+                            queue_attack = False
                             if worker.is_constructing_scv:
                                 worker(AbilityId.HALT)
+                                queue_attack = True
+                                LogHelper.add_log(f"Worker {worker} stopped building to attack nearby enemy")
+                            
+                            if worker.health_percentage > self.worker_micro.retreat_health:
+                                worker.attack(closest_enemy, queue=queue_attack)
                                 assignment.on_attack_break = True
-                            else:
-                                worker.attack(closest_enemy)
-                            assigned_defender_counts[closest_enemy.tag] += 1
-                            defender_tags.add(worker.tag)
-                            LogHelper.add_log(f"Worker {worker} stopped building and attack nearby enemy")
+                                assigned_defender_counts[closest_enemy.tag] += 1
+                                defender_tags.add(worker.tag)
 
                     # if worker.health_percentage > 0.5 and assignment.job_type == WorkerJobType.REPAIR:
                     #     continue
