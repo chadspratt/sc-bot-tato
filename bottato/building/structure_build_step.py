@@ -2,6 +2,7 @@ from loguru import logger
 from typing import Dict, override
 
 from sc2.bot_ai import BotAI
+from sc2.data import Race
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -58,7 +59,8 @@ class StructureBuildStep(BuildStep):
         return self.unit_type_id == unit_type_id
 
     def is_unit(self) -> bool:
-        return self.unit_type_id in UnitTypes.TERRAN
+        # this should check it's not a structure in case those get added to UNIT_INFO
+        return self.unit_type_id in UnitTypes.UNIT_INFO[Race.Terran]
 
     def is_unit_production_facility(self) -> bool:
         return self.unit_type_id in (
