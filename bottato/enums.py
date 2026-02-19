@@ -27,6 +27,8 @@ class UnitAttribute(enum.Enum):
     HEROIC = 6
     DETECTOR = 7
     STRUCTURE = 8
+    AIR = 9
+    GROUND = 10
 
 class WorkerJobType(enum.Enum):
     IDLE = 0

@@ -540,16 +540,33 @@ class Enemy(GeometryMixin):
         return nearest_enemies
     
     @timed
-    def get_target_closer_than(self, friendly_unit: Unit, max_distance: float,
-                               include_structures=True, include_units=True, include_destructables=False,
-                               excluded_types: Set[UnitTypeId]=set(), seconds_ahead: float=0) -> tuple[Unit | None, float]:
-        candidates: Units = self.get_candidates(include_structures, include_units, include_destructables,
-                                                excluded_types=excluded_types)
+    def get_target_closer_than(
+        self,
+        friendly_unit: Unit,
+        max_distance: float,
+        include_structures=True,
+        include_units=True,
+        include_destructables=False,
+        excluded_types: Set[UnitTypeId] | None = None,
+        seconds_ahead: float = 0,
+        included_types: Set[UnitTypeId] | None = None,
+    ) -> tuple[Unit | None, float]:
+        effective_excluded_types = excluded_types or set()
+        effective_included_types = included_types or set()
+        candidates: Units = self.get_candidates(
+            include_structures,
+            include_units,
+            include_destructables,
+            excluded_types=effective_excluded_types,
+            included_types=effective_included_types,
+        )
         for enemy in candidates:
             distance_limit = (max_distance + enemy.radius + friendly_unit.radius) ** 2
             enemy_distance: float
             if seconds_ahead > 0:
-                enemy_distance = cy_distance_to_squared(friendly_unit.position, self.get_predicted_position(enemy, seconds_ahead))
+                enemy_distance = cy_distance_to_squared(
+                    friendly_unit.position, self.get_predicted_position(enemy, seconds_ahead)
+                )
             else:
                 enemy_distance = self.safe_distance_squared(friendly_unit, enemy)
             if enemy_distance <= distance_limit:

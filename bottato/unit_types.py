@@ -1,6 +1,7 @@
 from typing import Any, Dict, List, Set, Tuple
 
 from sc2.bot_ai import BotAI
+from sc2.data import Race
 from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
 from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -13,279 +14,281 @@ from bottato.mixins import GeometryMixin, timed
 
 
 class UnitTypes(GeometryMixin):
-    PROTOSS: Dict[UnitTypeId, Dict[str, Any]] = {
+    UNIT_INFO: Dict[Race, Dict[UnitTypeId, Dict[str, Any]]] = {
+    Race.Protoss: {
         UnitTypeId.ADEPT: {
             "supply": 2,
-            "attributes": (UnitAttribute.LIGHT, UnitAttribute.BIOLOGICAL),
+            "attributes": (UnitAttribute.LIGHT, UnitAttribute.BIOLOGICAL, UnitAttribute.GROUND),
             "bonus_against": (UnitAttribute.LIGHT,),
         },
         UnitTypeId.ARCHON: {
             "supply": 4,
-            "attributes": (UnitAttribute.PSIONIC, UnitAttribute.MASSIVE),
+            "attributes": (UnitAttribute.PSIONIC, UnitAttribute.MASSIVE, UnitAttribute.GROUND),
             "bonus_against": (UnitAttribute.BIOLOGICAL,),
         },
         UnitTypeId.CARRIER: {
             "supply": 6,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MASSIVE, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MASSIVE, UnitAttribute.MECHANICAL, UnitAttribute.AIR),
         },
         UnitTypeId.COLOSSUS: {
             "supply": 6,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MASSIVE, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MASSIVE, UnitAttribute.MECHANICAL, UnitAttribute.GROUND, UnitAttribute.AIR),
             "bonus_against": (UnitAttribute.LIGHT,),
         },
         UnitTypeId.DARKTEMPLAR: {
             "supply": 2,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.PSIONIC),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.PSIONIC, UnitAttribute.GROUND),
         },
         UnitTypeId.DISRUPTOR: {
             "supply": 4,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.GROUND),
         },
         UnitTypeId.HIGHTEMPLAR: {
             "supply": 2,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.PSIONIC),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.PSIONIC, UnitAttribute.GROUND),
         },
         UnitTypeId.IMMORTAL: {
             "supply": 4,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.GROUND),
             "bonus_against": (UnitAttribute.ARMORED,),
         },
         UnitTypeId.INTERCEPTOR: {
             "supply": 0,
-            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL, UnitAttribute.AIR),
         },
         UnitTypeId.MOTHERSHIP: {
             "supply": 8,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MASSIVE, UnitAttribute.PSIONIC, UnitAttribute.MECHANICAL, UnitAttribute.HEROIC),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MASSIVE, UnitAttribute.PSIONIC, UnitAttribute.MECHANICAL, UnitAttribute.HEROIC, UnitAttribute.AIR),
         },
         UnitTypeId.OBSERVER: {
             "supply": 1,
-            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL, UnitAttribute.DETECTOR),
+            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL, UnitAttribute.DETECTOR, UnitAttribute.AIR),
         },
         UnitTypeId.ORACLE: {
             "supply": 3,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.PSIONIC),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.PSIONIC, UnitAttribute.AIR),
             "bonus_against": (UnitAttribute.LIGHT,),
         },
         UnitTypeId.PHOENIX: {
             "supply": 2,
-            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL, UnitAttribute.AIR),
             "bonus_against": (UnitAttribute.LIGHT,),
         },
         UnitTypeId.PROBE: {
             "supply": 1,
-            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL, UnitAttribute.GROUND),
         },
         UnitTypeId.SENTRY: {
             "supply": 2,
-            "attributes": (UnitAttribute.MECHANICAL, UnitAttribute.PSIONIC),
+            "attributes": (UnitAttribute.MECHANICAL, UnitAttribute.PSIONIC, UnitAttribute.GROUND),
         },
         UnitTypeId.STALKER: {
             "supply": 2,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.GROUND),
             "bonus_against": (UnitAttribute.ARMORED,),
         },
         UnitTypeId.TEMPEST: {
             "supply": 4,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.MASSIVE),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.MASSIVE, UnitAttribute.AIR),
             "bonus_against": (UnitAttribute.MASSIVE, UnitAttribute.STRUCTURE),
         },
         UnitTypeId.VOIDRAY: {
             "supply": 4,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.AIR),
             "bonus_against": (UnitAttribute.ARMORED,),
         },
         UnitTypeId.WARPPRISM: {
             "supply": 2,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.PSIONIC),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.PSIONIC, UnitAttribute.AIR),
         },
         UnitTypeId.ZEALOT: {
             "supply": 2,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.GROUND),
         },
-    }
-    TERRAN: Dict[UnitTypeId, Dict[str, Any]] = {
+    },
+    Race.Terran: {
         UnitTypeId.BANSHEE: {
             "supply": 3,
-            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL, UnitAttribute.AIR),
             "tech level": 2,
         },
         UnitTypeId.BATTLECRUISER: {
             "supply": 6,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.MASSIVE),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.MASSIVE, UnitAttribute.AIR),
             "tech level": 3,
         },
         UnitTypeId.CYCLONE: {
             "supply": 3,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.GROUND),
             "tech level": 2,
         },
         UnitTypeId.GHOST: {
             "supply": 3,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.PSIONIC),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.PSIONIC, UnitAttribute.GROUND),
             "bonus_against": (UnitAttribute.LIGHT,),
             "tech level": 3,
         },
         UnitTypeId.HELLION: {
             "supply": 2,
-            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL, UnitAttribute.GROUND),
             "bonus_against": (UnitAttribute.LIGHT,),
             "tech level": 1,
         },
         UnitTypeId.HELLIONTANK: {
             "supply": 2,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.MECHANICAL, UnitAttribute.GROUND),
             "bonus_against": (UnitAttribute.LIGHT,),
             "tech level": 2,
         },
         UnitTypeId.LIBERATOR: {
             "supply": 3,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.AIR),
             "tech level": 2,
         },
         UnitTypeId.MARAUDER: {
             "supply": 2,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL, UnitAttribute.GROUND),
             "bonus_against": (UnitAttribute.ARMORED,),
             "tech level": 2,
         },
         UnitTypeId.MARINE: {
             "supply": 1,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.GROUND),
             "tech level": 1,
         },
         UnitTypeId.MEDIVAC: {
             "supply": 2,
-            "attributes": (UnitAttribute.MECHANICAL, UnitAttribute.ARMORED),
+            "attributes": (UnitAttribute.MECHANICAL, UnitAttribute.ARMORED, UnitAttribute.AIR),
             "tech level": 1,
         },
         UnitTypeId.RAVEN: {
             "supply": 2,
-            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL, UnitAttribute.DETECTOR),
+            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL, UnitAttribute.DETECTOR, UnitAttribute.AIR),
             "tech level": 2,
         },
         UnitTypeId.REAPER: {
             "supply": 1,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.GROUND),
             "tech level": 1,
         },
         UnitTypeId.SCV: {
             "supply": 1,
-            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL, UnitAttribute.BIOLOGICAL),
+            "attributes": (UnitAttribute.LIGHT, UnitAttribute.MECHANICAL, UnitAttribute.BIOLOGICAL, UnitAttribute.GROUND),
             "tech level": 0,
         },
         UnitTypeId.SIEGETANK: {
             "supply": 3,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.GROUND),
             "bonus_against": (UnitAttribute.ARMORED,),
             "tech level": 1,
         },
         UnitTypeId.THOR: {
             "supply": 6,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.MASSIVE),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL, UnitAttribute.MASSIVE, UnitAttribute.GROUND),
             "bonus_against": (UnitAttribute.MASSIVE, UnitAttribute.LIGHT),
             "tech level": 3,
         },
         UnitTypeId.VIKINGFIGHTER: {
             "supply": 2,
-            "attributes": (UnitAttribute.MECHANICAL, UnitAttribute.ARMORED),
+            "attributes": (UnitAttribute.MECHANICAL, UnitAttribute.ARMORED, UnitAttribute.AIR),
             "bonus_against": (UnitAttribute.ARMORED, UnitAttribute.MECHANICAL),
             "tech level": 1,
         },
         UnitTypeId.WIDOWMINE: {
             "supply": 2,
-            "attributes": (UnitAttribute.MECHANICAL, UnitAttribute.LIGHT),
+            "attributes": (UnitAttribute.MECHANICAL, UnitAttribute.LIGHT, UnitAttribute.GROUND),
             "tech level": 2,
         },
-    }
-    ZERG: Dict[UnitTypeId, Dict[str, Any]] = {
+    },
+    Race.Zerg: {
         UnitTypeId.BANELING: {
             "supply": 0.5,
-            "attributes": (UnitAttribute.BIOLOGICAL,),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.GROUND),
             "bonus_against": (UnitAttribute.LIGHT,),
         },
         UnitTypeId.BROODLORD: {
             "supply": 2,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL, UnitAttribute.MASSIVE),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL, UnitAttribute.MASSIVE, UnitAttribute.AIR),
         },
         UnitTypeId.BROODLING: {
             "supply": 0,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.GROUND),
         },
         UnitTypeId.CHANGELING: {
             "supply": 0,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.GROUND),
         },
         UnitTypeId.CORRUPTOR: {
             "supply": 2,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL, UnitAttribute.AIR),
             "bonus_against": (UnitAttribute.MASSIVE,),
         },
         UnitTypeId.DRONE: {
             "supply": 1,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.GROUND),
         },
         UnitTypeId.HYDRALISK: {
             "supply": 2,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.GROUND),
         },
         UnitTypeId.INFESTOR: {
             "supply": 2,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.PSIONIC, UnitAttribute.ARMORED),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.PSIONIC, UnitAttribute.ARMORED, UnitAttribute.GROUND),
         },
         UnitTypeId.LOCUSTMP: {
             "supply": 0,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.GROUND),
         },
         UnitTypeId.LURKERMP: {
             "supply": 1,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL, UnitAttribute.GROUND),
             "bonus_against": (UnitAttribute.ARMORED,),
         },
         UnitTypeId.MUTALISK: {
             "supply": 2,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.AIR),
         },
         UnitTypeId.NYDUSCANAL: {
             "supply": 0,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.ARMORED, UnitAttribute.STRUCTURE),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.ARMORED, UnitAttribute.STRUCTURE, UnitAttribute.GROUND),
         },
         UnitTypeId.OVERLORD: {
             "supply": 0,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.ARMORED),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.ARMORED, UnitAttribute.AIR),
         },
         UnitTypeId.OVERSEER: {
             "supply": 0,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.DETECTOR, UnitAttribute.ARMORED),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.DETECTOR, UnitAttribute.ARMORED, UnitAttribute.AIR),
         },
         UnitTypeId.QUEEN: {
             "supply": 2,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.PSIONIC),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.PSIONIC, UnitAttribute.GROUND),
         },
         UnitTypeId.RAVAGER: {
             "supply": 3,
-            "attributes": (UnitAttribute.BIOLOGICAL,),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.GROUND),
         },
         UnitTypeId.ROACH: {
             "supply": 2,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL, UnitAttribute.GROUND),
         },
         UnitTypeId.SWARMHOSTMP: {
             "supply": 3,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL, UnitAttribute.GROUND),
         },
         UnitTypeId.ULTRALISK: {
             "supply": 6,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL, UnitAttribute.MASSIVE),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL, UnitAttribute.MASSIVE, UnitAttribute.GROUND),
         },
         UnitTypeId.VIPER: {
             "supply": 3,
-            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL, UnitAttribute.PSIONIC),
+            "attributes": (UnitAttribute.ARMORED, UnitAttribute.BIOLOGICAL, UnitAttribute.PSIONIC, UnitAttribute.AIR),
         },
         UnitTypeId.ZERGLING: {
             "supply": 0.5,
-            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT),
+            "attributes": (UnitAttribute.BIOLOGICAL, UnitAttribute.LIGHT, UnitAttribute.GROUND),
         },
+    }
     }
 
     GOOD_AGAINST: Dict[UnitAttribute, Dict[str, Tuple[UnitTypeId, ...]]] = {
@@ -409,17 +412,18 @@ class UnitTypes(GeometryMixin):
         common_id = UNIT_UNIT_ALIAS.get(unit_type_id, unit_type_id)
         return common_id in UnitTypes.WORKER_TYPES
 
-    def get_unit_info(self, unit_type_id: UnitTypeId) -> Dict[str, Any]:
+    @staticmethod
+    def get_unit_info(unit_type_id: UnitTypeId) -> Dict[str, Any]:
         """
         Get the unit info for a given unit type ID.
         """
         common_id = UNIT_UNIT_ALIAS.get(unit_type_id, unit_type_id)
-        if common_id in self.PROTOSS:
-            return self.PROTOSS[common_id]
-        elif common_id in self.TERRAN:
-            return self.TERRAN[common_id]
-        elif common_id in self.ZERG:
-            return self.ZERG[common_id]
+        if common_id in UnitTypes.UNIT_INFO[Race.Protoss]:
+            return UnitTypes.UNIT_INFO[Race.Protoss][common_id]
+        elif common_id in UnitTypes.UNIT_INFO[Race.Terran]:
+            return UnitTypes.UNIT_INFO[Race.Terran][common_id]
+        elif common_id in UnitTypes.UNIT_INFO[Race.Zerg]:
+            return UnitTypes.UNIT_INFO[Race.Zerg][common_id]
         else:
             return {
                 "supply": 0,
@@ -607,6 +611,19 @@ class UnitTypes(GeometryMixin):
         if unit.type_id == UnitTypeId.HELLION:
             return {UnitTypeId.ZERGLING, UnitTypeId.BANELING, UnitTypeId.ZEALOT, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
         return UnitTypes.HIGH_PRIORITY_TARGETS
+    type_by_attribute_cache: Dict[Tuple[UnitAttribute, Race], Set[UnitTypeId]] = {}
+    @staticmethod
+    def get_types_with_attribute(attribute: UnitAttribute, race: Race) -> Set[UnitTypeId]:
+        key = (attribute, race)
+        if key in UnitTypes.type_by_attribute_cache:
+            return UnitTypes.type_by_attribute_cache[key]
+        types: Set[UnitTypeId] = set()
+        for type_id in UnitTypes.UNIT_INFO[race]:
+            if attribute in UnitTypes.UNIT_INFO[race][type_id].get("attributes", ()):
+                types.add(type_id)
+        UnitTypes.type_by_attribute_cache[key] = types
+        UnitTypes.type_by_attribute_cache[attribute] = types
+        return types
 
     @staticmethod
     def count_units_by_type(units: Units, use_common_type: bool = True) -> Dict[UnitTypeId, int]:

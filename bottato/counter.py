@@ -24,7 +24,8 @@ class Counter():
             UnitTypeId.SIEGETANK: 0.2
         },
         UnitTypeId.CARRIER: { # 6
-            UnitTypeId.VIKINGFIGHTER: 3
+            UnitTypeId.VIKINGFIGHTER: 3,
+            UnitTypeId.THOR: 0.5,
         },
         UnitTypeId.COLOSSUS: { # 6
             UnitTypeId.VIKINGFIGHTER: 1,
@@ -51,7 +52,8 @@ class Counter():
             UnitTypeId.SIEGETANK: 0.2 # 1
         },
         UnitTypeId.MOTHERSHIP: { # 8
-            UnitTypeId.VIKINGFIGHTER: 4,
+            UnitTypeId.VIKINGFIGHTER: 3,
+            UnitTypeId.THOR: 1,
         },
         UnitTypeId.OBSERVER: { # 1
             UnitTypeId.MARINE: 3
@@ -96,6 +98,7 @@ class Counter():
         },
         UnitTypeId.BATTLECRUISER: { # 6
             UnitTypeId.VIKINGFIGHTER: 2.5,
+            UnitTypeId.THOR: 0.5,
             UnitTypeId.MARINE: 2
         },
         UnitTypeId.CYCLONE: { # 3
@@ -151,7 +154,8 @@ class Counter():
             UnitTypeId.SIEGETANK: 0.1
         },
         UnitTypeId.BROODLORD: { # 2
-            UnitTypeId.VIKINGFIGHTER: 1
+            UnitTypeId.VIKINGFIGHTER: 1,
+            UnitTypeId.THOR: 0.5,
         },
         UnitTypeId.CORRUPTOR: { # 2
             UnitTypeId.MARINE: 1.5,

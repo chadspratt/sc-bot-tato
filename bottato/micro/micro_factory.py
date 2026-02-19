@@ -7,8 +7,6 @@ from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
 
-from bottato.enemy import Enemy
-from bottato.map.map import Map
 from bottato.micro.banshee_micro import BansheeMicro
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.ghost_micro import GhostMicro
@@ -21,9 +19,9 @@ from bottato.micro.reaper_micro import ReaperMicro
 from bottato.micro.scv_micro import SCVMicro
 from bottato.micro.siege_tank_micro import SiegeTankMicro
 from bottato.micro.structure_micro import StructureMicro
+from bottato.micro.thor_micro import ThorMicro
 from bottato.micro.viking_micro import VikingMicro
 from bottato.micro.widow_mine_micro import WidowMineMicro
-from bottato.squad.enemy_intel import EnemyIntel
 from bottato.tactics import Tactics
 
 micro_instances: Dict[UnitTypeId, BaseUnitMicro] = {}
@@ -39,6 +37,7 @@ micro_lookup = {
     UnitTypeId.REAPER: ReaperMicro,
     UnitTypeId.SCV: SCVMicro,
     UnitTypeId.SIEGETANK: SiegeTankMicro,
+    UnitTypeId.THOR: ThorMicro,
     UnitTypeId.VIKINGFIGHTER: VikingMicro,
     UnitTypeId.WIDOWMINE: WidowMineMicro,
 }

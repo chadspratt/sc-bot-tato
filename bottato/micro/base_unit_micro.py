@@ -2,9 +2,8 @@ from __future__ import annotations
 
 # import math
 from loguru import logger
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
-from cython_extensions.combat_utils import cy_is_facing
 from cython_extensions.general_utils import cy_in_pathing_grid_burny
 from cython_extensions.geometry import (
     cy_distance_to,
