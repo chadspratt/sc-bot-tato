@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from loguru import logger
 
-from cython_extensions.geometry import cy_distance_to, cy_towards
+from cython_extensions.geometry import (
+    cy_distance_to,
+    cy_distance_to_squared,
+    cy_towards,
+)
 from sc2.bot_ai import BotAI
 from sc2.game_data import Cost
 from sc2.ids.ability_id import AbilityId
@@ -134,6 +138,9 @@ class Commander(GeometryMixin):
 
     @timed_async
     async def detect_stuck_units(self, iteration: int):
+        if self.intel.main_army_staging_location and cy_distance_to_squared(self.intel.main_army_staging_location, self.bot.start_location) < 225:
+            # if staging location is too close to start location, don't check for stuck units because they're probably already near start
+            return
         if iteration % 3 == 0 and self.bot.workers and self.bot.units.of_type(UnitTypeId.MEDIVAC):
             self.stuck_units.clear()
             # skip if ramp depots are raised

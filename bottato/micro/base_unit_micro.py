@@ -109,6 +109,8 @@ class BaseUnitMicro(GeometryMixin):
             
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.NONE
+        
+        force_move = self._override_force_move(unit, force_move)
 
         target = self.get_override_target_for_repair(unit, target)
         action_taken: UnitMicroType = self._avoid_effects(unit, force_move)
@@ -412,6 +414,15 @@ class BaseUnitMicro(GeometryMixin):
     ###########################################################################
     # utility behaviors - used by main actions
     ###########################################################################
+    def _override_force_move(self, unit: Unit, force_move: bool) -> bool:
+        if not force_move:
+            return force_move
+        if unit.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.MEDIVAC):
+            if cy_closer_than(self.bot.units.of_type(UnitTypeId.SIEGETANKSIEGED), 15, unit.position):
+                # don't force move if there are sieged tanks to defend
+                return False
+        return force_move
+
     @timed
     def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0) -> Unit | None:
         priority_targets = nearby_enemies.filter(lambda u: u.type_id in UnitTypes.get_priority_target_types(unit))
