@@ -278,7 +278,12 @@ class BuildOrder():
                     self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
         elif change == BuildOrderChange.ZERGLING_RUSH:
             self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.static_queue)
+            # prioritize widowmine, hellion, marine, marine
+            self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue, position=0)
+            self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue, position=0)
             self.add_to_build_queue([UnitTypeId.WIDOWMINE, UnitTypeId.HELLION], queue=self.priority_queue, position=0)
+            if self.bot.structures(UnitTypeId.BUNKER).amount > 0:
+                self.remove_step_from_queue(UnitTypeId.BUNKER, self.static_queue, remove_all=True)
         elif change == BuildOrderChange.ANTI_AIR:
             self.remove_step_from_queue(UnitTypeId.STARPORTTECHLAB, self.static_queue)
             self.add_to_build_queue([UnitTypeId.STARPORTREACTOR], queue=self.priority_queue)
