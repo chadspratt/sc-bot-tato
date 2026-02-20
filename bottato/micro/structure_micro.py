@@ -191,19 +191,31 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             
             await self.move_structure(ramp_barracks)
 
+    async def move_proxy_barracks(self):
+        if self.tactics.proxy_barracks:
+            proxy_is_active = self.tactics.is_active(Tactic.PROXY_BARRACKS)
+            if not proxy_is_active:
+                move_complete = await self.move_structure(self.tactics.proxy_barracks)
+                if move_complete:
+                    LogHelper.add_log("Proxy barracks moved back to main base")
+                    self.tactics.proxy_barracks = None
+
     async def move_structure(self, structure: Unit) -> bool:
         destination = self.building_destinations.get(structure.tag)
         if destination is None:
             destination = await self.get_unit_placement(structure)
             if destination is None:
+                LogHelper.add_log(f"Unable to find placement for {structure.type_id}, skipping move")
                 return False
             self.building_destinations[structure.tag] = destination
         distance = destination.manhattan_distance(structure.position)
         if distance > 1:
             if structure.is_flying:
+                # structure.move(destination)
                 await self.move(structure, destination)
             else:
                 structure(AbilityId.LIFT)
+                LogHelper.add_log(f"lifting {structure.type_id} to move to {destination}")
         else:
             if structure.is_flying:
                 in_position_time = self.building_in_position_times.get(structure.tag)
@@ -225,14 +237,6 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 self.building_in_position_times[structure.tag] = None
                 return True
         return False
-
-    async def move_proxy_barracks(self):
-        if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected:
-            proxy_is_active = self.tactics.is_active(Tactic.PROXY_BARRACKS)
-            if self.tactics.proxy_barracks and not proxy_is_active:
-                move_complete = await self.move_structure(self.tactics.proxy_barracks)
-                if move_complete:
-                    self.tactics.proxy_barracks = None
 
     async def get_unit_placement(self, unit: Unit, near: Point2 | None = None) -> Point2 | None:
         if near is None:

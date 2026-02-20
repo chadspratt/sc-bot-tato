@@ -312,7 +312,6 @@ class BuildOrder():
             self.add_to_build_queue([UnitTypeId.MEDIVAC], queue=self.priority_queue)
             self.remove_step_from_queue(UnitTypeId.REAPER, self.static_queue)
             self.remove_step_from_queue(UnitTypeId.REAPER, self.priority_queue)
-            self.remove_step_from_queue(UnitTypeId.BUNKER, self.static_queue, remove_all=True)
             self.remove_step_from_queue(UnitTypeId.BUNKER, self.priority_queue, remove_all=True)
     
     def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep], position: int | None = None) -> bool:

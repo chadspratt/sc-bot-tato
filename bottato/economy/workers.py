@@ -422,7 +422,8 @@ class Workers(GeometryMixin):
                     if len(nearby_enemies) >= len(available_workers) and not worker_rush_detected:
                         continue
                     for nearby_enemy in nearby_enemies:
-                        if ramp_is_blocked and cy_distance_to_squared(nearby_enemy.position, self.bot.main_base_ramp.top_center) < 9:
+                        if ramp_is_blocked and (cy_distance_to_squared(nearby_enemy.position, self.bot.main_base_ramp.top_center) < 9
+                                                or self.bot.get_terrain_height(nearby_enemy) + 0.1 < self.bot.get_terrain_height(worker)):
                             # ignore enemies near top of ramp if wall is up since workers can't reach them
                             continue
                         num_defenders_per_enemy = 2 if nearby_enemy.type_id in UnitTypes.WORKER_TYPES else 3
@@ -526,7 +527,7 @@ class Workers(GeometryMixin):
                 logger.debug(f"worker {defender} too far from enemy {nearby_enemy}")
                 continue
             # check if within 0.75 of attack range
-            attack_distance_squared_with_buffer = self.enemy.get_attack_range_with_buffer_squared(nearby_enemy, defender, 0.75)
+            attack_distance_squared_with_buffer = self.enemy.get_attack_range_with_buffer_squared(nearby_enemy, defender, 1.5)
             if distance_to_enemy_squared < attack_distance_squared_with_buffer \
                     or nearby_enemy.is_structure:
                 defender.attack(nearby_enemy)

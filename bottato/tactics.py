@@ -42,13 +42,14 @@ class Tactics:
             new_value = self.bot.time > 120 and self.bot.structures(UnitTypeId.STARPORT).ready.exists 
         elif tactic == Tactic.PROXY_BARRACKS:
             if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected:
-                if self.bot.time < 180:
-                    # start the proxy
-                    new_value = True
-                elif self.last_values[tactic] and self.proxy_barracks:
-                    if self.bot.time < 240 and self.intel.army_ratio > 1.1 or self.intel.army_ratio > 3:
-                        # keep it going if it's working
+                if self.intel.number_seen(UnitTypeId.BARRACKS) < 4:
+                    if self.bot.time < 180:
+                        # start the proxy
                         new_value = True
+                    elif self.last_values[tactic] and self.proxy_barracks:
+                        if self.bot.time < 240 and self.intel.army_ratio > 1.1 or self.intel.army_ratio > 3:
+                            # keep it going if it's working
+                            new_value = True
 
         self.last_values[tactic] = new_value
         return new_value
