@@ -429,7 +429,7 @@ class BuildOrder():
                 ideal_composition[unit_type] = count
         ideal_supply = 0
         for unit_type, count in ideal_composition.items():
-            if unit_type in (UnitTypeId.MULE, UnitTypeId.SCV):
+            if unit_type in (UnitTypeId.MULE, UnitTypeId.SCV) or count < 0:
                 continue
             supply_cost: int = self.unit_types.get_unit_info(unit_type)["supply"]
             ideal_supply += supply_cost * count
@@ -446,7 +446,7 @@ class BuildOrder():
         # queued_supply = 0
 
         # buildable_percentage = min(1.0, military_cap / ideal_supply) if ideal_supply > 0 else 0
-        buildable_percentage = military_cap / ideal_supply if ideal_supply > 0 else 0
+        buildable_percentage = min(3.0, military_cap / ideal_supply) if ideal_supply > 0 else 0
         # while queued_supply < self.bot.supply_left and len(queue) < 10:
         for unit_type, count in ideal_composition.items():
             if unit_type in (UnitTypeId.MULE, UnitTypeId.SCV):

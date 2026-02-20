@@ -52,11 +52,10 @@ class UpgradeBuildStep(BuildStep):
     
     def tech_requirements_met(self) -> bool:
         research_structure_type: UnitTypeId = UPGRADE_RESEARCHED_FROM[self.upgrade_id]
-        required_tech_building: UnitTypeId | None = RESEARCH_INFO[research_structure_type][self.upgrade_id].get(
-            "required_building", None
-        ) # type: ignore
+        research_info = RESEARCH_INFO[research_structure_type][self.upgrade_id]
+        required_tech_building: UnitTypeId | None = research_info.get("required_building", None) # type: ignore
         requirement_met = (
-            required_tech_building is None or self.bot.structure_type_build_progress(required_tech_building) > 0.8
+            required_tech_building is None or self.bot.structure_type_build_progress(required_tech_building) > 0.9
         )
         if not requirement_met:
             return False

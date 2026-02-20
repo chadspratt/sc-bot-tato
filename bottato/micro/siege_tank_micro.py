@@ -274,6 +274,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         new_bunker_built = self.bunker_count < len(bunkers)
         if new_bunker_built:
             self.bunker_count = len(bunkers)
+        tank_position = None
+        move_tank = False
         if is_sieged:
             if new_bunker_built:
                 # reposition to cover new bunker
@@ -304,7 +306,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 tank_position = self.early_game_siege_positions[unit.tag]
             else:
                 # calculate high ground defensive position
-                tank_position = None
                 bunker: Unit | None = bunkers.furthest_to(self.bot.main_base_ramp.top_center) if bunkers else None
                 if bunker and cy_distance_to_squared(bunker.position, self.bot.main_base_ramp.top_center) > 36:
                     # bunker on low ground, position tank to cover it, a bit away from top of ramp
@@ -317,44 +318,52 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                                     tank_position = position
                     if not tank_position:
                         tank_position = Point2(cy_towards(bunker.position, unit.position, 10.5))
+                    self.early_game_siege_positions[unit.tag] = tank_position
 
+            close_enough_to_siege = False
             if tank_position:
                 current_distance = cy_distance_to(unit.position, tank_position)
                 previous_distance = cy_distance_to(self.previous_positions[unit.tag], tank_position)
-                if current_distance <= 0.5:
-                    # don't block barracks addon from building
-                    barracks = self.bot.structures(UnitTypeId.BARRACKS).ready
-                    if barracks:
-                        barracks_addon_position = cy_closest_to(unit.position, barracks).add_on_position
-                        addon_distance = cy_distance_to(barracks_addon_position, unit.position)
-                        if addon_distance < 2:
-                            tank_position = Point2(cy_towards(barracks_addon_position, unit.position, 1))
-                            unit.move(tank_position)
-                            return UnitMicroType.MOVE
-                    self.siege(unit)
-                    LogHelper.add_log(f"Early game siege tank sieging to cover ramp at desired position")
-                elif current_distance < 3 and (unit.position.manhattan_distance(self.previous_positions[unit.tag]) < 0.1 or current_distance > previous_distance):
-                    # don't block depots from raising
-                    lowered_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED)
-                    if not lowered_depots:
-                        self.siege(unit)
-                        LogHelper.add_log(f"Early game siege tank sieging to cover ramp at closest possible position")
-                    else:
-                        closest_depot = cy_closest_to(unit.position, lowered_depots)
-                        depot_distance = min(abs(closest_depot.position.x - unit.position.x), abs(closest_depot.position.y - unit.position.y))
-                        if depot_distance >= 2.4:
-                            self.siege(unit)
-                            LogHelper.add_log(f"Early game siege tank sieging to cover ramp at closest possible position")
-                        else:
-                            tank_position = Point2(cy_towards(closest_depot.position, unit.position, 4))
-                            unit.move(tank_position)
-                else:
-                    unit.move(tank_position)
-                self.early_game_siege_positions[unit.tag] = tank_position
-            elif cy_distance_to(unit.position, self.bot.main_base_ramp.bottom_center) > 9:
-                unit.move(self.bot.main_base_ramp.bottom_center)
+                close_enough_to_siege = current_distance <= 0.5 or (
+                    current_distance < 3 and (
+                        unit.position.manhattan_distance(self.previous_positions[unit.tag]) < 0.1 or current_distance > previous_distance
+                ))
             else:
-                self.siege(unit)
-                LogHelper.add_log(f"Early game siege tank sieging to cover ramp at default position")
+                tank_position = self.bot.main_base_ramp.bottom_center
+                close_enough_to_siege = cy_distance_to(unit.position, tank_position) < 9
+            
+            if close_enough_to_siege:
+                # don't block barracks addon from building
+                barracks = self.bot.structures(UnitTypeId.BARRACKS).ready
+                if barracks:
+                    barracks_addon_position = cy_closest_to(unit.position, barracks).add_on_position
+                    addon_distance = cy_distance_to(barracks_addon_position, unit.position)
+                    if addon_distance < 2:
+                        LogHelper.add_log(f"Early game siege tank recalculating position to avoid barracks addon construction")
+                        tank_position = Point2(cy_towards(barracks_addon_position, unit.position, 1))
+                        self.early_game_siege_positions[unit.tag] = tank_position
+                        move_tank = True
+                # don't block depots from raising
+                lowered_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED)
+                if lowered_depots:
+                    closest_depot = cy_closest_to(unit.position, lowered_depots)
+                    depot_distance = min(abs(closest_depot.position.x - unit.position.x), abs(closest_depot.position.y - unit.position.y))
+                    if depot_distance < 2.4:
+                        LogHelper.add_log(f"Early game siege tank recalculating position to avoid blocking depot from raising")
+                        current_vector = unit.position - closest_depot.position
+                        required_offset = unit.radius + closest_depot.radius
+                        new_x = max(current_vector.x, required_offset) if current_vector.x > 0 else min(current_vector.x, -required_offset)
+                        new_y = max(current_vector.y, required_offset) if current_vector.y > 0 else min(current_vector.y, -required_offset)
+                        new_vector = Point2((new_x, new_y))
+                        tank_position = closest_depot.position + new_vector
+                        # tank_position = Point2(cy_towards(closest_depot.position, unit.position, 4))
+                        self.early_game_siege_positions[unit.tag] = tank_position
+                        move_tank = True
         self.previous_positions[unit.tag] = unit.position
+        if move_tank and tank_position:
+            LogHelper.add_log(f"Early game siege tank position updated {tank_position}")
+            unit.move(tank_position)
+            return UnitMicroType.MOVE
+        self.siege(unit)
+        LogHelper.add_log(f"Early game siege tank sieging to cover ramp at desired position")
         return UnitMicroType.USE_ABILITY

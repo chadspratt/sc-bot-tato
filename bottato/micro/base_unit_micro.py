@@ -425,12 +425,18 @@ class BaseUnitMicro(GeometryMixin):
 
     @timed
     def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0) -> Unit | None:
-        priority_targets = nearby_enemies.filter(lambda u: u.type_id in UnitTypes.get_priority_target_types(unit))
+        closest_target = cy_closest_to(unit.position, nearby_enemies)
+        closest_distance = cy_distance_to(unit.position, closest_target.position)
+        # look 3 beyond closest enemy for priority targets
+        almost_closest_enemies = Units(cy_closer_than(nearby_enemies, closest_distance + 3, unit.position), bot_object=self.bot)
+        priority_targets = almost_closest_enemies.filter(lambda u: u.type_id in UnitTypes.get_priority_target_types(unit))
         if priority_targets:
             in_range = self.enemy.in_attack_range(unit, priority_targets, bonus_distance, first_only=True)
             if in_range:
                 return in_range.first
-        offensive_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack(u))
+        # for non-priority targets, only look 1 distance beyond closest enemy
+        almost_closest_enemies = Units(cy_closer_than(almost_closest_enemies, closest_distance + 1, unit.position), bot_object=self.bot)
+        offensive_targets = almost_closest_enemies.filter(lambda u: UnitTypes.can_attack(u))
         if offensive_targets:
             threat_in_range = self.enemy.threat_in_attack_range(unit, offensive_targets, bonus_distance, first_only=True)
             if threat_in_range:
@@ -438,15 +444,13 @@ class BaseUnitMicro(GeometryMixin):
             in_range = self.enemy.in_attack_range(unit, offensive_targets, bonus_distance, first_only=True)
             if in_range:
                 return in_range.first
-        passive_targets = nearby_enemies.filter(lambda u: not UnitTypes.can_attack(u))
+        passive_targets = almost_closest_enemies.filter(lambda u: not UnitTypes.can_attack(u))
         if passive_targets:
             in_range = self.enemy.in_attack_range(unit, passive_targets, bonus_distance, first_only=True)
             if in_range:
                 return in_range.first
-        # nothing in range, attack closest of highest priority targets
-        attackable_targets = priority_targets or offensive_targets or passive_targets
-        if attackable_targets:
-            return cy_closest_to(unit.position, attackable_targets)
+        # nothing in range, attack closest
+        return closest_target
             
     def _stay_at_max_range(self, unit: Unit, targets: Units, buffer: float = 0.5, queue: bool = False) -> UnitMicroType:
         if not targets:

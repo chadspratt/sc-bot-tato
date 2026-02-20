@@ -574,10 +574,14 @@ class Enemy(GeometryMixin):
         return (None, 9999)
 
     @timed
-    def get_enemies_in_range(self, friendly_unit: Unit, include_structures=True, include_units=True, include_destructables=False, excluded_types=[]) -> Units:
+    def get_enemies_in_range(self, friendly_unit: Unit,
+                             include_structures=True, include_units=True, include_destructables=False,
+                             excluded_types=[], visible_only=False) -> Units:
         enemies_in_range: Units = Units([], self.bot)
         candidates = self.get_candidates(include_structures, include_units, include_destructables, excluded_types=excluded_types)
         for candidate in candidates:
+            if visible_only and candidate.age != 0:
+                continue
             range = self.distance(friendly_unit, candidate) - friendly_unit.radius - candidate.radius
             attack_range = UnitTypes.range_vs_target(friendly_unit, candidate)
             if range <= attack_range:

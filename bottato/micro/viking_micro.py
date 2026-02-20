@@ -116,7 +116,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             all_enemies: Dict[int, Unit] = {}
             self.target_assignments.clear()
             vikings = self.bot.units.filter(lambda unit: unit.type_id == UnitTypeId.VIKINGFIGHTER
-                                            and unit.is_flying and unit.health_percentage >= health_threshold)
+                                            and unit.is_flying and unit.health_percentage >= self.attack_health)
             other_type_friendlies: Dict[int, Units] = {}
             # make lists of vikings that can attack each enemy
             damage_vs_type: dict[UnitTypeId, float] = {}
