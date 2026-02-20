@@ -335,14 +335,19 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     LogHelper.add_log(f"Early game siege tank sieging to cover ramp at desired position")
                 elif current_distance < 3 and (unit.position.manhattan_distance(self.previous_positions[unit.tag]) < 0.1 or current_distance > previous_distance):
                     # don't block depots from raising
-                    closest_depot = cy_closest_to(unit.position, self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED))
-                    depot_distance = min(abs(closest_depot.position.x - unit.position.x), abs(closest_depot.position.y - unit.position.y))
-                    if depot_distance < 2.3:
-                        tank_position = Point2(cy_towards(closest_depot.position, unit.position, 4))
-                        unit.move(tank_position)
-                    else:
+                    lowered_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED)
+                    if not lowered_depots:
                         self.siege(unit)
                         LogHelper.add_log(f"Early game siege tank sieging to cover ramp at closest possible position")
+                    else:
+                        closest_depot = cy_closest_to(unit.position, lowered_depots)
+                        depot_distance = min(abs(closest_depot.position.x - unit.position.x), abs(closest_depot.position.y - unit.position.y))
+                        if depot_distance >= 2.4:
+                            self.siege(unit)
+                            LogHelper.add_log(f"Early game siege tank sieging to cover ramp at closest possible position")
+                        else:
+                            tank_position = Point2(cy_towards(closest_depot.position, unit.position, 4))
+                            unit.move(tank_position)
                 else:
                     unit.move(tank_position)
                 self.early_game_siege_positions[unit.tag] = tank_position
