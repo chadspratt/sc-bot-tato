@@ -389,14 +389,18 @@ class Workers(GeometryMixin):
             assigned_defender_counts: Dict[int, int] = defaultdict(int)
             # targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
             targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_recent_enemies()))
-            ramp_is_blocked = self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount >= 2
-            if ramp_is_blocked:
+            # ramp_is_blocked = self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount >= 2
+            # if ramp_is_blocked:
                 # targetable_enemies = targetable_enemies.filter(lambda u: cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) > 9)
-                self.units_to_attack = set([u for u in self.units_to_attack if cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) > 9])
+                # self.units_to_attack = set([u for u in self.units_to_attack if cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) > 9])
+            self.units_to_attack = set(self.filter_enemies_outside_wall(Units(self.units_to_attack, bot_object=self.bot)))
             for worker in self.bot.workers:
                 assignment = self.assignments_by_worker[worker.tag]
                 if assignment.job_type == WorkerJobType.SCOUT:
                     continue
+                # ignore enemies outside wall if this unit is inside. will only filter if wall is raised
+                if not self.is_outside_wall(worker):
+                    targetable_enemies = self.filter_enemies_outside_wall(targetable_enemies)
                 position = assignment.target if assignment.target and not worker_rush_detected else worker
                 nearby_enemies = cy_closer_than(targetable_enemies, 5, position.position)
                 if nearby_enemies:
@@ -422,10 +426,6 @@ class Workers(GeometryMixin):
                     if len(nearby_enemies) >= len(available_workers) and not worker_rush_detected:
                         continue
                     for nearby_enemy in nearby_enemies:
-                        if ramp_is_blocked and (cy_distance_to_squared(nearby_enemy.position, self.bot.main_base_ramp.top_center) < 9
-                                                or self.bot.get_terrain_height(nearby_enemy) + 0.1 < self.bot.get_terrain_height(worker)):
-                            # ignore enemies near top of ramp if wall is up since workers can't reach them
-                            continue
                         num_defenders_per_enemy = 2 if nearby_enemy.type_id in UnitTypes.WORKER_TYPES else 3
                         needed_defender_count = num_defenders_per_enemy - assigned_defender_counts[nearby_enemy.tag]
                         if needed_defender_count > 0:
@@ -449,6 +449,17 @@ class Workers(GeometryMixin):
                         assignment.unit.smart(cy_closest_to(assignment.unit.position, self.bot.townhalls))
                     else:
                         assignment.unit.smart(assignment.target)
+
+    def filter_enemies_outside_wall(self, enemies: Units) -> Units:
+        raised_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOT)
+        wall_raised = raised_depots.amount >= 2
+        if not wall_raised:
+            return enemies
+        return enemies.filter(lambda u: not self.is_outside_wall(u))
+    
+    def is_outside_wall(self, unit: Unit) -> bool:
+        return cy_distance_to_squared(unit.position, self.bot.main_base_ramp.top_center) <= 9 \
+                                or self.bot.get_terrain_height(unit) + 0.1 < self.bot.get_terrain_height(self.bot.main_base_ramp.top_center)
     
     async def defend_position(self, position: Point2 | Unit,
                               radius: float,
@@ -462,6 +473,9 @@ class Workers(GeometryMixin):
             nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1000000 + cy_distance_to_squared(a.position, position.position))
         nearby_enemy_range = 25 if nearby_enemy_structures else 12
         nearby_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_recent_enemies()))
+        if position.position.manhattan_distance(self.bot.start_location) < 10:
+            # for main base, filter enemies outside wall
+            nearby_enemies = self.filter_enemies_outside_wall(nearby_enemies)
         nearby_enemies = cy_closer_than(nearby_enemies, nearby_enemy_range, position.position)
         radius_squared = radius * radius
         for enemy in self.units_to_attack:
