@@ -288,7 +288,7 @@ class Military(GeometryMixin, DebugMixin):
         is_currently_occupied = len(bunker.structure.passengers) > 0
         buffer = 2 if is_currently_occupied else 1
         if self.bot.townhalls.filter(lambda th: th.is_ready and not th.is_flying).amount < 2:
-            buffer += 2  # be more cautious with only one base
+            buffer += 3  # be more cautious with only one base
         visible_enemies = enemies_in_base.filter(lambda unit: unit.age == 0 and unit.type_id not in (UnitTypeId.ADEPTPHASESHIFT,))
         enemy_distance_to_bunker = float('inf')
         enemy_is_too_far = False

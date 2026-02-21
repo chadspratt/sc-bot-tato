@@ -635,6 +635,10 @@ class BuildOrder():
             # if enemy expands early, prioritize marines to punish
             self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue, position=0)
             return
+        if self.tactics.is_active(Tactic.RUSH_DEFENSE):
+            marine_count = self.bot.units.of_type(UnitTypeId.MARINE).amount + self.get_in_progress_count(UnitTypeId.MARINE)
+            if marine_count < 6:
+                self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue, position=0)
         # use excess minerals and idle barracks
         need_early_marines: bool = self.bot.time < 300 and army_ratio < 0.8 and \
             (BuildType.RUSH in detected_enemy_builds or len(cy_closer_than(self.bot.enemy_units, 20, self.map.natural_position)) > 2)

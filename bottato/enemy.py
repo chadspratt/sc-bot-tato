@@ -732,9 +732,11 @@ class Enemy(GeometryMixin):
                 self.stuck_enemies.append(unit)
                 self.bot.client.debug_text_3d("STUCK", unit.position3d)
     
+    fps = 22.4
     def get_average_enemy_age(self) -> float:
-        if not self.enemies_in_view:
+        enemy_army = self.get_army()
+        if enemy_army.amount == 0:
             return 100.0
-        age_limit = 180 if self.enemy_race == Race.Zerg else 240
-        total_age = sum(enemy.age for enemy in self.enemies_out_of_view if enemy.age < age_limit and enemy.type_id not in UnitTypes.NON_THREATS)
-        return total_age / (len(self.enemies_in_view) + len(self.enemies_out_of_view))
+        age_limit = (180 if self.enemy_race == Race.Zerg else 240) * self.fps
+        total_age = sum(min(age_limit, enemy.age) for enemy in enemy_army)
+        return total_age / enemy_army.amount / self.fps

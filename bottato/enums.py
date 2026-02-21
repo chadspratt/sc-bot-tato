@@ -79,6 +79,7 @@ class BuildOrderChange(enum.Enum):
 class Tactic(enum.Enum):
     BANSHEE_HARASS = 0
     PROXY_BARRACKS = 1
+    RUSH_DEFENSE = 2
 
 class ExpansionSelection(enum.Enum):
     CLOSEST = 0

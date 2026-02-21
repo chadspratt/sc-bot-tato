@@ -20,6 +20,7 @@ class Tactics:
         self.last_values: dict[Tactic, bool] = {
             Tactic.BANSHEE_HARASS: False,
             Tactic.PROXY_BARRACKS: False,
+            Tactic.RUSH_DEFENSE: False,
         }
 
         self.proxy_barracks: Unit | None = None
@@ -50,6 +51,8 @@ class Tactics:
                         if self.bot.time < 240 and self.intel.army_ratio > 1.1 or self.intel.army_ratio > 3:
                             # keep it going if it's working
                             new_value = True
+        elif tactic == Tactic.RUSH_DEFENSE:
+            new_value = self.bot.time < 240 and BuildType.RUSH in self.intel.enemy_builds_detected
 
         self.last_values[tactic] = new_value
         return new_value
