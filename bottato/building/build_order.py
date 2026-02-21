@@ -304,6 +304,9 @@ class BuildOrder():
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.static_queue)
             self.add_to_build_queue([UnitTypeId.BANSHEE], queue=self.static_queue, remove_duplicates=False)
         elif change == BuildOrderChange.PROXY_BARRACKS:
+            if BuildType.ZERGLING_RUSH in detected_enemy_builds:
+                # don't try this vs zerglings
+                return
             self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue, position=0)
             if self.bot.structures(UnitTypeId.BARRACKS).amount == 0:
                 # move second if first hasn't started yet

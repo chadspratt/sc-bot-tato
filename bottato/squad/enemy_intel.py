@@ -185,18 +185,20 @@ class EnemyIntel(GeometryMixin):
             spire_detected = self.number_seen(UnitTypeId.SPIRE) > 0
             if early_pool:
                 await LogHelper.add_chat("early pool detected")
+                self.add_detected_build(BuildType.RUSH)
+                self.add_detected_build(BuildType.ZERGLING_RUSH)
             if no_gas:
                 await LogHelper.add_chat("no gas detected")
             if no_expansion:
                 await LogHelper.add_chat("no expansion detected")
+                self.add_detected_build(BuildType.RUSH)
             if zergling_rush:
                 await LogHelper.add_chat("zergling rush detected")
+                self.add_detected_build(BuildType.RUSH)
                 self.add_detected_build(BuildType.ZERGLING_RUSH)
             if spire_detected:
                 await LogHelper.add_chat("spire detected")
                 self.add_detected_build(BuildType.SPIRE)
-            if early_pool or no_expansion or zergling_rush:
-                self.add_detected_build(BuildType.RUSH)
         elif self.enemy_race == Race.Terran:
             # no_expansion = self.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
             battlecruiser = self.bot.time < 360 and \
