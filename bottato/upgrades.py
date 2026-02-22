@@ -1,15 +1,13 @@
 from loguru import logger
-
 from typing import List, Set
 
 from sc2.bot_ai import BotAI
-from sc2.ids.upgrade_id import UpgradeId
-from sc2.ids.unit_typeid import UnitTypeId
-from sc2.ids.ability_id import AbilityId
 from sc2.dicts.unit_research_abilities import RESEARCH_INFO
+from sc2.ids.ability_id import AbilityId
+from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 
 from bottato.enums import BuildOrderChange
-
 
 RESEARCH_ABILITIES: dict[UpgradeId, AbilityId] = {}
 
@@ -163,7 +161,7 @@ class Upgrades:
                 UpgradeId.TERRANVEHICLEWEAPONSLEVEL3,
             ]
         for upgrade_type in upgrade_list:
-            if self.bot.units(self.affected_unit_types[upgrade_type]).amount < self.required_unit_counts.get(upgrade_type, 4):
+            if self.bot.all_own_units.of_type(self.affected_unit_types[upgrade_type]).amount < self.required_unit_counts.get(upgrade_type, 4):
                 # don't research if no units benefit
                 continue
             if self.already_pending_upgrade(facility_type, upgrade_type) > 0:
