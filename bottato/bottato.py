@@ -65,7 +65,7 @@ class BotTato(BotAI):
         # self.print_all_timers(30)
         if self.draw_map:
             self.commander.map.draw()
-        self.print_build_order(10)
+        self.print_game_state_summary(10)
         LogHelper.print_logs(iteration)
 
         if LogHelper.testing and self.time >= 3540 and not self.replay_saved:
@@ -101,12 +101,12 @@ class BotTato(BotAI):
             LogHelper.add_log(self.commander.build_order.get_build_queue_string())
             LogHelper.add_log(f"upgrades: {self.state.upgrades}")
 
-    def print_build_order(self, interval: int = 0):
+    def print_game_state_summary(self, interval: int = 0):
         if self.time - self.last_build_order_print > interval:
             self.last_build_order_print = self.time
             LogHelper.add_log(self.commander.military.status_message)
             passengers = Units([], self)
-            for unit_with_cargo in self.units.filter(lambda u: u.cargo_used > 0):
+            for unit_with_cargo in self.all_own_units.filter(lambda u: u.cargo_used > 0):
                 passengers.extend(unit_with_cargo.passengers)
             friendly_units = self.units + passengers
             LogHelper.add_log('army: ' + ', '.join([f"{unit_type.name}: {count}" for unit_type, count in UnitTypes.count_units_by_type(friendly_units).items()]))

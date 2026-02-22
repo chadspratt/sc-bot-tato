@@ -334,7 +334,7 @@ class BaseUnitMicro(GeometryMixin):
             bonus_distance = -2 if unit.health_percentage < health_threshold else -0.5
             if UnitTypes.range(unit) < 1:
                 bonus_distance = 1
-            micro_taken = self._kite(unit, nearby_enemies, bonus_distance)
+            micro_taken = self._kite(unit, nearby_enemies, bonus_distance, force_move=force_move)
             if micro_taken != UnitMicroType.NONE:
                 return micro_taken
             # attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance)
@@ -345,7 +345,10 @@ class BaseUnitMicro(GeometryMixin):
         # retreat towards better counter for threats
         if self._retreat_to_better_unit(unit, can_attack):
             return UnitMicroType.RETREAT
-        
+
+        if force_move:
+            return UnitMicroType.NONE
+
         # below attack_health: if threats and no target in range, do nothing (retreat)
         if unit.health_percentage < health_threshold:
             if self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6, first_only=True):
@@ -424,7 +427,7 @@ class BaseUnitMicro(GeometryMixin):
         return force_move
 
     @timed
-    def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0) -> Unit | None:
+    def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0, require_in_range_target: bool = False) -> Unit | None:
         if not nearby_enemies:
             return None
         closest_target = cy_closest_to(unit.position, nearby_enemies)
@@ -452,7 +455,7 @@ class BaseUnitMicro(GeometryMixin):
             if in_range:
                 return in_range.first
         # nothing in range, attack closest
-        return closest_target
+        return None if require_in_range_target else closest_target
             
     def _stay_at_max_range(self, unit: Unit, targets: Units, buffer: float = 0.5, queue: bool = False) -> UnitMicroType:
         if not targets:
@@ -506,7 +509,7 @@ class BaseUnitMicro(GeometryMixin):
 
     weapon_speed_vs_target_cache: dict[UnitTypeId, dict[UnitTypeId, float]] = {}
 
-    def _kite(self, unit: Unit, targets: Units, bonus_distance: float = 0) -> UnitMicroType:
+    def _kite(self, unit: Unit, targets: Units, bonus_distance: float = 0, force_move: bool = False) -> UnitMicroType:
         targets_to_avoid = Units([], bot_object=self.bot)
         workers_to_avoid = Units([], bot_object=self.bot)
         distance_to_advance: float = float('inf')
@@ -552,10 +555,11 @@ class BaseUnitMicro(GeometryMixin):
                         targets_to_avoid.append(target)
         
         target = None
+        should_run = workers_to_avoid or targets_to_avoid and can_outrun
         # find a target if we can attack now or if we don't need to run
-        if can_attack or not (workers_to_avoid or targets_to_avoid and can_outrun):
+        if can_attack or not should_run:
             targets.sort(key=lambda t: t.health + t.shield)
-            target = self._get_attack_target(unit, targets, bonus_distance)
+            target = self._get_attack_target(unit, targets, bonus_distance, require_in_range_target=force_move)
 
         if can_attack and target:
             self._attack(unit, target)
@@ -652,7 +656,7 @@ class BaseUnitMicro(GeometryMixin):
         retreat_distance = 10 if unit.is_flying else 5
         retreat_position = Point2(cy_towards(unit.position, unit.position + retreat_vector, retreat_distance))
         if unit.is_flying:
-            retreat_position = self.map.clamp_position_to_map_bounds(retreat_position, self.bot)
+            retreat_position = self.map.clamp_position_to_map_bounds(retreat_position, unit.position, self.bot)
             return self.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
         if self._position_is_pathable(unit, retreat_position):
             return self.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)

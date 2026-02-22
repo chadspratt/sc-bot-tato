@@ -76,10 +76,38 @@ class GeometryMixin:
         return Point3((point2.x, point2.y, height))
     
     @staticmethod
-    def clamp_position_to_map_bounds(position: Point2, bot: BotAI) -> Point2:
+    def clamp_position_to_map_bounds(position: Point2, origin: Point2, bot: BotAI) -> Point2:
+        clamped_x = max(0, min(position.x, bot.game_info.terrain_height.width))
+        clamped_y = max(0, min(position.y, bot.game_info.terrain_height.height))
+        excess_x = abs(position.x - clamped_x)
+        excess_y = abs(position.y - clamped_y)
+        if excess_x > 0 and excess_y > 0:
+            if excess_x > excess_y:
+                # turn away from the corner
+                if origin.y < position.y:
+                    clamped_y = origin.y - excess_x
+                else:
+                    clamped_y = origin.y + excess_x
+            else:
+                if origin.x < position.x:
+                    clamped_x = origin.x - excess_y
+                else:
+                    clamped_x = origin.x + excess_y
+        elif excess_x > 0:
+            if origin.y < position.y:
+                clamped_y += excess_x
+            else:
+                clamped_y -= excess_x
+            # add excess to other axis to move along the edge
+        elif excess_y > 0:
+            if origin.x < position.x:
+                clamped_x += excess_y
+            else:
+                clamped_x -= excess_y
+
         clamped_position = Point2((
-            max(0, min(position.x, bot.game_info.terrain_height.width)),
-            max(0, min(position.y, bot.game_info.terrain_height.height))
+            clamped_x,
+            clamped_y
         ))
         return clamped_position
 

@@ -3,6 +3,7 @@ from typing import List
 
 from cython_extensions.general_utils import cy_in_pathing_grid_burny
 from cython_extensions.geometry import cy_distance_to, cy_towards
+from cython_extensions.units_utils import cy_closer_than
 from sc2.bot_ai import BotAI
 from sc2.data import Race, race_townhalls
 from sc2.ids.ability_id import AbilityId
@@ -145,8 +146,13 @@ class InitialScout(Squad, GeometryMixin):
                     self.waypoints_completed = True
                     self.intel.mark_enemy_main_scouted()
                     self.waypoints = list(self.original_waypoints)  # reset to keep scouting
-                    if self.bot.time > 70 and self.bot.enemy_structures(race_townhalls[self.bot.enemy_race]).amount < 2:
-                        self.do_natural_check = True
+                    time_for_natural_check = self.bot.time > 70
+                    no_enemy_natural = self.bot.enemy_structures(race_townhalls[self.bot.enemy_race]).amount < 2
+                    if time_for_natural_check and no_enemy_natural:
+                        few_nearby_enemies = len(cy_closer_than(self.bot.enemy_units, 3, self.unit.position)) < 2
+                        if few_nearby_enemies:
+                            # dip down ramp to check for early natural if not being chased by 2+ enemies
+                            self.do_natural_check = True
         else:
             # find initial waypoint
             i = 0

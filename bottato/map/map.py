@@ -461,7 +461,7 @@ class Map(GeometryMixin):
             try:
                 pathable_cost = grid[int(pathable_position.x), int(pathable_position.y)]
             except IndexError:
-                pathable_position = self.clamp_position_to_map_bounds(pathable_position, self.bot)
+                pathable_position = self.clamp_position_to_map_bounds(pathable_position, unit.position, self.bot)
                 pathable_cost = grid[int(pathable_position.x), int(pathable_position.y)]
             if position_cost <= pathable_cost and pathable_position._distance_squared(position) < 2.25:
                 pathable_position = position
