@@ -814,7 +814,7 @@ class Workers(GeometryMixin):
         if self.bot.minerals > 10:
             injured_units = self.units_needing_repair(enemy_builds_detected)
             if injured_units:
-                LogHelper.add_log(f"{len(injured_units)} injured units needing repair")
+                # LogHelper.add_log(f"{len(injured_units)} injured units needing repair")
                 missing_health = 0
                 # limit to percentage of total workers
                 max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 5))
@@ -872,7 +872,7 @@ class Workers(GeometryMixin):
 
         # remove excess repairers
         if repairer_shortage < 0:
-            LogHelper.add_log(f"removing {-repairer_shortage} excess repairers")
+            # LogHelper.add_log(f"removing {-repairer_shortage} excess repairers")
             # don't retire mid-repair
             inactive_repairers: Units = current_repairers.filter(lambda unit: not unit.is_repairing)
             inactive_repairers.sort(key=lambda r: r.health)
@@ -914,7 +914,7 @@ class Workers(GeometryMixin):
 
         # add more repairers
         if repairer_shortage > 0:
-            LogHelper.add_log(f"need {repairer_shortage} more repairers")
+            # LogHelper.add_log(f"need {repairer_shortage} more repairers")
             candidates: Units = Units([
                     worker for worker in self.bot.workers
                     if self.assignments_by_worker[worker.tag].job_type not in (WorkerJobType.BUILD, WorkerJobType.REPAIR)
@@ -958,7 +958,7 @@ class Workers(GeometryMixin):
             self.update_assigment(repairer, WorkerJobType.REPAIR, injured_structure)
             if await self.worker_micro.repair(repairer, injured_structure) == UnitMicroType.REPAIR:
                 assigned_count += 1
-        LogHelper.add_log(f"assigned {assigned_count} of {repairers} to repair {injured_structure}")
+        # LogHelper.add_log(f"assigned {assigned_count} of {repairers} to repair {injured_structure}")
         return repairers
 
     def get_repair_target(self, repairer: Unit, injured_units: Units, units_needing_repair: list) -> Unit | None:

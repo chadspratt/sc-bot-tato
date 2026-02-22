@@ -135,8 +135,8 @@ class Military(GeometryMixin, DebugMixin):
             if military_scouts.amount == 0 and self.bot.time < 420:
                 # wait for a scout to attack
                 mount_offense = False
-            elif BuildType.RUSH in detected_enemy_builds and self.bot.time < 360:
-                mount_offense = False
+            # elif BuildType.RUSH in detected_enemy_builds and self.bot.time < 360:
+            #     mount_offense = False
             elif self.bot.supply_used < 50 and not reaper_is_alive: # previously 110
                 # allow attacks at low supply if reaper is scouting so army_ratio is reliable
                 mount_offense = False
