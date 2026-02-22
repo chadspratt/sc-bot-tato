@@ -214,7 +214,7 @@ class GeometryMixin:
         return close_units
     
     @staticmethod
-    def unit_is_closer_than(unit1: Unit | Point2, units: Units, distance: float) -> bool:
+    def member_is_closer_than(unit1: Unit | Point2, units: Units | List[Point2 | Unit], distance: float) -> bool:
         distance_sq = distance * distance
         for unit in units:
             if GeometryMixin.distance_squared(unit1, unit) < distance_sq:

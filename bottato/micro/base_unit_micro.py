@@ -86,7 +86,7 @@ class BaseUnitMicro(GeometryMixin):
     ###########################################################################        
     def get_override_target_for_repair(self, unit: Unit, target: Point2) -> Point2:
         if unit.tag in self.repairers_by_target_prev_frame:
-            if unit.health_percentage > self.retreat_health and self.unit_is_closer_than(unit, self.bot.enemy_units, 15):
+            if unit.health_percentage > self.retreat_health and self.member_is_closer_than(unit, self.bot.enemy_units, 15):
                 # don't move to repairer if in combat and healthy
                 return target
             repairers = self.bot.units.filter(lambda u: u.tag in self.repairers_by_target_prev_frame[unit.tag])
@@ -693,7 +693,7 @@ class BaseUnitMicro(GeometryMixin):
         if unit.health_percentage >= 0.9:
             injured_friendlies = self.bot.units.filter(lambda u: u.health_percentage < 0.9 and u.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER))
             # poke out at full health to lure enemy. only go if no nearby units are injured to promote grouping up
-            if not self.unit_is_closer_than(unit, injured_friendlies, 5):
+            if not self.member_is_closer_than(unit, injured_friendlies, 5):
                 return False
 
         threats = self.enemy.threats_to_friendly_unit(unit, 1)

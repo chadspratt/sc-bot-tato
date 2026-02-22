@@ -144,7 +144,7 @@ class Commander(GeometryMixin):
         if iteration % 3 == 0 and self.bot.workers and self.bot.units.of_type(UnitTypeId.MEDIVAC):
             self.stuck_units.clear()
             # skip if ramp depots are raised
-            if self.unit_is_closer_than(self.bot.main_base_ramp.top_center, self.bot.structures(UnitTypeId.SUPPLYDEPOT), 5):
+            if self.member_is_closer_than(self.bot.main_base_ramp.top_center, self.bot.structures(UnitTypeId.SUPPLYDEPOT), 5):
                 return
             path_checking_position = await self.map.get_path_checking_position()
             if path_checking_position is not None:

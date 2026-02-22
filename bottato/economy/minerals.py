@@ -1,6 +1,6 @@
 import math
 from loguru import logger
-from typing import List
+from typing import List, Set
 
 from cython_extensions.geometry import cy_distance_to, cy_towards
 from cython_extensions.units_utils import cy_closer_than
@@ -16,11 +16,11 @@ from bottato.economy.resources import (
     Resources,
 )
 from bottato.map.map import Map
-from bottato.mixins import timed
+from bottato.mixins import GeometryMixin, timed
 from bottato.unit_reference_helper import UnitReferenceHelper
 
 
-class Minerals(Resources):
+class Minerals(Resources, GeometryMixin):
     MINING_RADIUS = 1.325
     mineral_type_ids = [
         UnitTypeId.MINERALFIELD, UnitTypeId.MINERALFIELD450, UnitTypeId.MINERALFIELD750,
@@ -117,16 +117,17 @@ class Minerals(Resources):
         added = 0
         nodes_to_add = math.ceil(idle_worker_count / WORKERS_PER_LONG_DISTANCE_NODE)
         if self.bot.townhalls:
-            candidates = Units([mf for mf in self.bot.mineral_field if mf.tag not in self.nodes_by_tag], self.bot)
-            pathable_nodes = Units([], self.bot)
+            candidates = self.bot.mineral_field.filter(lambda mf: mf.tag not in self.nodes_by_tag)
             path_checking_position = await self.map.get_path_checking_position()
-            paths_to_check = [[unit, path_checking_position] for unit in candidates]
-            if paths_to_check:
+            if path_checking_position:
+                paths_to_check: List[List[Point2 | Unit]] = [[p, path_checking_position] for p in self.bot.expansion_locations_list]
+                pathable_townhall_positions: List[Point2 | Unit] = []
                 distances = await self.bot.client.query_pathings(paths_to_check)
                 for path, distance in zip(paths_to_check, distances):
                     if distance > 0:
-                        pathable_nodes.append(path[0])
-            sorted_candidates = self.map.sort_units_by_path_distance(self.bot.start_location, pathable_nodes)
+                        pathable_townhall_positions.append(path[0])
+                candidates = candidates.filter(lambda mf: self.member_is_closer_than(mf, pathable_townhall_positions, 10))
+            sorted_candidates = self.map.sort_units_by_path_distance(self.bot.start_location, candidates)
             for i in range(nodes_to_add):
                 if i >= len(sorted_candidates):
                     break

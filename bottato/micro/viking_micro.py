@@ -260,7 +260,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
         if unit.tag in self.harass_location_reached_tags:
             nearest_workers = self.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
             if anti_air_structures:
-                nearest_workers = nearest_workers.filter(lambda u: not self.unit_is_closer_than(u, anti_air_structures, 6))
+                nearest_workers = nearest_workers.filter(lambda u: not self.member_is_closer_than(u, anti_air_structures, 6))
             if nearest_workers:
                 target = sorted(nearest_workers, key=lambda t: t.health + t.shield)[0]
                 self._attack(unit, target)
