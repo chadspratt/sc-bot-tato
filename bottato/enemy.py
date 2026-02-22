@@ -66,7 +66,7 @@ class Enemy(GeometryMixin):
         self.set_last_seen_for_visible(new_visible_enemies)
         self.add_new_out_of_view()
 
-        self.enemies_in_view = new_visible_enemies.filter(lambda u: u.health > 0)
+        self.enemies_in_view = new_visible_enemies
 
     @timed
     def update_out_of_view(self):
@@ -286,7 +286,7 @@ class Enemy(GeometryMixin):
         return self.threats_to(friendly_unit, enemies, attack_range_buffer, first_only=first_only)
     
     def in_friendly_attack_range(self, friendly_unit: Unit, targets: Units | None = None, attack_range_buffer:float=0) -> Units:
-        candidates = targets if targets else self.enemies_in_view
+        candidates = targets if targets else self.enemies_in_view.filter(lambda u: u.health > 0) # filter out cloaked unattackable units
         in_range = self.in_attack_range(friendly_unit, candidates, attack_range_buffer)
         return in_range
     
@@ -618,9 +618,9 @@ class Enemy(GeometryMixin):
     def enemies_needing_detection(self) -> Units:
         need_detection = self.enemies_in_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types) + \
                self.enemies_out_of_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types)
-        creep_tumors_excluded = need_detection.filter(lambda unit: unit.type_id != UnitTypeId.CREEPTUMORBURROWED)
-        if creep_tumors_excluded:
-            return creep_tumors_excluded
+        # creep_tumors_excluded = need_detection.filter(lambda unit: unit.type_id != UnitTypeId.CREEPTUMORBURROWED)
+        # if creep_tumors_excluded:
+        #     return creep_tumors_excluded
         return need_detection
 
     out_of_view_cache: Dict[str, tuple[Units | None, float]] = {

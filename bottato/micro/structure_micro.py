@@ -308,6 +308,9 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             return
         need_detection = self.enemy.enemies_needing_detection()
 
+        if not need_detection:
+            return
+
         ravens = self.bot.units(UnitTypeId.RAVEN)
         enemies_to_scan = Units([], self.bot)
         air_attackers = None
@@ -315,7 +318,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         for enemy in need_detection:
             attackers = None
             # don't scan if raven nearby
-            if self.closest_distance_squared(enemy, ravens) < 400:
+            if self.unit_is_closer_than(enemy, ravens, 20):
                 continue
             # only scan enemies if attackers nearby to make use of scan
             if enemy.is_flying:
@@ -334,6 +337,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
 
         # find unit that has most hidden enemies nearby then scan center of the group
         if enemies_to_scan:
+            LogHelper.add_log(f"Scanning to detect {enemies_to_scan}")            
             _, grouped_enemies = self.get_most_grouped_unit(enemies_to_scan, self.bot, 13)
             orbital_with_energy(AbilityId.SCANNERSWEEP_SCAN, Point2(cy_center(grouped_enemies)))
             self.last_scan_time = self.bot.time

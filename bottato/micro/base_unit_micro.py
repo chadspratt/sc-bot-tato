@@ -47,8 +47,8 @@ class BaseUnitMicro(GeometryMixin):
     harass_location_reached_tags: set[int] = set()
     repairer_tags: set[int] = set()
     repairer_tags_prev_frame: set[int] = set()
-    repair_targets: Dict[int, List[int]] = {}  # target unit tag -> list of worker tags
-    repair_targets_prev_frame: Dict[int, List[int]] = {}
+    repairers_by_target: Dict[int, List[int]] = {}  # target unit tag -> list of assigned repairer tags
+    repairers_by_target_prev_frame: Dict[int, List[int]] = {}
     custom_effects_to_avoid: List[CustomEffect] = []  # position, time, radius, duration
 
     damaging_effects = [
@@ -78,23 +78,26 @@ class BaseUnitMicro(GeometryMixin):
         BaseUnitMicro.tanks_being_retreated_to = {}
         BaseUnitMicro.repairer_tags_prev_frame = BaseUnitMicro.repairer_tags
         BaseUnitMicro.repairer_tags = set()
-        BaseUnitMicro.repair_targets_prev_frame = BaseUnitMicro.repair_targets
-        BaseUnitMicro.repair_targets = {}
+        BaseUnitMicro.repairers_by_target_prev_frame = BaseUnitMicro.repairers_by_target
+        BaseUnitMicro.repairers_by_target = {}
 
     ###########################################################################
     # meta actions - used by non-micro classes to order units
     ###########################################################################        
     def get_override_target_for_repair(self, unit: Unit, target: Point2) -> Point2:
-        if unit.tag in self.repair_targets_prev_frame:
+        if unit.tag in self.repairers_by_target_prev_frame:
             if unit.health_percentage > self.retreat_health and self.unit_is_closer_than(unit, self.bot.enemy_units, 15):
                 # don't move to repairer if in combat and healthy
                 return target
-            repairers = self.bot.units.filter(lambda u: u.tag in self.repair_targets_prev_frame[unit.tag])
+            repairers = self.bot.units.filter(lambda u: u.tag in self.repairers_by_target_prev_frame[unit.tag])
             if repairers:
                 repairer = cy_closest_to(unit.position, repairers)
                 return repairer.position
         
         return target
+    
+    def add_repairer_for_unit(self, unit: Unit, repairer: Unit):
+        self.repairers_by_target.setdefault(unit.tag, []).append(repairer.tag)
 
     @timed_async
     async def move(self, unit: Unit, target: Point2, force_move: bool = False, previous_position: Point2 | None = None) -> UnitMicroType:
@@ -187,10 +190,7 @@ class BaseUnitMicro(GeometryMixin):
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.NONE
         distance_sq = unit.distance_to_squared(target)
-        if target.tag in BaseUnitMicro.repair_targets:
-            BaseUnitMicro.repair_targets[target.tag].append(unit.tag)
-        else:
-            BaseUnitMicro.repair_targets[target.tag] = [unit.tag]
+        self.add_repairer_for_unit(target, unit)
         action_taken: UnitMicroType = self._avoid_effects(unit, force_move=False)
         if action_taken == UnitMicroType.NONE:
             if target.type_id in (UnitTypeId.BUNKER, UnitTypeId.PLANETARYFORTRESS, UnitTypeId.MISSILETURRET, UnitTypeId.SIEGETANKSIEGED) \
@@ -297,8 +297,8 @@ class BaseUnitMicro(GeometryMixin):
     
     @timed
     def _move_to_repairer(self, unit: Unit) -> UnitMicroType:
-        if unit.tag in BaseUnitMicro.repair_targets_prev_frame and unit.health_percentage < 1.0:
-            repairer_tags = BaseUnitMicro.repair_targets_prev_frame[unit.tag]
+        if unit.tag in BaseUnitMicro.repairers_by_target_prev_frame and unit.health_percentage < 1.0:
+            repairer_tags = BaseUnitMicro.repairers_by_target_prev_frame[unit.tag]
             repairers = self.bot.workers.filter(lambda w: w.tag in repairer_tags)
             closest_repairer = cy_closest_to(unit.position, repairers) if repairers else None
             if closest_repairer and 1 < closest_repairer.distance_to_squared(unit) < 16:
@@ -608,9 +608,9 @@ class BaseUnitMicro(GeometryMixin):
         if unit.is_mechanical:
             if not threats or not threats.filter(lambda t: t.can_attack):
                 repairer: Unit | None = None
-                if unit.tag in self.repair_targets_prev_frame:
+                if unit.tag in self.repairers_by_target_prev_frame:
                     try:
-                        repairers: Units = self.bot.units.filter(lambda w: w.tag in BaseUnitMicro.repair_targets_prev_frame[unit.tag])
+                        repairers: Units = self.bot.units.filter(lambda w: w.tag in BaseUnitMicro.repairers_by_target_prev_frame[unit.tag])
                         if repairers:
                             repairer = cy_closest_to(unit.position, repairers)
                             ultimate_destination = repairer

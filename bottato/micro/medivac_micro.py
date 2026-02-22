@@ -105,6 +105,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 # unit.stop()
                 self.stopped_for_healing.add(unit.tag)
             elif nearest_injured_distance < 400:
+                self.add_repairer_for_unit(nearest_injured, unit)
                 unit.move(self.map.get_pathable_position(nearest_injured.position, unit))
                 if unit.tag in self.stopped_for_healing:
                     self.stopped_for_healing.remove(unit.tag)
