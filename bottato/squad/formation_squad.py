@@ -109,6 +109,7 @@ class FormationSquad(Squad, GeometryMixin):
                 UnitTypeId.CYCLONE: 3,
                 UnitTypeId.BATTLECRUISER: 3.4,
                 UnitTypeId.THOR: 4.5,
+                UnitTypeId.THORAP: 4.5,
                 UnitTypeId.RAVEN: 5,
                 UnitTypeId.MEDIVAC: 5,
                 UnitTypeId.LIBERATOR: 6,
