@@ -388,7 +388,9 @@ class Workers(GeometryMixin):
 
             assigned_defender_counts: Dict[int, int] = defaultdict(int)
             # targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
-            targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_recent_enemies()))
+            targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying
+                                                             and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_recent_enemies())
+                                                             and u.position.manhattan_distance(self.bot.start_location) < 30)
             # ramp_is_blocked = self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount >= 2
             # if ramp_is_blocked:
                 # targetable_enemies = targetable_enemies.filter(lambda u: cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) > 9)
