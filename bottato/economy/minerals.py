@@ -1,8 +1,8 @@
 import math
 from loguru import logger
-from typing import List, Set
+from typing import List
 
-from cython_extensions.geometry import cy_distance_to, cy_towards
+from cython_extensions.geometry import cy_towards
 from cython_extensions.units_utils import cy_closer_than
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId

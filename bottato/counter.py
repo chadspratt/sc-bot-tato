@@ -78,8 +78,9 @@ class Counter():
         },
         UnitTypeId.TEMPEST: { # 4
             UnitTypeId.VIKINGFIGHTER: 2.5,
-            UnitTypeId.THOR: 0.5,
-            UnitTypeId.BANSHEE: -0.75
+            UnitTypeId.THOR: 0.75,
+            UnitTypeId.BANSHEE: -0.5,
+            UnitTypeId.SIEGETANK: -0.25
         },
         UnitTypeId.VOIDRAY: { # 4
             UnitTypeId.VIKINGFIGHTER: 1
@@ -104,7 +105,7 @@ class Counter():
         UnitTypeId.CYCLONE: { # 3
             UnitTypeId.SIEGETANK: 0.5,
             UnitTypeId.MARINE: 1.5,
-            UnitTypeId.BANSHEE: -0.75
+            UnitTypeId.BANSHEE: -0.5
         },
         UnitTypeId.GHOST: { # 3
             UnitTypeId.MARAUDER: 1.5

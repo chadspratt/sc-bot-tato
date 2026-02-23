@@ -160,7 +160,7 @@ class Military(GeometryMixin, DebugMixin):
                 if not bunker.structure:
                     continue
                 is_closest = bunker.structure.tag == forward_bunker.tag
-                await self.manage_bunker(bunker, self.enemies_in_base, is_closest)
+                await self.manage_bunker(bunker, self.enemies_in_base, keep_occupied=(not mount_offense and is_closest))
 
         if self.main_army.units:
             self.main_army.draw_debug_box()
@@ -169,6 +169,7 @@ class Military(GeometryMixin, DebugMixin):
                 LogHelper.add_log(f"squad {self.main_army.name} mounting defense")
                 await self.main_army.move(cy_closest_to(self.main_army.position, self.enemies_in_base).position)
             elif mount_offense and len(proxy_buildings) > 0 and self.bot.time < 420:
+                LogHelper.add_log(f"squad {self.main_army.name} clearing proxy buildings")
                 target_position = cy_closest_to(self.main_army.position, proxy_buildings).position
                 await self.main_army.move(target_position)
             elif mount_offense:
@@ -273,7 +274,7 @@ class Military(GeometryMixin, DebugMixin):
         return defend_with_main_army, countered_enemies
 
     @timed_async
-    async def manage_bunker(self, bunker: Bunker, enemies_in_base: Units, is_closest_to_enemy: bool = False):
+    async def manage_bunker(self, bunker: Bunker, enemies_in_base: Units, keep_occupied: bool = False):
         if not bunker.structure:
             self.empty_bunker(bunker)
             return
@@ -310,7 +311,7 @@ class Military(GeometryMixin, DebugMixin):
             # no enemies nearby but maybe was recently attacked
             last_attacked = self.last_damage_taken_time.get(bunker.structure.tag, 0)
             recently_attacked = self.bot.time - last_attacked < 60
-            if not recently_attacked and not is_closest_to_enemy:
+            if not recently_attacked and not keep_occupied:
                 self.empty_bunker(bunker)
                 return
 
@@ -451,6 +452,7 @@ class Military(GeometryMixin, DebugMixin):
         bunker_staging_location: Point2 | None = None
         if self.tactics.is_active(Tactic.PROXY_BARRACKS):
             self.intel.main_army_staging_location = self.map.enemy_expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY][2].expansion_position
+            LogHelper.add_log(f"squad {self.main_army} staging near proxy barracks")
         elif BuildType.RUSH in detected_enemy_builds and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
             ramp_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOT).filter(lambda depot: depot.position.manhattan_distance(self.bot.main_base_ramp.top_center) < 5)
             if len(ramp_depots) >= 2:
@@ -483,6 +485,7 @@ class Military(GeometryMixin, DebugMixin):
             if bunkers and army_ratio < 0.8:
                 closest_bunker = cy_closest_to(self.intel.main_army_staging_location, bunkers)
                 bunker_staging_location = closest_bunker.position
+                LogHelper.add_log(f"squad {self.main_army} staging near bunker")
         else:
             self.intel.main_army_staging_location = Point2(cy_towards(self.bot.start_location, enemy_position, 5))
             LogHelper.add_log(f"squad {self.main_army} staging near only base")
