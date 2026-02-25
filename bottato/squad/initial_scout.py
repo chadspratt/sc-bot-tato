@@ -98,7 +98,8 @@ class InitialScout(Squad, GeometryMixin):
                 # scout lost, don't send another
                 self.completed = True
                 return
-            if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected:
+            if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected and self.intel.enemy_race != Race.Zerg:
+                # stop early to proxy vs protoss and terran
                 self.completed = True
 
             if self.completed:

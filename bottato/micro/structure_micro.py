@@ -167,10 +167,10 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             # reactor already started, don't move barracks
             return
 
-        barracks = Units(cy_closer_than(self.bot.structures([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING]).ready, 5, self.bot.main_base_ramp.top_center), bot_object=self.bot)
-        if barracks.amount == 0:
+        barracks = cy_closer_than(self.bot.structures([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING]).ready, 5, self.bot.main_base_ramp.top_center)
+        if len(barracks) == 0:
             return
-        ramp_barracks = barracks.first
+        ramp_barracks = barracks[0]
 
         desired_position = self.building_destinations.get(ramp_barracks.tag)
         if desired_position is None:
@@ -212,7 +212,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         if distance > 1:
             if structure.is_flying:
                 # structure.move(destination)
-                await self.move(structure, destination)
+                await self._retreat(structure, health_threshold=1.1)
+                LogHelper.add_log(f"moving {structure.type_id} to {destination}")
             else:
                 structure(AbilityId.LIFT)
                 LogHelper.add_log(f"lifting {structure.type_id} to move to {destination}")
@@ -227,7 +228,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     new_destination = self.building_destinations[structure.tag] = await self.bot.find_placement(type_id, destination, placement_step=1, addon_place=True)
                     self.building_in_position_times[structure.tag] = None
                     if new_destination:
-                        await self.move(structure, new_destination)
+                        await self._retreat(structure, health_threshold=self.retreat_health)
                 else:
                     BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT, structure.position, structure.radius, self.bot.time, 0.5)
                     structure(AbilityId.LAND, destination)

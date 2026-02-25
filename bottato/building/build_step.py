@@ -12,6 +12,7 @@ from bottato.economy.workers import Workers
 from bottato.enums import BuildResponseCode, BuildType
 from bottato.map.map import Map
 from bottato.mixins import GeometryMixin
+from bottato.tactics import Tactics
 
 
 class BuildStep(GeometryMixin):
@@ -24,11 +25,12 @@ class BuildStep(GeometryMixin):
     interrupted_count: int = 0
 
     def __init__(self, unit_type: UnitTypeId | UpgradeId, bot: BotAI, workers: Workers,
-                 production: Production, map: Map) -> None:
+                 production: Production, tactics: Tactics) -> None:
         self.bot = bot
         self.workers = workers
         self.production = production
-        self.map = map
+        self.tactics = tactics
+        self.map = self.tactics.map
 
         self.friendly_name = unit_type.name
         self.builder_type: set[UnitTypeId] = self.production.get_builder_type(unit_type)

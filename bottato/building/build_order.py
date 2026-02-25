@@ -304,8 +304,8 @@ class BuildOrder():
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.static_queue)
             self.add_to_build_queue([UnitTypeId.BANSHEE], queue=self.static_queue, remove_duplicates=False)
         elif change == BuildOrderChange.PROXY_BARRACKS:
-            if BuildType.ZERGLING_RUSH in detected_enemy_builds:
-                # don't try this vs zerglings
+            if self.intel.enemy_race == Race.Zerg:
+                # don't try this vs zerg, too likely to get swarmed by lings
                 return
             self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue, position=0)
             if self.bot.structures(UnitTypeId.BARRACKS).amount == 0:
@@ -404,13 +404,13 @@ class BuildOrder():
 
     def create_build_step(self, unit_type: UnitTypeId | UpgradeId, existing_structure: Unit | None = None) -> BuildStep:
         if isinstance(unit_type, UpgradeId):
-            return UpgradeBuildStep(unit_type, self.bot, self.workers, self.production, self.map)
+            return UpgradeBuildStep(unit_type, self.bot, self.workers, self.production, self.tactics)
         if UnitTypeId.SCV in self.production.get_builder_type(unit_type):
-            build_step = SCVBuildStep(unit_type, self.bot, self.workers, self.production, self.map)
+            build_step = SCVBuildStep(unit_type, self.bot, self.workers, self.production, self.tactics)
             if existing_structure:
                 build_step.unit_being_built = existing_structure
             return build_step
-        return StructureBuildStep(unit_type, self.bot, self.workers, self.production, self.map)
+        return StructureBuildStep(unit_type, self.bot, self.workers, self.production, self.tactics)
     
     def queue_prereqs(self, unit_types: List[UnitTypeId | UpgradeId]) -> None:
         for unit_type in unit_types:

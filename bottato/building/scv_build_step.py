@@ -24,6 +24,7 @@ from bottato.enums import (
     BuildResponseCode,
     BuildType,
     ExpansionSelection,
+    Tactic,
     UnitMicroType,
     WorkerJobType,
 )
@@ -33,6 +34,7 @@ from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import timed, timed_async
+from bottato.tactics import Tactics
 from bottato.tech_tree import TECH_TREE
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
@@ -46,8 +48,8 @@ class SCVBuildStep(BuildStep):
     worker_in_position_time: float | None = None
     no_position_count: int = 0
 
-    def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers, production: Production, map: Map) -> None:
-        super().__init__(unit_type_id, bot, workers, production, map)
+    def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers, production: Production, tactics: Tactics) -> None:
+        super().__init__(unit_type_id, bot, workers, production, tactics)
         if unit_type_id == UnitTypeId.REFINERYRICH:
             unit_type_id = UnitTypeId.REFINERY
         self.unit_type_id = unit_type_id
@@ -360,7 +362,7 @@ class SCVBuildStep(BuildStep):
                 new_build_position = special_locations.find_placement(unit_type_id)
             if new_build_position is None:
                 new_build_position = await self.map.get_non_visible_position_in_main()
-        elif unit_type_id == UnitTypeId.BARRACKS and BuildType.EARLY_EXPANSION in detected_enemy_builds and self.bot.structures(UnitTypeId.BARRACKS).amount < 2:
+        elif unit_type_id == UnitTypeId.BARRACKS and self.tactics.is_active(Tactic.PROXY_BARRACKS) and self.bot.structures(UnitTypeId.BARRACKS).amount < 2:
             proxy_base_index = 2
             if detected_enemy_builds[BuildType.EARLY_EXPANSION] < 50:
                 # very fast expansion, they might go for a fast third and discover the proxy so use 4th instead

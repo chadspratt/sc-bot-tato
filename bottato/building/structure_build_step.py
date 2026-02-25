@@ -18,6 +18,7 @@ from bottato.enums import BuildResponseCode, BuildType
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.mixins import timed, timed_async
+from bottato.tactics import Tactics
 from bottato.tech_tree import TECH_TREE
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
@@ -29,8 +30,8 @@ class StructureBuildStep(BuildStep):
     position: Point2 | None = None
     facility: Facility | None = None
 
-    def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers, production: Production, map: Map):
-        super().__init__(unit_type_id, bot, workers, production, map)
+    def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers, production: Production, tactics: Tactics):
+        super().__init__(unit_type_id, bot, workers, production, tactics)
         self.unit_type_id = unit_type_id
 
     def __repr__(self) -> str:

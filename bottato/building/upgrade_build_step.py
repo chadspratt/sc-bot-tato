@@ -16,6 +16,7 @@ from bottato.economy.workers import Workers
 from bottato.enums import BuildResponseCode, BuildType
 from bottato.map.map import Map
 from bottato.mixins import timed
+from bottato.tactics import Tactics
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.upgrades import RESEARCH_ABILITIES
 
@@ -23,8 +24,8 @@ from bottato.upgrades import RESEARCH_ABILITIES
 class UpgradeBuildStep(BuildStep):
     upgrade_id: UpgradeId
 
-    def __init__(self, upgrade_id: UpgradeId, bot: BotAI, workers: Workers, production: Production, map: Map):
-        super().__init__(upgrade_id, bot, workers, production, map)
+    def __init__(self, upgrade_id: UpgradeId, bot: BotAI, workers: Workers, production: Production, tactics: Tactics):
+        super().__init__(upgrade_id, bot, workers, production, tactics)
         self.upgrade_id = upgrade_id
 
     def __repr__(self) -> str:

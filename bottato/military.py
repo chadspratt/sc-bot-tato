@@ -186,7 +186,7 @@ class Military(GeometryMixin, DebugMixin):
     @timed_async
     async def get_enemies_in_base(self) -> Units:
         enemies_in_base = Units([], self.bot)
-        base_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET)
+        base_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET and unit != self.tactics.proxy_barracks)
         if self.bot.enemy_race in (Race.Zerg, Race.Random):
             nydus_canals = self.bot.enemy_structures.of_type(UnitTypeId.NYDUSCANAL)
             if nydus_canals and self.closest_distance_squared(nydus_canals.first, base_structures) < 625 and self.main_army.units:

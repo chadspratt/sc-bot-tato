@@ -85,25 +85,25 @@ class GeometryMixin:
             if excess_x > excess_y:
                 # turn away from the corner
                 if origin.y < position.y:
-                    clamped_y = origin.y - excess_x
+                    clamped_y = origin.y - 2
                 else:
-                    clamped_y = origin.y + excess_x
+                    clamped_y = origin.y + 2
             else:
                 if origin.x < position.x:
-                    clamped_x = origin.x - excess_y
+                    clamped_x = origin.x - 2
                 else:
-                    clamped_x = origin.x + excess_y
+                    clamped_x = origin.x + 2
         elif excess_x > 0:
             if origin.y < position.y:
-                clamped_y += excess_x
+                clamped_y += 2
             else:
-                clamped_y -= excess_x
+                clamped_y -= 2
             # add excess to other axis to move along the edge
         elif excess_y > 0:
             if origin.x < position.x:
-                clamped_x += excess_y
+                clamped_x += 2
             else:
-                clamped_x -= excess_y
+                clamped_x -= 2
 
         clamped_position = Point2((
             clamped_x,

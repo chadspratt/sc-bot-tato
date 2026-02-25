@@ -141,7 +141,7 @@ class Commander(GeometryMixin):
         if self.intel.main_army_staging_location and cy_distance_to_squared(self.intel.main_army_staging_location, self.bot.start_location) < 225:
             # if staging location is too close to start location, don't check for stuck units because they're probably already near start
             return
-        if iteration % 3 == 0 and self.bot.workers and self.bot.units.of_type(UnitTypeId.MEDIVAC):
+        if iteration % 3 == 0:
             self.stuck_units.clear()
             # skip if ramp depots are raised
             if self.member_is_closer_than(self.bot.main_base_ramp.top_center, self.bot.structures(UnitTypeId.SUPPLYDEPOT), 5):

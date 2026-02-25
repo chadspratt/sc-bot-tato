@@ -611,6 +611,7 @@ class UnitTypes(GeometryMixin):
         if unit.type_id == UnitTypeId.HELLION:
             return {UnitTypeId.ZERGLING, UnitTypeId.BANELING, UnitTypeId.ZEALOT, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
         return UnitTypes.HIGH_PRIORITY_TARGETS
+
     type_by_attribute_cache: Dict[Tuple[UnitAttribute, Race], Set[UnitTypeId]] = {}
     @staticmethod
     def get_types_with_attribute(attribute: UnitAttribute, race: Race) -> Set[UnitTypeId]:
@@ -622,7 +623,6 @@ class UnitTypes(GeometryMixin):
             if attribute in UnitTypes.UNIT_INFO[race][type_id].get("attributes", ()):
                 types.add(type_id)
         UnitTypes.type_by_attribute_cache[key] = types
-        UnitTypes.type_by_attribute_cache[attribute] = types
         return types
 
     @staticmethod
