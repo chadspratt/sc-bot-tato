@@ -46,7 +46,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 if nearby_enemies and len(nearby_enemies.filter(lambda u: u.is_flying or u.type_id == UnitTypeId.COLOSSUS)) == 0:
                     # land on enemy sieged tanks
                     nearest_enemy = cy_closest_to(unit.position, nearby_enemies)
-                    nearest_distance_sq = unit.distance_to_squared(nearest_enemy)
+                    nearest_distance_sq = self.distance_squared(unit, nearest_enemy)
                     if nearest_enemy.type_id == UnitTypeId.SIEGETANKSIEGED:
                         if nearest_distance_sq > 3.24:
                             unit.move(self.map.get_pathable_position(nearest_enemy.position, unit))
