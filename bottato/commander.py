@@ -231,17 +231,19 @@ class Commander(GeometryMixin):
 
     def remove_destroyed_unit(self, unit_tag: int):
         destroyed_unit = UnitReferenceHelper.units_by_tag.get(unit_tag)
-        if destroyed_unit and destroyed_unit.is_mine and not destroyed_unit.is_structure and destroyed_unit.type_id != UnitTypeId.MULE:
-            rounded_position = destroyed_unit.position.rounded
-            if rounded_position not in self.new_damage_by_position:
-                self.new_damage_by_position[rounded_position] = destroyed_unit.health
-            else:
-                self.new_damage_by_position[rounded_position] += destroyed_unit.health
+        if destroyed_unit and destroyed_unit.is_mine:
+            if destroyed_unit.type_id != UnitTypeId.MULE:
+                rounded_position = destroyed_unit.position.rounded
+                if rounded_position not in self.new_damage_by_position:
+                    self.new_damage_by_position[rounded_position] = destroyed_unit.health
+                else:
+                    self.new_damage_by_position[rounded_position] += destroyed_unit.health
+            if destroyed_unit.type_id == UnitTypeId.BUNKER and destroyed_unit.build_progress == 1.0:
+                LogHelper.add_log('Priority queueing bunker to replace destroyed bunker')
+                self.build_order.add_to_build_queue([UnitTypeId.BUNKER], queue=self.build_order.priority_queue)
         self.enemy.record_death(unit_tag)
         self.military.record_death(unit_tag)
         self.my_workers.record_death(unit_tag)
-        if destroyed_unit and destroyed_unit.type_id == UnitTypeId.BUNKER and destroyed_unit.build_progress == 1.0:
-            self.build_order.add_to_build_queue([UnitTypeId.BUNKER], queue=self.build_order.priority_queue)
 
     def add_upgrade(self, upgrade: UpgradeId):
         logger.debug(f"upgrade completed {upgrade}")

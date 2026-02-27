@@ -613,7 +613,7 @@ class SCVBuildStep(BuildStep):
             self.position = None
         self.geysir = None
         self.worker_in_position_time = None
-        self.unit_being_built = None
+        # self.unit_being_built = None
         if self.unit_in_charge:
             self.workers.set_as_idle(self.unit_in_charge)
         self.unit_in_charge = None

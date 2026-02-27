@@ -172,6 +172,7 @@ class BuildOrder():
                 continue
             if isinstance(step, SCVBuildStep) and step.is_unit_type(UnitTypeId.BUNKER) and step.no_position_count > 10:
                 # give up on blocked bunker
+                LogHelper.add_log(f"abandoning bunker build step due to blocked placement")                
                 continue
             if step.is_unit() and self.get_queued_count(step.get_unit_type_id()) > 0:
                 # discard interrupted units, they will be requested again if needed
@@ -186,7 +187,7 @@ class BuildOrder():
                 for step in self.all_steps:
                     if not isinstance(step, SCVBuildStep):
                         continue
-                    if step.unit_being_built and step.unit_being_built.tag == structure.tag:
+                    if step.is_same_structure(structure):
                         break
                 else:
                     # the build step got lost, re-add it
@@ -866,6 +867,7 @@ class BuildOrder():
         if position_is_valid:
             new_steps = self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue)
             if new_steps:
+                LogHelper.add_log(f"Queuing bunker at {placement_position} to protect main army")
                 for bunker_step in new_steps:
                     if isinstance(bunker_step, SCVBuildStep) and bunker_step.unit_type_id == UnitTypeId.BUNKER:
                         bunker_step.position = placement_position
