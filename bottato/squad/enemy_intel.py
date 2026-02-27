@@ -62,13 +62,13 @@ class EnemyIntel(GeometryMixin):
         """Catalog all visible enemy units and buildings"""
         # Count buildings by type
         for unit in self.bot.enemy_structures + self.bot.enemy_units:
-            self.add_type(unit, self.bot.time)
+            self.add_type(unit)
         
         # Detect race if not already confirmed
         if self.enemy_race == Race.Random and self.bot.enemy_structures:
             self.enemy_race = self.bot.enemy_structures[0].race
 
-    def add_type(self, unit: Unit, time: float):
+    def add_type(self, unit: Unit):
         if unit.type_id not in self.type_positions_seen:
             self.type_positions_seen[unit.type_id] = [unit.position]
             LogHelper.write_log_to_db('Enemy type seen', unit.type_id.name)
@@ -84,10 +84,16 @@ class EnemyIntel(GeometryMixin):
                 is_main_base_townhall = unit.position.distance_to(self.bot.enemy_start_locations[0]) < 10
             
             if not is_main_base_townhall:
-                start_time: float = time - unit.build_progress * unit._type_data.cost.time / 22.4 # type: ignore
+                start_time: float = self.get_structure_start_time(unit)
                 self.first_building_time[unit.type_id] = start_time
                 LogHelper.add_log(f"EnemyIntel: first {unit.type_id} started at time {start_time:.1f}")
                 LogHelper.write_log_to_db('Enemy type started', unit.type_id.name, start_time)
+
+    def get_structure_start_time(self, structure: Unit) -> float:
+        return self.bot.time - structure.build_progress * structure._type_data.cost.time / 22.4 # type: ignore
+
+    def get_structure_end_time(self, structure: Unit) -> float:
+        return self.bot.time + (1 - structure.build_progress) * structure._type_data.cost.time / 22.4 # type: ignore
 
     def update_location_visibility(self, scout_units: List[Unit]):
         enemy_townhalls = self.bot.enemy_structures.of_type(race_townhalls[self.bot.enemy_race])

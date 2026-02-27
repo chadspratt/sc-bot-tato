@@ -428,6 +428,7 @@ class BaseUnitMicro(GeometryMixin):
 
     @timed
     def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0, require_in_range_target: bool = False) -> Unit | None:
+        nearby_enemies = nearby_enemies.filter(lambda u: UnitTypes.can_attack_target(unit, u))
         if not nearby_enemies:
             return None
         closest_target = cy_closest_to(unit.position, nearby_enemies)

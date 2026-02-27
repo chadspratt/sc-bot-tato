@@ -105,12 +105,13 @@ class BuildOrder():
             # abort static build order if we need a specialized response
             self.static_queue = self.static_queue[:10]
 
-        self.build_queue.clear()
 
         self.only_build_units = False
 
         self.queue_townhall_work(detected_enemy_builds)
         self.queue_supply()
+
+
         self.queue_command_center(self.intel.army_ratio, detected_enemy_builds)
         self.queue_upgrade(self.changes_enacted)
         self.queue_marines(detected_enemy_builds, self.intel.army_ratio)
@@ -124,6 +125,7 @@ class BuildOrder():
             # prioritize building at least one of each requested unit type
             military_queue.sort(key=lambda step: isinstance(step, UnitTypeId) and self.bot.units(step).amount > 0)
             self.queue_prereqs(military_queue)
+            self.build_queue.clear()
             self.add_to_build_queue(priority_military_queue, queue=self.build_queue)
             self.add_to_build_queue(military_queue, queue=self.build_queue)
 
@@ -172,7 +174,8 @@ class BuildOrder():
                 # give up on blocked bunker
                 continue
             if step.is_unit() and self.get_queued_count(step.get_unit_type_id()) > 0:
-                self.build_queue.insert(0, step)
+                # discard interrupted units, they will be requested again if needed
+                continue
             elif isinstance(step, SCVBuildStep) and step.unit_being_built:
                 # put buildings that are already started at the front of the queue since they're already paid for
                 self.interrupted_queue.insert(0, step)
@@ -277,7 +280,9 @@ class BuildOrder():
                     # add a second bunker for low ground
                     self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
         elif change == BuildOrderChange.ZERGLING_RUSH:
+            # move cc later but keep before starport
             self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.static_queue)
+            self.substitute_steps_in_queue(UnitTypeId.STARPORT, [UnitTypeId.COMMANDCENTER, UnitTypeId.STARPORT], self.static_queue)
             # prioritize widowmine, hellion, marine, marine
             self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue, position=0)
             self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue, position=0)
@@ -373,12 +378,13 @@ class BuildOrder():
             prereqs = self.production.build_order_with_prereqs(unit_type)
             for prereq in prereqs:
                 if isinstance(prereq, UpgradeId) or \
+                        prereq == unit_type or \
+                        prereq in all_prereqs or \
                         self.get_queued_count(prereq) > 0 or \
                         self.get_in_progress_count(prereq) > 0 or \
                         self.bot.structures(prereq).amount > 0:
                     continue
-                if prereq != unit_type and prereq not in all_prereqs:
-                    all_prereqs.append(prereq)
+                all_prereqs.append(prereq)
         unit_types = all_prereqs + unit_types
         
         if remove_duplicates:
@@ -482,25 +488,81 @@ class BuildOrder():
 
     @timed
     def queue_supply(self) -> None:
-        in_static_queue = self.get_queued_count(UnitTypeId.SUPPLYDEPOT, queue=self.static_queue) > 0
-        if 0 < self.bot.supply_cap < 200 and not in_static_queue:
-            in_progress_count = self.get_in_progress_count(UnitTypeId.SUPPLYDEPOT)
-            in_progress_ccs = self.bot.townhalls.filter(lambda cc: not cc.is_ready)
-            for cc in in_progress_ccs:
-                # a complete cc is worth 2 depots so multiply progress by 2
-                in_progress_count += (cc.build_progress + 0.15) * 2
-            in_progress_count = math.floor(in_progress_count)
+        if self.bot.supply_cap >= 200:
+            return
+        depot_build_time: int = 21
+        # higher additional time means queuing will be more aggressive
+        queue_if_no_supply_before_time: float = self.bot.time + depot_build_time + 20
+        # find the point in the build queue where it will get supply blocked
+        # estimate when that will happen based on income simulating the build order being executed.
+        # simplified by assuming things can be built if they can be afforded, without checking production capacity or prerequisites
+        available_resources = Cost(self.bot.minerals, self.bot.vespene)
+        available_supply = self.bot.supply_left
+        # additional_supply: List[Tuple[float, int]] = []  # (time, supply added)
+        simulated_time = self.bot.time
+        minerals_per_second = self.bot.state.score.collection_rate_minerals / 60
+        vespene_per_second = self.bot.state.score.collection_rate_vespene / 60
+        all_started = self.started + [s for s in self.interrupted_queue if isinstance(s, SCVBuildStep) and s.unit_being_built]
+        all_unstarted = [s for s in self.interrupted_queue if not (isinstance(s, SCVBuildStep) and s.unit_being_built)] + self.priority_queue + self.static_queue + self.build_queue + self.unit_queue
+        # for step in self.all_steps:
+        for step in all_started:
+            # already paid for, just track projected time for new supply to be available
+            if isinstance(step, SCVBuildStep) and step.get_unit_type_id() in {UnitTypeId.SUPPLYDEPOT, UnitTypeId.COMMANDCENTER}:
+                if step.get_unit_type_id() == UnitTypeId.SUPPLYDEPOT:
+                    available_supply += 8
+                elif step.unit_being_built and step.unit_being_built.build_progress > 0.7:
+                    available_supply += 15
+        for step in all_unstarted:
+            available_resources -= step.cost
+            # can't afford this step, calculate when we will be able to
+            time_until_affordable = 0
+            if available_resources.minerals < 0:
+                if minerals_per_second <= 0:
+                    break
+                time_until_affordable = -available_resources.minerals / minerals_per_second
+            if available_resources.vespene < 0:
+                if vespene_per_second <= 0:
+                    break
+                time_until_affordable = max(time_until_affordable, -available_resources.vespene / vespene_per_second)
+            if time_until_affordable > 0:
+                simulated_time += time_until_affordable
+                available_resources.minerals += math.ceil(minerals_per_second * time_until_affordable)
+                available_resources.vespene += math.ceil(vespene_per_second * time_until_affordable)
+                if simulated_time > queue_if_no_supply_before_time:
+                    # plenty of time to build a depot before supply runs out, so don't queue one yet
+                    return
+
+            if step.get_unit_type_id() in {UnitTypeId.SUPPLYDEPOT, UnitTypeId.COMMANDCENTER}:
+                supply_amount = 8 if step.get_unit_type_id() == UnitTypeId.SUPPLYDEPOT else 15
+                available_supply += supply_amount
+                # additional_supply.append((simulated_time + depot_build_time, supply_amount))
+            else:
+                available_supply -= step.supply_cost
+                if available_supply <= 0:
+                    # will run out of supply here, check if we need to build a depot immediately
+                    # if simulated_time <= queue_if_no_supply_before_time:
+                    self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT], queue=self.priority_queue, position=0)
+                    return
+
+        # in_static_queue = self.get_queued_count(UnitTypeId.SUPPLYDEPOT, queue=self.static_queue) > 0
+        # if 0 < self.bot.supply_cap < 200 and not in_static_queue:
+        #     in_progress_count = self.get_in_progress_count(UnitTypeId.SUPPLYDEPOT)
+        #     in_progress_ccs = self.bot.townhalls.filter(lambda cc: not cc.is_ready)
+        #     for cc in in_progress_ccs:
+        #         # a complete cc is worth 2 depots so multiply progress by 2
+        #         in_progress_count += (cc.build_progress + 0.15) * 2
+        #     in_progress_count = math.floor(in_progress_count)
             
-            supply_percent_remaining = self.bot.supply_left / self.bot.supply_cap
-            if self.bot.supply_left < 10 or supply_percent_remaining <= 0.2:
-                needed_count = 1
-                # queue another if supply is very low
-                if (self.bot.supply_left < 2 or supply_percent_remaining <= 0.1):
-                    needed_count += 1
-                if (self.bot.supply_left == 0):
-                    needed_count += 1
-                if in_progress_count < needed_count:
-                    self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT] * (needed_count - in_progress_count), queue=self.priority_queue)
+        #     supply_percent_remaining = self.bot.supply_left / self.bot.supply_cap
+        #     if self.bot.supply_left < 10 or supply_percent_remaining <= 0.2:
+        #         needed_count = 1
+        #         # queue another if supply is very low
+        #         if (self.bot.supply_left < 2 or supply_percent_remaining <= 0.1):
+        #             needed_count += 1
+        #         if (self.bot.supply_left == 0):
+        #             needed_count += 1
+        #         if in_progress_count < needed_count:
+        #             self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT] * (needed_count - in_progress_count), queue=self.priority_queue)
 
     def get_in_progress_count(self, unit_type: UnitTypeId | UpgradeId) -> int:
         count = 0
@@ -652,7 +714,7 @@ class BuildOrder():
             if idle_capacity > 0 and priority_queue_count == 0:
                 if not self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue):
                     self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue)
-        elif self.bot.minerals > 500 and self.bot.supply_left > 15:
+        elif self.bot.minerals > 500 and self.bot.supply_used < 185:
             idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
             if idle_capacity > 0:
                 self.add_to_build_queue([UnitTypeId.MARINE] * idle_capacity, queue=self.static_queue)

@@ -36,10 +36,10 @@ class BuildStep(GeometryMixin):
         self.builder_type: set[UnitTypeId] = self.production.get_builder_type(unit_type)
         if unit_type == UnitTypeId.REFINERYRICH:
             self.cost = bot.calculate_cost(UnitTypeId.REFINERY)
-            self.supply_cost = bot.calculate_supply_cost(UnitTypeId.REFINERY)
+            self.supply_cost = 0
         else:
             self.cost = bot.calculate_cost(unit_type)
-            if isinstance(unit_type, UpgradeId):
+            if isinstance(unit_type, UpgradeId) or self.builder_type == UnitTypeId.SCV:
                 self.supply_cost = 0
             else:
                 self.supply_cost = bot.calculate_supply_cost(unit_type)

@@ -1,6 +1,6 @@
 import math
 from loguru import logger
-from typing import Dict
+from typing import Dict, Set
 
 from cython_extensions.geometry import cy_distance_to, cy_distance_to_squared
 from cython_extensions.type_checking.wrappers import cy_towards
@@ -47,6 +47,7 @@ class SCVBuildStep(BuildStep):
     geysir: Unit | None = None
     worker_in_position_time: float | None = None
     no_position_count: int = 0
+    claimed_geysers: Dict[int, float] = {}
 
     def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers, production: Production, tactics: Tactics) -> None:
         super().__init__(unit_type_id, bot, workers, production, tactics)
@@ -481,19 +482,21 @@ class SCVBuildStep(BuildStep):
             if self.bot.townhalls.ready:
                 vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
                     distance=10, other_units=self.bot.townhalls.ready
-                )
+                ).filter(lambda g: g.tag not in self.claimed_geysers or self.bot.time - self.claimed_geysers[g.tag] > 10)
             if len(self.bot.gas_buildings) == len(vespene_geysirs):
                 # no empty near ready townhalls, include in-progress townhalls
                 vespene_geysirs = self.bot.vespene_geyser.in_distance_of_group(
                     distance=10, other_units=self.bot.townhalls
-                )
+                ).filter(lambda g: g.tag not in self.claimed_geysers)
             if len(self.bot.gas_buildings) == len(vespene_geysirs):
                 return None
             if self.bot.gas_buildings and vespene_geysirs:
                 vespene_geysirs = vespene_geysirs.filter(
                     lambda geysir: self.bot.gas_buildings.closest_distance_to(geysir) > 1)
             if vespene_geysirs:
-                return cy_closest_to(self.bot.start_location, vespene_geysirs)
+                closest = cy_closest_to(self.bot.start_location, vespene_geysirs)
+                self.claimed_geysers[closest.tag] = self.bot.time
+                return closest
         return None
 
     unit_types_to_finish_despite_enemies = {
@@ -536,7 +539,7 @@ class SCVBuildStep(BuildStep):
                     LogHelper.add_log(f"{self} interrupted due to retreating worker {self.unit_in_charge}")
 
             if not interrupted and not self.unit_in_charge.is_constructing_scv:
-                if self.unit_being_built:
+                if self.unit_being_built and self.unit_being_built in self.bot.structures_without_construction_SCVs:
                     self.unit_in_charge.smart(self.unit_being_built)
                 else:
                     if self.unit_type_id == UnitTypeId.REFINERY and self.geysir:
@@ -558,12 +561,15 @@ class SCVBuildStep(BuildStep):
             if not interrupted:
                 if self.unit_being_built is None:
                     if self.unit_in_charge.is_constructing_scv:
-                        order_position = self.unit_in_charge.orders[0].target
-                        if isinstance(order_position, Point2):
-                            if order_position == self.position:
+                        order_target: int | Point2 | None = self.unit_in_charge.orders[0].target
+                        if isinstance(order_target, int):
+                            # refinery and in-progress targets unit, convert tag to position
+                            order_target = self.bot.all_units.by_tag(order_target).position
+                        if isinstance(order_target, Point2):
+                            if order_target == self.position:
                                 in_progress_structures = self.bot.structures.filter(lambda s: not s.is_ready)
                                 if in_progress_structures:
-                                    construction = cy_closer_than(in_progress_structures, 1, order_position)
+                                    construction = cy_closer_than(in_progress_structures, 1, order_target)
                                     if construction and construction[0].type_id == self.unit_type_id:
                                         self.unit_being_built = construction[0]
                                         self.position = construction[0].position
@@ -603,6 +609,7 @@ class SCVBuildStep(BuildStep):
             self.position = None
         self.geysir = None
         self.worker_in_position_time = None
+        self.unit_being_built = None
         if self.unit_in_charge:
             self.workers.set_as_idle(self.unit_in_charge)
         self.unit_in_charge = None
