@@ -401,7 +401,9 @@ class Workers(GeometryMixin):
                 if assignment.job_type == WorkerJobType.SCOUT:
                     continue
                 # ignore enemies outside wall if this unit is inside. will only filter if wall is raised
-                if not self.is_outside_wall(worker):
+                # workers outside wall can attack enemies outside wall
+                worker_is_outside_wall = self.is_outside_wall(worker)
+                if not worker_is_outside_wall:
                     targetable_enemies = self.filter_enemies_outside_wall(targetable_enemies)
                 position = assignment.target if assignment.target and not worker_rush_detected else worker
                 nearby_enemies = cy_closer_than(targetable_enemies, 5, position.position)
@@ -427,6 +429,9 @@ class Workers(GeometryMixin):
 
                     if len(nearby_enemies) >= len(available_workers) and not worker_rush_detected:
                         continue
+                    if worker_is_outside_wall:
+                        # don't send extra workers to deal with enemies outside wall
+                        nearby_enemies = self.filter_enemies_outside_wall(Units(nearby_enemies, bot_object=self.bot))
                     for nearby_enemy in nearby_enemies:
                         num_defenders_per_enemy = 2 if nearby_enemy.type_id in UnitTypes.WORKER_TYPES else 3
                         needed_defender_count = num_defenders_per_enemy - assigned_defender_counts[nearby_enemy.tag]
