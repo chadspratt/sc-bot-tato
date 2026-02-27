@@ -142,7 +142,9 @@ class BuildOrder():
             self.queue_refinery()
 
         remaining_resources: Cost = await self.execute_pending_builds(self.only_build_units, detected_enemy_builds)
-        
+        if remaining_resources.minerals > 100 and self.only_build_units:
+            remaining_resources: Cost = await self.execute_pending_builds(False, detected_enemy_builds, remaining_resources=remaining_resources)
+
         self.bot.client.debug_text_screen(self.get_build_queue_string(), (0.01, 0.1))
         return remaining_resources
     
@@ -958,11 +960,11 @@ class BuildOrder():
                     self.intel.add_detected_build(BuildType.RUSH)
                 break
 
-    async def execute_pending_builds(self, only_build_units: bool, detected_enemy_builds: Dict[BuildType, float]) -> Cost:
+    async def execute_pending_builds(self, only_build_units: bool, detected_enemy_builds: Dict[BuildType, float], remaining_resources: Cost | None = None) -> Cost:
         allow_skip = self.bot.time > self.time_to_deviate_from_build_order
-        remaining_resources: Cost = await self.build_from_queue(self.interrupted_queue, only_build_units, detected_enemy_builds, allow_skip)
+        remaining_resources = await self.build_from_queue(self.interrupted_queue, only_build_units, detected_enemy_builds, allow_skip, remaining_resources)
         if remaining_resources.minerals > 0:
-            remaining_resources: Cost = await self.build_from_queue(self.priority_queue, only_build_units, detected_enemy_builds, allow_skip, remaining_resources)
+            remaining_resources = await self.build_from_queue(self.priority_queue, only_build_units, detected_enemy_builds, allow_skip, remaining_resources)
         if remaining_resources.minerals > 0:
             remaining_resources = await self.build_from_queue(self.static_queue, only_build_units, detected_enemy_builds, allow_skip, remaining_resources)
         if remaining_resources.minerals > 0:
