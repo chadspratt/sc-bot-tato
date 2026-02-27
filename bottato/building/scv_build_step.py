@@ -564,7 +564,10 @@ class SCVBuildStep(BuildStep):
                         order_target: int | Point2 | None = self.unit_in_charge.orders[0].target
                         if isinstance(order_target, int):
                             # refinery and in-progress targets unit, convert tag to position
-                            order_target = self.bot.all_units.by_tag(order_target).position
+                            try:
+                                order_target = self.bot.all_units.by_tag(order_target).position
+                            except KeyError:
+                                order_target = None
                         if isinstance(order_target, Point2):
                             if order_target == self.position:
                                 in_progress_structures = self.bot.structures.filter(lambda s: not s.is_ready)
