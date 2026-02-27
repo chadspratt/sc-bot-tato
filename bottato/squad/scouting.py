@@ -55,7 +55,8 @@ class Scouting(Squad, DebugMixin):
         # Update scout unit references
         self.initial_scout.update_scout(self.workers)
         
-        friendly_scout_type = ScoutType.ANY if BuildType.PROXY in self.intel.enemy_builds_detected or self.bot.time > 120 else ScoutType.NONE
+        do_friendly_scout = BuildType.PROXY in self.intel.enemy_builds_detected or self.bot.time > 120 and BuildType.RUSH not in self.intel.enemy_builds_detected
+        friendly_scout_type = ScoutType.ANY if do_friendly_scout else ScoutType.NONE
         self.friendly_territory.update_scout(self.military, self.workers, friendly_scout_type)
         self.enemy_territory.update_scout(self.military, self.workers, ScoutType.VIKING)
 

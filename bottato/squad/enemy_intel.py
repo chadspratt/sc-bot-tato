@@ -180,13 +180,13 @@ class EnemyIntel(GeometryMixin):
                 start_time = self.first_building_time.get(th_type, 9999)
                 if start_time <= 70:
                     await LogHelper.add_chat("early expansion detected")
-                    self.add_detected_build(BuildType.EARLY_EXPANSION)
+                    self.add_detected_build(BuildType.EARLY_EXPANSION, start_time)
                     break
 
         if self.enemy_race == Race.Zerg:
             early_pool = self.first_building_time.get(UnitTypeId.SPAWNINGPOOL, 9999) < 40
             no_gas = self.initial_scout_completed and self.number_seen(UnitTypeId.EXTRACTOR) == 0
-            no_expansion = BuildType.EARLY_EXPANSION not in self.enemy_builds_detected and self.initial_scout_completed and self.number_seen(UnitTypeId.HATCHERY) == 1
+            no_expansion = BuildType.EARLY_EXPANSION not in self.enemy_builds_detected and self.initial_scout_completed and self.bot.time >= 85 and self.number_seen(UnitTypeId.HATCHERY) == 1
             zergling_rush = self.enemy.get_total_count_of_type_seen(UnitTypeId.ZERGLING) >= 8 and self.bot.time < 180
             spire_detected = self.number_seen(UnitTypeId.SPIRE) > 0
             if early_pool:
@@ -215,6 +215,7 @@ class EnemyIntel(GeometryMixin):
             if battlecruiser:
                 await LogHelper.add_chat("battlecruiser rush detected")
                 self.add_detected_build(BuildType.BATTLECRUISER_RUSH)
+                self.add_detected_build(BuildType.PROXY)
             if multiple_barracks:
                 await LogHelper.add_chat("multiple early barracks detected")
                 self.add_detected_build(BuildType.RUSH)
@@ -226,7 +227,7 @@ class EnemyIntel(GeometryMixin):
         else:
             # Protoss
             lots_of_gateways = not self.initial_scout_completed and self.number_seen(UnitTypeId.GATEWAY) > 2
-            no_expansion = BuildType.EARLY_EXPANSION not in self.enemy_builds_detected and self.initial_scout_completed and self.number_seen(UnitTypeId.NEXUS) == 1
+            no_expansion = BuildType.EARLY_EXPANSION not in self.enemy_builds_detected and self.initial_scout_completed and self.bot.time > 85 and self.number_seen(UnitTypeId.NEXUS) == 1
             stargate_detected = self.number_seen(UnitTypeId.STARGATE) > 0
             fleet_beacon = self.number_seen(UnitTypeId.FLEETBEACON) > 0
             if lots_of_gateways:
@@ -249,9 +250,9 @@ class EnemyIntel(GeometryMixin):
     def number_seen(self, unit_type: UnitTypeId) -> int:
         return len(self.type_positions_seen.get(unit_type, []))
 
-    def add_detected_build(self, build_type: BuildType):
+    def add_detected_build(self, build_type: BuildType, start_time: float | None = None):
         if build_type not in self.enemy_builds_detected:
-            self.enemy_builds_detected[build_type] = self.bot.time
+            self.enemy_builds_detected[build_type] = start_time if start_time is not None else self.bot.time
             LogHelper.write_log_to_db('Enemy build detected', build_type.name)
 
     def proxy_detected(self) -> bool:

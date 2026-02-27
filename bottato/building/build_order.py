@@ -1054,7 +1054,7 @@ class BuildOrder():
                 build_response = BuildResponseCode.NO_RESOURCES
                 if isinstance(build_step, SCVBuildStep):
                     if (build_step.is_unit_type(UnitTypeId.BARRACKS)
-                            and BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected
+                            and self.tactics.is_active(Tactic.PROXY_BARRACKS)
                             and self.bot.time < 200
                         ) or (percent_affordable >= 0.75
                             and self.bot.tech_requirement_progress(build_step.unit_type_id) == 1.0):
