@@ -30,7 +30,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             # scout mode, don't land
             return UnitMicroType.NONE
         nearby_range = 25 if unit.is_flying else 27
-        nearby_enemies = Units(cy_closer_than(self.bot.enemy_units.exclude_type(UnitTypes.WORKER_TYPES), nearby_range, unit.position) +
+        nearby_enemies = Units(cy_closer_than(self.enemy.get_army(), nearby_range, unit.position) +
                                cy_closer_than(self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES), nearby_range, unit.position),
                                bot_object=self.bot)
         if unit.is_flying:
