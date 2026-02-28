@@ -185,9 +185,20 @@ class GeometryMixin:
         return cy_distance_to(unit1.position, unit2.position)
         
     @staticmethod
-    def distance_squared(unit1: Unit | Point2, unit2: Unit | Point2) -> float:
+    def distance_squared(unit1: Unit | Point2, unit2: Unit | Point2, predicted_positions: Dict[int, Point2] | None = None) -> float:
         if isinstance(unit1, Unit) and isinstance(unit2, Unit) and unit1.age == 0 and unit2.age == 0:
             return unit1.distance_to_squared(unit2)
+        if predicted_positions is not None:
+            if isinstance(unit1, Unit) and unit1.age != 0:
+                try:
+                    unit1 = predicted_positions[unit1.tag]
+                except KeyError:
+                    pass
+            if isinstance(unit2, Unit) and unit2.age != 0:
+                try:
+                    unit2 = predicted_positions[unit2.tag]
+                except KeyError:
+                    pass
         return cy_distance_to_squared(unit1.position, unit2.position)
 
     @staticmethod

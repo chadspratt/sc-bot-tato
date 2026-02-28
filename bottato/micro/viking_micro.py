@@ -30,7 +30,8 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             # scout mode, don't land
             return UnitMicroType.NONE
         nearby_range = 25 if unit.is_flying else 27
-        nearby_enemies = Units(cy_closer_than(self.enemy.get_army(), nearby_range, unit.position) +
+        enemy_army = self.enemy.get_army().filter(lambda u: u.age == 0 or u.is_flying)
+        nearby_enemies = Units(cy_closer_than(enemy_army, nearby_range, unit.position) +
                                cy_closer_than(self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES), nearby_range, unit.position),
                                bot_object=self.bot)
         if unit.is_flying:
@@ -39,14 +40,14 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 # don't land if we have few vikings
                 return UnitMicroType.NONE
             if unit.health_percentage >= self.ability_health:
-                # don't land if there are air targets nearby
                 if not nearby_enemies:
                     nearby_enemies = Units(cy_closer_than(self.bot.enemy_structures, 10, unit.position), bot_object=self.bot).filter(
                         lambda u: self.bot.get_terrain_height(u) <= self.bot.get_terrain_height(unit))
+                # don't land if there are air targets nearby
                 if nearby_enemies and len(nearby_enemies.filter(lambda u: u.is_flying or u.type_id == UnitTypeId.COLOSSUS)) == 0:
                     # land on enemy sieged tanks
                     nearest_enemy = cy_closest_to(unit.position, nearby_enemies)
-                    nearest_distance_sq = self.distance_squared(unit, nearest_enemy)
+                    nearest_distance_sq = self.distance_squared(unit, nearest_enemy, self.enemy.predicted_positions)
                     if nearest_enemy.type_id == UnitTypeId.SIEGETANKSIEGED:
                         if nearest_distance_sq > 3.24:
                             unit.move(self.map.get_pathable_position(nearest_enemy.position, unit))
