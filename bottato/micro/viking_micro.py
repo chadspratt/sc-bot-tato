@@ -123,21 +123,18 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             closest_counts: dict[int, int] = {}
             for defender in vikings:
                 enemies = self.enemy.in_friendly_attack_range(defender, attack_range_buffer=5)
-                closest_enemy: Unit | None = None
-                closest_distance: float = float('inf')
-                for enemy in enemies:
-                    all_enemies[enemy.tag] = enemy
-                    if enemy.type_id not in damage_vs_type:
-                        damage_vs_type[enemy.type_id] = defender.calculate_damage_vs_target(enemy)[0]
-                    if enemy.tag not in defenders_in_range:
-                        defenders_in_range[enemy.tag] = []
-                    enemy_distance = defender.distance_to_squared(enemy)
-                    if enemy_distance < closest_distance:
-                        closest_distance = enemy_distance
-                        closest_enemy = enemy   
-                    defenders_in_range[enemy.tag].append(defender)
+                closest_enemy: Unit | None = cy_closest_to(defender.position, enemies) if enemies else None
                 if closest_enemy:
+                    closest_distance: float = self.distance(defender, closest_enemy)
                     closest_counts[closest_enemy.tag] = closest_counts.get(closest_enemy.tag, 0) + 1
+                    enemies = cy_closer_than(enemies, closest_distance + 1, defender.position)
+                    for enemy in enemies:
+                        all_enemies[enemy.tag] = enemy
+                        if enemy.type_id not in damage_vs_type:
+                            damage_vs_type[enemy.type_id] = defender.calculate_damage_vs_target(enemy)[0]
+                        if enemy.tag not in defenders_in_range:
+                            defenders_in_range[enemy.tag] = []
+                        defenders_in_range[enemy.tag].append(defender)
                 other_type_friendlies[defender.tag] = Units(cy_closer_than(self.bot.units.exclude_type(UnitTypeId.VIKINGFIGHTER), 4, defender.position), bot_object=self.bot)
 
             # sort enemies by how many vikings have them as closest
