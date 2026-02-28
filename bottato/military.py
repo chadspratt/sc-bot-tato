@@ -119,7 +119,7 @@ class Military(GeometryMixin, DebugMixin):
         avg_enemy_age = self.enemy.get_average_enemy_age()
         required_ratio_for_offense = 1.2 + avg_enemy_age * 0.01
 
-        ignore_ratio_threshold = min(195, 160 + self.aborted_attack_count * 5)
+        ignore_ratio_threshold = min(185, 160 + self.aborted_attack_count * 5)
         army_is_big_enough = self.intel.army_ratio > required_ratio_for_offense \
             or self.bot.supply_used > ignore_ratio_threshold \
             or self.offense_started and self.intel.army_ratio > required_ratio_for_offense - 0.5

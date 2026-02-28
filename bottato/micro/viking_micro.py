@@ -3,7 +3,7 @@ from __future__ import annotations
 from socket import close
 from typing import Dict, List, Tuple
 
-from cython_extensions.geometry import cy_towards
+from cython_extensions.geometry import cy_distance_to, cy_towards
 from cython_extensions.units_utils import cy_center, cy_closer_than, cy_closest_to
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -24,6 +24,11 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
     attack_health = 0.4
     time_in_frames_to_attack = 0.5 * 22.4
 
+    types_to_land_and_attack = {
+        UnitTypeId.SIEGETANKSIEGED,
+        UnitTypeId.MISSILETURRET,
+        UnitTypeId.SPORECRAWLER}
+
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.tag in self.scout_tags:
@@ -34,6 +39,15 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
         nearby_enemies = Units(cy_closer_than(enemy_army, nearby_range, unit.position) +
                                cy_closer_than(self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES), nearby_range, unit.position),
                                bot_object=self.bot)
+        priority_ground_targets = nearby_enemies.filter(lambda u: u.type_id in self.types_to_land_and_attack)
+        if priority_ground_targets:
+            closest_priority_ground_target = cy_closest_to(unit.position, priority_ground_targets)
+            if cy_distance_to(unit.position, closest_priority_ground_target.position) < 3:
+                if unit.is_flying:
+                    unit(AbilityId.MORPH_VIKINGASSAULTMODE)
+                    return UnitMicroType.USE_ABILITY
+                # don't transform near anti-air turrets
+                return UnitMicroType.NONE
         if unit.is_flying:
             viking_count = self.bot.units.of_type(UnitTypeId.VIKINGFIGHTER).amount
             if viking_count < 4:
@@ -180,11 +194,16 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 threats.append(target)
                 return self._kite(unit, threats)
 
-        enemies = self.bot.enemy_units + self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES)
-        attack_range_buffer = 2 if unit.is_flying else 4
-        candidates = self.enemy.in_attack_range(unit, enemies, attack_range_buffer)
+        candidates: Units | None = None
+        if not unit.is_flying:
+            priority_ground_targets = self.bot.all_enemy_units.filter(lambda u: u.type_id in self.types_to_land_and_attack)
+            candidates = self.enemy.in_attack_range(unit, priority_ground_targets, 0)
         if not candidates:
-            candidates = self.enemy.in_attack_range(unit, self.bot.enemy_structures, attack_range_buffer)
+            enemies = self.bot.enemy_units + self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES)
+            attack_range_buffer = 2 if unit.is_flying else 4
+            candidates = self.enemy.in_attack_range(unit, enemies, attack_range_buffer)
+            if not candidates:
+                candidates = self.enemy.in_attack_range(unit, self.bot.enemy_structures, attack_range_buffer)
 
         if not candidates:
             return UnitMicroType.NONE

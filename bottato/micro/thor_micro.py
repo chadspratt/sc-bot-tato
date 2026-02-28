@@ -21,6 +21,7 @@ class ThorMicro(BaseUnitMicro):
         UnitTypeId.MOTHERSHIP,
         UnitTypeId.BATTLECRUISER,
         UnitTypeId.BROODLORD,
+        UnitTypeId.VIKINGFIGHTER
     }
     AIR_COUNT_THRESHOLD = 3
     AIR_RANGE = 11  # Thor air attack range + small buffer
@@ -40,17 +41,19 @@ class ThorMicro(BaseUnitMicro):
         if is_high_impact:
             # transform back to explosive mode if there are no air targets
             air_types = UnitTypes.get_types_with_attribute(UnitAttribute.AIR, self.enemy.enemy_race)
-            air_target: Unit | None = self.enemy.get_target_closer_than(unit, 20, included_types=air_types)[0]
+            air_target, _ = self.enemy.get_target_closer_than(unit, 15, included_types=air_types)
             if air_target is None:
-                unit(AbilityId.MORPH_THOREXPLOSIVEMODE)
-                self.last_transform_time[unit.tag] = self.bot.time
-                return UnitMicroType.USE_ABILITY
+                ground_types = UnitTypes.get_types_with_attribute(UnitAttribute.GROUND, self.enemy.enemy_race)
+                ground_target, _ = self.enemy.get_target_closer_than(unit, 10, included_types=ground_types, include_structures=True)
+                if ground_target:
+                    unit(AbilityId.MORPH_THOREXPLOSIVEMODE)
+                    self.last_transform_time[unit.tag] = self.bot.time
+                    return UnitMicroType.USE_ABILITY
         else:
-            # transform to high impact mode if there are massive air targets
-            high_impact_target: Unit | None = self.enemy.get_target_closer_than(unit, 20, included_types=self.MASSIVE_AIR_TYPES)[0]
-            wants_high_impact = high_impact_target is not None
+            # transform to high impact mode if there are massive air targets or vikings which are probably numerous
+            high_impact_target, _ = self.enemy.get_target_closer_than(unit, 15, included_types=self.MASSIVE_AIR_TYPES)
 
-            if wants_high_impact:
+            if high_impact_target is not None:
                 unit(AbilityId.MORPH_THORHIGHIMPACTMODE)
                 self.last_transform_time[unit.tag] = self.bot.time
                 return UnitMicroType.USE_ABILITY
