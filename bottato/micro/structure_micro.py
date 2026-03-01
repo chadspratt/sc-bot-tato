@@ -319,7 +319,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         for enemy in need_detection:
             attackers = None
             # don't scan if raven nearby
-            if self.member_is_closer_than(enemy, ravens, 20):
+            if self.enemy.get_units_closer_than(enemy, ravens, 20).exists:
                 continue
             # only scan enemies if attackers nearby to make use of scan
             if enemy.is_flying:
