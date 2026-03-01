@@ -602,11 +602,12 @@ class UnitTypes(GeometryMixin):
             return {UnitTypeId.SIEGETANK,
                     UnitTypeId.INFESTOR, UnitTypeId.LURKERMP,
                     UnitTypeId.HIGHTEMPLAR, UnitTypeId.IMMORTAL,
-                    UnitTypeId.PHOTONCANNON, UnitTypeId.MISSILETURRET, UnitTypeId.SPORECRAWLER}
+                    # UnitTypeId.PHOTONCANNON, UnitTypeId.MISSILETURRET, UnitTypeId.SPORECRAWLER,
+                    UnitTypeId.PROBE, UnitTypeId.SCV, UnitTypeId.DRONE,}
         if unit.type_id == UnitTypeId.VIKINGFIGHTER:
             return {UnitTypeId.BANSHEE, UnitTypeId.BATTLECRUISER, UnitTypeId.VIKINGFIGHTER,
                     UnitTypeId.COLOSSUS, UnitTypeId.TEMPEST, UnitTypeId.CARRIER,
-                    UnitTypeId.BROODLORD, UnitTypeId.MUTALISK, UnitTypeId.CORRUPTOR
+                    UnitTypeId.BROODLORD, UnitTypeId.MUTALISK, UnitTypeId.CORRUPTOR, UnitTypeId.OVERSEER
                     }
         if unit.type_id == UnitTypeId.HELLION:
             return {UnitTypeId.ZERGLING, UnitTypeId.BANELING, UnitTypeId.ZEALOT, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}

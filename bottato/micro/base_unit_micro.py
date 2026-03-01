@@ -433,8 +433,9 @@ class BaseUnitMicro(GeometryMixin):
             return None
         closest_target = cy_closest_to(unit.position, nearby_enemies)
         closest_distance = max(cy_distance_to(unit.position, closest_target.position), UnitTypes.range(unit))
-        # look 3 beyond closest enemy for priority targets
-        almost_closest_enemies = Units(cy_closer_than(nearby_enemies, closest_distance + 3, unit.position), bot_object=self.bot)
+        # look beyond closest enemy for priority targets
+        extra_distance = 10 if closest_target.is_structure else 3
+        almost_closest_enemies = Units(cy_closer_than(nearby_enemies, closest_distance + extra_distance, unit.position), bot_object=self.bot)
         priority_targets = almost_closest_enemies.filter(lambda u: u.type_id in UnitTypes.get_priority_target_types(unit))
         if priority_targets:
             in_range = self.enemy.in_attack_range(unit, priority_targets, bonus_distance, first_only=True)

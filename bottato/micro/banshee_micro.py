@@ -65,8 +65,9 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
 
         if force_move:
             return UnitMicroType.NONE
-        nearest_priority, _ = self.enemy.get_closest_target(unit, included_types=UnitTypes.get_priority_target_types(unit))
-        if nearest_priority:
+        nearest_priority, nearest_priority_distance = self.enemy.get_closest_target(unit, included_types=UnitTypes.get_priority_target_types(unit))
+        maximum_hunting_distance = 150
+        if nearest_priority and nearest_priority_distance < maximum_hunting_distance:
             if can_attack:
                 threats.append(nearest_priority)
                 return self._kite(unit, threats)
@@ -119,6 +120,8 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 if unit.health_percentage < self.harass_attack_health and not nearby_enemy:
                     return UnitMicroType.NONE
                 for threat in threats:
+                    if not UnitTypes.can_attack_target(threat, unit):
+                        continue
                     if threat.is_structure and self.enemy.safe_distance_squared(unit, threat) > self.enemy.get_attack_range_with_buffer_squared(threat, unit, 3):
                         continue
                     if threat.is_flying or UnitTypes.air_range(threat) >= unit.ground_range:
