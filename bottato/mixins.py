@@ -192,15 +192,17 @@ class GeometryMixin:
             return unit1.distance_to_squared(unit2)
         return cy_distance_to_squared(unit1.position, unit2.position)
 
-    @staticmethod
-    def closest_distance(unit1: Unit, units: Units) -> float:
-        distance = 9999
-        for unit in units:
-            distance = min(distance, GeometryMixin.distance_squared(unit1, unit))
-        return distance ** 0.5
+    # @staticmethod
+    # def closest_distance(unit1: Unit, units: Units) -> float:
+    #     distance = 9999
+    #     for unit in units:
+    #         distance = min(distance, GeometryMixin.distance_squared(unit1, unit))
+    #     return distance ** 0.5
     
     @staticmethod
     def closest_distance_squared(unit1: Unit | Point2, units: Units) -> float:
+        # warning: don't use with stale units
+        # use enemy.get_closest_distance_squared if some of the units could be out of vision
         closest_distance_sq = 9999
         for unit in units:
             closest_distance_sq = min(closest_distance_sq, GeometryMixin.distance_squared(unit1, unit))
@@ -208,6 +210,8 @@ class GeometryMixin:
     
     @staticmethod
     def units_closer_than(unit1: Unit | Point2, units: Units, distance: float, bot: BotAI) -> Units:
+        # warning: don't use with stale units
+        # use enemy.get_units_closer_than if some of the units could be out of vision
         close_units: Units = Units([], bot_object=bot)
         distance_sq = distance * distance
         for unit in units:
@@ -218,6 +222,7 @@ class GeometryMixin:
     @staticmethod
     def member_is_closer_than(unit1: Unit | Point2, units: Units | List[Point2 | Unit], distance: float) -> bool:
         # warning: don't use with stale units
+        # use enemy.get_units_closer_than if some of the units could be out of vision
         distance_sq = distance * distance
         for unit in units:
             if GeometryMixin.distance_squared(unit1, unit) < distance_sq:

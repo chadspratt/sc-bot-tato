@@ -325,6 +325,14 @@ class Enemy(GeometryMixin):
         if isinstance(unit2, Unit):
             unit2 = self.predicted_positions[unit2.tag] if unit2.tag in self.predicted_positions else unit2.position
         return cy_distance_to_squared(unit1, unit2)
+    
+    def get_closest_distance_squared(self, unit: Unit | Point2, others: Units | List[Unit]) -> float:
+        closest_distance_sq = float('inf')
+        for other in others:
+            distance_sq = self.safe_distance_squared(unit, other)
+            if distance_sq < closest_distance_sq:
+                closest_distance_sq = distance_sq
+        return closest_distance_sq
 
     unseen_threat_types: set[UnitTypeId] = set((
         UnitTypeId.SIEGETANKSIEGED,

@@ -702,7 +702,7 @@ class BaseUnitMicro(GeometryMixin):
         if not threats:
             return False
         closest_threat = sorted(threats, key=lambda t: self.enemy.safe_distance_squared(t, unit) - self.enemy.get_attack_range_with_buffer_squared(t, unit, 0))[0]
-        closest_threat_distance_sq = self.distance_squared(closest_threat, unit)
+        closest_threat_distance_sq = self.enemy.safe_distance_squared(closest_threat, unit)
         if closest_threat_distance_sq > 225:
             return False
         if closest_threat.type_id == UnitTypeId.SIEGETANKSIEGED and closest_threat_distance_sq < 49:
@@ -722,7 +722,7 @@ class BaseUnitMicro(GeometryMixin):
             return False
 
         nearest_unit_to_retreat_to = cy_closest_to(unit.position, units_to_retreat_to)
-        ally_to_enemy_distance_sq = self.distance_squared(nearest_unit_to_retreat_to, closest_threat)
+        ally_to_enemy_distance_sq = self.enemy.safe_distance_squared(nearest_unit_to_retreat_to, closest_threat)
 
         if ally_to_enemy_distance_sq < 900 and ally_to_enemy_distance_sq > self.enemy.get_attack_range_with_buffer_squared(nearest_unit_to_retreat_to, closest_threat, 0):
             optimal_distance = UnitTypes.range_vs_target(nearest_unit_to_retreat_to, closest_threat) - UnitTypes.range_vs_target(closest_threat, nearest_unit_to_retreat_to) - unit.radius + nearest_unit_to_retreat_to.radius - 2.0
@@ -732,7 +732,7 @@ class BaseUnitMicro(GeometryMixin):
                      or ally_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_unit_to_retreat_to.tag]):
                 BaseUnitMicro.tanks_being_retreated_to[nearest_unit_to_retreat_to.tag] = ally_to_enemy_distance_sq
             return True
-        elif not can_attack and ally_to_enemy_distance_sq < self.distance_squared(unit, closest_threat) * 0.3:
+        elif not can_attack and ally_to_enemy_distance_sq < self.enemy.safe_distance_squared(unit, closest_threat) * 0.3:
             # defend tank if it's closer to enemy than unit
             unit.move(Point2(cy_towards(nearest_unit_to_retreat_to.position, closest_threat.position, 3)))
             if nearest_unit_to_retreat_to.tag not in BaseUnitMicro.tanks_being_retreated_to or ally_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_unit_to_retreat_to.tag]:

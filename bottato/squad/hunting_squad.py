@@ -51,7 +51,7 @@ class HuntingSquad(Squad, GeometryMixin):
         if not safe_targets:     
             safe_targets = targets.filter(lambda u: u.tag not in self.unsafe_targets or self.bot.time - self.unsafe_targets[u.tag] > 5)
         safe_targets_near_base = safe_targets.filter(lambda u: self.enemy.get_units_closer_than(u, self.bot.structures, 40).exists)
-        # safe_targets_near_base = safe_targets.filter(lambda u: self.closest_distance_squared(u, self.bot.structures) < 1600)
+        # safe_targets_near_base = safe_targets.filter(lambda u: self.enemy.get_closest_distance_squared(u, self.bot.structures) < 1600)
         candidates = safe_targets_near_base if safe_targets_near_base else safe_targets
 
         for unit in self.units:

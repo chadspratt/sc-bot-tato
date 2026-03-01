@@ -247,7 +247,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
         anti_air_structures = self.bot.enemy_structures.filter(
             lambda s: s.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES and s.is_ready)
         if anti_air_structures:
-            nearby_enemies = nearby_enemies.filter(lambda e: self.closest_distance_squared(e, anti_air_structures) > 36)
+            nearby_enemies = nearby_enemies.filter(lambda e: self.enemy.get_closest_distance_squared(e, anti_air_structures) > 36)
 
         if self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies()):
             threat_range_buffer = 3 if nearby_enemies and can_attack and unit.health_percentage > self.harass_retreat_health else 5

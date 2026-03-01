@@ -569,34 +569,6 @@ class UnitTypes(GeometryMixin):
         return UnitTypes.range_vs_target(attacker, target) > 0
     
     @staticmethod
-    def can_be_attacked(unit: Unit, bot: BotAI, enemy_units: Units) -> bool:
-        if unit.type_id in (UnitTypeId.DISRUPTORPHASED,):
-            return False
-        if not (unit.is_cloaked or unit.is_burrowed):
-            return True
-        is_mine = unit.owner_id == bot.player_id
-        if is_mine and unit.energy <= 8:
-            # cloak about to end so start retreating
-            return True
-        detectors: Units
-        if is_mine:
-            detectors = enemy_units.filter(lambda u: u.is_detector)
-        else:
-            detectors = bot.all_own_units.filter(lambda u: u.is_detector)
-        for detector in detectors:
-            bonus_detection_distance = 0
-            if is_mine:
-                bonus_detection_distance = 0.5 if detector.is_structure else 1
-            if UnitTypes.distance_squared(detector, unit) <= (detector.sight_range + unit.radius + bonus_detection_distance) ** 2:
-                return True
-        for effect in bot.state.effects:
-            if effect.id == EffectId.SCANNERSWEEP:
-                for position in effect.positions:
-                    if UnitTypes.distance_squared(position, unit) <= (13 + unit.radius) ** 2:
-                        return True
-        return False
-    
-    @staticmethod
     def get_priority_target_types(unit: Unit) -> Set[UnitTypeId]:
         if unit.type_id == UnitTypeId.BANSHEE:
             return {UnitTypeId.SIEGETANK,
