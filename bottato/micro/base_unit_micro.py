@@ -701,7 +701,7 @@ class BaseUnitMicro(GeometryMixin):
         threats = self.enemy.threats_to_friendly_unit(unit, 1)
         if not threats:
             return False
-        closest_threat = sorted(threats, key=lambda t: self.distance_squared(t, unit) - self.enemy.get_attack_range_with_buffer_squared(t, unit, 0))[0]
+        closest_threat = sorted(threats, key=lambda t: self.enemy.safe_distance_squared(t, unit) - self.enemy.get_attack_range_with_buffer_squared(t, unit, 0))[0]
         closest_threat_distance_sq = self.distance_squared(closest_threat, unit)
         if closest_threat_distance_sq > 225:
             return False
