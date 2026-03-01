@@ -188,9 +188,9 @@ class SCVBuildStep(BuildStep):
         threats = self.bot.enemy_units.filter(
             lambda u: u.type_id not in UnitTypes.WORKER_TYPES \
                 and UnitTypes.can_attack_ground(u))
-        enemy_is_close = self.member_is_closer_than(self.unit_in_charge, threats, 15)
+        enemy_is_close = self.tactics.enemy.get_units_closer_than(self.unit_in_charge, threats, 15).exists
         if self.unit_being_built and not enemy_is_close:
-            enemy_is_close = self.member_is_closer_than(self.unit_being_built, threats, 10)
+            enemy_is_close = self.tactics.enemy.get_units_closer_than(self.unit_being_built, threats, 10).exists
         if enemy_is_close:
             return BuildResponseCode.TOO_CLOSE_TO_ENEMY
 
@@ -597,7 +597,7 @@ class SCVBuildStep(BuildStep):
                     lambda u: UnitTypes.can_attack_ground(u) \
                         and u.type_id not in UnitTypes.WORKER_TYPES)
                 if threats:
-                    enemy_is_close = self.member_is_closer_than(self.unit_in_charge, threats, 12)
+                    enemy_is_close = self.tactics.enemy.get_units_closer_than(self.unit_in_charge, threats, 12).exists
                     if not enemy_is_close:
                         return False
                     if self.unit_in_charge:

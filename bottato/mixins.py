@@ -186,6 +186,7 @@ class GeometryMixin:
         
     @staticmethod
     def distance_squared(unit1: Unit | Point2, unit2: Unit | Point2) -> float:
+        # warning: don't use with stale units
         # use enemy.safe_distance_squared if some of the units could be out of vision
         if isinstance(unit1, Unit) and isinstance(unit2, Unit):
             return unit1.distance_to_squared(unit2)
@@ -216,6 +217,7 @@ class GeometryMixin:
     
     @staticmethod
     def member_is_closer_than(unit1: Unit | Point2, units: Units | List[Point2 | Unit], distance: float) -> bool:
+        # warning: don't use with stale units
         distance_sq = distance * distance
         for unit in units:
             if GeometryMixin.distance_squared(unit1, unit) < distance_sq:

@@ -154,7 +154,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if closest_distance > 25:
             closest_enemy = None
         if closest_enemy:
-            friendlies_nearer_to_enemy = self.units_closer_than(closest_enemy, self.bot.units, closest_distance - 0.01, self.bot)
+            friendlies_nearer_to_enemy = self.enemy.get_units_closer_than(closest_enemy, self.bot.units, closest_distance - 0.01)
             friendly_buffer_count = len(friendlies_nearer_to_enemy)
             if closest_enemy.age == 0:
                 closest_enemy_is_visible = True

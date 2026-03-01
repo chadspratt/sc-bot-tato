@@ -315,17 +315,15 @@ class Enemy(GeometryMixin):
 
         return in_range
     
-    def safe_distance_squared(self, unit1: Unit, unit2: Unit) -> float:
+    def safe_distance_squared(self, unit1: Unit | Point2, unit2: Unit | Point2) -> float:
         # can be used with out of view enemies
-        if unit1.age == 0 and unit2.age == 0:
-            return unit1.distance_to_squared(unit2)
-        unit1_pos = unit1.position
-        unit2_pos = unit2.position
-        if unit1.age != 0 and unit1.tag in self.predicted_positions:
-            unit1_pos = self.predicted_positions[unit1.tag]
-        if unit2.age != 0 and unit2.tag in self.predicted_positions:
-            unit2_pos = self.predicted_positions[unit2.tag]
-        return cy_distance_to_squared(unit1_pos, unit2_pos)
+        if isinstance(unit1, Unit):
+            if isinstance(unit2, Unit) and unit1.age == 0 and unit2.age == 0:
+                return unit1.distance_to_squared(unit2)
+            unit1 = self.predicted_positions[unit1.tag]
+        if isinstance(unit2, Unit):
+            unit2 = self.predicted_positions[unit2.tag]
+        return cy_distance_to_squared(unit1, unit2)
 
     unseen_threat_types: set[UnitTypeId] = set((
         UnitTypeId.SIEGETANKSIEGED,
@@ -587,6 +585,22 @@ class Enemy(GeometryMixin):
             if range <= attack_range:
                 enemies_in_range.append(candidate)
         return enemies_in_range
+    
+    @timed
+    def get_units_closer_than(self, target: Point2 | Unit, candidates: Units, max_distance: float) -> Units:
+        closer_units: Units = Units([], self.bot)
+        if isinstance(target, Unit) and target.age > 0:
+            target = self.get_predicted_position(target, 0)
+        for candidate in candidates:
+            distance_limit = (max_distance + candidate.radius) ** 2
+            candidate_distance: float
+            if isinstance(target, Unit):
+                candidate_distance = self.safe_distance_squared(target, candidate)
+            else:
+                candidate_distance = cy_distance_to_squared(target, candidate.position)
+            if candidate_distance <= distance_limit:
+                closer_units.append(candidate)
+        return closer_units
 
     @timed
     def get_candidates(self, include_structures=True, include_units=True, include_destructables=False,

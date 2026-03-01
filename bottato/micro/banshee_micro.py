@@ -36,7 +36,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 unit(AbilityId.BEHAVIOR_CLOAKON_BANSHEE)
                 return UnitMicroType.USE_ABILITY
         else:
-            if not self.member_is_closer_than(unit, self.enemy.get_recent_enemies(), 15):
+            if not self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=10).exists:
                 unit(AbilityId.BEHAVIOR_CLOAKOFF_BANSHEE)
                 return UnitMicroType.USE_ABILITY
         return UnitMicroType.NONE
@@ -142,7 +142,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if unit.tag in self.harass_location_reached_tags:
             nearest_workers = self.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
             if anti_banshee_structures:
-                nearest_workers = nearest_workers.filter(lambda u: not self.member_is_closer_than(u, anti_banshee_structures, 6))
+                nearest_workers = nearest_workers.filter(lambda u: not self.enemy.get_units_closer_than(u, anti_banshee_structures, 6).exists)
             if nearest_workers:
                 target = sorted(nearest_workers, key=lambda t: t.health + t.shield)[0]
                 self._attack(unit, target)
