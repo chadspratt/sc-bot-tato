@@ -319,7 +319,7 @@ class BaseUnitMicro(GeometryMixin):
         if self.last_targets_update_time != self.bot.time:
             self.last_targets_update_time = self.bot.time
             self.valid_targets = self.bot.enemy_units.filter(
-                lambda u: UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_recent_enemies()) and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
+                lambda u: self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies()) and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
                 ) + self.bot.enemy_structures
 
         if not self.valid_targets:
@@ -515,7 +515,7 @@ class BaseUnitMicro(GeometryMixin):
         targets_to_avoid = Units([], bot_object=self.bot)
         workers_to_avoid = Units([], bot_object=self.bot)
         distance_to_advance: float = float('inf')
-        can_be_attacked = UnitTypes.can_be_attacked(unit, self.bot, self.bot.enemy_units)
+        can_be_attacked = self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies())
         can_outrun = True
         can_attack = unit.weapon_cooldown < self.time_in_frames_to_attack
         if can_be_attacked:
@@ -689,7 +689,7 @@ class BaseUnitMicro(GeometryMixin):
     @timed
     def _retreat_to_better_unit(self, unit: Unit, can_attack: bool) -> bool:
         # retreat toward a unit that is better able to deal with whatever is threatening this unit.
-        if not UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_recent_enemies()):
+        if not self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies()):
             return False
 
         if unit.health_percentage >= 0.9:

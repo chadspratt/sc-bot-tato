@@ -427,7 +427,7 @@ class Military(GeometryMixin, DebugMixin):
         target_position: Point2
         attackable_enemies = self.enemy.enemies_in_view.filter(
             lambda unit: not unit.is_structure
-                and UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_recent_enemies())
+                and self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies())
                 and unit.armor < 10
                 and unit.tag not in countered_enemies)
         

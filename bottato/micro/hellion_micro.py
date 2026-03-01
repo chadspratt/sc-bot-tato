@@ -27,7 +27,7 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
         if self.last_targets_update_time != self.bot.time:
             self.last_targets_update_time = self.bot.time
             self.valid_targets = self.bot.enemy_units.filter(
-                lambda u: UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_recent_enemies()) and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
+                lambda u: self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies()) and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
                 ) + self.bot.enemy_structures
 
         if not self.valid_targets:

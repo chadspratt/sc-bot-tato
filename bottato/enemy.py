@@ -7,6 +7,7 @@ from cython_extensions.geometry import cy_distance_to_squared
 from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.ids.buff_id import BuffId
+from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -300,7 +301,7 @@ class Enemy(GeometryMixin):
         in_range = Units([], self.bot)
 
         targets = targets.filter(lambda t: UnitTypes.can_attack_target(unit, t)
-                                 and UnitTypes.can_be_attacked(t, self.bot, self.get_army())
+                                 and self.can_be_attacked(t, self.get_army())
                                  and t.armor < 10
                                  and BuffId.NEURALPARASITE not in t.buffs)
 
@@ -601,6 +602,33 @@ class Enemy(GeometryMixin):
             if candidate_distance <= distance_limit:
                 closer_units.append(candidate)
         return closer_units
+    
+    def can_be_attacked(self, unit: Unit, enemy_units: Units) -> bool:
+        if unit.type_id in (UnitTypeId.DISRUPTORPHASED,):
+            return False
+        if not (unit.is_cloaked or unit.is_burrowed):
+            return True
+        is_mine = unit.owner_id == self.bot.player_id
+        if is_mine and unit.energy <= 8:
+            # cloak about to end so start retreating
+            return True
+        detectors: Units
+        if is_mine:
+            detectors = enemy_units.filter(lambda u: u.is_detector)
+        else:
+            detectors = self.bot.all_own_units.filter(lambda u: u.is_detector)
+        for detector in detectors:
+            bonus_detection_distance = 0
+            if is_mine:
+                bonus_detection_distance = 0.5 if detector.is_structure else 1
+            if self.safe_distance_squared(detector, unit) <= (detector.sight_range + unit.radius + bonus_detection_distance) ** 2:
+                return True
+        for effect in self.bot.state.effects:
+            if effect.id == EffectId.SCANNERSWEEP:
+                for position in effect.positions:
+                    if self.safe_distance_squared(position, unit) <= (13 + unit.radius) ** 2:
+                        return True
+        return False
 
     @timed
     def get_candidates(self, include_structures=True, include_units=True, include_destructables=False,

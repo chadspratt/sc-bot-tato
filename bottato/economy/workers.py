@@ -387,9 +387,8 @@ class Workers(GeometryMixin):
             worker_rush_detected = BuildType.WORKER_RUSH in enemy_builds_detected
 
             assigned_defender_counts: Dict[int, int] = defaultdict(int)
-            # targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_enemies()))
             targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying
-                                                             and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_recent_enemies())
+                                                             and self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies())
                                                              and u.position.manhattan_distance(self.bot.start_location) < 30)
             # ramp_is_blocked = self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount >= 2
             # if ramp_is_blocked:
@@ -479,7 +478,7 @@ class Workers(GeometryMixin):
         if nearby_enemy_structures:
             nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1000000 + cy_distance_to_squared(a.position, position.position))
         nearby_enemy_range = 25 if nearby_enemy_structures else 12
-        nearby_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and UnitTypes.can_be_attacked(u, self.bot, self.enemy.get_recent_enemies()))
+        nearby_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies()))
         if position.position.manhattan_distance(self.bot.start_location) < 10:
             # for main base, filter enemies outside wall
             nearby_enemies = self.filter_enemies_outside_wall(nearby_enemies)

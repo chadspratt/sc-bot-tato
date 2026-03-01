@@ -46,7 +46,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         # below retreat_health: do nothing
         if unit.health_percentage <= self.retreat_health:
             return UnitMicroType.NONE
-        if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_recent_enemies()) \
+        if self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies()) \
                 and unit.health_percentage < self.attack_health \
                 and self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3):
             return UnitMicroType.NONE
@@ -107,7 +107,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             if anti_banshee_structures:
                 nearby_enemy = nearby_enemy.filter(lambda e: anti_banshee_structures.closest_distance_to(e) > 6)
 
-        if UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_recent_enemies()):
+        if self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies()):
             threat_range_buffer = 3 if nearby_enemy and can_attack and unit.health_percentage > self.harass_retreat_health else 5
             threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=threat_range_buffer)
             if threats:
@@ -161,7 +161,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if unit.health_percentage >= self.harass_attack_health:
             return UnitMicroType.NONE
 
-        can_be_attacked = UnitTypes.can_be_attacked(unit, self.bot, self.enemy.get_recent_enemies())
+        can_be_attacked = self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies())
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5) if can_be_attacked else None
 
         is_below_attack_health = unit.health_percentage < self.harass_attack_health
