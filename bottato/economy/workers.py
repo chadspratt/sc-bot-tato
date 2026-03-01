@@ -942,7 +942,7 @@ class Workers(GeometryMixin):
                     break
                 if not unit_to_repair.is_structure:
                     repairer_distance = cy_distance_to(repairer.position, unit_to_repair.position)
-                    if unit_to_repair.type_id == UnitTypeId.SCV and repairer_distance > 10 or repairer_distance > 60 and self.bot.time < 600:
+                    if unit_to_repair.type_id == UnitTypeId.SCV and repairer_distance > 10 or repairer_distance > 60 and self.bot.time < 540:
                         # don't send repairer too far to repair
                         continue
 

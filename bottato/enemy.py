@@ -320,9 +320,9 @@ class Enemy(GeometryMixin):
         if isinstance(unit1, Unit):
             if isinstance(unit2, Unit) and unit1.age == 0 and unit2.age == 0:
                 return unit1.distance_to_squared(unit2)
-            unit1 = self.predicted_positions[unit1.tag]
+            unit1 = self.predicted_positions[unit1.tag] if unit1.tag in self.predicted_positions else unit1.position
         if isinstance(unit2, Unit):
-            unit2 = self.predicted_positions[unit2.tag]
+            unit2 = self.predicted_positions[unit2.tag] if unit2.tag in self.predicted_positions else unit2.position
         return cy_distance_to_squared(unit1, unit2)
 
     unseen_threat_types: set[UnitTypeId] = set((

@@ -609,6 +609,14 @@ class UnitTypes(GeometryMixin):
                     UnitTypeId.COLOSSUS, UnitTypeId.TEMPEST, UnitTypeId.CARRIER,
                     UnitTypeId.BROODLORD, UnitTypeId.MUTALISK, UnitTypeId.CORRUPTOR, UnitTypeId.OVERSEER
                     }
+        if unit.type_id == UnitTypeId.THOR:
+            return {UnitTypeId.BATTLECRUISER, UnitTypeId.THOR, UnitTypeId.VIKINGFIGHTER,
+                    UnitTypeId.COLOSSUS, UnitTypeId.TEMPEST, UnitTypeId.CARRIER,
+                    UnitTypeId.BROODLORD, UnitTypeId.MUTALISK, UnitTypeId.CORRUPTOR, UnitTypeId.OVERSEER,
+                    UnitTypeId.MISSILETURRET, UnitTypeId.PHOTONCANNON, UnitTypeId.SPORECRAWLER,
+                    }
+        if unit.type_id == UnitTypeId.SIEGETANKSIEGED:
+            return UnitTypes.HIGH_PRIORITY_TARGETS.union({UnitTypeId.MARAUDER, UnitTypeId.MISSILETURRET, UnitTypeId.PHOTONCANNON, UnitTypeId.SPORECRAWLER, UnitTypeId.SCV})
         if unit.type_id == UnitTypeId.HELLION:
             return {UnitTypeId.ZERGLING, UnitTypeId.BANELING, UnitTypeId.ZEALOT, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
         return UnitTypes.HIGH_PRIORITY_TARGETS
