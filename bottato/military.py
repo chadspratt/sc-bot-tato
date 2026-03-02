@@ -166,31 +166,34 @@ class Military(GeometryMixin, DebugMixin):
             self.main_army.draw_debug_box()
             self.main_army.update_formation()
             if defend_with_main_army:
-                if self.bot.time > 420 or enemies_in_base_ratio >= 0.8:
-                    LogHelper.add_log(f"squad {self.main_army.name} mounting defense")
-                    await self.main_army.move(cy_closest_to(self.main_army.position, self.enemies_in_base).position)
-                elif self.main_army.units.amount < 5:
+                if self.main_army.units.amount < 5 or self.bot.townhalls.amount < 2:
                     ramp_barracks = self.bot.structures(UnitTypeId.BARRACKS).filter(lambda b: cy_distance_to_squared(b.position, self.bot.main_base_ramp.top_center) < 25)
                     if ramp_barracks:
                         LogHelper.add_log(f"squad {self.main_army.name} staging behind ramp barracks")
                         behind_barracks_position = cy_towards(ramp_barracks.first.position, self.bot.main_base_ramp.top_center, -1)
                         await self.main_army.move(Point2(behind_barracks_position))
-                    pass
+                        return
+                if self.bot.time > 420 or enemies_in_base_ratio >= 0.8:
+                    LogHelper.add_log(f"squad {self.main_army.name} mounting defense")
+                    await self.main_army.move(cy_closest_to(self.main_army.position, self.enemies_in_base).position)
+                    return
             elif mount_offense:
                 if len(proxy_buildings) > 0 and self.bot.time < 420:
                     LogHelper.add_log(f"squad {self.main_army.name} clearing proxy buildings")
                     target_position = cy_closest_to(self.main_army.position, proxy_buildings).position
                     await self.main_army.move(target_position)
+                    return
                 else:
-                    LogHelper.add_log(f"squad {self.main_army.name} mounting offense")
                     target_position: Point2 | None = self.get_offense_target_position(newest_enemy_base, countered_enemies)
                     if not army_is_grouped:
                         await self.regroup(target_position)
+                        return
                     else:
                         if target_position:
+                            LogHelper.add_log(f"squad {self.main_army.name} mounting offense")
                             await self.main_army.move(target_position) # slow, 50%+ of command time
-            else:
-                await self.move_army_to_staging_location(newest_enemy_base, detected_enemy_builds, self.intel.army_ratio)
+                            return
+            await self.move_army_to_staging_location(newest_enemy_base, detected_enemy_builds, self.intel.army_ratio)
 
     @timed_async
     async def get_enemies_in_base(self) -> Units:
