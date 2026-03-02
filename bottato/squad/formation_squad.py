@@ -108,13 +108,13 @@ class FormationSquad(Squad, GeometryMixin):
                 UnitTypeId.WIDOWMINE: 2.5,
                 UnitTypeId.CYCLONE: 3,
                 UnitTypeId.BATTLECRUISER: 3.4,
+                UnitTypeId.GHOST: 4.5,
                 UnitTypeId.THOR: 4.5,
                 UnitTypeId.THORAP: 4.5,
+                UnitTypeId.SIEGETANK: 4.5,
                 UnitTypeId.RAVEN: 5,
                 UnitTypeId.MEDIVAC: 5,
                 UnitTypeId.LIBERATOR: 6,
-                UnitTypeId.GHOST: 6,
-                UnitTypeId.SIEGETANK: 6,
             }
             for unit_type, y_offset in unit_type_offsets.items():
                 self.add_unit_formation(unit_type, -y_offset)

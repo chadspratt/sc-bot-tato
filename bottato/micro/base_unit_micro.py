@@ -378,6 +378,7 @@ class BaseUnitMicro(GeometryMixin):
             return UnitMicroType.NONE
         
         threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=4)
+        # normally the retreat threshold is lower than the attack, but a custom retreat threshold could be passed that is higher
         is_below_attack_health = unit.health_percentage < self.attack_health
         is_below_retreat_health = unit.health_percentage < health_threshold
         if not is_below_attack_health and threats:
@@ -385,15 +386,20 @@ class BaseUnitMicro(GeometryMixin):
                 # rare weirdness
                 return UnitMicroType.NONE
             attack_threshold = unit.health_max * self.attack_health
+            retreat_threshold = unit.health_max * health_threshold
+            lower_threshold = min(attack_threshold, retreat_threshold)
             current_health = unit.health
             for threat in threats:
                 current_health -= threat.calculate_damage_vs_target(unit)[0]
                 if current_health < attack_threshold:
                     is_below_attack_health = True
+                if current_health < retreat_threshold:
+                    is_below_retreat_health = True
+                if current_health < lower_threshold:
                     break
 
-        # above attack_health: do nothing
-        if not is_below_attack_health:
+        # healthy: do nothing
+        if not is_below_attack_health and not is_below_retreat_health:
             return UnitMicroType.NONE
 
         # below attack_health: retreat if threats
