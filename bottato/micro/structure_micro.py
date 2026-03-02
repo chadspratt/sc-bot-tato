@@ -110,7 +110,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                         cc(AbilityId.LAND, cc.position)
                         continue
 
-                threats = self.bot.enemy_units.filter(lambda enemy: enemy.type_id not in UnitTypes.NON_THREATS)
+                threats = self.bot.enemy_units.filter(lambda enemy: enemy.type_id not in UnitTypes.NON_THREATS) \
+                    + self.bot.enemy_structures.filter(lambda enemy: enemy.type_id in UnitTypes.OFFENSIVE_STRUCTURE_TYPES)
                 
                 if cc.health_percentage < 0.3:
                     bunker = self.bot.structures(UnitTypeId.BUNKER)

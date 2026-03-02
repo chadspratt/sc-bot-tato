@@ -65,6 +65,7 @@ class BuildType(enum.Enum):
     SPIRE = 8
     MULTIPLE_REAPER = 9
     EARLY_EXPANSION = 10
+    CANNON_RUSH = 11
 
 class BuildOrderChange(enum.Enum):
     RUSH = 0
@@ -75,6 +76,7 @@ class BuildOrderChange(enum.Enum):
     ZERGLING_RUSH = 5
     WORKER_RUSH = 6
     PROXY_BARRACKS = 7
+    CANNON_RUSH = 8
 
 class Tactic(enum.Enum):
     BANSHEE_HARASS = 0

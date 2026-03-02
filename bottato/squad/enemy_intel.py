@@ -230,6 +230,7 @@ class EnemyIntel(GeometryMixin):
             no_expansion = BuildType.EARLY_EXPANSION not in self.enemy_builds_detected and self.initial_scout_completed and self.bot.time > 85 and self.number_seen(UnitTypeId.NEXUS) == 1
             stargate_detected = self.number_seen(UnitTypeId.STARGATE) > 0
             fleet_beacon = self.number_seen(UnitTypeId.FLEETBEACON) > 0
+            early_forge = self.first_building_time.get(UnitTypeId.FORGE, 9999) < 45
             if lots_of_gateways:
                 await LogHelper.add_chat("lots of gateways detected")
             if no_expansion:
@@ -240,6 +241,9 @@ class EnemyIntel(GeometryMixin):
             if fleet_beacon:
                 await LogHelper.add_chat("fleet beacon detected")
                 self.add_detected_build(BuildType.FLEET_BEACON)
+            if early_forge:
+                await LogHelper.add_chat("cannon rush detected")
+                self.add_detected_build(BuildType.CANNON_RUSH)
             if lots_of_gateways or no_expansion:
                 self.add_detected_build(BuildType.RUSH)
             

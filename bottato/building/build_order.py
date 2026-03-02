@@ -206,8 +206,9 @@ class BuildOrder():
         # prioritize blocking ramp
         self.make_one_time_build_change(BuildType.WORKER_RUSH, BuildOrderChange.WORKER_RUSH, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.BATTLECRUISER_RUSH, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
+        self.make_one_time_build_change(BuildType.CANNON_RUSH, BuildOrderChange.CANNON_RUSH, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.MULTIPLE_REAPER, BuildOrderChange.REAPER, detected_enemy_builds)
-        if BuildType.BATTLECRUISER_RUSH not in detected_enemy_builds:
+        if {BuildType.BATTLECRUISER_RUSH, BuildType.CANNON_RUSH}.isdisjoint(detected_enemy_builds.keys()):
             self.make_one_time_build_change(BuildType.RUSH, BuildOrderChange.RUSH, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.ZERGLING_RUSH, BuildOrderChange.ZERGLING_RUSH, detected_enemy_builds)
         self.make_one_time_build_change(self.bot.enemy_race == Race.Terran, BuildOrderChange.BANSHEE_HARASS, detected_enemy_builds)
@@ -239,6 +240,14 @@ class BuildOrder():
             self.remove_step_from_queue(UnitTypeId.REFINERY, self.static_queue, remove_all=True)
             self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue, position=0)
             self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT], position=1, queue=self.priority_queue)
+        elif change == BuildOrderChange.CANNON_RUSH:
+            # need a tank to destroy cannon rush
+            if self.bot.structures(UnitTypeId.FACTORY).amount == 0 and self.get_in_progress_count(UnitTypeId.FACTORY) == 0:
+                self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
+            if not self.move_between_queues(UnitTypeId.FACTORYTECHLAB, self.static_queue, self.priority_queue):
+                self.add_to_build_queue([UnitTypeId.FACTORYTECHLAB], queue=self.priority_queue)
+            if not self.move_between_queues(UnitTypeId.SIEGETANK, self.static_queue, self.priority_queue):
+                self.add_to_build_queue([UnitTypeId.SIEGETANK], queue=self.priority_queue)
         elif change == BuildOrderChange.REAPER:
             # queue one hellion in case of reaper rush
             self.add_to_build_queue([UnitTypeId.HELLION] * 2, position=0, queue=self.priority_queue)
