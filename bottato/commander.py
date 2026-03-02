@@ -120,16 +120,16 @@ class Commander(GeometryMixin):
             position = blueprint.get_position()
             if position is None:
                 continue
-            closest_enemy = cy_closest_to(position, self.bot.enemy_units)
-            if closest_enemy is None:
-                continue
-            closest_enemy_distance = cy_distance_to_squared(position, closest_enemy.position)
-            if closest_enemy_distance > 25:
-                BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
-                                                position=position,
-                                                radius=BUILDING_RADIUS[blueprint.get_unit_type_id()],
-                                                start_time=self.bot.time,
-                                                duration=0.3)
+            if self.bot.enemy_units:
+                closest_enemy = cy_closest_to(position, self.bot.enemy_units)
+                closest_enemy_distance = cy_distance_to_squared(position, closest_enemy.position)
+                if closest_enemy_distance < 25:
+                    continue
+            BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
+                                            position=position,
+                                            radius=BUILDING_RADIUS[blueprint.get_unit_type_id()],
+                                            start_time=self.bot.time,
+                                            duration=0.3)
         for nova in self.bot.enemy_units.of_type(UnitTypeId.DISRUPTORPHASED):
             BaseUnitMicro.add_custom_effect(CustomEffectType.ENEMY,
                                             position=nova,
