@@ -390,6 +390,7 @@ class Workers(GeometryMixin):
             targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying
                                                              and self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies())
                                                              and u.position.manhattan_distance(self.bot.start_location) < 30)
+            enemies_inside_wall = self.filter_enemies_outside_wall(targetable_enemies)
             # ramp_is_blocked = self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount >= 2
             # if ramp_is_blocked:
                 # targetable_enemies = targetable_enemies.filter(lambda u: cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) > 9)
@@ -402,10 +403,9 @@ class Workers(GeometryMixin):
                 # ignore enemies outside wall if this unit is inside. will only filter if wall is raised
                 # workers outside wall can attack enemies outside wall
                 worker_is_outside_wall = self.is_outside_wall(worker)
-                if not worker_is_outside_wall:
-                    targetable_enemies = self.filter_enemies_outside_wall(targetable_enemies)
+                enemies_for_worker = targetable_enemies if worker_is_outside_wall else enemies_inside_wall
                 position = assignment.target if assignment.target and not worker_rush_detected else worker
-                nearby_enemies = cy_closer_than(targetable_enemies, 5, position.position)
+                nearby_enemies = cy_closer_than(enemies_for_worker, 5, position.position)
                 if nearby_enemies:
                     if assignment.job_type == WorkerJobType.BUILD:
                         closest_enemy = cy_closest_to(worker.position, nearby_enemies)
@@ -442,8 +442,8 @@ class Workers(GeometryMixin):
                             defender_tags.update(new_defenders)
 
             for townhall in self.bot.townhalls:
-                defender_tags.update(await self.defend_position(townhall, 15, assigned_defender_counts, healthy_workers, unhealthy_workers, worker_rush_detected))
-            defender_tags.update(await self.defend_position(self.bot.main_base_ramp.top_center, 3, assigned_defender_counts, healthy_workers, unhealthy_workers, worker_rush_detected))
+                defender_tags.update(await self.defend_position(townhall, 15, assigned_defender_counts, healthy_workers, unhealthy_workers, worker_rush_detected, enemies_inside_wall))
+            defender_tags.update(await self.defend_position(self.bot.main_base_ramp.top_center, 3, assigned_defender_counts, healthy_workers, unhealthy_workers, worker_rush_detected, enemies_inside_wall))
 
         # put any leftover workers back to work
         for worker in self.bot.workers:
@@ -472,17 +472,14 @@ class Workers(GeometryMixin):
                               assigned_defender_counts: Dict[int, int],
                               healthy_workers: Units,
                               unhealthy_workers: Units,
-                              worker_rush_detected: bool) -> set[int]:
+                              worker_rush_detected: bool,
+                              nearby_enemies: Units | List[Unit]) -> set[int]:
         defender_tags = set()
         nearby_enemy_structures = cy_closer_than(self.bot.enemy_structures.filter(lambda u: not u.is_flying), 23, position.position)
         if nearby_enemy_structures:
             nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1000000 + cy_distance_to_squared(a.position, position.position))
-        nearby_enemy_range = 25 if nearby_enemy_structures else 12
-        nearby_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying and u.tag not in self.enemy.stuck_enemies.tags and self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies()))
-        if position.position.manhattan_distance(self.bot.start_location) < 10:
-            # for main base, filter enemies outside wall
-            nearby_enemies = self.filter_enemies_outside_wall(nearby_enemies)
-        nearby_enemies = cy_closer_than(nearby_enemies, nearby_enemy_range, position.position)
+
+        nearby_enemies = cy_closer_than(nearby_enemies, radius, position.position)
         radius_squared = radius * radius
         for enemy in self.units_to_attack:
             predicted_position = self.enemy.get_predicted_position(enemy, 0.0)

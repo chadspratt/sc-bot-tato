@@ -7,6 +7,7 @@ from cython_extensions.geometry import (
     cy_distance_to_squared,
     cy_towards,
 )
+from cython_extensions.units_utils import cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.game_data import Cost
 from sc2.ids.ability_id import AbilityId
@@ -117,7 +118,13 @@ class Commander(GeometryMixin):
         blueprints = self.build_order.get_blueprints()
         for blueprint in blueprints:
             position = blueprint.get_position()
-            if position:
+            if position is None:
+                continue
+            closest_enemy = cy_closest_to(position, self.bot.enemy_units)
+            if closest_enemy is None:
+                continue
+            closest_enemy_distance = cy_distance_to_squared(position, closest_enemy.position)
+            if closest_enemy_distance > 25:
                 BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
                                                 position=position,
                                                 radius=BUILDING_RADIUS[blueprint.get_unit_type_id()],
