@@ -146,7 +146,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                                                                         excluded_types=excluded_enemy_types)
         closest_distance_after_siege = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
                                                                      excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time/2)[1]
-        _, closest_structure_distance = self.enemy.get_target_closer_than(unit, max_distance=self.sight_range - 1, include_units=False)
+        _, closest_structure_distance = self.enemy.get_target_closer_than(unit, max_distance=self.sight_range - 1, include_units=False, excluded_types={UnitTypeId.REFINERY, UnitTypeId.EXTRACTOR, UnitTypeId.ASSIMILATOR, UnitTypeId.AUTOTURRET})
 
         friendly_buffer_count = 0
         structures_under_threat = False
@@ -158,7 +158,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             friendly_buffer_count = len(friendlies_nearer_to_enemy)
             if closest_enemy.age == 0:
                 closest_enemy_is_visible = True
-                structures = self.bot.structures.filter(lambda s: s.type_id != UnitTypeId.AUTOTURRET)
+                structures = self.bot.structures.filter(lambda s: s.type_id not in {UnitTypeId.AUTOTURRET, UnitTypeId.REFINERY} and not s.is_flying)
                 structures_under_threat = self.enemy.in_attack_range(closest_enemy, structures, 2, first_only=True).exists
 
         if force_move:
@@ -177,9 +177,13 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         siege_aggressively = on_cooldown and not is_sieged or friendly_buffer_count >= 15 and len(self.unsieged_tags) <= len(self.sieged_tags)
 
         closest_enemy_distance = closest_distance_after_siege
-        if structures_under_threat or siege_aggressively or has_high_ground_advantage and closest_enemy:
+        if siege_aggressively or structures_under_threat:
             # enemy might be immobile while attacking structures, so only siege if in range now
-            closest_enemy_distance = closest_distance + 0.5
+            closest_enemy_distance = closest_distance + 0.1
+        # elif structures_under_threat:
+        #     closest_enemy_distance = closest_distance - 0.1
+        # elif has_high_ground_advantage and closest_enemy:
+        #     closest_enemy_distance = closest_distance - 1
 
         if is_sieged:
             unsiege_range = self.sieged_range
