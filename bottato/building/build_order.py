@@ -49,7 +49,6 @@ class BuildOrder():
     static_queue: List[BuildStep] = []
     # dynamic queue for army units and production
     build_queue: List[BuildStep] = []
-    unit_queue: List[BuildStep] = []
     started: List[BuildStep] = []
     complete: List[BuildStep] = []
     # next_unfinished_step_index: int
@@ -155,7 +154,6 @@ class BuildOrder():
         build_order_message += f"\npriority={'\n'.join([step.friendly_name for step in self.priority_queue])}"
         build_order_message += f"\nstatic={'\n'.join([step.friendly_name for step in self.static_queue])}"
         build_order_message += f"\nbuild_queue={'\n'.join([step.friendly_name for step in self.build_queue])}"
-        build_order_message += f"\nunit_queue={'\n'.join([step.friendly_name for step in self.unit_queue])}"
         return build_order_message
 
     @timed_async
@@ -515,7 +513,7 @@ class BuildOrder():
         minerals_per_second = self.bot.state.score.collection_rate_minerals / 60
         vespene_per_second = self.bot.state.score.collection_rate_vespene / 60
         all_started = self.started + [s for s in self.interrupted_queue if isinstance(s, SCVBuildStep) and s.unit_being_built]
-        all_unstarted = [s for s in self.interrupted_queue if not (isinstance(s, SCVBuildStep) and s.unit_being_built)] + self.priority_queue + self.static_queue + self.build_queue + self.unit_queue
+        all_unstarted = [s for s in self.interrupted_queue if not (isinstance(s, SCVBuildStep) and s.unit_being_built)] + self.priority_queue + self.static_queue + self.build_queue
         # for step in self.all_steps:
         for step in all_started:
             # already paid for, just track projected time for new supply to be available
@@ -686,8 +684,8 @@ class BuildOrder():
         production_items: List[UnitTypeId] = []
         available_resources: Cost = Cost(self.bot.minerals, self.bot.vespene)
 
-        # find first shortage, unit_queue hasn't been added to build_queue yet
-        for build_step in self.priority_queue + self.static_queue + self.build_queue + self.unit_queue:
+        # find first shortage
+        for build_step in self.priority_queue + self.static_queue + self.build_queue:
             if only_build_units:
                 if not build_step.is_unit():
                     continue

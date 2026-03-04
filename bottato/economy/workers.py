@@ -377,6 +377,7 @@ class Workers(GeometryMixin):
             if first_order.ability.id != AbilityId.HARVEST_GATHER or first_order.target != target.tag:
                 worker(AbilityId.SMART, target)
 
+    min_workers_to_keep_on_minerals = 5
     @timed_async
     async def attack_nearby_enemies(self, enemy_builds_detected: Dict[BuildType, float]) -> None:
         defender_tags = set()
@@ -517,6 +518,8 @@ class Workers(GeometryMixin):
                              unhealthy_workers: Units,
                              number_of_defenders: int,
                              worker_rush_detected: bool) -> set[int]:
+        if len(healthy_workers) + len(unhealthy_workers) <= self.min_workers_to_keep_on_minerals:
+            return set()
         if len(healthy_workers) >= number_of_defenders:
             defenders = healthy_workers.closest_n_units(predicted_position, number_of_defenders)
             for defender in defenders:
@@ -549,7 +552,7 @@ class Workers(GeometryMixin):
                     or nearby_enemy.is_structure:
                 defender.attack(nearby_enemy)
             elif worker_rush_detected:
-                if distance_to_enemy_squared > 9 and injured_workers:
+                if distance_to_enemy_squared > 9 and injured_workers and self.bot.minerals > 50:
                     closest_injured = cy_closest_to(defender.position, injured_workers)
                     defender.repair(closest_injured)
                 else:
@@ -814,7 +817,7 @@ class Workers(GeometryMixin):
         assigned_repairers: Units = Units([], bot_object=self.bot)
         units_with_no_repairer: List[Unit] = []
         injured_units: Units = Units([], bot_object=self.bot)
-        if self.bot.minerals > 10:
+        if self.bot.minerals > 20:
             injured_units = self.units_needing_repair(enemy_builds_detected)
             if injured_units:
                 # LogHelper.add_log(f"{len(injured_units)} injured units needing repair")
