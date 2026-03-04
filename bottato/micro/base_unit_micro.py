@@ -512,6 +512,8 @@ class BaseUnitMicro(GeometryMixin):
 
         attack_range = UnitTypes.range_vs_target(unit, nearest_target)
         future_enemy_position = Point2(cy_center(targets))
+        if nearest_target.is_structure:
+            buffer = 0
         target_position = Point2(cy_towards(future_enemy_position, unit.position, attack_range + unit.radius + nearest_target.radius + buffer))
         return self._move_to_pathable_position(unit, target_position, queue=queue)
 
@@ -533,7 +535,7 @@ class BaseUnitMicro(GeometryMixin):
                 target_range = UnitTypes.range_vs_target(target, unit)
                 target_distance = self.distance(unit, target, self.enemy.predicted_positions) - target.radius - unit.radius
                 if can_attack and target_distance <= attack_range and target.health + target.shield <= unit.calculate_damage_vs_target(target)[0]:
-                    # secure kills on units that
+                    # secure kills on units that are one-hit from death
                     unit.attack(target)
                     return UnitMicroType.ATTACK
                 if target_range == 0:
@@ -614,28 +616,28 @@ class BaseUnitMicro(GeometryMixin):
             threats = self.enemy.threats_to(unit, threats, attack_range_buffer=2)
         ultimate_destination: Point2 | Unit | None = None
         if unit.is_mechanical:
-            if not threats or not threats.filter(lambda t: t.can_attack):
-                repairer: Unit | None = None
-                if unit.tag in self.repairers_by_target_prev_frame:
-                    try:
-                        repairers: Units = self.bot.units.filter(lambda w: w.tag in BaseUnitMicro.repairers_by_target_prev_frame[unit.tag])
-                        if repairers:
-                            repairer = cy_closest_to(unit.position, repairers)
-                            ultimate_destination = repairer
-                    except KeyError:
-                        pass
-                if repairer is None:
-                    repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags.union(BaseUnitMicro.repairer_tags_prev_frame))
-                    if not repairers:
-                        repairers = self.bot.workers.filter(lambda w: w.tag not in BaseUnitMicro.scout_tags)
-                    if repairers and unit.type_id == UnitTypeId.SCV:
-                        repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
+            # if not threats or not threats.filter(lambda t: t.can_attack):
+            repairer: Unit | None = None
+            if unit.tag in self.repairers_by_target_prev_frame:
+                try:
+                    repairers: Units = self.bot.units.filter(lambda w: w.tag in BaseUnitMicro.repairers_by_target_prev_frame[unit.tag])
                     if repairers:
-                        closest_repairer = cy_closest_to(unit.position, repairers)
-                        if closest_repairer.position.manhattan_distance(unit.position) < 1:
-                            ultimate_destination = unit
-                        else:
-                            ultimate_destination = closest_repairer
+                        repairer = cy_closest_to(unit.position, repairers)
+                        ultimate_destination = repairer
+                except KeyError:
+                    pass
+            if repairer is None:
+                repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags.union(BaseUnitMicro.repairer_tags_prev_frame))
+                if not repairers:
+                    repairers = self.bot.workers.filter(lambda w: w.tag not in BaseUnitMicro.scout_tags)
+                if repairers and unit.type_id == UnitTypeId.SCV:
+                    repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
+                if repairers:
+                    closest_repairer = cy_closest_to(unit.position, repairers)
+                    if closest_repairer.position.manhattan_distance(unit.position) < 1:
+                        ultimate_destination = unit
+                    else:
+                        ultimate_destination = closest_repairer
         else:
             medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC)
             if medivacs:

@@ -414,7 +414,7 @@ class SCVBuildStep(BuildStep):
             UnitTypeId.ARMORY,
         )
         go_away_from_map_center = unit_type_id in UnitTypes.TECH_STRUCTURE_TYPES
-        distance_towards_map_center = -8 if go_away_from_map_center else 8
+        distance_towards_map_center = -10 if go_away_from_map_center else 8
         map_center = self.bot.game_info.map_center
         max_distance = 20
         retry_count = 0

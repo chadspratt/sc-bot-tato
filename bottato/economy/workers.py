@@ -387,11 +387,15 @@ class Workers(GeometryMixin):
             unhealthy_workers = available_workers.filter(lambda u: u.health_percentage <= 0.5)
             worker_rush_detected = BuildType.WORKER_RUSH in enemy_builds_detected
 
+
             assigned_defender_counts: Dict[int, int] = defaultdict(int)
             targetable_enemies = self.bot.enemy_units.filter(lambda u: not u.is_flying
                                                              and self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies())
                                                              and u.position.manhattan_distance(self.bot.start_location) < 30)
             enemies_inside_wall = self.filter_enemies_outside_wall(targetable_enemies)
+            total_worker_count = len(available_workers)
+            max_workers_to_send = min(total_worker_count - 2, len(enemies_inside_wall) + 1)
+            self.min_workers_to_keep_on_minerals = total_worker_count - max_workers_to_send
             # ramp_is_blocked = self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount >= 2
             # if ramp_is_blocked:
                 # targetable_enemies = targetable_enemies.filter(lambda u: cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) > 9)
@@ -518,8 +522,7 @@ class Workers(GeometryMixin):
                              unhealthy_workers: Units,
                              number_of_defenders: int,
                              worker_rush_detected: bool) -> set[int]:
-        if len(healthy_workers) + len(unhealthy_workers) <= self.min_workers_to_keep_on_minerals:
-            return set()
+        number_of_defenders = min(number_of_defenders, len(healthy_workers) + len(unhealthy_workers) - self.min_workers_to_keep_on_minerals)
         if len(healthy_workers) >= number_of_defenders:
             defenders = healthy_workers.closest_n_units(predicted_position, number_of_defenders)
             for defender in defenders:

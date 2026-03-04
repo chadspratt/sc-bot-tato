@@ -102,10 +102,10 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if not nearby_enemy:
             enemy_candidates = self.enemy.get_candidates(include_structures=False, include_out_of_view=False).sorted(lambda u: u.health + u.shield)
             nearby_enemy = self.enemy.in_attack_range(unit, enemy_candidates, attack_range_buffer, first_only=True)
-            if not nearby_enemy and attack_range_buffer == 0:
-                nearby_enemy = self.enemy.in_attack_range(unit, enemy_candidates, 5, first_only=True)
             if anti_banshee_structures:
                 nearby_enemy = nearby_enemy.filter(lambda e: anti_banshee_structures.closest_distance_to(e) > 6)
+            if not nearby_enemy and attack_range_buffer == 0:
+                nearby_enemy = self.enemy.in_attack_range(unit, enemy_candidates, 5, first_only=True)
 
         if self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies()):
             threat_range_buffer = 3 if nearby_enemy and can_attack and unit.health_percentage > self.harass_retreat_health else 5
@@ -113,7 +113,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             if threats:
                 if nearby_enemy and can_attack:
                     threats_are_just_detectors = min([u.is_structure or u.type_id in UnitTypes.NON_THREAT_DETECTORS for u in threats])
-                    if threats_are_just_detectors:
+                    if threats_are_just_detectors or nearby_enemy.in_attack_range_of(unit, -0.2):
                         threats.extend(nearby_enemy)
                         return self._kite(unit, threats)
                 # below harass_attack_health: if threats and no target in range, do nothing

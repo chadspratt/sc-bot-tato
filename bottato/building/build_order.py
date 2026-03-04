@@ -1007,7 +1007,7 @@ class BuildOrder():
                 build_queue.pop(execution_index)
                 execution_index -= 1
                 continue
-            if build_step.get_unit_type_id() in failed_types:
+            if not isinstance(build_step, UpgradeBuildStep) and build_step.get_unit_type_id() in failed_types:
                 continue
             if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
                 build_response = BuildResponseCode.NO_SUPPLY
