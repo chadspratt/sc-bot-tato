@@ -288,7 +288,7 @@ class BuildOrder():
                     self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue)
                 if self.move_between_queues(UnitTypeId.BUNKER, self.static_queue, self.priority_queue):
                     # add a second bunker for low ground
-                    self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=10)
+                    self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue, position=6)
         elif change == BuildOrderChange.ZERGLING_RUSH:
             # move cc later but keep before starport
             self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.static_queue)
