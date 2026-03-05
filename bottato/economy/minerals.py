@@ -44,16 +44,10 @@ class Minerals(Resources, GeometryMixin):
     @timed
     def update_references(self):
         super().update_references()
-        # remove missing tags
-        for node in self.nodes:
-            i = len(node.worker_tags) - 1
-            while i >= 0:
-                if node.worker_tags[i] not in UnitReferenceHelper.units_by_tag:
-                    node.worker_tags.pop(i)
-                i -= 1
                     
         self.add_mineral_fields_for_townhalls()
         for node in self.nodes:
+            # display number of workers assigned to each node
             self.bot.client.debug_text_3d(
                 f"{len(node.worker_tags)}/{node.max_workers if not node.is_long_distance else WORKERS_PER_LONG_DISTANCE_NODE}\n{node.node.tag}",
                 node.node.position3d, size=8, color=(255, 255, 255))

@@ -185,12 +185,16 @@ class SCVBuildStep(BuildStep):
         if self.unit_in_charge is None:
             return BuildResponseCode.NO_BUILDER
 
+        micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
+        if await micro._retreat(self.unit_in_charge, 0.8) == UnitMicroType.RETREAT:
+            return BuildResponseCode.TOO_CLOSE_TO_ENEMY
+            LogHelper.add_log(f"{self} interrupted due to retreating worker {self.unit_in_charge}")
+
         threats = self.bot.enemy_units.filter(
             lambda u: u.type_id not in UnitTypes.WORKER_TYPES \
                 and UnitTypes.can_attack_ground(u))
-        enemy_is_close = self.tactics.enemy.get_units_closer_than(self.unit_in_charge, threats, 15).exists
-        if self.unit_being_built and not enemy_is_close:
-            enemy_is_close = self.tactics.enemy.get_units_closer_than(self.unit_being_built, threats, 10).exists
+        enemy_is_close = self.tactics.enemy.get_units_closer_than(self.unit_in_charge, threats, 15).exists \
+              or self.tactics.enemy.get_units_closer_than(self.position, threats, 10).exists
         if enemy_is_close:
             return BuildResponseCode.TOO_CLOSE_TO_ENEMY
 

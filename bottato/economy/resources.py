@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from loguru import logger
-from typing import List
+from typing import List, Set
 
 from cython_extensions.geometry import cy_distance_to
 from cython_extensions.units_utils import cy_closest_to
@@ -22,7 +22,7 @@ class ResourceNode():
         self.max_workers = max_workers
         self.is_long_distance = is_long_distance
         # workers sometimes disappear (gas) so this is more permanent
-        self.worker_tags: List[int] = []
+        self.worker_tags: Set[int] = set()
         self.mule_tag: int | None = None
         self.mining_position: Point2 | None = None
 
@@ -106,7 +106,7 @@ class Resources(GeometryMixin):
             if worker.type_id == UnitTypeId.MULE:
                 self.nodes_by_tag[node.tag].mule_tag = worker.tag
             else:
-                self.nodes_by_tag[node.tag].worker_tags.append(worker.tag)
+                self.nodes_by_tag[node.tag].worker_tags.add(worker.tag)
             return node
             
         logger.debug(f"No capacity available for worker {worker}")
@@ -129,7 +129,7 @@ class Resources(GeometryMixin):
                 return False
         else:
             if resource_node.needed_workers() > 0:
-                resource_node.worker_tags.append(worker.tag)
+                resource_node.worker_tags.add(worker.tag)
             else:
                 return False
 
@@ -150,6 +150,11 @@ class Resources(GeometryMixin):
                 resource_node.worker_tags.remove(tag)
                 return True
         return False
+    
+    def remove_unassigned_workers(self, active_worker_tags: Set[int]) -> None:
+        # remove missing or reassigned workers
+        for node in self.nodes:
+            node.worker_tags = node.worker_tags.intersection(active_worker_tags)
 
     @timed
     def update_references(self):

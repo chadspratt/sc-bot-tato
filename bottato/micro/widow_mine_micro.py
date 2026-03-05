@@ -36,7 +36,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
     current_targets: Dict[int, Unit | None] = {}
     last_lockon_time: Dict[int, float | None] = {}
     last_fire_time: Dict[int, float] = {}
-    special_position: Dict[int, Point2] = {}
+    special_positions: Dict[int, Point2] = {}
     last_special_position_update_time: float = 0.0
 
     @timed
@@ -46,29 +46,35 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
             self.unburrowed_tags.add(unit.tag)
         if unit.is_transforming:
             return UnitMicroType.NONE
+        # update drilling claws status
         if not self.drilling_claws_researched:
             self.drilling_claws_researched = UpgradeId.DRILLCLAWS in self.bot.state.upgrades
             if self.drilling_claws_researched:
                 self.max_burrow_time = 1.5
                 self.time_in_frames_to_transform = self.max_burrow_time * 22.4
 
+        # calculate special positions to burrow to block enemy drops based on recent drop locations
         if self.last_special_position_update_time != self.bot.time:
             self.last_special_position_update_time = self.bot.time
-            self.special_position.clear()
+            self.special_positions.clear()
             all_mines = self.bot.units.of_type({UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED})
             latest_enemy_drop_locations = self.intel.get_recent_drop_locations(150)
             for mine in all_mines:
                 if not latest_enemy_drop_locations:
                     break
+                if self.current_targets.get(mine.tag, None):
+                    # don't move mines that are already locked on
+                    continue
                 closest_drop_location = min(latest_enemy_drop_locations, key=lambda loc: cy_distance_to_squared(mine.position, loc))
-                self.special_position[mine.tag] = closest_drop_location
+                self.special_positions[mine.tag] = closest_drop_location
                 latest_enemy_drop_locations.remove(closest_drop_location)
 
         is_burrowed = unit.type_id == UnitTypeId.WIDOWMINEBURROWED
-        cooldown_remaining = max(0, 29 - (self.bot.time - self.last_fire_time.get(unit.tag, 0)))
+        rearm_cooldown_remaining = max(0, 29 - (self.bot.time - self.last_fire_time.get(unit.tag, 0)))
 
-        if unit.tag in self.special_position:
-            special_pos = self.special_position[unit.tag]
+        # send mines to special positions to block drops
+        if unit.tag in self.special_positions:
+            special_pos = self.special_positions[unit.tag]
             if not is_burrowed:
                 if cy_distance_to(unit.position, special_pos) > 2:
                     unit.move(special_pos)
@@ -82,10 +88,12 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.USE_ABILITY
             return UnitMicroType.NONE
 
+        # track lockon status (no data in api for whether it is locked) and update targeting when needed
         if not is_burrowed:
             self.last_lockon_time[unit.tag] = None
             self.current_targets[unit.tag] = None
         else:
+            # manually track cooldown to fire at current target. have to guess when it fires since no api data
             last_lockon = self.last_lockon_time.get(unit.tag, None)
             if last_lockon:
                 time_since_lockon = self.bot.time - last_lockon
@@ -93,11 +101,11 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                     self.last_fire_time[unit.tag] = self.bot.time - 0.4
                     self.last_lockon_time[unit.tag] = None
                     self.current_targets[unit.tag] = None
-                    cooldown_remaining = 29 # just fired
+                    rearm_cooldown_remaining = 29 # just fired
 
+            # check if target still in range to maintain lock
             current_target = self.current_targets.get(unit.tag)
             if current_target:
-                # check if previous target still in range
                 try:
                     current_target = UnitReferenceHelper.get_updated_unit_reference(current_target)
                 except UnitReferenceHelper.UnitNotFound:
@@ -110,8 +118,8 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                         self.current_targets[unit.tag] = None
                         current_target = None
 
-            if cooldown_remaining == 0:
-                # target new unit, if any in range
+            if rearm_cooldown_remaining == 0:
+                # check if current target needs to change due to overkill
                 if current_target:
                     remaining_hp_on_current_target = current_target.health + current_target.shield - self.get_targeting_count(current_target) * 125
                     min_health_to_attack = 25
@@ -121,22 +129,25 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                         # not overkilling
                         return UnitMicroType.NONE
                     excess_mine_count: int = int((overkill_damage + 124) // 125)
-                    if unit.tag not in self.get_recent_lockons(current_target)[:excess_mine_count]:
+                    if unit.tag not in self.get_recent_lockons(current_target, excess_mine_count):
                         # this mine is not overkilling
                         return UnitMicroType.NONE
-                    else:
-                        unit.smart(current_target)
-                    
-                valid_targets = self.bot.enemy_units.exclude_type([UnitTypeId.BROODLING, UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.ADEPTPHASESHIFT, UnitTypeId.CHANGELING])
+
+                # find best target to attack within range, excluding targets that are already heavily targeted by other mines to avoid overkill
+                valid_targets = self.bot.enemy_units.filter(lambda e: e.type_id not in [UnitTypeId.BROODLING, UnitTypeId.LARVA, UnitTypeId.EGG,
+                                                                                        UnitTypeId.ADEPTPHASESHIFT, UnitTypeId.CHANGELING]
+                                                                                        and e.health + e.shield > self.get_targeting_count(e) * 125)
                 targets_in_range = self.enemy.in_attack_range(unit, valid_targets, -0.1)
                 if targets_in_range:
                     new_target = max(targets_in_range, key=lambda t: t.health + t.shield - self.get_targeting_count(t) * 125)
-                    if new_target.health + new_target.shield > self.get_targeting_count(new_target) * 125:
-                        unit.smart(new_target)
-                        # add good target to targetting count so it won't keep restarting the attack cooldown
-                        self.current_targets[unit.tag] = new_target
-                        self.last_lockon_time[unit.tag] = self.bot.time
+                    unit.smart(new_target)
+                    self.current_targets[unit.tag] = new_target
+                    self.last_lockon_time[unit.tag] = self.bot.time
+                elif current_target:
+                    # not sure if this successfully resets the cd to fire, still seem to get overkill
+                    unit.smart(current_target)
 
+        # burrow/unburrow logic
         last_transform = self.last_transform_time.get(unit.tag, -999)
         time_since_last_transform = self.bot.time - last_transform
         if is_burrowed != (unit.tag in self.burrowed_tags):
@@ -148,34 +159,32 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                     self.unburrow(unit, update_last_transform_time=False)
             return UnitMicroType.USE_ABILITY
 
+        # early game placement, defend top of ramp
         if self.bot.time < 300:
-            if not self.drilling_claws_researched and cooldown_remaining > 3:
+            # stay unburrowed while revealed
+            if not self.drilling_claws_researched and rearm_cooldown_remaining > 3:
                 if is_burrowed:
                     self.unburrow(unit)
                     return UnitMicroType.USE_ABILITY
                 return UnitMicroType.NONE
+            
             if not is_burrowed:
-                bunkers = self.bot.structures(UnitTypeId.BUNKER)
                 burrow_position: Point2 | None = None
-                if bunkers:
-                    bunker = bunkers.furthest_to(self.bot.start_location)
-                    burrow_position = Point2(cy_towards(bunker.position, self.bot.start_location, bunker.radius))
-                elif self.bot.structures.of_type(UnitTypeId.BARRACKS):
+                # burrow behind ramp barracks
+                if self.bot.structures.of_type(UnitTypeId.BARRACKS):
                     ramp_barracks = cy_closest_to(self.bot.main_base_ramp.barracks_correct_placement, self.bot.structures.of_type(UnitTypeId.BARRACKS)) # type: ignore
-                    candidates = [(depot_position + ramp_barracks.position) / 2 for depot_position in self.bot.main_base_ramp.corner_depots]
-                    candidate = min(candidates, key=lambda p: cy_distance_to_squared(ramp_barracks.add_on_position, p))
-                    burrow_position = Point2(cy_towards(candidate,
-                                                        Point2(cy_towards(self.bot.main_base_ramp.top_center,
-                                                                          ramp_barracks.position,
-                                                                          distance=2)),
-                                                        distance=-1))
-                if burrow_position:
-                    if cy_distance_to(unit.position, burrow_position) < 1:
-                        self.burrow(unit)
-                        return UnitMicroType.USE_ABILITY
-                    else:
-                        unit.move(burrow_position)
-                        return UnitMicroType.MOVE
+                    burrow_position = Point2(cy_towards(ramp_barracks.position,
+                                                        self.bot.main_base_ramp.top_center,
+                                                        distance=-1.5))
+                else:
+                    burrow_position = self.bot.main_base_ramp.top_center
+
+                if cy_distance_to(unit.position, burrow_position) < 1:
+                    self.burrow(unit)
+                    return UnitMicroType.USE_ABILITY
+                else:
+                    unit.move(burrow_position)
+                    return UnitMicroType.MOVE
             return UnitMicroType.NONE
                     
         excluded_enemy_types = {UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.ADEPTPHASESHIFT} if is_burrowed else UnitTypes.NON_THREATS
@@ -193,7 +202,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                 self.unburrow(unit)
                 return UnitMicroType.USE_ABILITY
             # unburrow if exposed
-            if not self.drilling_claws_researched and 28.0 > cooldown_remaining > 3:
+            if not self.drilling_claws_researched and 28.0 > rearm_cooldown_remaining > 3:
                 self.unburrow(unit)
                 return UnitMicroType.USE_ABILITY
             # stay burrowed if within 6 of attacking range
@@ -209,13 +218,13 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
             return UnitMicroType.NONE
         else:
             # burrow if within 4 of attacking range
-            if closest_distance <= self.attack_range + 4 and cooldown_remaining < 5:
+            if closest_distance <= self.attack_range + 4 and rearm_cooldown_remaining < 5:
                 # burrow to attack
                 self.burrow(unit)
                 return UnitMicroType.USE_ABILITY
             elif do_force_move:
                 return UnitMicroType.NONE
-            elif closest_distance <= self.attack_range + 6 and cooldown_remaining < 2 and new_target:
+            elif closest_distance <= self.attack_range + 6 and rearm_cooldown_remaining < 2 and new_target:
                 unit.move(new_target)
                 return UnitMicroType.MOVE
             sieged_tanks = self.bot.units.of_type(UnitTypeId.SIEGETANKSIEGED)
@@ -235,13 +244,13 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
     def get_targeting_count(self, enemy_unit: Unit) -> int:
         return sum(1 for target in self.current_targets.values() if target and target.tag == enemy_unit.tag)
     
-    def get_recent_lockons(self, enemy_unit: Unit) -> List[int]:
+    def get_recent_lockons(self, enemy_unit: Unit, count: int) -> List[int]:
         mines_targeting_enemy = []
         for mine_tag, target in self.current_targets.items():
             if target and target.tag == enemy_unit.tag and self.last_lockon_time[mine_tag]:
                 mines_targeting_enemy.append(mine_tag)
         sorted_mine_tags = sorted(mines_targeting_enemy, key=lambda t: self.last_lockon_time[t], reverse=True) # type: ignore
-        return sorted_mine_tags
+        return sorted_mine_tags[:count]
 
     def burrow(self, unit: Unit, update_last_transform_time: bool = True):
         unit(AbilityId.BURROWDOWN_WIDOWMINE)
@@ -265,5 +274,4 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
             logger.debug(f"{unit.tag} not in burrowed_tags")
 
     def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
-        # just use auto attack
         return UnitMicroType.ATTACK if unit.tag in self.burrowed_tags else UnitMicroType.NONE

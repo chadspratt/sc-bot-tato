@@ -308,7 +308,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 break
         else:
             return
-        need_detection = self.enemy.enemies_needing_detection()
+        need_detection = self.enemy.things_needing_detection()
 
         if not need_detection:
             return
@@ -323,7 +323,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             if self.enemy.get_units_closer_than(enemy, ravens, 20).exists:
                 continue
             # only scan enemies if attackers nearby to make use of scan
-            if enemy.is_flying:
+            if isinstance(enemy, Unit) and enemy.is_flying:
                 if air_attackers is None:
                     air_attackers = self.bot.units.filter(lambda u: UnitTypes.can_attack_air(u))
                 attackers = air_attackers
@@ -333,9 +333,15 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 attackers = ground_attackers
             if not attackers:
                 continue
-            attackers = self.enemy.threats_to(enemy, attackers)
-            if attackers.amount > 1:
-                enemies_to_scan.append(enemy)
+            if isinstance(enemy, Unit):
+                attackers = self.enemy.threats_to(enemy, attackers)
+                if attackers.amount > 1:
+                    enemies_to_scan.append(enemy)
+            elif attackers.closer_than(6, enemy).amount > 2:
+                # position to scan, don't worry about grouping and just scan it
+                orbital_with_energy(AbilityId.SCANNERSWEEP_SCAN, enemy)
+                self.last_scan_time = self.bot.time
+                return
 
         # find unit that has most hidden enemies nearby then scan center of the group
         if enemies_to_scan:

@@ -297,7 +297,7 @@ class BaseUnitMicro(GeometryMixin):
     
     @timed
     def _move_to_repairer(self, unit: Unit) -> UnitMicroType:
-        if unit.tag in BaseUnitMicro.repairers_by_target_prev_frame and unit.health_percentage < 1.0 and self.bot.minerals > 50:
+        if unit.tag in BaseUnitMicro.repairers_by_target_prev_frame and unit.health_percentage < 1.0 and self.bot.minerals > 30:
             repairer_tags = BaseUnitMicro.repairers_by_target_prev_frame[unit.tag]
             repairers = self.bot.workers.filter(lambda w: w.tag in repairer_tags)
             closest_repairer = cy_closest_to(unit.position, repairers) if repairers else None

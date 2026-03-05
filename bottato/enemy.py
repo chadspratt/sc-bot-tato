@@ -4,6 +4,7 @@ from typing import Dict, List, Set
 
 from cython_extensions.general_utils import cy_in_pathing_grid_burny
 from cython_extensions.geometry import cy_distance_to_squared
+from cython_extensions.units_utils import cy_closer_than
 from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.ids.buff_id import BuffId
@@ -600,8 +601,9 @@ class Enemy(GeometryMixin):
         closer_units: Units = Units([], self.bot)
         if isinstance(target, Unit) and target.age > 0:
             target = self.get_predicted_position(target, 0)
+        target_radius = target.radius if isinstance(target, Unit) else 0
         for candidate in candidates:
-            distance_limit = (max_distance + candidate.radius) ** 2
+            distance_limit = (max_distance + target_radius + candidate.radius) ** 2
             candidate_distance: float
             if isinstance(target, Unit):
                 candidate_distance = self.safe_distance_squared(target, candidate)
@@ -665,13 +667,29 @@ class Enemy(GeometryMixin):
         UnitTypeId.LURKERMP,
         UnitTypeId.WIDOWMINE,
     }
-    def enemies_needing_detection(self) -> Units:
-        need_detection = self.enemies_in_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types) + \
+    positions_needing_detection: Dict[Point2, float] = {}
+    def things_needing_detection(self) -> List[Unit | Point2]:
+        need_detection: List[Unit | Point2] = []
+        for position, time_visited in self.positions_needing_detection.items():
+            # remove positions after thoroughly detecting them
+            if time_visited == 0:
+                if self.bot.is_visible(position):
+                    self.positions_needing_detection[position] = self.bot.time
+            elif self.bot.time - time_visited > 15:
+                del self.positions_needing_detection[position]
+                continue
+            need_detection.append(position)
+        units_needing_detection = self.enemies_in_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types) + \
                self.enemies_out_of_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types)
+        need_detection.extend(units_needing_detection)
         # creep_tumors_excluded = need_detection.filter(lambda unit: unit.type_id != UnitTypeId.CREEPTUMORBURROWED)
         # if creep_tumors_excluded:
         #     return creep_tumors_excluded
         return need_detection
+    
+    def mark_position_as_needing_detection(self, position: Point2):
+        # mark position as needing detection, probably because a build failed, so we can scan or send a raven
+        self.positions_needing_detection[position] = 0
 
     out_of_view_cache: Dict[str, tuple[Units | None, float]] = {
         "all": (None, -1),

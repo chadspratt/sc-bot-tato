@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from loguru import logger
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
-from cython_extensions.geometry import cy_distance_to, cy_towards
+from cython_extensions.geometry import cy_angle_to, cy_distance_to, cy_towards
 from cython_extensions.units_utils import cy_closest_to
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -99,20 +99,29 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                 unit.move(self.map.get_pathable_position(target_position, unit))
                 return UnitMicroType.MOVE
         # provide detection
-        need_detection = self.enemy.enemies_needing_detection()
+        need_detection: List[Unit | Point2] = self.enemy.things_needing_detection()
         for enemy in need_detection:
-            if enemy.age == 0:
+            if isinstance(enemy, Unit) and enemy.age == 0:
                 self.missing_hidden_units.discard(enemy.tag)
-        need_detection = need_detection.filter(lambda enemy: enemy.tag not in self.missing_hidden_units)
+        need_detection = [enemy for enemy in need_detection if not isinstance(enemy, Unit) or enemy.tag not in self.missing_hidden_units]
         if need_detection:
-            closest_unit: Unit = self.closest_unit_to_unit(unit, need_detection)
-            closest_distance = self.distance(closest_unit, unit)
+            closest_detection_target = min(need_detection, key=lambda enemy: cy_distance_to(unit.position, enemy.position))
+            closest_distance = self.distance(closest_detection_target, unit)
+            desired_distance = unit.sight_range - 1
             if closest_distance < 30 and closest_distance > unit.sight_range:
-                target_position = Point2(cy_towards(closest_unit.position, unit.position, unit.sight_range - 1))
+                target_position = Point2(cy_towards(closest_detection_target.position, unit.position, desired_distance))
+
                 unit.move(self.map.get_pathable_position(target_position, unit))
                 return UnitMicroType.MOVE
-            elif self.bot.is_visible(closest_unit.position) and closest_unit.age > 0:
-                self.missing_hidden_units.add(closest_unit.tag)
+            elif self.bot.is_visible(closest_detection_target.position):
+                if isinstance(closest_detection_target, Unit) and closest_detection_target.age > 0:
+                    self.missing_hidden_units.add(closest_detection_target.tag)
+                # circle around closest_detection_target
+                target_to_unit = unit.position - closest_detection_target.position
+                target_to_unit_angle = cy_angle_to(closest_detection_target.position, unit.position)
+                target_to_unit_angle += 0.2
+                target_to_unit = self.apply_rotation(target_to_unit_angle, target_to_unit)
+                unit.move(self.map.get_pathable_position(unit.position + target_to_unit, unit))
         return UnitMicroType.NONE
 
     @timed_async
