@@ -676,7 +676,7 @@ class Enemy(GeometryMixin):
                 if self.bot.is_visible(position):
                     self.positions_needing_detection[position] = self.bot.time
             elif self.bot.time - time_visited > 15:
-                del self.positions_needing_detection[position]
+                # del self.positions_needing_detection[position]
                 continue
             need_detection.append(position)
         units_needing_detection = self.enemies_in_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types) + \

@@ -135,14 +135,15 @@ class Workers(GeometryMixin):
                 #     self.vespene.remove_worker_by_tag(assignment.unit.tag)
                 # if assignment.job_type != WorkerJobType.MINERALS:
                 #     self.minerals.remove_worker_by_tag(assignment.unit.tag)
-            mineral_worker_tags = {a.unit.tag for a in self.assignments_by_job[WorkerJobType.MINERALS]}
-            gas_worker_tags = {a.unit.tag for a in self.assignments_by_job[WorkerJobType.VESPENE]}
-            self.minerals.remove_unassigned_workers(mineral_worker_tags)
-            self.vespene.remove_unassigned_workers(gas_worker_tags)
 
             self.assignments_by_job[assignment.job_type].append(assignment)
             self.bot.client.debug_text_3d(f"{assignment.job_type.name}\n{assignment.unit.tag}",
                                           assignment.unit.position3d + Point3((0, 0, 1)), size=8, color=(255, 255, 255))
+
+        mineral_worker_tags = {a.unit.tag for a in self.assignments_by_job[WorkerJobType.MINERALS]}
+        gas_worker_tags = {a.unit.tag for a in self.assignments_by_job[WorkerJobType.VESPENE]}
+        self.minerals.remove_unassigned_workers(mineral_worker_tags)
+        self.vespene.remove_unassigned_workers(gas_worker_tags)
         logger.debug(f"assignment summary {self.assignments_by_job}")
 
     def add_worker(self, worker: Unit) -> bool:
