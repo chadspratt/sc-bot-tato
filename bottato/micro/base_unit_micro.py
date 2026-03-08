@@ -621,6 +621,8 @@ class BaseUnitMicro(GeometryMixin):
             if unit.tag in self.repairers_by_target_prev_frame:
                 try:
                     repairers: Units = self.bot.units.filter(lambda w: w.tag in BaseUnitMicro.repairers_by_target_prev_frame[unit.tag])
+                    if threats:
+                        repairers = repairers.further_than(5, unit)
                     if repairers:
                         repairer = cy_closest_to(unit.position, repairers)
                         ultimate_destination = repairer

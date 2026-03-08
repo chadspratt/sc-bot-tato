@@ -492,6 +492,9 @@ class Workers(GeometryMixin):
         nearby_enemies = cy_closer_than(nearby_enemies, radius, position.position)
         radius_squared = radius * radius
         for enemy in self.units_to_attack:
+            if enemy.type_id == UnitTypeId.BUNKER and enemy.build_progress == 1.0:
+                # don't attack completed bunkers
+                continue
             predicted_position = self.enemy.get_predicted_position(enemy, 0.0)
             if cy_distance_to_squared(predicted_position, position.position) < radius_squared:
                 nearby_enemies.append(enemy)
