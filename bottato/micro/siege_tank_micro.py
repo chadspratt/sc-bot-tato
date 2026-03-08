@@ -280,7 +280,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if new_bunker_built:
             self.bunker_count = len(bunkers)
         tank_position = None
-        move_tank = False
         if is_sieged:
             if new_bunker_built:
                 # reposition to cover new bunker
@@ -297,6 +296,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 else:
                     # fallback to normal micro to handle enemy units
                     return UnitMicroType.NONE
+            # stay sieged
+            return UnitMicroType.USE_ABILITY
         else:
             if closest_enemy_to_ramp:
                 if enemy_out_of_range:
@@ -335,8 +336,9 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 ))
             else:
                 tank_position = self.bot.main_base_ramp.bottom_center
-                close_enough_to_siege = cy_distance_to(unit.position, tank_position) < 9
+                close_enough_to_siege = cy_distance_to(unit.position, tank_position) < 5
             
+            move_tank = not close_enough_to_siege
             if close_enough_to_siege:
                 # don't block barracks addon from building
                 barracks = self.bot.structures(UnitTypeId.BARRACKS).ready
@@ -364,11 +366,11 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                         # tank_position = Point2(cy_towards(closest_depot.position, unit.position, 4))
                         self.early_game_siege_positions[unit.tag] = tank_position
                         move_tank = True
-        self.previous_positions[unit.tag] = unit.position
-        if move_tank and tank_position:
-            LogHelper.add_log(f"Early game siege tank position updated {tank_position}")
-            unit.move(tank_position)
-            return UnitMicroType.MOVE
-        self.siege(unit)
-        LogHelper.add_log(f"Early game siege tank sieging to cover ramp at desired position")
-        return UnitMicroType.USE_ABILITY
+            self.previous_positions[unit.tag] = unit.position
+            if move_tank and tank_position:
+                LogHelper.add_log(f"Early game siege tank position updated {tank_position}")
+                unit.move(tank_position)
+                return UnitMicroType.MOVE
+            self.siege(unit)
+            LogHelper.add_log(f"Early game siege tank sieging to cover ramp at desired position")
+            return UnitMicroType.USE_ABILITY
