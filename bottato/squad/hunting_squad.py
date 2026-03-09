@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Dict, List, Set
 
 from cython_extensions.geometry import cy_distance_to_squared
 from sc2.bot_ai import BotAI
+from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
 
@@ -15,6 +16,27 @@ from bottato.mixins import GeometryMixin, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.scouting_location import ScoutingLocation
 from bottato.squad.squad import Squad
+
+
+class HuntingSquadType():
+    def __init__(self, unit_composition: dict[UnitTypeId, int], target_types: Set[UnitTypeId]):
+        self.unit_composition = unit_composition
+        self.target_types = target_types
+        self.name = f"Hunt {'/'.join([t.name for t in target_types])}"
+
+
+hunting_squad_types: Dict[Race, List[HuntingSquadType]] = {
+    Race.Zerg: [
+        HuntingSquadType({UnitTypeId.VIKINGFIGHTER: 1},
+                         {UnitTypeId.OVERLORD, UnitTypeId.OVERSEER}),
+        HuntingSquadType({UnitTypeId.RAVEN: 1, UnitTypeId.MARINE: 3},
+                         {UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORQUEEN}),
+    ],
+    Race.Terran: [
+        HuntingSquadType({UnitTypeId.VIKINGFIGHTER: 1},
+                         {UnitTypeId.MEDIVAC}),
+    ],
+}
 
 
 class HuntingSquad(Squad, GeometryMixin):
@@ -41,38 +63,40 @@ class HuntingSquad(Squad, GeometryMixin):
 
     unsafe_targets: Dict[int, float] = {}
     @timed_async
-    async def hunt(self, target_types: List[UnitTypeId]):
+    async def hunt(self, target_types: Set[UnitTypeId]):
         if not self.units:
             return
         self.had_units = True
 
         targets = self.enemy.get_recent_enemies().filter(lambda u: u.type_id in target_types)
-        safe_targets = targets.filter(lambda u: u.tag not in self.unsafe_targets or self.bot.time - self.unsafe_targets[u.tag] > 20)
+        safe_targets = targets.filter(lambda u: self.bot.time - self.unsafe_targets.get(u.tag, 0) > 20)
         if not safe_targets:     
-            safe_targets = targets.filter(lambda u: u.tag not in self.unsafe_targets or self.bot.time - self.unsafe_targets[u.tag] > 5)
+            safe_targets = targets.filter(lambda u: self.bot.time - self.unsafe_targets.get(u.tag, 0) > 5)
         safe_targets_near_base = safe_targets.filter(lambda u: self.enemy.get_units_closer_than(u, self.bot.structures, 40).exists)
         # safe_targets_near_base = safe_targets.filter(lambda u: self.enemy.get_closest_distance_squared(u, self.bot.structures) < 1600)
         candidates = safe_targets_near_base if safe_targets_near_base else safe_targets
 
-        for unit in self.units:
-            micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
-            if candidates:
-                self.next_location = None
-                self.closest_distance_to_next_location = float('inf')
-                target = self.closest_unit_to_unit(unit, candidates)
+        if candidates:
+            self.next_location = None
+            self.closest_distance_to_next_location = float('inf')
+            target = self.closest_unit_to_unit(self.units.center, candidates)
+            for unit in self.units:
+                micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
                 if await micro.move(unit, target.position) == UnitMicroType.RETREAT:
                     self.unsafe_targets[target.tag] = self.bot.time
-            else:
-                self.next_location = sorted(self.intel.scouting_locations, key=lambda loc: loc.last_seen)[0]
-                distance_to_next_location = cy_distance_to_squared(unit.position, self.next_location.scouting_position)
-                if distance_to_next_location < self.closest_distance_to_next_location:
-                    self.closest_distance_to_next_location = distance_to_next_location
-                    self.time_of_closest_distance = self.bot.time
-                # mark location as seen if can't get closer for 5 seconds
-                if distance_to_next_location < 10 or \
-                        self.closest_distance_to_next_location < 30 and self.bot.time - self.time_of_closest_distance > 5:
-                    self.next_location.last_seen = self.bot.time
-                    self.next_location = None
-                    self.closest_distance_to_next_location = float('inf')
-                else:
-                    await micro.harass(unit, self.next_location.scouting_position)
+        else:
+            self.next_location = sorted(self.intel.scouting_locations, key=lambda loc: loc.last_seen)[0]
+            for unit in self.units:
+                micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
+                await micro.harass(unit, self.next_location.scouting_position)
+
+            # mark location as seen if can't get closer for 5 seconds
+            distance_to_next_location = cy_distance_to_squared(self.units.center, self.next_location.scouting_position)
+            if distance_to_next_location < self.closest_distance_to_next_location:
+                self.closest_distance_to_next_location = distance_to_next_location
+                self.time_of_closest_distance = self.bot.time
+            if distance_to_next_location < 10 or \
+                    self.closest_distance_to_next_location < 30 and self.bot.time - self.time_of_closest_distance > 5:
+                self.next_location.last_seen = self.bot.time
+                self.next_location = None
+                self.closest_distance_to_next_location = float('inf')

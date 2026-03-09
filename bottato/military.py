@@ -6,7 +6,12 @@ from cython_extensions.geometry import (
     cy_distance_to_squared,
     cy_towards,
 )
-from cython_extensions.units_utils import cy_center, cy_closer_than, cy_closest_to
+from cython_extensions.units_utils import (
+    cy_center,
+    cy_closer_than,
+    cy_closest_to,
+    cy_sorted_by_distance_to,
+)
 from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
@@ -14,20 +19,16 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bottato.building.build_step import BuildStep
 from bottato.counter import Counter
 from bottato.economy.workers import Workers
-from bottato.enemy import Enemy
 from bottato.enums import BuildType, ExpansionSelection, Tactic
 from bottato.log_helper import LogHelper
-from bottato.map.map import Map
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import DebugMixin, GeometryMixin, timed, timed_async
 from bottato.squad.bunker import Bunker
-from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.formation_squad import FormationSquad
 from bottato.squad.harass_squad import HarassSquad
-from bottato.squad.hunting_squad import HuntingSquad
+from bottato.squad.hunting_squad import HuntingSquad, hunting_squad_types
 from bottato.squad.squad import Squad
 from bottato.squad.stuck_rescue import StuckRescue
 from bottato.tactics import Tactics
@@ -69,7 +70,7 @@ class Military(GeometryMixin, DebugMixin):
         self.stuck_rescue = StuckRescue(self.bot, self.main_army, self.squads_by_unit_tag)
         self.reaper_harass = HarassSquad(self.bot, name="reaper harass")
         self.banshee_harass = HarassSquad(self.bot, name="banshee harass")
-        self.hunting_squad: HuntingSquad | None = None
+        self.hunter_squads: Dict[str, HuntingSquad] = {}
         self.squads.append(self.main_army)
         self.squads.append(self.top_ramp_bunker)
         self.squads.append(self.natural_bunker)
@@ -201,14 +202,15 @@ class Military(GeometryMixin, DebugMixin):
         base_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET and unit != self.tactics.proxy_barracks)
         if self.bot.enemy_race in (Race.Zerg, Race.Random):
             nydus_canals = self.bot.enemy_structures.of_type(UnitTypeId.NYDUSCANAL)
-            if nydus_canals and self.closest_distance_squared(nydus_canals.first, base_structures) < 625 and self.main_army.units:
+            nydus_canals = cy_sorted_by_distance_to(nydus_canals, self.bot.start_location)
+            if nydus_canals and self.closest_distance_squared(nydus_canals[0], base_structures) < 625 and self.main_army.units:
                 LogHelper.add_log(f"attacking nydus canals in base: {nydus_canals}")
                 # put massive priority on killing nydus canals near base
-                if self.main_army.position._distance_squared(nydus_canals.first.position) > 225:
-                    await self.main_army.move(nydus_canals.first.position, force_move=True)
+                if self.main_army.position._distance_squared(nydus_canals[0].position) > 225:
+                    await self.main_army.move(nydus_canals[0].position, force_move=True)
                 else:
-                    await self.main_army.move(nydus_canals.first.position)
-                return nydus_canals
+                    await self.main_army.move(nydus_canals[0].position)
+                return Units(nydus_canals, self.bot)
         
         enemy_units = self.bot.enemy_units
         if self.main_army.units.amount < 3:
@@ -412,26 +414,24 @@ class Military(GeometryMixin, DebugMixin):
 
     @timed_async
     async def manage_special_squads(self):
-        hunter_types: List[UnitTypeId] = []
-        prey_types: List[UnitTypeId] = []
-        if self.intel.enemy_race == Race.Zerg:
-            hunter_types = [UnitTypeId.VIKINGFIGHTER, UnitTypeId.VIKINGASSAULT]
-            prey_types = [UnitTypeId.OVERLORD, UnitTypeId.OVERSEER]
-        elif self.intel.enemy_race == Race.Terran:
-            hunter_types = [UnitTypeId.VIKINGFIGHTER, UnitTypeId.VIKINGASSAULT]
-            prey_types = [UnitTypeId.MEDIVAC]
-        if hunter_types:
-            if self.hunting_squad is None:
-                self.hunting_squad = HuntingSquad(self.bot, self.enemy, self.intel, f"{prey_types[0].name} hunt", (255, 0, 255))
-                LogHelper.add_log(f"created hunting squad {self.hunting_squad.name}")
-                self.squads.append(self.hunting_squad)
-            if not self.hunting_squad.units.exists and not self.hunting_squad.had_units:
-                # squad has never had units, assign initial
-                hunters = self.main_army.units(hunter_types)
-                if hunters:
-                    self.transfer(hunters.first, self.main_army, self.hunting_squad)
-            if self.hunting_squad.units:
-                await self.hunting_squad.hunt(prey_types)
+        for squad_type in hunting_squad_types[self.intel.enemy_race]:
+            if squad_type.name not in self.hunter_squads:
+                 self.hunter_squads[squad_type.name] = HuntingSquad(self.bot, self.enemy, self.intel, squad_type.name, (255, 0, 255))
+                 LogHelper.add_log(f"created hunting squad {self.hunter_squads[squad_type.name].name}")
+                 self.squads.append(self.hunter_squads[squad_type.name])
+            hunter_squad = self.hunter_squads[squad_type.name]
+
+            for unit_type, count in squad_type.unit_composition.items():
+                current_count = hunter_squad.units.of_type(unit_type).amount
+                if current_count < count:
+                    available_units = self.main_army.units.of_type(unit_type)
+                    for unit in available_units:
+                        if current_count >= count:
+                            break
+                        self.transfer(unit, self.main_army, hunter_squad)
+                        current_count += 1
+            if hunter_squad.units:
+                await hunter_squad.hunt(squad_type.target_types)
 
     @timed
     def get_offense_target_position(self, newest_enemy_base: Point2 | None, countered_enemies: Dict[int, FormationSquad]) -> Point2:

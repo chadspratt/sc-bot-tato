@@ -459,6 +459,9 @@ class BuildOrder():
         if UnitTypeId.RAVEN not in ideal_composition:
             # have at least one raven for detection
             ideal_composition[UnitTypeId.RAVEN] = 0.01
+            if self.intel.enemy_race == Race.Zerg:
+                # ravens are extra important vs zerg for clearing creep and burrowed units
+                ideal_composition[UnitTypeId.RAVEN] = 1.01
         if UnitTypeId.VIKINGFIGHTER not in ideal_composition:
             # have at least one viking for scouting
             ideal_composition[UnitTypeId.VIKINGFIGHTER] = 0.01
