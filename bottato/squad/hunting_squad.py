@@ -9,32 +9,34 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.units import Units
 
 from bottato.enemy import Enemy
-from bottato.enums import UnitMicroType
+from bottato.enums import ExpansionSelection, UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import GeometryMixin, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.scouting_location import ScoutingLocation
 from bottato.squad.squad import Squad
+from bottato.tactics import Tactics
 
 
 class HuntingSquadType():
-    def __init__(self, unit_composition: dict[UnitTypeId, int], target_types: Set[UnitTypeId]):
+    def __init__(self, unit_composition: dict[UnitTypeId, int], target_types: Set[UnitTypeId], start_time: float = 0):
         self.unit_composition = unit_composition
         self.target_types = target_types
+        self.start_time = start_time
         self.name = f"Hunt {'/'.join([t.name for t in target_types])}"
 
 
 hunting_squad_types: Dict[Race, List[HuntingSquadType]] = {
     Race.Zerg: [
         HuntingSquadType({UnitTypeId.VIKINGFIGHTER: 1},
-                         {UnitTypeId.OVERLORD, UnitTypeId.OVERSEER}),
+                         {UnitTypeId.OVERLORD, UnitTypeId.OVERSEER}, 180),
         HuntingSquadType({UnitTypeId.RAVEN: 1, UnitTypeId.MARINE: 3},
-                         {UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORQUEEN}),
+                         {UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORQUEEN}, 300),
     ],
     Race.Terran: [
         HuntingSquadType({UnitTypeId.VIKINGFIGHTER: 1},
-                         {UnitTypeId.MEDIVAC}),
+                         {UnitTypeId.MEDIVAC}, 240),
     ],
 }
 
@@ -43,14 +45,14 @@ class HuntingSquad(Squad, GeometryMixin):
     def __init__(
         self,
         bot: BotAI,
-        enemy: Enemy,
-        intel: EnemyIntel,
+        tactics: Tactics,
         name: str,
         color: tuple[int, int, int]
     ):
         super().__init__(bot, name, color)
-        self.enemy = enemy
-        self.intel = intel
+        self.tactics = tactics
+        self.enemy = tactics.enemy
+        self.intel = tactics.intel
         self.units: Units = Units([], bot_object=bot)
 
         self.next_location: ScoutingLocation | None = None
@@ -85,7 +87,10 @@ class HuntingSquad(Squad, GeometryMixin):
                 if await micro.move(unit, target.position) == UnitMicroType.RETREAT:
                     self.unsafe_targets[target.tag] = self.bot.time
         else:
-            self.next_location = sorted(self.intel.scouting_locations, key=lambda loc: loc.last_seen)[0]
+            scout_locations = self.tactics.map.expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY]
+            location_count = len(scout_locations) // 2 + 1
+            # only hunt on friendly side of map
+            self.next_location = sorted(scout_locations[:location_count], key=lambda loc: loc.last_seen)[0]
             for unit in self.units:
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
                 await micro.harass(unit, self.next_location.scouting_position)
