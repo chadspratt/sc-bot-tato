@@ -414,7 +414,7 @@ class Military(GeometryMixin, DebugMixin):
 
     @timed_async
     async def manage_special_squads(self):
-        for squad_type in hunting_squad_types[self.intel.enemy_race]:
+        for squad_type in hunting_squad_types.get(self.intel.enemy_race, []):
             if squad_type.name not in self.hunter_squads:
                  self.hunter_squads[squad_type.name] = HuntingSquad(self.bot, self.enemy, self.intel, squad_type.name, (255, 0, 255))
                  LogHelper.add_log(f"created hunting squad {self.hunter_squads[squad_type.name].name}")
