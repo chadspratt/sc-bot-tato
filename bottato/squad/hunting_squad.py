@@ -95,7 +95,7 @@ class HuntingSquad(Squad, GeometryMixin):
             if distance_to_next_location < self.closest_distance_to_next_location:
                 self.closest_distance_to_next_location = distance_to_next_location
                 self.time_of_closest_distance = self.bot.time
-            if distance_to_next_location < 10 or \
+            if distance_to_next_location < 2 or \
                     self.closest_distance_to_next_location < 30 and self.bot.time - self.time_of_closest_distance > 5:
                 self.next_location.last_seen = self.bot.time
                 self.next_location = None
