@@ -144,8 +144,10 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         excluded_enemy_types = {UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.ADEPTPHASESHIFT} if is_sieged else UnitTypes.NON_THREATS
         closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
                                                                         excluded_types=excluded_enemy_types)
-        closest_distance_after_siege = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
-                                                                     excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time/2)[1]
+        closest_distance_after_siege = closest_distance
+        if not is_sieged:
+            closest_distance_after_siege = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
+                                                                        excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time/2)[1]
         _, closest_structure_distance = self.enemy.get_target_closer_than(unit, max_distance=self.sight_range - 1, include_units=False, excluded_types={UnitTypeId.REFINERY, UnitTypeId.EXTRACTOR, UnitTypeId.ASSIMILATOR, UnitTypeId.AUTOTURRET})
 
         friendly_buffer_count = 0

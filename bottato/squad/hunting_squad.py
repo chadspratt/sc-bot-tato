@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from typing import Dict, List, Set
 
-from cython_extensions.geometry import cy_distance_to_squared
+from cython_extensions.geometry import cy_distance_to_squared, cy_towards
 from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.position import Point2
 from sc2.units import Units
 
 from bottato.enemy import Enemy
@@ -17,6 +18,7 @@ from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.scouting_location import ScoutingLocation
 from bottato.squad.squad import Squad
 from bottato.tactics import Tactics
+from bottato.unit_types import UnitTypes
 
 
 class HuntingSquadType():
@@ -84,7 +86,8 @@ class HuntingSquad(Squad, GeometryMixin):
             target = self.closest_unit_to_unit(self.units.center, candidates)
             for unit in self.units:
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
-                if await micro.move(unit, target.position) == UnitMicroType.RETREAT:
+                destination = Point2(cy_towards(target.position, unit.position, UnitTypes.range_vs_target(unit, target) - 0.5))
+                if await micro.move(unit, destination) == UnitMicroType.RETREAT:
                     self.unsafe_targets[target.tag] = self.bot.time
         else:
             scout_locations = self.tactics.map.expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY]

@@ -100,7 +100,8 @@ class Counter():
         UnitTypeId.BATTLECRUISER: { # 6
             UnitTypeId.VIKINGFIGHTER: 2.5,
             UnitTypeId.THOR: 0.5,
-            UnitTypeId.MARINE: 2
+            UnitTypeId.MARINE: 2,
+            UnitTypeId.MARAUDER: -1
         },
         UnitTypeId.CYCLONE: { # 3
             UnitTypeId.SIEGETANK: 0.5,
