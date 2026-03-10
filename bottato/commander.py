@@ -35,6 +35,7 @@ from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.scouting import Scouting
 from bottato.tactics import Tactics
 from bottato.unit_reference_helper import UnitReferenceHelper
+from bottato.unit_types import UnitTypes
 
 
 class Commander(GeometryMixin):
@@ -136,6 +137,12 @@ class Commander(GeometryMixin):
                                             radius=1.5 + 1,
                                             start_time=self.bot.time,
                                             duration=0.05)
+        for anti_air_structure in self.bot.enemy_structures.filter(lambda u: u.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES and u.is_ready and u.is_visible):
+            BaseUnitMicro.add_custom_effect(CustomEffectType.ANTI_AIR,
+                                            position=anti_air_structure,
+                                            radius=UnitTypes.air_range(anti_air_structure),
+                                            start_time=self.bot.time,
+                                            duration=0.1)
         # for baneling in self.bot.enemy_units.of_type(UnitTypeId.BANELING):
         #     BaseUnitMicro.add_custom_effect(CustomEffectType.ENEMY,
         #                                     position=baneling,

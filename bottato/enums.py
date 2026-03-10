@@ -100,6 +100,7 @@ class CustomEffectType(enum.Enum):
     BUILDING_FOOTPRINT = 0
     ENEMY = 1
     ENEMY_EFFECT = 2
+    ANTI_AIR = 3
 
 
 class ActionErrorCode(enum.Enum):

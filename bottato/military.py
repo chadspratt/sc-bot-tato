@@ -160,8 +160,11 @@ class Military(GeometryMixin, DebugMixin):
             for bunker in self.bunkers:
                 if not bunker.structure:
                     continue
-                is_closest = bunker.structure.tag == forward_bunker.tag
-                await self.manage_bunker(bunker, self.enemies_in_base, keep_occupied=(not mount_offense and is_closest))
+                keep_occupied = False
+                if self.bot.time < 600:
+                    is_closest = bunker.structure.tag == forward_bunker.tag
+                    keep_occupied=(not mount_offense and is_closest)
+                await self.manage_bunker(bunker, self.enemies_in_base, keep_occupied=keep_occupied)
 
         if self.main_army.units:
             self.main_army.draw_debug_box()

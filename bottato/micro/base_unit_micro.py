@@ -239,6 +239,7 @@ class BaseUnitMicro(GeometryMixin):
     def _avoid_effects(self, unit: Unit, force_move: bool) -> UnitMicroType:
         # avoid damaging effects
         effects_to_avoid = []
+        # built-in-effects
         for effect in self.bot.state.effects:
             if effect.id not in self.damaging_effects:
                 continue
@@ -258,18 +259,23 @@ class BaseUnitMicro(GeometryMixin):
             for position in effect.positions:
                 if unit.position._distance_squared(position) < safe_distance:
                     effects_to_avoid.append(position)
+        # custom effects
         i = len(self.custom_effects_to_avoid) - 1
         while i >= 0:
             effect = self.custom_effects_to_avoid[i]
-            effect_position = effect.position.position
             if self.bot.time - effect.start_time > effect.duration:
                 self.custom_effects_to_avoid.pop(i)
             else:
+                if effect.type == CustomEffectType.ANTI_AIR and not unit.is_flying:
+                    i -= 1
+                    continue
+                effect_position = effect.position.position
                 safe_distance = (effect.radius + unit.radius + 1.5) ** 2
                 unit_distance = unit.position._distance_squared(effect_position)
                 if unit_distance < safe_distance:
                     effects_to_avoid.append(effect_position)
             i -= 1
+        # avoid all nearby
         if effects_to_avoid:
             number_of_effects = len(effects_to_avoid)
             if number_of_effects == 1:

@@ -110,7 +110,6 @@ class FormationSquad(Squad, GeometryMixin):
                 UnitTypeId.BATTLECRUISER: 3.4,
                 UnitTypeId.GHOST: 4.5,
                 UnitTypeId.THOR: 4.5,
-                UnitTypeId.THORAP: 4.5,
                 UnitTypeId.SIEGETANK: 4.5,
                 UnitTypeId.RAVEN: 5,
                 UnitTypeId.MEDIVAC: 5,
@@ -127,6 +126,12 @@ class FormationSquad(Squad, GeometryMixin):
             units = self.units.of_type((UnitTypeId.WIDOWMINEBURROWED, UnitTypeId.WIDOWMINE))
         elif unit_type in (UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK):
             units = self.units.of_type((UnitTypeId.SIEGETANKSIEGED, UnitTypeId.SIEGETANK))
+        elif unit_type in (UnitTypeId.THOR, UnitTypeId.THORAP):
+            units = self.units.of_type((UnitTypeId.THOR, UnitTypeId.THORAP))
+        elif unit_type in (UnitTypeId.LIBERATOR, UnitTypeId.LIBERATORAG):
+            units = self.units.of_type((UnitTypeId.LIBERATOR, UnitTypeId.LIBERATORAG))
+        elif unit_type in (UnitTypeId.HELLION, UnitTypeId.HELLIONTANK):
+            units = self.units.of_type((UnitTypeId.HELLION, UnitTypeId.HELLIONTANK))
         else:
             units = self.units.of_type(unit_type)
         if units:

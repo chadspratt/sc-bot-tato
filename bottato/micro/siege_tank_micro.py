@@ -336,7 +336,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 ))
             else:
                 tank_position = self.bot.main_base_ramp.bottom_center
-                close_enough_to_siege = cy_distance_to(unit.position, tank_position) < 5
+                close_enough_to_siege = cy_distance_to(unit.position, tank_position) < 9
             
             move_tank = not close_enough_to_siege
             if close_enough_to_siege:
@@ -354,8 +354,9 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 lowered_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED)
                 if lowered_depots:
                     closest_depot = cy_closest_to(unit.position, lowered_depots)
-                    depot_distance = min(abs(closest_depot.position.x - unit.position.x), abs(closest_depot.position.y - unit.position.y))
-                    if depot_distance < 2.4:
+                    # depot_distance = min(abs(closest_depot.position.x - unit.position.x), abs(closest_depot.position.y - unit.position.y))
+                    depot_distance = cy_distance_to(unit.position, closest_depot.position)
+                    if depot_distance < 2.0:
                         LogHelper.add_log(f"Early game siege tank recalculating position to avoid blocking depot from raising")
                         current_vector = unit.position - closest_depot.position
                         required_offset = unit.radius + closest_depot.radius
@@ -371,6 +372,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 LogHelper.add_log(f"Early game siege tank position updated {tank_position}")
                 unit.move(tank_position)
                 return UnitMicroType.MOVE
-            self.siege(unit)
-            LogHelper.add_log(f"Early game siege tank sieging to cover ramp at desired position")
-            return UnitMicroType.USE_ABILITY
+            elif close_enough_to_siege:
+                self.siege(unit)
+                LogHelper.add_log(f"Early game siege tank sieging to cover ramp at desired position")
+                return UnitMicroType.USE_ABILITY
+            return UnitMicroType.NONE
