@@ -561,6 +561,8 @@ class BaseUnitMicro(GeometryMixin):
                 desired_distance = 0
                 if target.type_id in UnitTypes.WORKER_TYPES:
                     desired_distance = target_range + 2.0
+                elif target.type_id == UnitTypeId.SIEGETANKSIEGED:
+                    desired_distance = 0
                 else:
                     desired_distance = min(attack_range - 0.1, max(attack_range - 1.0, target_range + 0.5))
                 excess_distance = target_distance - desired_distance

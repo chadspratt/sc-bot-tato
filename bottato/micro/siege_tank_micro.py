@@ -56,6 +56,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 safe_distance = (effect_radius + unit.radius + 1.5) ** 2
                 for position in effect.positions:
                     if unit.position._distance_squared(position) < safe_distance:
+                        LogHelper.add_log(f"Unsieging {unit} to avoid liberator")
                         self.unsiege(unit)
                         return UnitMicroType.USE_ABILITY
         for effect in self.custom_effects_to_avoid:
@@ -64,8 +65,11 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 effect_radius = effect.radius
                 safe_distance = (effect_radius + unit.radius + 1.5) ** 2
                 if unit.distance_to_squared(effect.position) < safe_distance:
-                    self.unsiege(unit)
-                    return UnitMicroType.USE_ABILITY
+                    targets = self.enemy.get_target_closer_than(unit, max_distance=11)
+                    if not targets:
+                        LogHelper.add_log(f"Unsieging {unit} to avoid building footprint")
+                        self.unsiege(unit)
+                        return UnitMicroType.USE_ABILITY
         return UnitMicroType.NONE
 
     @timed_async
@@ -116,7 +120,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.USE_ABILITY
 
         # siege tanks near main base early game
-        natural_in_place = len(self.bot.townhalls) > 2
+        natural_in_place = self.bot.townhalls.filter(lambda t: t.is_ready and not t.is_flying).amount > 1
         if not natural_in_place and 300 < self.bot.time < 420:
             for el in self.bot.expansion_locations:
                 if el == self.bot.start_location:
@@ -285,6 +289,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if is_sieged:
             if new_bunker_built:
                 # reposition to cover new bunker
+                LogHelper.add_log(f"Early game siege tank micro for {unit}, unseiging to reposition for new bunker")
                 self.unsiege(unit)
                 if unit.tag in self.early_game_siege_positions:
                     del self.early_game_siege_positions[unit.tag]
@@ -349,7 +354,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     addon_distance = cy_distance_to(barracks_addon_position, unit.position)
                     if addon_distance < 2:
                         LogHelper.add_log(f"Early game siege tank recalculating position to avoid barracks addon construction")
-                        tank_position = Point2(cy_towards(barracks_addon_position, unit.position, 1))
+                        tank_position = Point2(cy_towards(unit.position, barracks_addon_position, -1))
                         self.early_game_siege_positions[unit.tag] = tank_position
                         move_tank = True
                 # don't block depots from raising
@@ -360,13 +365,17 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     depot_distance = cy_distance_to(unit.position, closest_depot.position)
                     if depot_distance < 2.0:
                         LogHelper.add_log(f"Early game siege tank recalculating position to avoid blocking depot from raising")
-                        current_vector = unit.position - closest_depot.position
-                        required_offset = unit.radius + closest_depot.radius
-                        new_x = max(current_vector.x, required_offset) if current_vector.x > 0 else min(current_vector.x, -required_offset)
-                        new_y = max(current_vector.y, required_offset) if current_vector.y > 0 else min(current_vector.y, -required_offset)
-                        new_vector = Point2((new_x, new_y))
-                        tank_position = closest_depot.position + new_vector
-                        # tank_position = Point2(cy_towards(closest_depot.position, unit.position, 4))
+                        if cy_distance_to_squared(closest_depot.position, self.bot.main_base_ramp.top_center) + 0.5 > cy_distance_to_squared(unit.position, self.bot.main_base_ramp.top_center):
+                            # tank is past the depots, need to back it up on the other side of them
+                            tank_position = Point2(cy_towards(closest_depot.position, unit.position, -1))
+                        else:
+                            tank_position = Point2(cy_towards(closest_depot.position, unit.position, 2))
+                            # current_vector = unit.position - closest_depot.position
+                            # required_offset = unit.radius + closest_depot.radius
+                            # new_x = max(current_vector.x, required_offset) if current_vector.x > 0 else min(current_vector.x, -required_offset)
+                            # new_y = max(current_vector.y, required_offset) if current_vector.y > 0 else min(current_vector.y, -required_offset)
+                            # new_vector = Point2((new_x, new_y))
+                            # tank_position = closest_depot.position + new_vector
                         self.early_game_siege_positions[unit.tag] = tank_position
                         move_tank = True
             self.previous_positions[unit.tag] = unit.position

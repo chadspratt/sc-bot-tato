@@ -485,7 +485,8 @@ class Workers(GeometryMixin):
                               worker_rush_detected: bool,
                               nearby_enemies: Units | List[Unit]) -> set[int]:
         defender_tags = set()
-        nearby_enemy_structures = cy_closer_than(self.bot.enemy_structures.filter(lambda u: not u.is_flying), 23, position.position)
+        valid_enemy_structures = self.bot.enemy_structures.filter(lambda u: not u.is_ready or u.type_id not in {UnitTypeId.BUNKER, UnitTypeId.PHOTONCANNON})
+        nearby_enemy_structures = cy_closer_than(valid_enemy_structures, 23, position.position)
         if nearby_enemy_structures:
             nearby_enemy_structures.sort(key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1000000 + cy_distance_to_squared(a.position, position.position))
 
