@@ -186,7 +186,7 @@ class StructureBuildStep(BuildStep):
 
     @timed_async
     async def is_interrupted(self) -> bool:
-        if self.unit_in_charge is None:
+        if self.unit_in_charge is None or self.unit_in_charge.is_flying:
             self.is_in_progress = False
             return True
         elapsed_time = self.bot.time - self.start_time if self.start_time else 0

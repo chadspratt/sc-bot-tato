@@ -120,7 +120,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.USE_ABILITY
 
         # siege tanks near main base early game
-        natural_in_place = self.bot.townhalls.filter(lambda t: t.is_ready and not t.is_flying).amount > 1
+        natural_in_place = self.bot.townhalls.filter(lambda t: not t.is_flying).closer_than(5, self.map.natural_position).exists
         if not natural_in_place and 300 < self.bot.time < 420:
             for el in self.bot.expansion_locations:
                 if el == self.bot.start_location:
@@ -273,6 +273,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     
     def _early_game_siege_tank_micro(self, unit: Unit, is_sieged: bool) -> UnitMicroType:
         enemies_near_ramp = cy_closer_than(self.bot.all_enemy_units, 20, self.bot.main_base_ramp.bottom_center)
+        if not enemies_near_ramp:
+            enemies_near_ramp = self.bot.all_enemy_units
         closest_enemy_to_ramp = cy_closest_to(unit.position, enemies_near_ramp) if enemies_near_ramp else None
         enemy_out_of_range = False
         if closest_enemy_to_ramp:
@@ -319,7 +321,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 tank_position = self.early_game_siege_positions[unit.tag]
             else:
                 # calculate high ground defensive position
-                bunker: Unit | None = bunkers.furthest_to(self.bot.main_base_ramp.top_center) if bunkers else None
+                bunker: Unit | None = bunkers.closest_to(self.map.natural_position) if bunkers else None
                 if bunker and cy_distance_to_squared(bunker.position, self.bot.main_base_ramp.top_center) > 36:
                     # bunker on low ground, position tank to cover it, a bit away from top of ramp
                     tank_positions = self.get_triangle_point_c(bunker.position, self.bot.main_base_ramp.top_center, 10.5, 5)
@@ -348,7 +350,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             move_tank = not close_enough_to_siege
             if close_enough_to_siege:
                 # don't block barracks addon from building
-                barracks = self.bot.structures(UnitTypeId.BARRACKS).ready
+                barracks = self.bot.structures(UnitTypeId.BARRACKS).ready.filter(lambda b: not b.has_add_on)
                 if barracks:
                     barracks_addon_position = cy_closest_to(unit.position, barracks).add_on_position
                     addon_distance = cy_distance_to(barracks_addon_position, unit.position)
