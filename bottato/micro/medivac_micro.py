@@ -37,6 +37,11 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
         
     def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         threats = self.enemy.threats_to_friendly_unit(unit, 4)
+        closest_threat = self.enemy.closest_unit_to_unit(unit, threats) if threats else None
+        if closest_threat and unit.health_percentage < 0.8:
+            safe_distance = UnitTypes.air_range(closest_threat) + closest_threat.radius + unit.radius + 1
+            if cy_distance_to(unit.position, closest_threat.position) < safe_distance:
+                return UnitMicroType.NONE
         if unit.health_percentage < self.health_threshold_for_healing:
             if threats:
                 if not self.use_booster(unit) and unit.cargo_used > 0 and unit.health_percentage < 0.3:

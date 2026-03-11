@@ -474,6 +474,9 @@ class UnitTypes(GeometryMixin):
         """
         Get the air attack range of a unit type.
         """
+        if unit.type_id == UnitTypeId.MISSILETURRET:
+            # assume hi sec auto tracking is researched
+            return 8.0
         if unit.type_id in {UnitTypeId.SENTRY, UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED}:
             return 5.0
         elif unit.type_id in {UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BUNKER}:

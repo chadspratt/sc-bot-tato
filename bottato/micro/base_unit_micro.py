@@ -306,6 +306,9 @@ class BaseUnitMicro(GeometryMixin):
         if unit.tag in BaseUnitMicro.repairers_by_target_prev_frame and unit.health_percentage < 1.0 and self.bot.minerals > 30:
             repairer_tags = BaseUnitMicro.repairers_by_target_prev_frame[unit.tag]
             repairers = self.bot.workers.filter(lambda w: w.tag in repairer_tags)
+            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3, first_only=True)
+            if threats:
+                repairers = repairers.further_than(5, unit)
             closest_repairer = cy_closest_to(unit.position, repairers) if repairers else None
             if closest_repairer and 1 < closest_repairer.distance_to_squared(unit) < 16:
                 unit.move(closest_repairer)

@@ -426,6 +426,10 @@ class Military(GeometryMixin, DebugMixin):
                  self.squads.append(self.hunter_squads[squad_type.name])
             hunter_squad = self.hunter_squads[squad_type.name]
 
+            if UnitTypeId.MEDIVAC in squad_type.target_types and UnitTypeId.BATTLECRUISER in self.intel.type_positions_seen:
+                self.transfer_all(hunter_squad, self.main_army)
+                continue
+
             for unit_type, count in squad_type.unit_composition.items():
                 current_count = hunter_squad.units.of_type(unit_type).amount
                 if current_count < count:
