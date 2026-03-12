@@ -272,15 +272,16 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         return UnitMicroType.ATTACK
     
     def _early_game_siege_tank_micro(self, unit: Unit, is_sieged: bool) -> UnitMicroType:
-        enemies_near_ramp = cy_closer_than(self.bot.all_enemy_units, 20, self.bot.main_base_ramp.bottom_center)
-        if not enemies_near_ramp:
-            enemies_near_ramp = self.bot.all_enemy_units
-        closest_enemy_to_ramp = cy_closest_to(unit.position, enemies_near_ramp) if enemies_near_ramp else None
+        closest_enemy = cy_closest_to(unit.position, self.bot.all_enemy_units) if self.bot.all_enemy_units else None
         enemy_out_of_range = False
-        if closest_enemy_to_ramp:
-            structure_in_range_distance = 10.5 if is_sieged else 10.8
-            in_range_distance_sq = (structure_in_range_distance + closest_enemy_to_ramp.radius) ** 2 if closest_enemy_to_ramp.is_structure else 169
-            enemy_out_of_range = unit.distance_to_squared(closest_enemy_to_ramp) >= in_range_distance_sq
+        if closest_enemy:
+            closest_enemy_distance = unit.distance_to_squared(closest_enemy)
+            if closest_enemy_distance > 25:
+                closest_enemy = None
+            else:
+                structure_in_range_distance = 10.5 if is_sieged else 10.8
+                in_range_distance_sq = (structure_in_range_distance + closest_enemy.radius) ** 2 if closest_enemy.is_structure else 169
+                enemy_out_of_range = closest_enemy_distance >= in_range_distance_sq
         if unit.tag not in self.previous_positions:
             self.previous_positions[unit.tag] = unit.position
         bunkers = self.bot.structures(UnitTypeId.BUNKER)
@@ -296,10 +297,10 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 if unit.tag in self.early_game_siege_positions:
                     del self.early_game_siege_positions[unit.tag]
                 return UnitMicroType.USE_ABILITY
-            if closest_enemy_to_ramp and enemy_out_of_range:
-                if closest_enemy_to_ramp.is_structure:
+            if closest_enemy and enemy_out_of_range:
+                if closest_enemy.is_structure:
                     # creep out to clear structures
-                    LogHelper.add_log(f"Early game siege tank micro for {unit}, closest enemy to ramp: {closest_enemy_to_ramp}")
+                    LogHelper.add_log(f"Early game siege tank micro for {unit}, closest enemy to ramp: {closest_enemy}")
                     self.unsiege(unit)
                     return UnitMicroType.USE_ABILITY
                 else:
@@ -308,14 +309,14 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             # stay sieged
             return UnitMicroType.USE_ABILITY
         else:
-            if closest_enemy_to_ramp:
+            if closest_enemy:
                 if enemy_out_of_range:
-                    if closest_enemy_to_ramp.is_structure:
-                        unit.move(closest_enemy_to_ramp.position)
+                    if closest_enemy.is_structure:
+                        unit.move(closest_enemy.position)
                         return UnitMicroType.MOVE
                 else:
                     self.siege(unit)
-                    LogHelper.add_log(f"Early game siege tank sieging to cover ramp against {closest_enemy_to_ramp}, range {cy_distance_to(unit.position, closest_enemy_to_ramp.position)}")
+                    LogHelper.add_log(f"Early game siege tank sieging to cover ramp against {closest_enemy}, range {cy_distance_to(unit.position, closest_enemy.position)}")
                     return UnitMicroType.USE_ABILITY
             if unit.tag in self.early_game_siege_positions:
                 tank_position = self.early_game_siege_positions[unit.tag]
