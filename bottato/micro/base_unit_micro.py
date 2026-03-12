@@ -730,14 +730,16 @@ class BaseUnitMicro(GeometryMixin):
             # if enemy tank is close, dive on it instead of retreating
             return False
 
-        type_to_retreat_to = UnitTypeId.SIEGETANKSIEGED
+        types_to_retreat_to = {UnitTypeId.SIEGETANKSIEGED, UnitTypeId.BUNKER, UnitTypeId.WIDOWMINEBURROWED, UnitTypeId.PLANETARYFORTRESS}
         if closest_threat.is_flying:
-            if unit.type_id == UnitTypeId.VIKINGFIGHTER:
-                type_to_retreat_to = UnitTypeId.MARINE
-            else:
-                type_to_retreat_to = UnitTypeId.VIKINGFIGHTER
-        units_to_retreat_to = self.bot.units.of_type(type_to_retreat_to)
-        if not units_to_retreat_to and type_to_retreat_to == UnitTypeId.SIEGETANKSIEGED:
+            # vikings shouldn't retreat to each other
+            # if unit.type_id == UnitTypeId.VIKINGFIGHTER:
+            #     types_to_retreat_to = {UnitTypeId.MARINE, UnitTypeId.MISSILETURRET, UnitTypeId.BUNKER, UnitTypeId.WIDOWMINEBURROWED}
+            # else:
+            types_to_retreat_to = {UnitTypeId.VIKINGFIGHTER, UnitTypeId.BUNKER, UnitTypeId.WIDOWMINEBURROWED, UnitTypeId.MISSILETURRET}
+        units_to_retreat_to = self.bot.units.of_type(types_to_retreat_to)
+        if not units_to_retreat_to and types_to_retreat_to == {UnitTypeId.SIEGETANKSIEGED}:
+            # prefer sieged
             units_to_retreat_to = self.bot.units.of_type(UnitTypeId.SIEGETANK)
         if not units_to_retreat_to:
             return False

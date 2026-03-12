@@ -270,11 +270,15 @@ class GeometryMixin:
         return (most_nearby_unit, Units(most_nearby_units, bot_object=bot))
     
     @staticmethod
-    def position_is_between(point: Point2, point_a: Point2, point_b: Point2) -> bool:
-        ab_distance = cy_distance_to_squared(point_a, point_b)
-        ap_distance = cy_distance_to_squared(point_a, point)
-        pb_distance = cy_distance_to_squared(point, point_b)
-        return ap_distance < ab_distance and pb_distance < ab_distance 
+    def position_is_between(point_to_check: Point2, unit_position: Point2, destination: Point2) -> bool:
+        """Returns true if point_to_check is between unit_position and destination.
+        
+        Does this by checking that point_to_check is closer to both unit_position and destination than they are to each other."""
+
+        destination_distance = cy_distance_to_squared(unit_position, destination)
+        point_distance = cy_distance_to_squared(unit_position, point_to_check)
+        point_to_destination_distance = cy_distance_to_squared(point_to_check, destination)
+        return point_distance < destination_distance and point_to_destination_distance < destination_distance 
     
     def vectors_go_same_direction(self, vec1: Point2, vec2: Point2) -> bool:
         dot_product = vec1.x * vec2.x + vec1.y * vec2.y

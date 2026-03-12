@@ -307,26 +307,28 @@ class Military(GeometryMixin, DebugMixin):
                 return
         
         is_currently_occupied = len(bunker.structure.passengers) > 0
+        is_occupied_by_healthy_unit = any(u.health_percentage == 1.0 for u in bunker.units)
         buffer = 2 if is_currently_occupied else 1
         if self.bot.townhalls.filter(lambda th: th.is_ready and not th.is_flying).amount < 2:
             buffer += 3  # be more cautious with only one base
         visible_enemies = enemies_in_base.filter(lambda unit: unit.age == 0 and unit.type_id not in (UnitTypeId.ADEPTPHASESHIFT,))
         enemy_distance_to_bunker = float('inf')
-        enemy_is_in_range = True
-        enemy_is_almost_in_range = True
+        enemy_is_in_range = False
+        enemy_is_almost_in_range = False
+
         if visible_enemies:
-            closest_enemy = self.closest_unit_to_unit(bunker.structure, visible_enemies)
-            enemy_distance_to_bunker = closest_enemy.distance_to_squared(bunker.structure)
-            bunker_range = self.enemy.get_attack_range_with_buffer_squared(bunker.structure, closest_enemy, buffer)
-            if enemy_distance_to_bunker > bunker_range:
-                enemy_is_in_range = False
+            if is_occupied_by_healthy_unit:
+                closest_enemy = self.closest_unit_to_unit(bunker.structure, visible_enemies)
+                enemy_distance_to_bunker = closest_enemy.distance_to_squared(bunker.structure)
+                bunker_range = self.enemy.get_attack_range_with_buffer_squared(bunker.structure, closest_enemy, buffer)
                 if enemy_distance_to_bunker < bunker_range + 4:
                     enemy_is_almost_in_range = True
-                for passenger in bunker.structure.passengers:
-                    if passenger.health_percentage == 1.0:
-                        # injured units can stay in bunker longer but kick out healthy if enemies are too far
-                        self.empty_bunker(bunker, closest_enemy)
-                        return
+                if enemy_distance_to_bunker < bunker_range:
+                    enemy_is_in_range = True
+                else:
+                    # kick out healthy if enemies are too far
+                    self.empty_bunker(bunker, closest_enemy)
+                    return
         else:
             # no enemies nearby but maybe was recently attacked
             last_attacked = self.last_damage_taken_time.get(bunker.structure.tag, 0)
@@ -350,38 +352,38 @@ class Military(GeometryMixin, DebugMixin):
 
         cargo_max = bunker.structure.cargo_max
         cargo_used = sum(u.cargo_size for u in bunker.units)
+        cargo_remaining = cargo_max - cargo_used
         if cargo_used < cargo_max:
             for squad in self.squads:
                 if squad == self.main_army or squad.name.startswith("defense"):
                     valid_units = squad.units.of_type({UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.GHOST})
                     injured_units = valid_units.filter(lambda u: u.health_percentage < 1.0)
                     healthy_units = valid_units.filter(lambda u: u.health_percentage == 1.0)
-                    if enemy_is_in_range:
-                        # take anyone
-                        closest_units = valid_units.closest_n_units(bunker.structure, cargo_max - cargo_used)
-                    elif enemy_is_almost_in_range:
-                        # take anyone but prioritize injured
-                        injured_cargo = sum(u.cargo_size for u in injured_units)
-                        if injured_cargo > cargo_max - cargo_used:
-                            closest_units = injured_units.closest_n_units(bunker.structure, cargo_max - cargo_used)
-                        else:
-                            closest_units = injured_units
-                            if injured_cargo < cargo_max - cargo_used:
-                                closest_healthy_units = healthy_units.closest_n_units(bunker.structure, cargo_max - cargo_used - injured_units.amount)
-                                closest_units.extend(closest_healthy_units)
-                    else:
-                        # only take injured
-                        closest_units = injured_units.closest_n_units(bunker.structure, cargo_max - cargo_used)
-                    for unit in closest_units:
-                        enemy_distance_to_unit = self.closest_distance_squared(unit, visible_enemies) if visible_enemies else 10000
-                        marine_distance_to_bunker = unit.distance_to_squared(bunker.structure)
-                        if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
-                            # send unit to bunker if there aren't enemies in between
-                            self.transfer(unit, self.main_army, bunker)
-                            unit.smart(bunker.structure)
-                            cargo_used += unit.cargo_size
-                            if cargo_used >= cargo_max:
-                                return
+                    # the desired behavior is to leave the bunker to engage the enemy and then kite back to the bunker
+                    # the implementation is to only put units in the bunker if there are injured
+                    # this function is only controlling whether units should enter the bunker or leave
+                    # so while healthy units might retreat to the bunker, it should only accept them if the enemy is in range
+                    if enemy_is_almost_in_range and injured_units:
+                        # send injured to bunker if enemy is almost in range
+                        injured_cargo_size = sum(u.cargo_size for u in injured_units)
+                        closest_units = injured_units
+                        if injured_cargo_size > cargo_remaining:
+                            closest_units = injured_units.closest_n_units(bunker.structure, cargo_remaining)
+                        if enemy_is_in_range and injured_cargo_size < cargo_remaining:
+                            # send healthy to bunker if enemy is in range
+                            closest_healthy_units = healthy_units.closest_n_units(bunker.structure, cargo_remaining - injured_units.amount)
+                            closest_units.extend(closest_healthy_units)
+
+                        for unit in closest_units:
+                            enemy_distance_to_unit = self.closest_distance_squared(unit, visible_enemies) if visible_enemies else 10000
+                            marine_distance_to_bunker = unit.distance_to_squared(bunker.structure)
+                            if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
+                                # send unit to bunker if there aren't enemies in between
+                                self.transfer(unit, self.main_army, bunker)
+                                unit.smart(bunker.structure)
+                                cargo_used += unit.cargo_size
+                                if cargo_used >= cargo_max:
+                                    return
 
     def empty_bunker(self, bunker: Bunker, destination: Unit | None = None):
         for unit in bunker.units:
