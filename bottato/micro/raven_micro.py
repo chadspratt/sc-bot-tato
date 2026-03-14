@@ -99,7 +99,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                 unit.move(self.map.get_pathable_position(target_position, unit))
                 return UnitMicroType.MOVE
         # provide detection
-        need_detection: List[Unit | Point2] = self.enemy.things_needing_detection()
+        need_detection: List[Unit | Point2] = self.enemy.things_needing_detection(move_position)
         for enemy in need_detection:
             if isinstance(enemy, Unit) and enemy.age == 0:
                 self.missing_hidden_units.discard(enemy.tag)

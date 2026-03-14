@@ -86,10 +86,11 @@ class Formation:
         return positions
 
     def get_line_positions(self) -> List[Point2]:
+        scale = 1.0 if len(self.unit_tags) <= 10 else 10 / len(self.unit_tags)
         return [
             Point2((
-                i - len(self.unit_tags) / 2.0 + 0.5,
-                -0.5
+                (i - len(self.unit_tags) / 2.0) * scale,
+                0.0
             ))
             for i in range(len(self.unit_tags))
         ]

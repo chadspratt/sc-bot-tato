@@ -1,46 +1,21 @@
 from __future__ import annotations
 
-from typing import Dict, List, Set
+from typing import Dict, Set
 
 from cython_extensions.geometry import cy_distance_to_squared, cy_towards
 from sc2.bot_ai import BotAI
-from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.units import Units
 
-from bottato.enemy import Enemy
 from bottato.enums import ExpansionSelection, UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import GeometryMixin, timed_async
-from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.scouting_location import ScoutingLocation
 from bottato.squad.squad import Squad
 from bottato.tactics import Tactics
 from bottato.unit_types import UnitTypes
-
-
-class HuntingSquadType():
-    def __init__(self, unit_composition: dict[UnitTypeId, int], target_types: Set[UnitTypeId], start_time: float = 0):
-        self.unit_composition = unit_composition
-        self.target_types = target_types
-        self.start_time = start_time
-        self.name = f"Hunt {'/'.join([t.name for t in target_types])}"
-
-
-hunting_squad_types: Dict[Race, List[HuntingSquadType]] = {
-    Race.Zerg: [
-        HuntingSquadType({UnitTypeId.VIKINGFIGHTER: 1},
-                         {UnitTypeId.OVERLORD, UnitTypeId.OVERSEER}, 180),
-        HuntingSquadType({UnitTypeId.RAVEN: 1, UnitTypeId.MARINE: 3},
-                         {UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORQUEEN}, 300),
-    ],
-    Race.Terran: [
-        HuntingSquadType({UnitTypeId.VIKINGFIGHTER: 1},
-                         {UnitTypeId.MEDIVAC}, 240),
-    ],
-}
 
 
 class HuntingSquad(Squad, GeometryMixin):

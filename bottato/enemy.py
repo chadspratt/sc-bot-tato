@@ -668,7 +668,7 @@ class Enemy(GeometryMixin):
         UnitTypeId.WIDOWMINE,
     }
     positions_needing_detection: Dict[Point2, float] = {}
-    def things_needing_detection(self) -> List[Unit | Point2]:
+    def things_needing_detection(self, near_position: Point2 | None) -> List[Unit | Point2]:
         need_detection: List[Unit | Point2] = []
         for position, time_visited in self.positions_needing_detection.items():
             # remove positions after thoroughly detecting them
@@ -682,6 +682,12 @@ class Enemy(GeometryMixin):
         units_needing_detection = self.enemies_in_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types) + \
                self.enemies_out_of_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types)
         need_detection.extend(units_needing_detection)
+        # prefer positions near squad so raven will stay with army better
+        if near_position:
+            nearby_need_detection = [nd for nd in need_detection if near_position._distance_squared(nd.position) < 300]
+            if nearby_need_detection:
+                return nearby_need_detection
+            return []
         # creep_tumors_excluded = need_detection.filter(lambda unit: unit.type_id != UnitTypeId.CREEPTUMORBURROWED)
         # if creep_tumors_excluded:
         #     return creep_tumors_excluded

@@ -29,9 +29,9 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     sieged_weapon_cooldown = 2.14
     unsieged_range = 7
     max_siege_time = 3.24
-    sieged_tags = set()
-    unsieged_tags = set()
+    sieged_count = 0
     known_tags = set()
+    last_tag_refresh: float = 0
     min_seconds_between_transform = max_siege_time + 3
     last_transform_time: Dict[int, float] = {}
     last_force_move_time: Dict[int, float] = {}
@@ -74,10 +74,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
-        if unit.tag not in self.known_tags:
-            self.known_tags.add(unit.tag)
-            self.unsieged_tags.add(unit.tag)
-
         # skip currently or recently transformed
         if unit.is_transforming:
             return UnitMicroType.NONE
@@ -85,37 +81,35 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         last_transform = self.last_transform_time.get(unit.tag, -999)
         time_since_last_transform = self.bot.time - last_transform
         is_sieged = unit.type_id == UnitTypeId.SIEGETANKSIEGED
-        if is_sieged != (unit.tag in self.sieged_tags):
-            # fix miscategorizations, though it's probably just transforming
-            if time_since_last_transform > 1.5:
-                if is_sieged:
-                    self.siege(unit, update_last_transform_time=False)
-                else:
-                    self.unsiege(unit, update_last_transform_time=False)
-            return UnitMicroType.USE_ABILITY
+        if self.bot.time != self.last_tag_refresh:
+            self.last_tag_refresh = self.bot.time
+            self.known_tags = self.bot.units.of_type({UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED}).tags
+            self.sieged_count = self.bot.units.of_type({UnitTypeId.SIEGETANKSIEGED}).amount
+        unsieged_count = len(self.known_tags) - self.sieged_count
 
         on_cooldown = time_since_last_transform < self.min_seconds_between_transform
 
-        # siege if stationary for 4s
+        time_stationary_before_siege = 2.0
         if unit.tag not in self.stationary_positions:
             self.stationary_positions[unit.tag] = (unit.position, self.bot.time)
         elif unit.position.manhattan_distance(self.stationary_positions[unit.tag][0]) > 0.5:
             self.stationary_positions[unit.tag] = (unit.position, self.bot.time)
-        elif self.bot.time - self.stationary_positions[unit.tag][1] > 2 \
+        elif self.bot.time - self.stationary_positions[unit.tag][1] > time_stationary_before_siege \
                 and target.manhattan_distance(self.stationary_positions[unit.tag][0]) < 4:
             if not is_sieged:
                 self.siege(unit)
+                return UnitMicroType.USE_ABILITY
             return UnitMicroType.NONE
         
-        enemy_distance = None
+        enemy_distance_sq = None
         if unit.tag in BaseUnitMicro.tanks_being_retreated_to:
-            enemy_distance = BaseUnitMicro.tanks_being_retreated_to[unit.tag]
+            enemy_distance_sq = BaseUnitMicro.tanks_being_retreated_to[unit.tag]
         elif unit.tag in BaseUnitMicro.tanks_being_retreated_to_prev_frame:
-            enemy_distance = BaseUnitMicro.tanks_being_retreated_to_prev_frame[unit.tag]
-        if enemy_distance:
+            enemy_distance_sq = BaseUnitMicro.tanks_being_retreated_to_prev_frame[unit.tag]
+        if enemy_distance_sq:
             if is_sieged:
                 return UnitMicroType.NONE
-            if enemy_distance < 20:
+            if enemy_distance_sq < 400:
                 self.siege(unit)
                 return UnitMicroType.USE_ABILITY
 
@@ -131,14 +125,12 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     if townhall.distance_to_squared(el) < 16:
                         natural_in_place = True
                         break
-        if self.bot.time < 300 or self.bot.time < 420 and not natural_in_place or target._distance_squared(self.bot.start_location) < 225:
+        if (self.bot.time < 300
+                or self.bot.time < 420 and not natural_in_place
+                or target._distance_squared(self.bot.start_location) < 225):
             response = self._early_game_siege_tank_micro(unit, is_sieged)
             if response != UnitMicroType.NONE:
                 return response
-
-        # remove missing
-        self.sieged_tags = self.bot.units.tags.intersection(self.sieged_tags)
-        self.unsieged_tags = self.bot.units.tags.intersection(self.unsieged_tags)
         
         if is_sieged and unit.weapon_cooldown > 0:
             self.last_siege_attack_time[unit.tag] = self.bot.time - (self.sieged_weapon_cooldown - unit.weapon_cooldown / 22.4)
@@ -180,12 +172,13 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         tank_height = self.bot.get_terrain_height(unit.position)
         enemy_height = self.bot.get_terrain_height(closest_enemy.position) if closest_enemy else tank_height
         has_high_ground_advantage = tank_height > enemy_height
-        siege_aggressively = on_cooldown and not is_sieged or friendly_buffer_count >= 15 and len(self.unsieged_tags) <= len(self.sieged_tags)
+        siege_aggressively = (
+            on_cooldown and not is_sieged
+            or friendly_buffer_count >= 15 and unsieged_count <= self.sieged_count
+        )
 
-        closest_enemy_distance = closest_distance_after_siege
-        if siege_aggressively or structures_under_threat:
-            # enemy might be immobile while attacking structures, so only siege if in range now
-            closest_enemy_distance = closest_distance + 0.1
+        closest_enemy_distance = closest_distance + 0.1 if siege_aggressively or structures_under_threat else closest_distance_after_siege
+            
         # elif structures_under_threat:
         #     closest_enemy_distance = closest_distance - 0.1
         # elif has_high_ground_advantage and closest_enemy:
@@ -215,7 +208,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     unit.move(closer_position)
                     return UnitMicroType.MOVE
             enemy_will_be_close_enough = closest_enemy_distance <= self.sieged_range or closest_structure_distance <= self.sight_range - 1
-            enemy_will_be_far_enough = True if has_high_ground_advantage else closest_distance > self.sieged_minimum_range + 3
+            enemy_will_be_far_enough = True if has_high_ground_advantage else closest_enemy_distance > self.sieged_minimum_range + 3
             if enemy_will_be_far_enough and enemy_will_be_close_enough:
                 self.siege(unit)
                 return UnitMicroType.USE_ABILITY
@@ -227,25 +220,16 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
 
     def siege(self, unit: Unit, update_last_transform_time: bool = True):
         unit(AbilityId.SIEGEMODE_SIEGEMODE)
-        self.update_siege_state(unit, self.unsieged_tags, self.sieged_tags, update_last_transform_time)
+        self.sieged_count += 1
+        if update_last_transform_time:
+            self.last_transform_time[unit.tag] = self.bot.time
 
     def unsiege(self, unit: Unit, update_last_transform_time: bool = True):
         logger.debug(f"{unit} unsieging")
         unit(AbilityId.UNSIEGE_UNSIEGE)
-        self.update_siege_state(unit, self.sieged_tags, self.unsieged_tags, update_last_transform_time)
-
-    def update_siege_state(self, unit: Unit, old_list: set, new_list: set, update_last_transform_time: bool = True):
+        self.sieged_count -= 1
         if update_last_transform_time:
             self.last_transform_time[unit.tag] = self.bot.time
-        # new_list = self.bot.units.tags.intersection(new_list)
-        if unit.tag not in new_list:
-            new_list.add(unit.tag)
-        else:
-            logger.debug(f"{unit.tag} already in unsieged_tags")
-        if unit.tag in old_list:
-            old_list.remove(unit.tag)
-        else:
-            logger.debug(f"{unit.tag} not in sieged_tags")
 
     @timed
     def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:

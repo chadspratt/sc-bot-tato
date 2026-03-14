@@ -25,11 +25,11 @@ from bottato.unit_types import UnitTypes
 class WidowMineMicro(BaseUnitMicro, GeometryMixin):
     max_burrow_time: float = 2.5
     time_in_frames_to_transform: float = max_burrow_time * 22.4
-    attack_health: float = 0.4
+    attack_health: float = 0.5
     attack_range: float = 5.0
-    burrowed_tags: set[int] = set()
-    unburrowed_tags: set[int] = set()
+    burrowed_count: int = 0
     known_tags: set[int] = set()
+    last_tag_refresh: float = 0
     last_transform_time: Dict[int, float] = {}
     last_force_move_time: Dict[int, float] = {}
     drilling_claws_researched: bool = False
@@ -38,12 +38,10 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
     last_fire_time: Dict[int, float] = {}
     special_positions: Dict[int, Point2] = {}
     last_special_position_update_time: float = 0.0
+    health_on_burrow: Dict[int, float] = {}
 
     @timed
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
-        if unit.tag not in self.known_tags:
-            self.known_tags.add(unit.tag)
-            self.unburrowed_tags.add(unit.tag)
         if unit.is_transforming:
             return UnitMicroType.NONE
         # update drilling claws status
@@ -52,6 +50,21 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
             if self.drilling_claws_researched:
                 self.max_burrow_time = 1.5
                 self.time_in_frames_to_transform = self.max_burrow_time * 22.4
+        
+        if self.bot.time != self.last_tag_refresh:
+            self.last_tag_refresh = self.bot.time
+            self.known_tags = self.bot.units.of_type({UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED}).tags
+            self.burrowed_count = self.bot.units.of_type({UnitTypeId.WIDOWMINEBURROWED}).amount
+
+        is_burrowed = unit.type_id == UnitTypeId.WIDOWMINEBURROWED
+        rearm_cooldown_remaining = max(0, 29 - (self.bot.time - self.last_fire_time.get(unit.tag, 0)))
+
+        if unit.tag not in self.current_targets and unit.health_percentage < self.health_on_burrow.get(unit.tag, 1.0):
+            # get out of there, they've made your position!
+            if is_burrowed:
+                self.unburrow(unit)
+                return UnitMicroType.USE_ABILITY
+            return UnitMicroType.NONE
 
         # calculate special positions to burrow to block enemy drops based on recent drop locations
         if self.last_special_position_update_time != self.bot.time:
@@ -68,9 +81,6 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                 closest_drop_location = min(latest_enemy_drop_locations, key=lambda loc: cy_distance_to_squared(mine.position, loc))
                 self.special_positions[mine.tag] = closest_drop_location
                 latest_enemy_drop_locations.remove(closest_drop_location)
-
-        is_burrowed = unit.type_id == UnitTypeId.WIDOWMINEBURROWED
-        rearm_cooldown_remaining = max(0, 29 - (self.bot.time - self.last_fire_time.get(unit.tag, 0)))
 
         # send mines to special positions to block drops
         if unit.tag in self.special_positions:
@@ -147,17 +157,6 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                     # not sure if this successfully resets the cd to fire, still seem to get overkill
                     unit.smart(current_target)
 
-        # burrow/unburrow logic
-        last_transform = self.last_transform_time.get(unit.tag, -999)
-        time_since_last_transform = self.bot.time - last_transform
-        if is_burrowed != (unit.tag in self.burrowed_tags):
-            # fix miscategorizations, though it's probably just transforming
-            if time_since_last_transform > 1.5:
-                if is_burrowed:
-                    self.burrow(unit, update_last_transform_time=False)
-                else:
-                    self.unburrow(unit, update_last_transform_time=False)
-            return UnitMicroType.USE_ABILITY
 
         # early game placement, defend top of ramp
         if self.bot.time < 300:
@@ -254,24 +253,16 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
 
     def burrow(self, unit: Unit, update_last_transform_time: bool = True):
         unit(AbilityId.BURROWDOWN_WIDOWMINE)
-        self.update_burrow_state(unit, self.unburrowed_tags, self.burrowed_tags, update_last_transform_time)
+        self.health_on_burrow[unit.tag] = unit.health_percentage
+        self.update_burrow_state(unit, update_last_transform_time)
 
     def unburrow(self, unit: Unit, update_last_transform_time: bool = True):
         unit(AbilityId.BURROWUP_WIDOWMINE)
-        self.update_burrow_state(unit, self.burrowed_tags, self.unburrowed_tags, update_last_transform_time)
+        self.update_burrow_state(unit, update_last_transform_time)
 
-    def update_burrow_state(self, unit: Unit, old_list: set, new_list: set, update_last_transform_time: bool = True):
+    def update_burrow_state(self, unit: Unit, update_last_transform_time: bool = True):
         if update_last_transform_time:
             self.last_transform_time[unit.tag] = self.bot.time
-        # new_list = self.bot.units.tags.intersection(new_list)
-        if unit.tag not in new_list:
-            new_list.add(unit.tag)
-        else:
-            logger.debug(f"{unit.tag} already in unburrowed_tags")
-        if unit.tag in old_list:
-            old_list.remove(unit.tag)
-        else:
-            logger.debug(f"{unit.tag} not in burrowed_tags")
 
     def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
-        return UnitMicroType.ATTACK if unit.tag in self.burrowed_tags else UnitMicroType.NONE
+        return UnitMicroType.ATTACK if unit.type_id == UnitTypeId.WIDOWMINEBURROWED else UnitMicroType.NONE

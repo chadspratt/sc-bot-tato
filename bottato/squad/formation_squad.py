@@ -135,7 +135,10 @@ class FormationSquad(Squad, GeometryMixin):
         else:
             units = self.units.of_type(unit_type)
         if units:
-            self.parent_formation.add_formation(SquadFormationType.COLUMNS, units.tags, Point2((0, y_offset)), unit_radius=units[0].radius)
+            if units.first.is_flying:
+                self.parent_formation.add_formation(SquadFormationType.LINE, units.tags, Point2((0, y_offset)), unit_radius=units[0].radius)
+            else:
+                self.parent_formation.add_formation(SquadFormationType.COLUMNS, units.tags, Point2((0, y_offset)), unit_radius=units[0].radius)
             return True
         return False
 

@@ -28,7 +28,8 @@ from bottato.mixins import DebugMixin, GeometryMixin, timed, timed_async
 from bottato.squad.bunker import Bunker
 from bottato.squad.formation_squad import FormationSquad
 from bottato.squad.harass_squad import HarassSquad
-from bottato.squad.hunting_squad import HuntingSquad, hunting_squad_types
+from bottato.squad.hunting_squad import HuntingSquad
+from bottato.squad.hunting_squad_type import hunting_squad_types
 from bottato.squad.squad import Squad
 from bottato.squad.stuck_rescue import StuckRescue
 from bottato.tactics import Tactics
@@ -423,7 +424,8 @@ class Military(GeometryMixin, DebugMixin):
             if self.bot.time < squad_type.start_time:
                 continue
             if squad_type.name not in self.hunter_squads:
-                 self.hunter_squads[squad_type.name] = HuntingSquad(self.bot, self.tactics, squad_type.name, (255, 0, 255))
+                 cls = squad_type.squad_class
+                 self.hunter_squads[squad_type.name] = cls(self.bot, self.tactics, squad_type.name, (255, 0, 255))
                  LogHelper.add_log(f"created hunting squad {self.hunter_squads[squad_type.name].name}")
                  self.squads.append(self.hunter_squads[squad_type.name])
             hunter_squad = self.hunter_squads[squad_type.name]
