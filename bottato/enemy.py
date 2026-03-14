@@ -668,7 +668,7 @@ class Enemy(GeometryMixin):
         UnitTypeId.WIDOWMINE,
     }
     positions_needing_detection: Dict[Point2, float] = {}
-    def things_needing_detection(self, near_position: Point2 | None) -> List[Unit | Point2]:
+    def things_needing_detection(self, near_position: Point2 | None = None) -> List[Unit | Point2]:
         need_detection: List[Unit | Point2] = []
         for position, time_visited in self.positions_needing_detection.items():
             # remove positions after thoroughly detecting them
