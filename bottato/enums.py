@@ -96,6 +96,11 @@ class UnitMicroType(enum.Enum):
     MOVE = 5
     REPAIR = 6
 
+class TankSiegeStep(enum.Enum):
+    MOVE_TO_BARRACKS = 0  # move behind ramp barracks, raising depots when further from ramp
+    MOVE_TO_POSITION = 1  # depots raised, move toward tank_position
+    SIEGED = 2            # tank sieged, depots revert to normal
+
 class CustomEffectType(enum.Enum):
     BUILDING_FOOTPRINT = 0
     ENEMY = 1

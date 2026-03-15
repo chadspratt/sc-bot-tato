@@ -49,6 +49,7 @@ class BaseUnitMicro(GeometryMixin):
     repairer_tags_prev_frame: set[int] = set()
     repairers_by_target: Dict[int, List[int]] = {}  # target unit tag -> list of assigned repairer tags
     repairers_by_target_prev_frame: Dict[int, List[int]] = {}
+    depots_raised_for_tank_passage: set[int] = set()  # depot tags raised to let tanks pass
     custom_effects_to_avoid: List[CustomEffect] = []  # position, time, radius, duration
 
     damaging_effects = [

@@ -358,33 +358,34 @@ class Military(GeometryMixin, DebugMixin):
             for squad in self.squads:
                 if squad == self.main_army or squad.name.startswith("defense"):
                     valid_units = squad.units.of_type({UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.GHOST})
-                    injured_units = valid_units.filter(lambda u: u.health_percentage < 1.0)
-                    healthy_units = valid_units.filter(lambda u: u.health_percentage == 1.0)
+                    injured_units = cy_sorted_by_distance_to(valid_units.filter(lambda u: u.health_percentage < 1.0), bunker.structure.position)
+                    healthy_units = cy_sorted_by_distance_to(valid_units.filter(lambda u: u.health_percentage == 1.0), bunker.structure.position)
                     # the desired behavior is to leave the bunker to engage the enemy and then kite back to the bunker
                     # the implementation is to only put units in the bunker if there are injured
                     # this function is only controlling whether units should enter the bunker or leave
                     # so while healthy units might retreat to the bunker, it should only accept them if the enemy is in range
-                    if enemy_is_almost_in_range and injured_units:
+                    if keep_occupied or enemy_is_almost_in_range:
                         # send injured to bunker if enemy is almost in range
-                        injured_cargo_size = sum(u.cargo_size for u in injured_units)
-                        closest_units = injured_units
-                        if injured_cargo_size > cargo_remaining:
-                            closest_units = injured_units.closest_n_units(bunker.structure, cargo_remaining)
-                        if enemy_is_in_range and injured_cargo_size < cargo_remaining:
-                            # send healthy to bunker if enemy is in range
-                            closest_healthy_units = healthy_units.closest_n_units(bunker.structure, cargo_remaining - injured_units.amount)
-                            closest_units.extend(closest_healthy_units)
-
-                        for unit in closest_units:
-                            enemy_distance_to_unit = self.closest_distance_squared(unit, visible_enemies) if visible_enemies else 10000
-                            marine_distance_to_bunker = unit.distance_to_squared(bunker.structure)
-                            if marine_distance_to_bunker < enemy_distance_to_bunker or marine_distance_to_bunker < enemy_distance_to_unit:
-                                # send unit to bunker if there aren't enemies in between
-                                self.transfer(unit, self.main_army, bunker)
-                                unit.smart(bunker.structure)
-                                cargo_used += unit.cargo_size
-                                if cargo_used >= cargo_max:
-                                    return
+                        for injured in injured_units:
+                            if cargo_remaining <= 0:
+                                return
+                            cargo_remaining -= self.add_to_bunker(bunker, injured, visible_enemies)
+                    if keep_occupied or enemy_is_in_range:
+                        # send healthy if enemy is in range and there is remaining space
+                        for healthy in healthy_units:
+                            if cargo_remaining <= 0:
+                                return
+                            cargo_remaining -= self.add_to_bunker(bunker, healthy, visible_enemies)
+                                
+    def add_to_bunker(self, bunker: Bunker, unit: Unit, enemies: Units) -> int:
+        if unit.cargo_size == 0 or bunker.structure is None:
+            return 0
+        closest_enemy = self.closest_unit_to_unit(unit, enemies) if enemies else None
+        if not (closest_enemy and self.position_is_between(closest_enemy.position, unit.position, bunker.structure.position)):
+            self.transfer(unit, self.main_army, bunker)
+            unit.smart(bunker.structure)
+            return unit.cargo_size
+        return 0    
 
     def empty_bunker(self, bunker: Bunker, destination: Unit | None = None):
         for unit in bunker.units:

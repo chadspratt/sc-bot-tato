@@ -63,6 +63,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     break
         # Lower depots when no enemies are nearby
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:
+            if depot.tag in BaseUnitMicro.depots_raised_for_tank_passage:
+                continue
             for enemy_unit in self.bot.enemy_units:
                 if enemy_unit.is_flying:
                     continue

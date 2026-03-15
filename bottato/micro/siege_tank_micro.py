@@ -15,7 +15,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from bottato.enums import CustomEffectType, UnitMicroType
+from bottato.enums import CustomEffectType, TankSiegeStep, UnitMicroType
 from bottato.log_helper import LogHelper
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin, timed, timed_async
@@ -38,8 +38,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     last_siege_attack_time: Dict[int, float] = {}
     previous_positions: Dict[int, Point2] = {}
     early_game_siege_positions: Dict[int, Point2] = {}
-    bunker_count: int = 0
     stationary_positions: Dict[int, Tuple[Point2, float]] = {}
+    early_game_siege_step: Dict[int, TankSiegeStep] = {}
 
     EFFECTS_TO_UNSIEGE_FOR = {
         EffectId.LIBERATORTARGETMORPHDELAYPERSISTENT,
@@ -85,6 +85,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             self.last_tag_refresh = self.bot.time
             self.known_tags = self.bot.units.of_type({UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED}).tags
             self.sieged_count = self.bot.units.of_type({UnitTypeId.SIEGETANKSIEGED}).amount
+            BaseUnitMicro.depots_raised_for_tank_passage.clear()
         unsieged_count = len(self.known_tags) - self.sieged_count
 
         on_cooldown = time_since_last_transform < self.min_seconds_between_transform
@@ -266,24 +267,15 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 structure_in_range_distance = 10.5 if is_sieged else 10.8
                 in_range_distance_sq = (structure_in_range_distance + closest_enemy.radius) ** 2 if closest_enemy.is_structure else 169
                 enemy_is_in_range = closest_enemy_distance < in_range_distance_sq
-        self.previous_positions[unit.tag] = unit.position
-        bunkers = self.bot.structures(UnitTypeId.BUNKER)
-        new_bunker_built = self.bunker_count < bunkers.amount and bunkers.amount < 3
-        self.bunker_count = bunkers.amount
-        tank_position = None
+
         if is_sieged:
-            if new_bunker_built and not enemy_is_in_range:
-                # reposition to cover new bunker
-                LogHelper.add_log(f"Early game siege tank micro for {unit}, unseiging to reposition for new bunker")
-                self.unsiege(unit)
-                if unit.tag in self.early_game_siege_positions:
-                    del self.early_game_siege_positions[unit.tag]
-                return UnitMicroType.USE_ABILITY
+            self.early_game_siege_step[unit.tag] = TankSiegeStep.SIEGED
             if closest_enemy and not enemy_is_in_range:
                 if closest_enemy.is_structure:
                     # creep out to clear structures
                     LogHelper.add_log(f"Early game siege tank micro for {unit}, closest enemy to ramp: {closest_enemy}")
                     self.unsiege(unit)
+                    self.early_game_siege_step[unit.tag] = TankSiegeStep.MOVE_TO_BARRACKS
                     return UnitMicroType.USE_ABILITY
                 else:
                     # fallback to normal micro to handle enemy units
@@ -292,84 +284,96 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             return UnitMicroType.USE_ABILITY
         else:
             if closest_enemy:
-                if not enemy_is_in_range:
-                    if closest_enemy.is_structure:
-                        unit.move(closest_enemy.position)
-                        return UnitMicroType.MOVE
-                else:
+                if enemy_is_in_range:
                     self.siege(unit)
+                    self.early_game_siege_step[unit.tag] = TankSiegeStep.SIEGED
                     LogHelper.add_log(f"Early game siege tank sieging to cover ramp against {closest_enemy}, range {cy_distance_to(unit.position, closest_enemy.position)}")
                     return UnitMicroType.USE_ABILITY
+                elif closest_enemy.is_structure:
+                    unit.move(closest_enemy.position)
+                    return UnitMicroType.MOVE
+
+            ramp_top_center = self.bot.main_base_ramp.top_center
+            ramp_depots = [d for d in self.bot.structures({UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.SUPPLYDEPOT})
+                           if cy_distance_to_squared(d.position, ramp_top_center) < 25]
+            
+            # Calculate tank_position
+            tank_position = None
             if unit.tag in self.early_game_siege_positions:
                 tank_position = self.early_game_siege_positions[unit.tag]
             else:
-                # calculate high ground defensive position
-                bunker: Unit | None = bunkers.closest_to(self.map.natural_position) if bunkers else None
-                if bunker and cy_distance_to_squared(bunker.position, self.bot.main_base_ramp.top_center) > 36:
-                    # bunker on low ground, position tank to cover it, a bit away from top of ramp
-                    tank_positions = self.get_triangle_point_c(bunker.position, self.bot.main_base_ramp.top_center, 10.5, 5)
-                    if tank_positions:
-                        high_ground_height = self.bot.get_terrain_height(self.bot.main_base_ramp.top_center)
-                        for position in tank_positions:
-                            if abs(self.bot.get_terrain_height(position) - high_ground_height) < 5:
-                                if tank_position is None or cy_distance_to_squared(tank_position, self.bot.game_info.map_center) > cy_distance_to_squared(position, self.bot.game_info.map_center):
-                                    tank_position = position
-                    if not tank_position:
-                        tank_position = Point2(cy_towards(bunker.position, unit.position, 10.5))
+                closest_depot_to_map_center = cy_closest_to(self.bot.game_info.map_center, ramp_depots) if ramp_depots else None
+                if closest_depot_to_map_center:
+                    ramp_vector = self.bot.main_base_ramp.bottom_center - ramp_top_center
+                    tank_position = Point2(cy_towards(closest_depot_to_map_center.position + ramp_vector.normalized, ramp_top_center, -1))
                     self.early_game_siege_positions[unit.tag] = tank_position
+            if not tank_position:
+                tank_position = ramp_top_center
 
-            close_enough_to_siege = False
-            if tank_position:
+            step = self.early_game_siege_step.get(unit.tag, TankSiegeStep.MOVE_TO_BARRACKS)
+
+            # Step 1: Move toward backside of ramp barracks (away from ramp)
+            if step == TankSiegeStep.MOVE_TO_BARRACKS:
+                ramp_barracks_list = cy_closer_than(
+                    self.bot.structures({UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING}).ready,
+                    5, ramp_top_center
+                )
+                if ramp_barracks_list:
+                    ramp_barracks = ramp_barracks_list[0]
+                    # backside = away from ramp
+                    backside = Point2(cy_towards(ramp_top_center, ramp_barracks.position, cy_distance_to(ramp_top_center, ramp_barracks.position) + 1.5))
+                    unit.move(backside)
+
+                    near_barracks = cy_distance_to(unit.position, ramp_barracks.position) < 3.5
+                    unit_ramp_distance_sq = cy_distance_to_squared(unit.position, ramp_top_center)
+                    past_depots = all(
+                        unit_ramp_distance_sq > cy_distance_to_squared(d.position, ramp_top_center)
+                        for d in ramp_depots
+                    ) if ramp_depots else True
+                    if near_barracks and past_depots:
+                        all_raised = True
+                        for depot in ramp_depots:
+                            BaseUnitMicro.depots_raised_for_tank_passage.add(depot.tag)
+                            if depot.type_id == UnitTypeId.SUPPLYDEPOTLOWERED:
+                                depot(AbilityId.MORPH_SUPPLYDEPOT_RAISE)
+                                LogHelper.add_log(f"Raising depot for siege tank passage")
+                                all_raised = False
+                        if all_raised:
+                            step = TankSiegeStep.MOVE_TO_POSITION
+                            LogHelper.add_log(f"Depots raised, moving tank to position")
+                else:
+                    # no ramp barracks, unlikely so just use normal micro
+                    return UnitMicroType.NONE
+
+            # Step 3: Move to tank_position
+            if step == TankSiegeStep.MOVE_TO_POSITION:
+                # Keep depots raised while moving through
+                for depot in ramp_depots:
+                    BaseUnitMicro.depots_raised_for_tank_passage.add(depot.tag)
+
                 current_distance = cy_distance_to(unit.position, tank_position)
-                previous_distance = cy_distance_to(self.previous_positions[unit.tag], tank_position)
-                close_enough_to_siege = current_distance <= 0.5 or (
-                    current_distance < 3 and (
-                        unit.position.manhattan_distance(self.previous_positions[unit.tag]) < 0.1 or current_distance > previous_distance
-                ))
-            else:
-                tank_position = self.bot.main_base_ramp.bottom_center
-                close_enough_to_siege = cy_distance_to(unit.position, tank_position) < 9
-            
-            move_tank = not close_enough_to_siege
-            if close_enough_to_siege:
-                # don't block barracks addon from building
-                barracks = self.bot.structures(UnitTypeId.BARRACKS).ready.filter(lambda b: not b.has_add_on)
-                if barracks:
-                    barracks_addon_position = cy_closest_to(unit.position, barracks).add_on_position
-                    addon_distance = cy_distance_to(barracks_addon_position, unit.position)
-                    if addon_distance < 2:
-                        LogHelper.add_log(f"Early game siege tank recalculating position to avoid barracks addon construction")
-                        tank_position = Point2(cy_towards(unit.position, barracks_addon_position, -1))
-                        self.early_game_siege_positions[unit.tag] = tank_position
-                        move_tank = True
-                # don't block depots from raising
-                lowered_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED)
-                if lowered_depots:
-                    closest_depot = cy_closest_to(unit.position, lowered_depots)
-                    # depot_distance = min(abs(closest_depot.position.x - unit.position.x), abs(closest_depot.position.y - unit.position.y))
-                    depot_distance = cy_distance_to(unit.position, closest_depot.position)
-                    if depot_distance < 2.0:
-                        LogHelper.add_log(f"Early game siege tank recalculating position to avoid blocking depot from raising")
-                        if cy_distance_to_squared(closest_depot.position, self.bot.main_base_ramp.top_center) + 0.5 > cy_distance_to_squared(unit.position, self.bot.main_base_ramp.top_center):
-                            # tank is past the depots, need to back it up on the other side of them
-                            tank_position = Point2(cy_towards(closest_depot.position, unit.position, -1))
-                        else:
-                            tank_position = Point2(cy_towards(closest_depot.position, unit.position, 2))
-                            # current_vector = unit.position - closest_depot.position
-                            # required_offset = unit.radius + closest_depot.radius
-                            # new_x = max(current_vector.x, required_offset) if current_vector.x > 0 else min(current_vector.x, -required_offset)
-                            # new_y = max(current_vector.y, required_offset) if current_vector.y > 0 else min(current_vector.y, -required_offset)
-                            # new_vector = Point2((new_x, new_y))
-                            # tank_position = closest_depot.position + new_vector
-                        self.early_game_siege_positions[unit.tag] = tank_position
-                        move_tank = True
-            self.previous_positions[unit.tag] = unit.position
-            if move_tank and tank_position:
-                LogHelper.add_log(f"Early game siege tank position updated {tank_position}")
-                unit.move(tank_position)
-                return UnitMicroType.MOVE
-            elif close_enough_to_siege:
-                self.siege(unit)
-                LogHelper.add_log(f"Early game siege tank sieging to cover ramp at desired position")
-                return UnitMicroType.USE_ABILITY
-            return UnitMicroType.NONE
+                close_enough_to_siege = current_distance <= 0.5
+                if not close_enough_to_siege and unit.tag in self.previous_positions:
+                    previous_position = self.previous_positions[unit.tag]
+                    previous_distance = cy_distance_to(previous_position, tank_position)
+                    # siege if we're kind of close and either stop moving or start moving away
+                    close_enough_to_siege = (
+                        current_distance < 3 and (
+                            unit.position.manhattan_distance(previous_position) < 0.1 or current_distance > previous_distance
+                        )
+                    )
+
+                self.previous_positions[unit.tag] = unit.position
+                if close_enough_to_siege:
+                    # Step 4: Siege
+                    self.siege(unit)
+                    self.early_game_siege_step[unit.tag] = TankSiegeStep.SIEGED
+                    self.early_game_siege_positions[unit.tag] = unit.position
+                    LogHelper.add_log(f"Early game siege tank sieging at desired position")
+                    return UnitMicroType.USE_ABILITY
+                else:
+                    unit.move(tank_position)
+                    self.early_game_siege_step[unit.tag] = step
+                    return UnitMicroType.MOVE
+
+            return UnitMicroType.MOVE
