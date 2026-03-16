@@ -73,13 +73,15 @@ class BuildOrder():
         self.only_build_units: bool = False
         self.floating_building_destinations: Dict[int, Point2] = {}
 
-        if self.bot.enemy_race == Race.Protoss:
-            build_name += " protoss"
-        elif self.bot.enemy_race == Race.Zerg:
-            build_name += " zerg"
-        for unit_type in BuildStarts.get_build_start(build_name):
-            step = self.create_build_step(unit_type, None)
-            self.static_queue.append(step)
+        if not hasattr(self.bot, "_replay_time_offset"):
+            # skip loading static ord if resuming from a replay
+            if self.bot.enemy_race == Race.Protoss:
+                build_name += " protoss"
+            elif self.bot.enemy_race == Race.Zerg:
+                build_name += " zerg"
+            for unit_type in BuildStarts.get_build_start(build_name):
+                step = self.create_build_step(unit_type, None)
+                self.static_queue.append(step)
 
     @timed_async
     async def update_references(self) -> None:

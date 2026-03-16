@@ -21,14 +21,27 @@ from bottato.unit_types import UnitTypes
 
 
 class BotTato(BotAI):
+    _replay_time_offset: float = 0.0
+
+    @property
+    def time(self) -> float:
+        """Returns time in seconds, with replay takeover offset if set."""
+        return super().time + self._replay_time_offset
+
     @timed_async
     async def on_start(self):
         # self.disable_logging()
+        self._replay_time_offset = float(os.environ.get("REPLAY_TAKEOVER_TIME", "0"))
+        if self._replay_time_offset > 0:
+            logger.info(f"Replay time offset: {self._replay_time_offset:.1f}s")
         self.last_timer_print = 0
         self.last_build_order_print = 0
         self.units_by_tag: Dict[int, Unit] = {}
+        logger.info("Creating Commander...")
         self.commander = Commander(self)
+        logger.info("Commander created, initializing map...")
         await self.commander.init_map()
+        logger.info("Map initialized")
         # await self.client.debug_fast_build()
         # await self.client.debug_minerals()
         # await self.client.debug_create_unit(
@@ -44,6 +57,7 @@ class BotTato(BotAI):
         self.patch_game_data()
         LogHelper.init(self)
         UnitReferenceHelper.init(self, self.units_by_tag)
+        logger.info(f"on_start complete (time={self.time:.1f}s, game_loop={self.state.game_loop})")
 
     @timed_async
     async def on_step(self, iteration: int):
