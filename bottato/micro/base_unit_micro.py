@@ -305,6 +305,11 @@ class BaseUnitMicro(GeometryMixin):
     @timed
     def _move_to_repairer(self, unit: Unit) -> UnitMicroType:
         if unit.tag in BaseUnitMicro.repairers_by_target_prev_frame and unit.health_percentage < 1.0 and self.bot.minerals > 30:
+            if unit.health_percentage > 0.8:
+                # check for targets nearby and don't waste time getting repaired if there are
+                target = self._get_attack_target(unit, self.bot.enemy_units, bonus_distance=7)
+                if target:
+                    return UnitMicroType.NONE
             repairer_tags = BaseUnitMicro.repairers_by_target_prev_frame[unit.tag]
             repairers = self.bot.workers.filter(lambda w: w.tag in repairer_tags)
             threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3, first_only=True)
