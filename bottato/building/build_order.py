@@ -73,7 +73,7 @@ class BuildOrder():
         self.only_build_units: bool = False
         self.floating_building_destinations: Dict[int, Point2] = {}
 
-        if not hasattr(self.bot, "_replay_time_offset"):
+        if not hasattr(self.bot, "_replay_time_offset") or self.bot._replay_time_offset == 0: # type: ignore
             # skip loading static ord if resuming from a replay
             if self.bot.enemy_race == Race.Protoss:
                 build_name += " protoss"
