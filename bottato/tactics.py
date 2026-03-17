@@ -45,7 +45,7 @@ class Tactics:
             new_value = self.bot.time > 120 and self.bot.structures(UnitTypeId.STARPORT).ready.exists 
         elif tactic == Tactic.PROXY_BARRACKS:
             if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected and self.intel.enemy_race != Race.Zerg:
-                if self.intel.number_seen(UnitTypeId.BARRACKS) < 4:
+                if self.intel.number_seen(UnitTypeId.BARRACKS) < 4 and not self._enemy_has_marine_counters():
                     if self.bot.time < 180:
                         # start the proxy
                         new_value = True
@@ -53,10 +53,22 @@ class Tactics:
                         if self.bot.time < 240 and self.intel.army_ratio > 1.1 or self.intel.army_ratio > 3:
                             # keep it going if it's working
                             new_value = True
-                        else:
-                            LogHelper.add_log("ending proxy barracks tactic")
         elif tactic == Tactic.RUSH_DEFENSE:
             new_value = self.bot.time < 240 and BuildType.RUSH in self.intel.enemy_builds_detected
+        if not new_value and self.last_values[tactic]:
+            LogHelper.add_log(f"ending tactic {tactic}")
 
         self.last_values[tactic] = new_value
         return new_value
+
+    # units that hard-counter early marines in small numbers
+    MARINE_COUNTER_TYPES = {
+        UnitTypeId.STALKER,
+        UnitTypeId.MARAUDER, UnitTypeId.SIEGETANK, UnitTypeId.CYCLONE,
+        UnitTypeId.ROACH, UnitTypeId.HYDRALISK,
+    }
+
+    def _enemy_has_marine_counters(self) -> bool:
+        """Check if the enemy has units that hard-counter early marines."""
+        enemy_army = self.enemy.get_army()
+        return enemy_army.of_type(self.MARINE_COUNTER_TYPES).exists

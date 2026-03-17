@@ -143,8 +143,10 @@ class Military(GeometryMixin, DebugMixin):
                 # allow attacks at low supply if reaper is scouting so army_ratio is reliable
                 mount_offense = False
         if self.tactics.is_active(Tactic.PROXY_BARRACKS) and self.bot.units(UnitTypeId.MARINE).amount > 3:
-            # if enemy expands early, attack early
-            mount_offense = True
+            # if enemy expands early, attack early, but not into units that hard-counter marines
+            if not self.tactics._enemy_has_marine_counters():
+                mount_offense = True
+                LogHelper.add_log(f"proxy barracks: mounting offense due to early expansion and lack of marine counters")
         if not mount_offense and self.enemies_in_base and self.intel.army_ratio > 1.0:
             defend_with_main_army = True
 
