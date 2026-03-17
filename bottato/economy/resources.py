@@ -65,8 +65,6 @@ class Resources(GeometryMixin):
             if resource_node.node.tag == node.tag:
                 if resource_node.is_long_distance != is_long_distance:
                     resource_node.is_long_distance = is_long_distance
-                    for worker_tag in resource_node.worker_tags:
-                        worker = self.bot.workers.by_tag(worker_tag)
                 return False
         new_node = ResourceNode(node, self.max_workers_per_node, self.max_mules_per_node, is_long_distance)
         self.nodes.append(new_node)
