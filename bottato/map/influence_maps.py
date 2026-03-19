@@ -110,6 +110,17 @@ class InfluenceMaps():
         grid = self._add_non_pathables_ground(grid=grid, include_destructables=True)
         return grid
 
+    def get_zone_grid(self) -> np.ndarray:
+        """Grid for zone/topology computation — terrain + destructibles, no player structures.
+
+        Zones represent map terrain topology and should not be fragmented by
+        temporary player buildings.  This avoids an exponential slowdown in
+        init_zones when many buildings are present (e.g. continue-from-replay).
+        """
+        grid = self.long_range_grid.copy()
+        grid = self._add_non_pathables_ground(grid=grid, include_destructables=True, include_structures=False)
+        return grid
+
     def add_building_to_grid(self, type_id: UnitTypeId, position: Point2, grid: np.ndarray, weight=0):
         size = 1
         if type_id in BUILDINGS["2x2"]:
@@ -133,20 +144,26 @@ class InfluenceMaps():
             grid[x_end - 1, y_start] = 1
             grid[x_end - 1, y_end - 1] = 1
 
-    def _add_non_pathables_ground(self, grid: np.ndarray, include_destructables: bool = True) -> np.ndarray:
+    def _add_non_pathables_ground(
+        self,
+        grid: np.ndarray,
+        include_destructables: bool = True,
+        include_structures: bool = True,
+    ) -> np.ndarray:
         ret_grid = grid.copy()
-        nonpathables = self.bot.structures.not_flying
-        nonpathables.extend(self.bot.enemy_structures.not_flying)
-        nonpathables = nonpathables.filter(
-            lambda x: (
-                x.type_id != UnitTypeId.SUPPLYDEPOTLOWERED or x.is_active
-            ) and (
-                x.type_id != UnitTypeId.CREEPTUMOR or not x.is_ready
+        if include_structures:
+            nonpathables = self.bot.structures.not_flying
+            nonpathables.extend(self.bot.enemy_structures.not_flying)
+            nonpathables = nonpathables.filter(
+                lambda x: (
+                    x.type_id != UnitTypeId.SUPPLYDEPOTLOWERED or x.is_active
+                ) and (
+                    x.type_id != UnitTypeId.CREEPTUMOR or not x.is_ready
+                )
             )
-        )
 
-        for structure in nonpathables:
-            self.add_building_to_grid(structure.type_id, structure.position, ret_grid)
+            for structure in nonpathables:
+                self.add_building_to_grid(structure.type_id, structure.position, ret_grid)
 
         if len(self.minerals_included) != self.bot.mineral_field.amount:
             new_positions = set(m.position for m in self.bot.mineral_field)

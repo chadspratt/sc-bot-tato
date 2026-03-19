@@ -64,6 +64,7 @@ class Commander(GeometryMixin):
 
     async def init_map(self):
         await self.map.init(self.intel.scouting_locations)
+        logger.info("Map initialized, initializing scouting routes...")
         self.scouting.init_scouting_routes()
 
     @timed_async

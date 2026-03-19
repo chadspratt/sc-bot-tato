@@ -22,6 +22,7 @@ from bottato.unit_types import UnitTypes
 
 class BotTato(BotAI):
     _replay_time_offset: float = 0.0
+    _replay_duration_limit: float = 0.0
 
     @property
     def time(self) -> float:
@@ -34,6 +35,9 @@ class BotTato(BotAI):
         self._replay_time_offset = float(os.environ.get("REPLAY_TAKEOVER_TIME", "0"))
         if self._replay_time_offset > 0:
             logger.info(f"Replay time offset: {self._replay_time_offset:.1f}s")
+        self._replay_duration_limit = float(os.environ.get("REPLAY_DURATION", "0"))
+        if self._replay_duration_limit > 0:
+            logger.info(f"Replay duration limit: {self._replay_duration_limit:.1f}s")
         self.last_timer_print = 0
         self.last_build_order_print = 0
         self.units_by_tag: Dict[int, Unit] = {}
@@ -62,6 +66,17 @@ class BotTato(BotAI):
     @timed_async
     async def on_step(self, iteration: int):
         logger.debug(f"======starting step {iteration} ({self.time}s)======")
+
+        # Forfeit if replay duration limit has been exceeded
+        if self._replay_duration_limit > 0:
+            elapsed = super().time  # raw game time since takeover
+            if elapsed >= self._replay_duration_limit:
+                logger.info(
+                    f"Replay duration limit reached ({elapsed:.1f}s >= "
+                    f"{self._replay_duration_limit:.1f}s). Forfeiting."
+                )
+                await self.client.leave()
+                return
 
         for action_error in self.state.action_errors:
             try:

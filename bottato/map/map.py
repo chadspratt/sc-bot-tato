@@ -31,7 +31,7 @@ class Map(GeometryMixin):
         self.cached_neighbors8: Dict[Tuple, Set[Tuple]] = {}
         self.cached_neighbors4: Dict[Tuple, Set[Tuple]] = {}
         self.coords_by_distance: Dict[int, List[Tuple]] = {}
-        self.init_distance_from_edge(self.influence_maps.get_long_range_grid())
+        self.init_distance_from_edge(self.influence_maps.get_zone_grid())
         self.zones: Dict[int, Zone] = {}
         logger.debug(f"zones {self.zones}")
         self.first_draw = True
@@ -52,10 +52,15 @@ class Map(GeometryMixin):
 
     async def init(self, scouting_locations: List[ScoutingLocation]):
         self.scouting_locations = scouting_locations
+        logger.info("Initializing zones...")
         self.zones: Dict[int, Zone] = await self.init_zones(self.distance_from_edge)
+        logger.info("Zones initialized")
         self.natural_position = await self.get_natural_position(self.bot.start_location)
         self.enemy_natural_position = await self.get_natural_position(self.bot.enemy_start_locations[0])
+        logger.info(f"Natural position: {self.natural_position}, Enemy natural position: {self.enemy_natural_position}")
+        logger.info("Initializing expansion orders...")
         self.init_expansion_orders()
+        logger.info("Expansion orders initialized")
 
     def init_expansion_orders(self):
         # uses pathing so has to be called after map is initialized
@@ -106,7 +111,7 @@ class Map(GeometryMixin):
                 self.previous_reaper_elevations[reaper.tag] = current_elevation
 
         if self.influence_maps.destructables_changed():
-            self.init_distance_from_edge(self.influence_maps.get_long_range_grid())
+            self.init_distance_from_edge(self.influence_maps.get_zone_grid())
             self.zones: Dict[int, Zone] = await self.init_zones(self.distance_from_edge)
             for position, damage_list in self.all_damage_by_position.items():
                 zone = self.zone_lookup_by_coord.get((position.x, position.y))
@@ -249,6 +254,7 @@ class Map(GeometryMixin):
         self.zone_lookup_by_coord.clear()
         logger.debug(f"distances {distances}")
         for distance in distances:
+            logger.info(f"Initializing zones with positions that are {distance} distance from edge. current zone count: {len(zones)}")
             zone: Zone
             for zone in zones.values():
                 points_to_check: List[Tuple] = zone.unchecked_points
