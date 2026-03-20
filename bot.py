@@ -30,10 +30,10 @@ def main():
                 # Protoss, Terran, Zerg, Random
                 # VeryEasy, Easy, Medium, MediumHard, Hard, Harder, VeryHard, CheatVision, CheatMoney, CheatInsane
                 # RandomBuild, Rush, Timing, Power, Macro, Air
-                Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Air),
+                Computer(Race.Protoss, Difficulty.CheatInsane, ai_build=AIBuild.Timing),
             ],
             realtime=False,
-            random_seed=30,
+            random_seed=33,
             # 30 and 33 give different spawns for all maps
             # 39 - lings arrive before reactor
         )
