@@ -160,13 +160,17 @@ class Military(GeometryMixin, DebugMixin):
         bunkers = Units([b.structure for b in self.bunkers if b.structure], self.bot)
         if bunkers:
             forward_bunker: Unit = self.map.get_closest_unit_by_path(bunkers, self.bot.enemy_start_locations[0])
+            # Reapers jump cliffs and bypass bunkers — marines should chase them instead
+            enemies_are_only_reapers = self.enemies_in_base and all(
+                e.type_id == UnitTypeId.REAPER for e in self.enemies_in_base
+            )
             for bunker in self.bunkers:
                 if not bunker.structure:
                     continue
                 keep_occupied = False
                 if self.bot.time < 600:
                     is_closest = bunker.structure.tag == forward_bunker.tag
-                    keep_occupied=(not mount_offense and is_closest)
+                    keep_occupied=(not mount_offense and is_closest and not enemies_are_only_reapers)
                 await self.manage_bunker(bunker, self.enemies_in_base, keep_occupied=keep_occupied)
 
         if self.main_army.units:
