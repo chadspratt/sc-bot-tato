@@ -200,7 +200,6 @@ class Workers(GeometryMixin):
 
     @timed_async
     async def speed_mine(self):
-        enemy_reapers = self.bot.enemy_units.of_type(UnitTypeId.REAPER)
         assignment: WorkerAssignment
         for assignment in self.assignments_by_worker.values():
             if assignment.unit.tag in self.workers_being_repaired:
@@ -218,13 +217,6 @@ class Workers(GeometryMixin):
                     or assignment.unit.tag in self.workers_being_repaired \
                     or await self.worker_micro._retreat(assignment.unit, 0.7) != UnitMicroType.NONE:
                 continue
-
-            # Workers fight back against nearby reapers instead of ignoring them
-            if enemy_reapers:
-                nearby_reapers = cy_closer_than(enemy_reapers, 3, assignment.unit.position)
-                if nearby_reapers:
-                    assignment.unit.attack(cy_closest_to(assignment.unit.position, nearby_reapers))
-                    continue
 
             if not self.bot.townhalls.ready:
                 LogHelper.add_log(
@@ -409,7 +401,21 @@ class Workers(GeometryMixin):
         """
         defender_tags: set[int] = set()
 
-        if not (self.bot.townhalls and self.bot.workers and self.bot.time < 200):
+        if not (self.bot.townhalls and self.bot.workers):
+            self._release_non_defenders(defender_tags)
+            return
+
+        # After early game, workers only fight back against very close enemies
+        if self.bot.time >= 200:
+            nearby_enemies = self.bot.enemy_units.filter(
+                lambda u: not u.is_flying
+                and self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies())
+            )
+            for worker in self.bot.workers:
+                if worker.health_percentage > 0.6:
+                    close_enemies = cy_closer_than(nearby_enemies, 3, worker.position)
+                    if close_enemies:
+                        worker.attack(cy_closest_to(worker.position, close_enemies))
             self._release_non_defenders(defender_tags)
             return
 
