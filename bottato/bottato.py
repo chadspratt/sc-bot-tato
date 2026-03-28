@@ -114,7 +114,6 @@ class BotTato(BotAI):
         self.print_all_timers()
         LogHelper.print_logs(99999)
         logger.info(f"Game length: {self.time_formatted}")
-        LogHelper.update_match_duration(int(self.time))
         try:
             logger.debug(self.commander.build_order.complete)
         except AttributeError:

@@ -78,11 +78,6 @@ class LogHelper:
         LogHelper.new_messages = []
 
     @staticmethod
-    def update_match_duration(duration_seconds: int):
-        """Update the match duration in the database if we're in testing mode."""
-        LogHelper.write_log_to_db("Match ended", str(LogHelper.bot.time))
-
-    @staticmethod
     def write_log_to_db(type: str, message: str, override_time: float | None = None):
         """Update the match duration in the database if we're in testing mode."""
         LogHelper.add_log(message)
