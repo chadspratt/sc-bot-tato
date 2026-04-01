@@ -682,12 +682,20 @@ class Enemy(GeometryMixin):
         units_needing_detection = self.enemies_in_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types) + \
                self.enemies_out_of_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or unit.type_id in self.burrowing_unit_types)
         need_detection.extend(units_needing_detection)
+        # prioritize creep tumors: near friendly structures is first priority, then near friendly units, then just the closest ones to near_position
+        near_structures = [nd for nd in need_detection
+                           if isinstance(nd, Point2) or
+                           (nd.type_id in {UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED}
+                           and self.member_is_closer_than(nd, self.bot.structures, 15))]
+        if near_structures:
+            return near_structures
         # prefer positions near squad so raven will stay with army better
         if near_position:
-            nearby_need_detection = [nd for nd in need_detection if near_position._distance_squared(nd.position) < 300]
+            nearby_need_detection = [nd for nd in need_detection if cy_distance_to_squared(near_position, nd.position) < 300]
             if nearby_need_detection:
                 return nearby_need_detection
             return []
+            cy_closest
         # creep_tumors_excluded = need_detection.filter(lambda unit: unit.type_id != UnitTypeId.CREEPTUMORBURROWED)
         # if creep_tumors_excluded:
         #     return creep_tumors_excluded

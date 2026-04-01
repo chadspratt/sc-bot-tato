@@ -163,11 +163,11 @@ class Commander(GeometryMixin):
                 return
             path_checking_position = await self.map.get_path_checking_position()
             if path_checking_position is not None:
-                paths_to_check = [[unit, path_checking_position] for unit in self.bot.units
+                paths_to_check: list[tuple[Unit, Point2]] = [(unit, path_checking_position) for unit in self.bot.units
                                   if unit.type_id != UnitTypeId.SIEGETANKSIEGED and not unit.is_flying
                                   and unit.position.manhattan_distance(self.bot.start_location) < 60]
                 if paths_to_check:
-                    distances = await self.bot.client.query_pathings(paths_to_check)
+                    distances = await self.bot.client.query_pathings(paths_to_check) # type: ignore
                     for path, distance in zip(paths_to_check, distances):
                         if distance == 0:
                             self.bot.client.debug_text_3d("STUCK", path[0].position3d)

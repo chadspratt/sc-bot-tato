@@ -62,7 +62,8 @@ class Counter():
             UnitTypeId.VIKINGFIGHTER: 0.75,
         },
         UnitTypeId.PHOENIX: { # 2
-            UnitTypeId.VIKINGFIGHTER: 1
+            # UnitTypeId.VIKINGFIGHTER: 0.5,
+            UnitTypeId.CYCLONE: 0.6
         },
         UnitTypeId.SENTRY: { # 2
             UnitTypeId.MARINE: 2

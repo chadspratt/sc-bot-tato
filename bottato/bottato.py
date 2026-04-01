@@ -62,6 +62,8 @@ class BotTato(BotAI):
         LogHelper.init(self)
         UnitReferenceHelper.init(self, self.units_by_tag)
         logger.info(f"on_start complete (time={self.time:.1f}s, game_loop={self.state.game_loop})")
+        # Emit resolved race to stderr so test_lab can capture it (useful for Random)
+        logger.info(f"BOT_RACE:{self.race.name}")
 
     @timed_async
     async def on_step(self, iteration: int):
