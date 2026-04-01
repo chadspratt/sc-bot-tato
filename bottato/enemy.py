@@ -1,6 +1,6 @@
 from collections import deque
 from loguru import logger
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 
 from cython_extensions.general_utils import cy_in_pathing_grid_burny
 from cython_extensions.geometry import cy_distance_to_squared
@@ -686,7 +686,7 @@ class Enemy(GeometryMixin):
         near_structures = [nd for nd in need_detection
                            if isinstance(nd, Point2) or
                            (nd.type_id in {UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED}
-                           and self.member_is_closer_than(nd, self.bot.structures, 15))]
+                            and cy_closer_than(self.bot.structures, 15, nd.position))]
         if near_structures:
             return near_structures
         # prefer positions near squad so raven will stay with army better
@@ -806,8 +806,8 @@ class Enemy(GeometryMixin):
         if not candidates:
             return
         
-        paths_to_check = [[unit, self.stuck_check_position] for unit in candidates]
-        distances = await self.bot.client.query_pathings(paths_to_check)
+        paths_to_check: List[Tuple[Unit, Point2]] = [(unit, self.stuck_check_position) for unit in candidates]
+        distances = await self.bot.client.query_pathings(paths_to_check) # type: ignore
         
         for (unit, _), distance in zip(paths_to_check, distances):
             if distance == 0:
