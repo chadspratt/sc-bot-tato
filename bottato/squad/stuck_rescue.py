@@ -87,6 +87,7 @@ class StuckRescue(Squad):
                 self.squads_by_unit_tag[self.transport.tag] = None
 
         cargo_left = self.transport.cargo_left
+        cargo_needed = sum(u.cargo_size for u in stuck_units)
         if not self.medivac_micro.use_booster(self.transport):
             for unit in stuck_units:
                 if cargo_left < unit.cargo_size:
@@ -97,6 +98,9 @@ class StuckRescue(Squad):
                     cargo_left -= unit.cargo_size
             if cargo_left == self.transport.cargo_left:
                 # everything loaded (next frame)
+                self.is_loaded = True
+            elif self.transport.cargo_used > 0 and cargo_needed > cargo_left and cargo_needed <= self.transport.cargo_max:
+                # can't fit remaining stuck units now, but can in one full trip — drop off partial load first
                 self.is_loaded = True
 
     async def _try_early_unload(self, stuck_units: List[Unit], path_checking_position: Point2):
@@ -116,22 +120,10 @@ class StuckRescue(Squad):
                 for tag in self.transport.passengers_tags:
                     self.pending_unload.add(tag)
             return
-        # position is pathable — unload passengers to free space
+        # position is pathable — unload all passengers to free space
         logger.debug(f"stuck_rescue: dropping passengers early at {self.transport.position}")
-        cargo_needed = sum(u.cargo_size for u in stuck_units)
-        if cargo_needed >= self.transport.cargo_max:
-            # more stuck units than we can carry, unload all
-            self.transport(AbilityId.UNLOADALLAT, self.transport)
-            for tag in self.transport.passengers_tags:
-                self.pending_unload.add(tag)
-        else:
-            # unload enough passengers to free the needed cargo space
-            freed = 0
-            for passenger in self.transport.passengers:
-                if freed >= cargo_needed:
-                    break
-                self.transport(AbilityId.UNLOADUNIT, passenger, queue=freed > 0)
-                self.pending_unload.add(passenger.tag)
-                freed += passenger.cargo_size
+        self.transport(AbilityId.UNLOADALLAT, self.transport)
+        for tag in self.transport.passengers_tags:
+            self.pending_unload.add(tag)
         self.is_loaded = False
         self.dropoff = None
