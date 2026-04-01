@@ -139,6 +139,7 @@ if __name__ == "__main__":
                 "nonecheck": False,
             },
             annotate=False,  # Set to True to generate HTML annotation files
+            include_path=[str(HERE.parent)],
         ),
         zip_safe=False,
     )
