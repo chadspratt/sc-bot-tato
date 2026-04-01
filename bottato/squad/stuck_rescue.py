@@ -1,6 +1,8 @@
 
 from typing import Dict, List
 
+from loguru import logger
+
 from cython_extensions.geometry import cy_distance_to_squared, cy_towards
 from sc2.bot_ai import BotAI
 from sc2.ids.ability_id import AbilityId
@@ -37,7 +39,7 @@ class StuckRescue(Squad):
                 self.is_loaded = False
                 self.dropoff = None
 
-    def rescue(self, stuck_units: List[Unit]):
+    async def rescue(self, stuck_units: List[Unit], path_checking_position: Point2 | None):
         if self.pending_unload:
             tags_to_check = list(self.pending_unload)
             for tag in tags_to_check:
@@ -52,6 +54,8 @@ class StuckRescue(Squad):
             if not self.transport.passengers_tags:
                 self.is_loaded = False
                 self.dropoff = None
+            elif stuck_units and path_checking_position is not None:
+                await self._try_early_unload(stuck_units, path_checking_position)
             elif not self.medivac_micro.use_booster(self.transport):
                 self.dropoff = Point2(cy_towards(self.main_army.position, self.bot.start_location, 8))
                 self.transport.move(self.dropoff)
@@ -94,3 +98,40 @@ class StuckRescue(Squad):
             if cargo_left == self.transport.cargo_left:
                 # everything loaded (next frame)
                 self.is_loaded = True
+
+    async def _try_early_unload(self, stuck_units: List[Unit], path_checking_position: Point2):
+        """While transporting, check if passengers can be dropped at current position
+        to free cargo for remaining stuck units."""
+        if self.medivac_micro.use_booster(self.transport):
+            return
+        distances = await self.bot.client.query_pathings(
+            [(self.transport.position, path_checking_position)]
+        )
+        if distances[0] == 0:
+            # current position is not pathable, keep heading to army
+            self.dropoff = Point2(cy_towards(self.main_army.position, self.bot.start_location, 8))
+            self.transport.move(self.dropoff)
+            if cy_distance_to_squared(self.transport.position, self.dropoff) < 25:
+                self.transport(AbilityId.UNLOADALLAT, self.transport, True)
+                for tag in self.transport.passengers_tags:
+                    self.pending_unload.add(tag)
+            return
+        # position is pathable — unload passengers to free space
+        logger.debug(f"stuck_rescue: dropping passengers early at {self.transport.position}")
+        cargo_needed = sum(u.cargo_size for u in stuck_units)
+        if cargo_needed >= self.transport.cargo_max:
+            # more stuck units than we can carry, unload all
+            self.transport(AbilityId.UNLOADALLAT, self.transport)
+            for tag in self.transport.passengers_tags:
+                self.pending_unload.add(tag)
+        else:
+            # unload enough passengers to free the needed cargo space
+            freed = 0
+            for passenger in self.transport.passengers:
+                if freed >= cargo_needed:
+                    break
+                self.transport(AbilityId.UNLOADUNIT, passenger, queue=freed > 0)
+                self.pending_unload.add(passenger.tag)
+                freed += passenger.cargo_size
+        self.is_loaded = False
+        self.dropoff = None

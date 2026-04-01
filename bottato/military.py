@@ -94,8 +94,8 @@ class Military(GeometryMixin, DebugMixin):
         for unit in [unit for unit in from_squad.units]:
             self.transfer(unit, from_squad, to_squad)
 
-    def rescue_stuck_units(self, stuck_units: List[Unit]):
-        self.stuck_rescue.rescue(stuck_units)
+    async def rescue_stuck_units(self, stuck_units: List[Unit], path_checking_position: Point2 | None):
+        await self.stuck_rescue.rescue(stuck_units, path_checking_position)
         if self.stuck_rescue.transport:
             self.transfer(self.stuck_rescue.transport, self.main_army, self.stuck_rescue)
         else:
