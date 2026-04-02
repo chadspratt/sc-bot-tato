@@ -1,7 +1,6 @@
 
-from typing import Dict, List
-
 from loguru import logger
+from typing import Dict, List
 
 from cython_extensions.geometry import cy_distance_to_squared, cy_towards
 from sc2.bot_ai import BotAI
@@ -106,12 +105,12 @@ class StuckRescue(Squad):
     async def _try_early_unload(self, stuck_units: List[Unit], path_checking_position: Point2):
         """While transporting, check if passengers can be dropped at current position
         to free cargo for remaining stuck units."""
-        if self.medivac_micro.use_booster(self.transport):
+        if not self.transport or self.medivac_micro.use_booster(self.transport):
             return
-        distances = await self.bot.client.query_pathings(
-            [(self.transport.position, path_checking_position)]
+        distance = await self.bot.client.query_pathing(
+            self.transport.position, path_checking_position
         )
-        if distances[0] == 0:
+        if distance is None:
             # current position is not pathable, keep heading to army
             self.dropoff = Point2(cy_towards(self.main_army.position, self.bot.start_location, 8))
             self.transport.move(self.dropoff)
