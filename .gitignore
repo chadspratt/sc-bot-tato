@@ -12,4 +12,5 @@ cython_extensions/*.c
 cython_extensions/*.h
 cython_extensions/*.pyd
 cython_extensions/build
+build
 uv.lock
