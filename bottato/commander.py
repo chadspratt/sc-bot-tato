@@ -173,7 +173,7 @@ class Commander(GeometryMixin):
                             self.bot.client.debug_text_3d("STUCK", path[0].position3d)
                             self.stuck_units.append(path[0])
                             logger.debug(f"unit is stuck {path[0]}")
-        self.military.rescue_stuck_units(self.stuck_units)
+        await self.military.rescue_stuck_units(self.stuck_units, self.map.path_checking_position)
         await self.enemy.detect_stuck_enemies(iteration)
 
     @timed_async
