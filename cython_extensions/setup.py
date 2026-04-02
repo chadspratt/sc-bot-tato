@@ -2,8 +2,11 @@
 Setup script to compile Cython extensions for cython_extensions package.
 
 Usage:
-    cd bot/cython_extensions
-    python setup.py build_ext --inplace
+    python cython_extensions/setup.py build_ext --inplace
+
+    Must be run from the parent directory (the bot root) so that
+    ``build_ext --inplace`` places .so/.pyd files into cython_extensions/
+    and Cython resolves ``cimport cython_extensions.X`` correctly.
 
 Requirements:
     - Cython
@@ -21,87 +24,92 @@ from setuptools import Extension, setup
 
 # Get the directory containing this setup.py
 HERE = Path(__file__).parent.absolute()
+# Must run from the parent directory so build_ext --inplace puts .so files
+# into cython_extensions/ and Cython can resolve package-level .pxd files.
+PARENT = HERE.parent
+os.chdir(PARENT)
 
-# Define extensions
-# Note: All modules are built without package prefix since they're in the cython_extensions directory
-# The bootstrap finder handles making them accessible as cython_extensions.module_name
+PKG = "cython_extensions"
+
+# Define extensions — full package names are required so Cython generates
+# __pyx_capi__ exports for cimported symbols (cpdef functions, public cdef vars).
 extensions = [
     # Bootstrap - must be first, has no dependencies
     Extension(
-        "bootstrap",
+        f"{PKG}.bootstrap",
         sources=[str(HERE / "bootstrap.pyx")],
         language="c",
     ),
     # Ability mapping - no numpy dependency
     Extension(
-        "ability_mapping",
+        f"{PKG}.ability_mapping",
         sources=[str(HERE / "ability_mapping.pyx")],
         language="c",
     ),
     # Geometry - no numpy dependency
     Extension(
-        "geometry",
+        f"{PKG}.geometry",
         sources=[str(HERE / "geometry.pyx")],
         language="c",
     ),
     # General utils - needs numpy
     Extension(
-        "general_utils",
+        f"{PKG}.general_utils",
         sources=[str(HERE / "general_utils.pyx")],
         include_dirs=[np.get_include()],
         language="c",
     ),
     # Turn rate - no numpy dependency
     Extension(
-        "turn_rate",
+        f"{PKG}.turn_rate",
         sources=[str(HERE / "turn_rate.pyx")],
         language="c",
     ),
     # Unit data - no numpy dependency
     Extension(
-        "unit_data",
+        f"{PKG}.unit_data",
         sources=[str(HERE / "unit_data.pyx")],
         language="c",
     ),
     # Ability order tracker
     Extension(
-        "ability_order_tracker",
+        f"{PKG}.ability_order_tracker",
         sources=[str(HERE / "ability_order_tracker.pyx")],
         language="c",
     ),
     # Numpy-dependent extensions
     Extension(
-        "numpy_helper",
+        f"{PKG}.numpy_helper",
         sources=[str(HERE / "numpy_helper.pyx")],
         include_dirs=[np.get_include()],
         language="c",
     ),
     Extension(
-        "combat_utils",
+        f"{PKG}.combat_utils",
         sources=[str(HERE / "combat_utils.pyx")],
         include_dirs=[np.get_include()],
         language="c",
     ),
     Extension(
-        "units_utils",
+        f"{PKG}.units_utils",
         sources=[str(HERE / "units_utils.pyx")],
         include_dirs=[np.get_include()],
         language="c",
     ),
     Extension(
-        "dijkstra",
+        f"{PKG}.dijkstra",
         sources=[str(HERE / "dijkstra.pyx")],
         include_dirs=[np.get_include()],
         language="c",
     ),
     Extension(
-        "map_analysis",
+        f"{PKG}.map_analysis",
         sources=[str(HERE / "map_analysis.pyx")],
         include_dirs=[np.get_include()],
         language="c",
     ),
     Extension(
-        "placement_solver",
+        f"{PKG}.placement_solver",
         sources=[str(HERE / "placement_solver.pyx")],
         include_dirs=[np.get_include()],
         language="c",
@@ -120,6 +128,7 @@ for ext in extensions:
 if __name__ == "__main__":
     setup(
         name="cython_extensions",
+        packages=[PKG],
         ext_modules=cythonize(
             existing_extensions,
             compiler_directives={

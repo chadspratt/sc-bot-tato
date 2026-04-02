@@ -9,8 +9,6 @@ from sc2.player import Bot, Computer
 
 from bottato.bottato import BotTato
 
-# from other_bots.QueenBot.bot import main as QueenBot
-
 # Remove the default handler that includes timestamps and other info
 logger.remove()
 # Add a clean handler that only shows the message
