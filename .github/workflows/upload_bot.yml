@@ -30,7 +30,17 @@ jobs:
     - name: Copy sc2 directory
       run: cp -r temp-python-sc2/sc2 .
 
-    # Runs a single command using the runners shell
+    - name: Set up Python 3.12
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: pip install cython numpy setuptools requests
+
+    - name: Compile Cython extensions
+      run: python cython_extensions/setup.py build_ext --inplace
+
     - name: Zip Files
       run: zip -r bottato.zip sc2 bottato cython_extensions __init__.py ladderbots.json LICENSE README.md bot.py run.py
     
