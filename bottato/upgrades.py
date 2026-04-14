@@ -38,6 +38,7 @@ class Upgrades:
         # ==starport techlab==
         UpgradeId.BANSHEECLOAK: [UnitTypeId.BANSHEE],
         UpgradeId.BANSHEESPEED: [UnitTypeId.BANSHEE],
+        UpgradeId.INTERFERENCEMATRIX: [UnitTypeId.RAVEN],
         # ==engineering bay==
         UpgradeId.HISECAUTOTRACKING: [UnitTypeId.RAVEN, UnitTypeId.MISSILETURRET, UnitTypeId.PLANETARYFORTRESS],
         UpgradeId.TERRANBUILDINGARMOR: [UnitTypeId.BARRACKS, UnitTypeId.BUNKER, UnitTypeId.PLANETARYFORTRESS],
@@ -80,7 +81,7 @@ class Upgrades:
         UnitTypeId.STARPORTTECHLAB: [
             UpgradeId.BANSHEECLOAK,
             UpgradeId.BANSHEESPEED,
-            # UpgradeId.INTERFERENCEMATRIX,
+            UpgradeId.INTERFERENCEMATRIX,
         ],
         UnitTypeId.ARMORY: [
             UpgradeId.TERRANVEHICLEWEAPONSLEVEL1,
@@ -116,6 +117,7 @@ class Upgrades:
     required_unit_counts: dict[UpgradeId, int] = {
         UpgradeId.BANSHEECLOAK: 1,
         UpgradeId.BANSHEESPEED: 2,
+        UpgradeId.INTERFERENCEMATRIX: 1,
         UpgradeId.STIMPACK: 1,
         UpgradeId.DRILLCLAWS: 2,
         UpgradeId.TERRANINFANTRYWEAPONSLEVEL1: 1,

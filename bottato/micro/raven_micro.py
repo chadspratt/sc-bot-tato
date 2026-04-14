@@ -5,8 +5,11 @@ from typing import Dict, List, Tuple
 
 from cython_extensions.geometry import cy_angle_to, cy_distance_to, cy_towards
 from cython_extensions.units_utils import cy_closest_to
+from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
@@ -23,6 +26,8 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     ideal_enemy_distance = turret_drop_range + turret_attack_range - 1
     turret_energy_cost = 50
     missile_energy_cost = 75
+    interference_matrix_energy_cost = 75
+    interference_matrix_range = 9
     ability_health = 0.6
     attack_health = 0.7 # detection
     turret_drop_time = 1.5
@@ -34,6 +39,15 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                       UnitTypeId.OVERLORD, UnitTypeId.OVERSEER,
                       UnitTypeId.EGG, UnitTypeId.LARVA,
                       UnitTypeId.ZERGLING, UnitTypeId.BROODLING]
+
+    interference_matrix_targets = [
+        UnitTypeId.COLOSSUS,
+        UnitTypeId.BATTLECRUISER,
+        UnitTypeId.TEMPEST,
+        UnitTypeId.SIEGETANK,
+        UnitTypeId.SIEGETANKSIEGED,
+        UnitTypeId.MOTHERSHIP,
+    ]
                         
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
@@ -60,6 +74,19 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                 if grouped_enemies.amount >= 5:
                     if self.fire_missile(unit, most_grouped_enemy):
                         return UnitMicroType.USE_ABILITY
+
+        if (unit.energy >= self.interference_matrix_energy_cost
+                and nearby_friendly_units.amount > 5
+                and self.bot.enemy_race != Race.Zerg
+                and UpgradeId.INTERFERENCEMATRIX in self.bot.state.upgrades):
+            nearby_enemies = self.bot.enemy_units.filter(
+                lambda enemy: enemy.type_id in self.interference_matrix_targets
+                and enemy.distance_to_squared(unit) < self.interference_matrix_range ** 2
+                and not enemy.has_buff(BuffId.RAVENSCRAMBLERMISSILE)
+            )
+            if nearby_enemies:
+                target = cy_closest_to(unit.position, nearby_enemies)
+                return self.interfere(unit, target)
 
         enemy_unit, enemy_distance = self.enemy.get_closest_target(unit, distance_limit=20, include_structures=False, include_destructables=False,
                                                                    include_out_of_view=False)
@@ -151,5 +178,6 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         unit(AbilityId.EFFECT_ANTIARMORMISSILE, target)
         return UnitMicroType.USE_ABILITY
 
-    def interfere(self, unit: Unit, target: Unit):
+    def interfere(self, unit: Unit, target: Unit) -> UnitMicroType:
         unit(AbilityId.EFFECT_INTERFERENCEMATRIX, target)
+        return UnitMicroType.USE_ABILITY
