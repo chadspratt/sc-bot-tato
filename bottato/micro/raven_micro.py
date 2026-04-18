@@ -4,7 +4,7 @@ from loguru import logger
 from typing import Dict, List, Tuple
 
 from cython_extensions.geometry import cy_angle_to, cy_distance_to, cy_towards
-from cython_extensions.units_utils import cy_closest_to
+from cython_extensions.units_utils import cy_closer_than, cy_closest_to
 from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
@@ -14,6 +14,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from bottato.enums import CustomEffectType, UnitMicroType
+from bottato.log_helper import LogHelper
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.custom_effect import CustomEffect
 from bottato.mixins import GeometryMixin, timed, timed_async
@@ -44,7 +45,6 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         UnitTypeId.COLOSSUS,
         UnitTypeId.BATTLECRUISER,
         UnitTypeId.TEMPEST,
-        UnitTypeId.SIEGETANK,
         UnitTypeId.SIEGETANKSIEGED,
         UnitTypeId.MOTHERSHIP,
     ]
@@ -62,31 +62,30 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         
         military_units = self.bot.units.filter(lambda u: u.type_id not in self.excluded_types)
         nearby_friendly_units = military_units.filter(lambda u: u.type_id not in self.excluded_types and u.distance_to_squared(unit) < 100)
-        
-        if military_units.amount > 15 and nearby_friendly_units.amount <= 5 and unit.energy < 180 and unit.health_percentage >= 0.4:
+        army_is_nearby = nearby_friendly_units.amount > 5
+        if military_units.amount > 15 and not army_is_nearby and unit.energy < 180 and unit.health_percentage >= 0.4:
             # save energy for supporting army
             return UnitMicroType.NONE
+
+        if (unit.energy >= self.interference_matrix_energy_cost
+                and army_is_nearby
+                and self.bot.enemy_race != Race.Zerg
+                and UpgradeId.INTERFERENCEMATRIX in self.bot.state.upgrades):
+            valid_targets = self.bot.enemy_units.filter(
+                lambda enemy: enemy.type_id in self.interference_matrix_targets
+                and not enemy.has_buff(BuffId.RAVENSCRAMBLERMISSILE)
+            )
+            interfere_target = cy_closest_to(unit.position, valid_targets)
+            if cy_distance_to(unit.position, interfere_target.position) <= self.interference_matrix_range:
+                return self.interfere(unit, interfere_target)
         
-        if unit.energy >= self.missile_energy_cost and nearby_friendly_units.amount > 5:
+        if unit.energy >= self.missile_energy_cost and army_is_nearby:
             nearby_enemies = self.bot.enemy_units.filter(lambda enemy: enemy.type_id not in self.excluded_types and enemy.distance_to_squared(unit) < 225)
             if nearby_enemies:
                 most_grouped_enemy, grouped_enemies = self.get_most_grouped_unit(nearby_enemies, self.bot, 3.5)
                 if grouped_enemies.amount >= 5:
                     if self.fire_missile(unit, most_grouped_enemy):
                         return UnitMicroType.USE_ABILITY
-
-        if (unit.energy >= self.interference_matrix_energy_cost
-                and nearby_friendly_units.amount > 5
-                and self.bot.enemy_race != Race.Zerg
-                and UpgradeId.INTERFERENCEMATRIX in self.bot.state.upgrades):
-            nearby_enemies = self.bot.enemy_units.filter(
-                lambda enemy: enemy.type_id in self.interference_matrix_targets
-                and enemy.distance_to_squared(unit) < self.interference_matrix_range ** 2
-                and not enemy.has_buff(BuffId.RAVENSCRAMBLERMISSILE)
-            )
-            if nearby_enemies:
-                target = cy_closest_to(unit.position, nearby_enemies)
-                return self.interfere(unit, target)
 
         enemy_unit, enemy_distance = self.enemy.get_closest_target(unit, distance_limit=20, include_structures=False, include_destructables=False,
                                                                    include_out_of_view=False)
@@ -180,4 +179,5 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
 
     def interfere(self, unit: Unit, target: Unit) -> UnitMicroType:
         unit(AbilityId.EFFECT_INTERFERENCEMATRIX, target)
+        LogHelper.write_log_to_db("interference_matrix", f'{{"unit": {unit.tag}, "target": {target.tag}}}')
         return UnitMicroType.USE_ABILITY
