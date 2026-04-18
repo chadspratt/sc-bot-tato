@@ -49,7 +49,7 @@ class UpgradeBuildStep(BuildStep):
                 self.upgrade_id.name, self.unit_in_charge.position3d)
 
     def is_upgrade_type(self, upgrade_id: UpgradeId) -> bool:
-        return self.upgrade_id == upgrade_id
+        return self.upgrade_id == upgrade_id or upgrade_id == UpgradeId.SUNDERINGIMPACT and self.upgrade_id == UpgradeId.INTERFERENCEMATRIX
     
     def tech_requirements_met(self) -> bool:
         research_structure_type: UnitTypeId = UPGRADE_RESEARCHED_FROM[self.upgrade_id]

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from loguru import logger
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 from cython_extensions.geometry import cy_angle_to, cy_distance_to, cy_towards
 from cython_extensions.units_utils import cy_closer_than, cy_closest_to
@@ -48,6 +48,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         UnitTypeId.SIEGETANKSIEGED,
         UnitTypeId.MOTHERSHIP,
     ]
+    interference_patched_ids: Set[UpgradeId] = set([UpgradeId.INTERFERENCEMATRIX, UpgradeId.SUNDERINGIMPACT])
                         
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
@@ -70,7 +71,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         if (unit.energy >= self.interference_matrix_energy_cost
                 and army_is_nearby
                 and self.bot.enemy_race != Race.Zerg
-                and UpgradeId.INTERFERENCEMATRIX in self.bot.state.upgrades):
+                and self.interference_patched_ids.intersection(self.bot.state.upgrades)):
             valid_targets = self.bot.enemy_units.filter(
                 lambda enemy: enemy.type_id in self.interference_matrix_targets
                 and not enemy.has_buff(BuffId.RAVENSCRAMBLERMISSILE)
