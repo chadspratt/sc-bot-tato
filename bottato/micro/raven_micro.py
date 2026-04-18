@@ -76,9 +76,10 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                 lambda enemy: enemy.type_id in self.interference_matrix_targets
                 and not enemy.has_buff(BuffId.RAVENSCRAMBLERMISSILE)
             )
-            interfere_target = cy_closest_to(unit.position, valid_targets)
-            if cy_distance_to(unit.position, interfere_target.position) <= self.interference_matrix_range:
-                return self.interfere(unit, interfere_target)
+            if valid_targets:
+                interfere_target = cy_closest_to(unit.position, valid_targets)
+                if cy_distance_to(unit.position, interfere_target.position) <= self.interference_matrix_range:
+                    return self.interfere(unit, interfere_target)
         
         if unit.energy >= self.missile_energy_cost and army_is_nearby:
             nearby_enemies = self.bot.enemy_units.filter(lambda enemy: enemy.type_id not in self.excluded_types and enemy.distance_to_squared(unit) < 225)
