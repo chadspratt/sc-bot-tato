@@ -28,6 +28,7 @@ from bottato.mixins import DebugMixin, GeometryMixin, timed, timed_async
 from bottato.squad.bunker import Bunker
 from bottato.squad.formation_squad import FormationSquad
 from bottato.squad.harass_squad import HarassSquad
+from bottato.squad.medivac_drop_squad import MedivacDropSquad
 from bottato.squad.hunting_squad import HuntingSquad
 from bottato.squad.hunting_squad_type import hunting_squad_types
 from bottato.squad.squad import Squad
@@ -71,6 +72,7 @@ class Military(GeometryMixin, DebugMixin):
         self.stuck_rescue = StuckRescue(self.bot, self.main_army, self.squads_by_unit_tag)
         self.reaper_harass = HarassSquad(self.bot, name="reaper harass")
         self.banshee_harass = HarassSquad(self.bot, name="banshee harass")
+        self.medivac_drop: MedivacDropSquad | None = None
         self.hunter_squads: Dict[str, HuntingSquad] = {}
         self.squads.append(self.main_army)
         self.squads.append(self.top_ramp_bunker)
@@ -424,6 +426,47 @@ class Military(GeometryMixin, DebugMixin):
             
         await self.reaper_harass.harass(self.intel)
         await self.banshee_harass.harass(self.intel)
+        await self.manage_medivac_drop()
+
+    @timed_async
+    async def manage_medivac_drop(self):
+        """Create and manage a medivac drop harass squad when conditions are met."""
+        medivacs = self.main_army.units.of_type(UnitTypeId.MEDIVAC)
+        marines = self.main_army.units.of_type(UnitTypeId.MARINE)
+
+        # Disband squad if signalling done
+        if self.medivac_drop is not None and self.medivac_drop.is_disbanding:
+            # Wait until units are back near base, then transfer back
+            drop_medivac = self.medivac_drop.medivac_unit
+            near_home = drop_medivac and drop_medivac.distance_to(self.bot.start_location) < 20
+            marines_aboard = drop_medivac and not self.medivac_drop.marines
+            if near_home and marines_aboard and drop_medivac:
+                # Unload passengers back into the world so they can be picked up by army
+                from sc2.ids.ability_id import AbilityId as _AbilityId
+                drop_medivac(_AbilityId.UNLOADALLAT, drop_medivac)
+            if near_home or not self.medivac_drop.units:
+                self.transfer_all(self.medivac_drop, self.main_army)
+                self.squads.remove(self.medivac_drop)
+                self.medivac_drop = None
+                LogHelper.add_log("medivac drop squad disbanded")
+            else:
+                await self.medivac_drop.harass(self.intel)
+            return
+
+        if self.medivac_drop is not None:
+            await self.medivac_drop.harass(self.intel)
+            return
+
+        # Create new drop squad when we have enough medivacs and marines
+        if medivacs.amount >= 3 and marines.amount >= 18:
+            self.medivac_drop = MedivacDropSquad(self.bot, name="medivac drop")
+            # Transfer 1 medivac and 6 healthiest marines
+            self.transfer(medivacs.first, self.main_army, self.medivac_drop)
+            sorted_marines = sorted(marines, key=lambda m: -m.health)
+            for marine in sorted_marines[:6]:
+                self.transfer(marine, self.main_army, self.medivac_drop)
+            self.squads.append(self.medivac_drop)
+            LogHelper.add_log("medivac drop squad created")
 
     @timed_async
     async def manage_special_squads(self):
