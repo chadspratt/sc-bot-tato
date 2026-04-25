@@ -434,8 +434,24 @@ class Military(GeometryMixin, DebugMixin):
         medivacs = self.main_army.units.of_type(UnitTypeId.MEDIVAC)
         marines = self.main_army.units.of_type(UnitTypeId.MARINE)
 
-        # Disband squad if signalling done
-        if self.medivac_drop is not None and self.medivac_drop.is_disbanding:
+        if self.medivac_drop is None:
+            # Create new drop squad when we have enough medivacs and marines
+            if medivacs.amount >= 3 and marines.amount >= 16:
+                self.medivac_drop = MedivacDropSquad(self.bot, name="medivac drop")
+                medivac_unit = medivacs.first
+                # Transfer 1 medivac and 6 healthiest marines
+                self.transfer(medivac_unit, self.main_army, self.medivac_drop)
+                sorted_marines = sorted(marines, key=lambda m: (-m.health,
+                                                                cy_distance_to_squared(m.position,
+                                                                                    medivac_unit.position)))
+                for marine in sorted_marines[:6]:
+                    self.transfer(marine, self.main_army, self.medivac_drop)
+                self.squads.append(self.medivac_drop)
+                LogHelper.add_log("medivac drop squad created")
+        elif self.medivac_drop.is_disbanding:
+            if self.medivac_drop.units.amount == 0:
+                self.medivac_drop = None
+                return
             # Wait until units are loaded, then transfer back
             drop_medivac = self.medivac_drop.medivac_unit
             marines_aboard = drop_medivac and not self.medivac_drop.marines
@@ -447,24 +463,10 @@ class Military(GeometryMixin, DebugMixin):
             else:
                 await self.medivac_drop.harass(self.intel)
             return
-
-        if self.medivac_drop is not None:
+        else:
             await self.medivac_drop.harass(self.intel)
             return
 
-        # Create new drop squad when we have enough medivacs and marines
-        if medivacs.amount >= 3 and marines.amount >= 18:
-            self.medivac_drop = MedivacDropSquad(self.bot, name="medivac drop")
-            medivac_unit = medivacs.first
-            # Transfer 1 medivac and 6 healthiest marines
-            self.transfer(medivac_unit, self.main_army, self.medivac_drop)
-            sorted_marines = sorted(marines, key=lambda m: (-m.health,
-                                                            cy_distance_to_squared(m.position,
-                                                                                   medivac_unit.position)))
-            for marine in sorted_marines[:6]:
-                self.transfer(marine, self.main_army, self.medivac_drop)
-            self.squads.append(self.medivac_drop)
-            LogHelper.add_log("medivac drop squad created")
 
     @timed_async
     async def manage_special_squads(self):
