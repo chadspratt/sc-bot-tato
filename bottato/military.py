@@ -28,9 +28,9 @@ from bottato.mixins import DebugMixin, GeometryMixin, timed, timed_async
 from bottato.squad.bunker import Bunker
 from bottato.squad.formation_squad import FormationSquad
 from bottato.squad.harass_squad import HarassSquad
-from bottato.squad.medivac_drop_squad import MedivacDropSquad
 from bottato.squad.hunting_squad import HuntingSquad
 from bottato.squad.hunting_squad_type import hunting_squad_types
+from bottato.squad.medivac_drop_squad import MedivacDropSquad
 from bottato.squad.squad import Squad
 from bottato.squad.stuck_rescue import StuckRescue
 from bottato.tactics import Tactics
@@ -436,15 +436,10 @@ class Military(GeometryMixin, DebugMixin):
 
         # Disband squad if signalling done
         if self.medivac_drop is not None and self.medivac_drop.is_disbanding:
-            # Wait until units are back near base, then transfer back
+            # Wait until units are loaded, then transfer back
             drop_medivac = self.medivac_drop.medivac_unit
-            near_home = drop_medivac and drop_medivac.distance_to(self.bot.start_location) < 20
             marines_aboard = drop_medivac and not self.medivac_drop.marines
-            if near_home and marines_aboard and drop_medivac:
-                # Unload passengers back into the world so they can be picked up by army
-                from sc2.ids.ability_id import AbilityId as _AbilityId
-                drop_medivac(_AbilityId.UNLOADALLAT, drop_medivac)
-            if near_home or not self.medivac_drop.units:
+            if marines_aboard and drop_medivac:
                 self.transfer_all(self.medivac_drop, self.main_army)
                 self.squads.remove(self.medivac_drop)
                 self.medivac_drop = None
@@ -460,9 +455,12 @@ class Military(GeometryMixin, DebugMixin):
         # Create new drop squad when we have enough medivacs and marines
         if medivacs.amount >= 3 and marines.amount >= 18:
             self.medivac_drop = MedivacDropSquad(self.bot, name="medivac drop")
+            medivac_unit = medivacs.first
             # Transfer 1 medivac and 6 healthiest marines
-            self.transfer(medivacs.first, self.main_army, self.medivac_drop)
-            sorted_marines = sorted(marines, key=lambda m: -m.health)
+            self.transfer(medivac_unit, self.main_army, self.medivac_drop)
+            sorted_marines = sorted(marines, key=lambda m: (-m.health,
+                                                            cy_distance_to_squared(m.position,
+                                                                                   medivac_unit.position)))
             for marine in sorted_marines[:6]:
                 self.transfer(marine, self.main_army, self.medivac_drop)
             self.squads.append(self.medivac_drop)

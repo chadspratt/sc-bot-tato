@@ -4,6 +4,7 @@ import math
 from enum import Enum, auto
 from typing import Dict, Optional
 
+from cython_extensions.geometry import cy_towards
 from sc2.bot_ai import BotAI
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -11,8 +12,8 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bottato.squad.harass_squad import HarassSquad
 from bottato.squad.enemy_intel import EnemyIntel
+from bottato.squad.harass_squad import HarassSquad
 from bottato.unit_types import UnitTypes
 
 
@@ -71,10 +72,10 @@ class MedivacDropSquad(HarassSquad):
     def _playable_rect(self):
         area = self.bot.game_info.playable_area
         return (
-            area.x + 2,
-            area.y + 2,
-            area.x + area.width - 2,
-            area.y + area.height - 2,
+            area.x + 1,
+            area.y + 1,
+            area.x + area.width - 1,
+            area.y + area.height - 1,
         )
 
     def _nearest_edge_point(self, pos: Point2) -> Point2:
@@ -115,7 +116,8 @@ class MedivacDropSquad(HarassSquad):
         total = 0.0
         for unit in self.bot.enemy_units:
             if unit.distance_to(pos) < radius and not UnitTypes.is_worker(unit.type_id):
-                total += unit.supply_cost if hasattr(unit, 'supply_cost') else 1.0
+                unit_info = UnitTypes.get_unit_info(unit.type_id)
+                total += unit_info["supply"]
         return total
 
     def _get_flank_position(self, medivac: Unit, enemy_pos: Point2, radius: float = 14.0) -> Point2:
@@ -124,26 +126,26 @@ class MedivacDropSquad(HarassSquad):
             self.flank_direction[tag] = 1  # clockwise
         direction = self.flank_direction[tag]
 
-        dx = medivac.position.x - enemy_pos.x
-        dy = medivac.position.y - enemy_pos.y
-        current_angle = math.atan2(dy, dx)
-        step = math.pi / 4  # 45 degrees per flank step
+        if medivac.position == enemy_pos:
+            return self.bot.start_location
+        threat_to_unit_vector = (medivac.position - enemy_pos).normalized
+        flipped = ((-threat_to_unit_vector.y, threat_to_unit_vector.x) if direction < 0 else
+                   (threat_to_unit_vector.y, -threat_to_unit_vector.x))
+        tangent_vector = Point2(flipped) * medivac.movement_speed
+        flank_position = Point2(cy_towards(medivac.position + tangent_vector, enemy_pos, -1))
 
-        new_angle = current_angle + direction * step
         x_min, y_min, x_max, y_max = self._playable_rect()
-        new_x = enemy_pos.x + radius * math.cos(new_angle)
-        new_y = enemy_pos.y + radius * math.sin(new_angle)
-
-        if not (x_min <= new_x <= x_max and y_min <= new_y <= y_max):
+        if not (x_min <= flank_position.x <= x_max and y_min <= flank_position.y <= y_max):
             # Flip direction
-            self.flank_direction[tag] = -direction
-            new_angle = current_angle - direction * step
-            new_x = enemy_pos.x + radius * math.cos(new_angle)
-            new_y = enemy_pos.y + radius * math.sin(new_angle)
-            new_x = max(x_min, min(x_max, new_x))
-            new_y = max(y_min, min(y_max, new_y))
+            direction = -direction
+            self.flank_direction[tag] = direction
+            threat_to_unit_vector = (medivac.position - enemy_pos).normalized
+            flipped = ((-threat_to_unit_vector.y, threat_to_unit_vector.x) if direction < 0 else
+                    (threat_to_unit_vector.y, -threat_to_unit_vector.x))
+            tangent_vector = Point2(flipped) * medivac.movement_speed
+            flank_position = Point2(cy_towards(medivac.position + tangent_vector, enemy_pos, -1))
 
-        return Point2((new_x, new_y))
+        return flank_position
 
     def _best_attack_target(self, medivac: Unit) -> Optional[Unit]:
         if self.bot.enemy_units:
@@ -197,12 +199,7 @@ class MedivacDropSquad(HarassSquad):
             self.state = DropState.FLYING_TO_EDGE
             return
 
-        # Find next marine to load: healthiest, tiebreak = nearest to medivac
-        unloaded = [m for m in marines if m.cargo_size <= medivac.cargo_left]
-        if not unloaded:
-            return
-        unloaded.sort(key=lambda m: (-m.health, m.distance_to(medivac)))
-        medivac(AbilityId.LOAD_MEDIVAC, unloaded[0])
+        medivac(AbilityId.LOAD, marines[0])
 
     async def _do_flying_to_edge(self, medivac: Unit):
         """Fly to the nearest map edge."""
@@ -295,7 +292,7 @@ class MedivacDropSquad(HarassSquad):
         """Load any unloaded marines, then start flanking."""
         for marine in self.marines:
             if medivac.cargo_left >= marine.cargo_size:
-                medivac(AbilityId.LOAD_MEDIVAC, marine)
+                medivac(AbilityId.LOAD, marine)
                 return  # one load order per step
 
         if not self.marines:
@@ -319,7 +316,7 @@ class MedivacDropSquad(HarassSquad):
         """Load remaining marines, fly toward base to be dissolved by Military."""
         for marine in self.marines:
             if medivac.cargo_left >= marine.cargo_size:
-                medivac(AbilityId.LOAD_MEDIVAC, marine)
+                medivac(AbilityId.LOAD, marine)
                 return
 
         # All marines aboard — head home
