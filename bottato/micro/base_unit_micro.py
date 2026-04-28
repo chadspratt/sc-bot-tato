@@ -449,19 +449,27 @@ class BaseUnitMicro(GeometryMixin):
 
     @timed
     def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0, require_in_range_target: bool = False) -> Unit | None:
-        nearby_enemies = nearby_enemies.filter(lambda u: UnitTypes.can_attack_target(unit, u))
-        if not nearby_enemies:
+        valid_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack_target(unit, u))
+        if not valid_targets:
             return None
-        closest_target = cy_closest_to(unit.position, nearby_enemies)
+
+        # ignore gas buildings unless they're the only thing left
+        non_gas_buildings = valid_targets.exclude_type(UnitTypes.GAS_STRUCTURE_TYPES)
+        if len(non_gas_buildings) > 0:
+            valid_targets = non_gas_buildings
+
+        closest_target = cy_closest_to(unit.position, valid_targets)
         closest_distance = max(cy_distance_to(unit.position, closest_target.position), UnitTypes.range(unit))
         # look beyond closest enemy for priority targets
         extra_distance = 10 if closest_target.is_structure else 3
-        almost_closest_enemies = Units(cy_closer_than(nearby_enemies, closest_distance + extra_distance, unit.position), bot_object=self.bot)
+        almost_closest_enemies = Units(cy_closer_than(valid_targets, closest_distance + extra_distance, unit.position), bot_object=self.bot)
+
         priority_targets = almost_closest_enemies.filter(lambda u: u.type_id in UnitTypes.get_priority_target_types(unit))
         if priority_targets:
             in_range = self.enemy.in_attack_range(unit, priority_targets, bonus_distance, first_only=True)
             if in_range:
                 return in_range.first
+
         # for non-priority targets, only look 1 distance beyond closest enemy
         almost_closest_enemies = Units(cy_closer_than(almost_closest_enemies, closest_distance + 1, unit.position), bot_object=self.bot)
         offensive_targets = almost_closest_enemies.filter(lambda u: UnitTypes.can_attack(u))
@@ -472,14 +480,17 @@ class BaseUnitMicro(GeometryMixin):
             in_range = self.enemy.in_attack_range(unit, offensive_targets, bonus_distance, first_only=True)
             if in_range:
                 return in_range.first
+
+        # targets that can't attack you
         passive_targets = almost_closest_enemies.filter(lambda u: not UnitTypes.can_attack(u))
         if passive_targets:
             in_range = self.enemy.in_attack_range(unit, passive_targets, bonus_distance, first_only=True)
             if in_range:
                 return in_range.first
+
         # nothing in range, attack closest
         return None if require_in_range_target else closest_target
-            
+
     def _stay_at_max_range(self, unit: Unit, targets: Units, buffer: float = 0.5, queue: bool = False) -> UnitMicroType:
         if not targets:
             return UnitMicroType.NONE

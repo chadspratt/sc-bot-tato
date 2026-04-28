@@ -404,6 +404,12 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.GHOSTACADEMY,
     }
 
+    GAS_STRUCTURE_TYPES = {
+        UnitTypeId.REFINERY,
+        UnitTypeId.EXTRACTOR,
+        UnitTypeId.ASSIMILATOR,
+    }
+
     @staticmethod
     def is_worker(unit_type_id: UnitTypeId) -> bool:
         """
