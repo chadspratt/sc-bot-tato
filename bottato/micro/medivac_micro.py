@@ -134,6 +134,12 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 return False
         else:
             return unit.energy >= self.heal_start_cost
+    
+    def _harass_move_unit(self, unit: Unit, target: Point2, previous_position: Point2 | None = None) -> UnitMicroType:
+        # move while boosting
+        if self.use_booster(unit):
+            return UnitMicroType.USE_ABILITY
+        return self._move_unit(unit, target, previous_position)
         
     def use_booster(self, unit: Unit) -> bool:
         if unit.tag in self.last_afterburner_time and self.bot.time - self.last_afterburner_time[unit.tag] < 14.0:

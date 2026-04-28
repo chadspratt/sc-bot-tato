@@ -436,7 +436,7 @@ class Military(GeometryMixin, DebugMixin):
 
         if self.medivac_drop is None:
             # Create new drop squad when we have enough medivacs and marines
-            if medivacs.amount >= 3 and marines.amount >= 16:
+            if medivacs.amount >= 3 and marines.amount >= 18:
                 self.medivac_drop = MedivacDropSquad(self.bot, name="medivac drop")
                 medivac_unit = medivacs.first
                 # Transfer 1 medivac and 6 healthiest marines
@@ -444,7 +444,7 @@ class Military(GeometryMixin, DebugMixin):
                 sorted_marines = sorted(marines, key=lambda m: (-m.health,
                                                                 cy_distance_to_squared(m.position,
                                                                                     medivac_unit.position)))
-                for marine in sorted_marines[:6]:
+                for marine in sorted_marines[:MedivacDropSquad.MARINES_PER_DROP]:
                     self.transfer(marine, self.main_army, self.medivac_drop)
                 self.squads.append(self.medivac_drop)
                 LogHelper.add_log("medivac drop squad created")

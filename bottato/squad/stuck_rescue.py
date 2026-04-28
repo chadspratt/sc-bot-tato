@@ -88,13 +88,15 @@ class StuckRescue(Squad):
         cargo_left = self.transport.cargo_left
         cargo_needed = sum(u.cargo_size for u in stuck_units)
         if not self.medivac_micro.use_booster(self.transport):
+            transport_position = self.transport.position
+            closest_stuck_unit = min(stuck_units, key=lambda u: u.distance_to(transport_position))
             for unit in stuck_units:
                 if cargo_left < unit.cargo_size:
                     break
-                else:
-                    # don't queue first order so the unit orders don't keep growing
-                    self.transport(AbilityId.LOAD, unit)
-                    cargo_left -= unit.cargo_size
+                elif unit.tag == closest_stuck_unit.tag:
+                    self.transport(AbilityId.LOAD, closest_stuck_unit)
+                unit.smart(self.transport)
+                cargo_left -= unit.cargo_size
             if cargo_left == self.transport.cargo_left:
                 # everything loaded (next frame)
                 self.is_loaded = True

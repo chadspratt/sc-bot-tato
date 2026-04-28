@@ -1,4 +1,21 @@
+import os
+
 __version__ = "0.13.1"
+
+# In git worktrees, compiled .pyd/.so extensions are absent (build artifacts are not
+# tracked by git). Locate the main checkout's cython_extensions/ directory and prepend
+# it to __path__ so that `from . import bootstrap` resolves the compiled extension.
+_this_dir = os.path.abspath(__path__[0])
+if not any(f.endswith(".pyd") or f.endswith(".so") for f in os.listdir(_this_dir)):
+    _parent = os.path.dirname(_this_dir)
+    while _parent != os.path.dirname(_parent):  # stop at filesystem root
+        _alt = os.path.join(_parent, os.path.basename(_this_dir))
+        if _alt != _this_dir and os.path.isdir(_alt) and any(
+            f.endswith(".pyd") or f.endswith(".so") for f in os.listdir(_alt)
+        ):
+            __path__.insert(0, _alt)
+            break
+        _parent = os.path.dirname(_parent)
 
 # bootstrap is the only module which
 # can be loaded with default Python-machinery
