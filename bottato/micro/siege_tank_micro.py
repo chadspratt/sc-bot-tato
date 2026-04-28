@@ -32,7 +32,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
     sieged_count = 0
     known_tags = set()
     last_tag_refresh: float = 0
-    min_seconds_between_transform = max_siege_time + 3
+    min_seconds_between_transform = max_siege_time + 1
     last_transform_time: Dict[int, float] = {}
     last_force_move_time: Dict[int, float] = {}
     last_siege_attack_time: Dict[int, float] = {}
@@ -192,7 +192,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 # unsiege_range += 2
             if not siege_aggressively and friendly_buffer_count >= 5:
                 # keep sieged if enemy might get lured closer, decrease extra buffer over time
-                unsiege_range = max(25 - min(time_since_last_transform, time_since_last_siege_attack), self.sieged_range)
+                # unsiege_range = max(25 - min(time_since_last_transform, time_since_last_siege_attack), self.sieged_range)
+                unsiege_range = 25
             elif has_high_ground_advantage and closest_enemy:
                 closer_position = Point2(cy_towards(unit.position, closest_enemy.position, 1))
                 if self.bot.get_terrain_height(closer_position) < tank_height:
