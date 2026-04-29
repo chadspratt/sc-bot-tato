@@ -29,7 +29,7 @@ from bottato.squad.bunker import Bunker
 from bottato.squad.formation_squad import FormationSquad
 from bottato.squad.harass_squad import HarassSquad
 from bottato.squad.hunting_squad import HuntingSquad
-from bottato.squad.hunting_squad_type import hunting_squad_types
+from bottato.squad.hunting_squad_type import HUNTING_SQUAD_TYPES
 from bottato.squad.medivac_drop_squad import MedivacDropSquad
 from bottato.squad.squad import Squad
 from bottato.squad.stuck_rescue import StuckRescue
@@ -73,6 +73,8 @@ class Military(GeometryMixin, DebugMixin):
         self.reaper_harass = HarassSquad(self.bot, name="reaper harass")
         self.banshee_harass = HarassSquad(self.bot, name="banshee harass")
         self.medivac_drop: MedivacDropSquad | None = None
+        self.medivac_drop_disband_cooldown = 60.0
+        self.medivac_drop_last_disband: float = 0.0
         self.hunter_squads: Dict[str, HuntingSquad] = {}
         self.squads.append(self.main_army)
         self.squads.append(self.top_ramp_bunker)
@@ -442,6 +444,8 @@ class Military(GeometryMixin, DebugMixin):
         marines = self.main_army.units.of_type(UnitTypeId.MARINE)
 
         if self.medivac_drop is None:
+            if self.bot.time < self.medivac_drop_last_disband + self.medivac_drop_disband_cooldown:
+                return
             # Create new drop squad when we have enough medivacs and marines
             if medivacs.amount >= 3 and marines.amount >= 18:
                 self.medivac_drop = MedivacDropSquad(self.bot, name="medivac drop")
@@ -457,6 +461,7 @@ class Military(GeometryMixin, DebugMixin):
                 LogHelper.add_log("medivac drop squad created")
         elif self.medivac_drop.is_disbanding:
             if self.medivac_drop.units.amount == 0:
+                self.medivac_drop_last_disband = self.bot.time
                 self.medivac_drop = None
                 return
             # Wait until units are loaded, then transfer back
@@ -465,6 +470,7 @@ class Military(GeometryMixin, DebugMixin):
             if marines_aboard and drop_medivac:
                 self.transfer_all(self.medivac_drop, self.main_army)
                 self.squads.remove(self.medivac_drop)
+                self.medivac_drop_last_disband = self.bot.time
                 self.medivac_drop = None
                 LogHelper.add_log("medivac drop squad disbanded")
             else:
@@ -477,7 +483,7 @@ class Military(GeometryMixin, DebugMixin):
 
     @timed_async
     async def manage_special_squads(self):
-        for squad_type in hunting_squad_types.get(self.intel.enemy_race, []):
+        for squad_type in HUNTING_SQUAD_TYPES.get(self.intel.enemy_race, []):
             if self.bot.time < squad_type.start_time:
                 continue
             if squad_type.name not in self.hunter_squads:

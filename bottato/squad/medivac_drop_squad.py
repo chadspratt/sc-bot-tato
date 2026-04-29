@@ -149,6 +149,10 @@ class MedivacDropSquad(HarassSquad):
             if unit.distance_to(pos) < radius and not UnitTypes.is_worker(unit.type_id):
                 unit_info = UnitTypes.get_unit_info(unit.type_id)
                 total += unit_info["supply"]
+        # don't drop on a pf
+        for structure in self.bot.enemy_structures.of_type(UnitTypeId.PLANETARYFORTRESS):
+            if structure.distance_to(pos) < radius:
+                total += 15  # planetary fortress supply
         return total
 
     def _get_flank_position(self, medivac: Unit, enemy_pos: Point2, radius: float = 14.0) -> Point2:

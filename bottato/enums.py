@@ -82,6 +82,7 @@ class Tactic(enum.Enum):
     BANSHEE_HARASS = 0
     PROXY_BARRACKS = 1
     RUSH_DEFENSE = 2
+    MEDIVAC_HARASS = 3
 
 class ExpansionSelection(enum.Enum):
     CLOSEST = 0

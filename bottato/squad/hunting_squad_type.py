@@ -18,7 +18,7 @@ class HuntingSquadType():
         self.squad_class = squad_class if squad_class else HuntingSquad
         self.name = f"Hunt {'/'.join([t.name for t in target_types])}"
 
-hunting_squad_types: Dict[Race, List[HuntingSquadType]] = {
+HUNTING_SQUAD_TYPES: Dict[Race, List[HuntingSquadType]] = {
     Race.Zerg: [
         HuntingSquadType({UnitTypeId.VIKINGFIGHTER: 1},
                         {UnitTypeId.OVERLORD, UnitTypeId.OVERSEER}, 180),

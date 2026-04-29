@@ -24,6 +24,7 @@ class Tactics:
             Tactic.BANSHEE_HARASS: False,
             Tactic.PROXY_BARRACKS: False,
             Tactic.RUSH_DEFENSE: False,
+            Tactic.MEDIVAC_HARASS: False,
         }
 
         self.proxy_barracks: Unit | None = None
