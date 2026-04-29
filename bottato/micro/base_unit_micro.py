@@ -208,6 +208,16 @@ class BaseUnitMicro(GeometryMixin):
                 action_taken = UnitMicroType.RETREAT
         if action_taken == UnitMicroType.NONE:
             action_taken = await self._retreat(unit, health_threshold=0.25)
+        if action_taken == UnitMicroType.NONE and not target.is_structure:
+            # Don't approach a repair target if enemies are nearby — repairers
+            # were taking heavy losses by walking into dangerous positions.
+            # Use a generous 8-unit buffer around the target position.
+            threats_at_target = Units(
+                cy_closer_than(self.bot.enemy_units, 8, target.position), bot_object=self.bot
+            )
+            if threats_at_target:
+                unit.move(self._get_retreat_destination(unit, threats_at_target))
+                action_taken = UnitMicroType.RETREAT
         if action_taken == UnitMicroType.NONE:
             if not target.is_structure and cy_distance_to(unit.position, target.position) > unit.radius + target.radius + 0.5:
                 # sometimes they get in a weird state where they run from the target
