@@ -77,6 +77,7 @@ class BuildOrderChange(enum.Enum):
     WORKER_RUSH = 6
     PROXY_BARRACKS = 7
     CANNON_RUSH = 8
+    ZERG_NO_RUSH = 9
 
 class Tactic(enum.Enum):
     BANSHEE_HARASS = 0

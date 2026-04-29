@@ -215,6 +215,13 @@ class BuildOrder():
         self.make_one_time_build_change(BuildType.STARGATE, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.SPIRE, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.EARLY_EXPANSION, BuildOrderChange.PROXY_BARRACKS, detected_enemy_builds)
+        no_rush_vs_zerg = (
+            self.bot.enemy_race == Race.Zerg
+            and self.intel.initial_scout_completed
+            and (BuildType.ZERGLING_RUSH not in detected_enemy_builds
+            or BuildType.EARLY_EXPANSION in detected_enemy_builds)
+        )
+        self.make_one_time_build_change(no_rush_vs_zerg, BuildOrderChange.ZERG_NO_RUSH, detected_enemy_builds)
 
         # make persistent changes to build order
         if BuildOrderChange.ANTI_AIR in self.changes_enacted:
@@ -333,6 +340,10 @@ class BuildOrder():
             self.remove_step_from_queue(UnitTypeId.REAPER, self.static_queue)
             self.remove_step_from_queue(UnitTypeId.REAPER, self.priority_queue)
             self.remove_step_from_queue(UnitTypeId.BUNKER, self.priority_queue, remove_all=True)
+        elif change == BuildOrderChange.ZERG_NO_RUSH:
+            # no zergling rush incoming, replace widowmine with siege tank
+            self.remove_step_from_queue(UnitTypeId.FACTORYTECHLAB, self.static_queue)
+            self.substitute_steps_in_queue(UnitTypeId.WIDOWMINE, [UnitTypeId.FACTORYTECHLAB, UnitTypeId.SIEGETANK], self.static_queue)
     
     def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep], position: int | None = None) -> bool:
         for step in from_queue:
