@@ -36,8 +36,8 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     # async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
         
     def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
-        threats = self.enemy.threats_to_friendly_unit(unit, 4)
-        closest_threat = self.enemy.closest_unit_to_unit(unit, threats) if threats else None
+        threats = self.tactics.enemy.threats_to_friendly_unit(unit, 4)
+        closest_threat = self.tactics.enemy.closest_unit_to_unit(unit, threats) if threats else None
         if closest_threat and unit.health_percentage < 0.8:
             safe_distance = UnitTypes.air_range(closest_threat) + closest_threat.radius + unit.radius + 1
             if cy_distance_to(unit.position, closest_threat.position) < safe_distance:
@@ -111,7 +111,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 self.stopped_for_healing.add(unit.tag)
             elif nearest_injured_distance < 400:
                 self.add_repairer_for_unit(nearest_injured, unit)
-                unit.move(self.map.get_pathable_position(nearest_injured.position, unit))
+                unit.move(self.tactics.map.get_pathable_position(nearest_injured.position, unit))
                 if unit.tag in self.stopped_for_healing:
                     self.stopped_for_healing.remove(unit.tag)
 

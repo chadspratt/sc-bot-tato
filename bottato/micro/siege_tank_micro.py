@@ -15,7 +15,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from bottato.enums import CustomEffectType, TankSiegeStep, UnitMicroType
+from bottato.enums import ArmyMode, CustomEffectType, TankSiegeStep, UnitMicroType
 from bottato.log_helper import LogHelper
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin, timed, timed_async
@@ -65,7 +65,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 effect_radius = effect.radius
                 safe_distance = (effect_radius + unit.radius + 1.5) ** 2
                 if unit.distance_to_squared(effect.position) < safe_distance:
-                    targets = self.enemy.get_target_closer_than(unit, max_distance=11)
+                    targets = self.tactics.enemy.get_target_closer_than(unit, max_distance=11)
                     if not targets:
                         LogHelper.add_log(f"Unsieging {unit} to avoid building footprint")
                         self.unsiege(unit)
@@ -115,7 +115,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.USE_ABILITY
 
         # siege tanks near main base early game
-        natural_in_place = self.bot.townhalls.filter(lambda t: not t.is_flying).closer_than(5, self.map.natural_position).exists
+        natural_in_place = self.bot.townhalls.filter(lambda t: not t.is_flying).closer_than(5, self.tactics.map.natural_position).exists
         if not natural_in_place and 300 < self.bot.time < 420:
             for el in self.bot.expansion_locations:
                 if el == self.bot.start_location:
@@ -139,13 +139,13 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         time_since_last_siege_attack = self.bot.time - last_siege_attack
 
         excluded_enemy_types = {UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.ADEPTPHASESHIFT} if is_sieged else UnitTypes.NON_THREATS
-        closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
+        closest_enemy, closest_distance = self.tactics.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
                                                                         excluded_types=excluded_enemy_types)
         closest_distance_after_siege = closest_distance
         if not is_sieged:
-            closest_distance_after_siege = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
+            closest_distance_after_siege = self.tactics.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
                                                                         excluded_types=excluded_enemy_types, seconds_ahead=self.max_siege_time/2)[1]
-        _, closest_structure_distance = self.enemy.get_target_closer_than(unit, max_distance=self.sight_range - 1, include_units=False, excluded_types={UnitTypeId.REFINERY, UnitTypeId.EXTRACTOR, UnitTypeId.ASSIMILATOR, UnitTypeId.AUTOTURRET})
+        _, closest_structure_distance = self.tactics.enemy.get_target_closer_than(unit, max_distance=self.sight_range - 1, include_units=False, excluded_types={UnitTypeId.REFINERY, UnitTypeId.EXTRACTOR, UnitTypeId.ASSIMILATOR, UnitTypeId.AUTOTURRET})
 
         friendly_buffer_count = 0
         structures_under_threat = False
@@ -153,17 +153,18 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if closest_distance > 25:
             closest_enemy = None
         if closest_enemy:
-            friendlies_nearer_to_enemy = self.enemy.get_units_closer_than(closest_enemy, self.bot.units, closest_distance - 0.01)
+            friendlies_nearer_to_enemy = self.tactics.enemy.get_units_closer_than(closest_enemy, self.bot.units, closest_distance - 0.01)
             friendly_buffer_count = len(friendlies_nearer_to_enemy)
             if closest_enemy.age == 0:
                 closest_enemy_is_visible = True
                 structures = self.bot.structures.filter(lambda s: s.type_id not in {UnitTypeId.AUTOTURRET, UnitTypeId.REFINERY} and not s.is_flying)
-                structures_under_threat = self.enemy.in_attack_range(closest_enemy, structures, 2, first_only=True).exists
+                structures_under_threat = self.tactics.enemy.in_attack_range(closest_enemy, structures, 2, first_only=True).exists
 
         if force_move:
             self.last_force_move_time[unit.tag] = self.bot.time
         if unit.tag in self.last_force_move_time and ((self.bot.time - self.last_force_move_time[unit.tag]) < 0.5):
-            if is_sieged and (closest_distance > self.sieged_range - 2 or not closest_enemy_is_visible):
+            if is_sieged and self.tactics.army_mode != ArmyMode.DEFENDING and (
+                    closest_distance > self.sieged_range - 2 or not closest_enemy_is_visible):
                 # and friendly_buffer_count < 5:
                 self.unsiege(unit)
                 return UnitMicroType.USE_ABILITY
@@ -242,7 +243,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if not can_attack:
             return UnitMicroType.NONE
-        targets = self.enemy.in_attack_range(unit, self.bot.enemy_units)
+        targets = self.tactics.enemy.in_attack_range(unit, self.bot.enemy_units)
         if not targets:
             return UnitMicroType.NONE
         sorted_targets = sorted(targets, key=lambda t: t.health + t.shield, reverse=True)

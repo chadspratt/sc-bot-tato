@@ -42,21 +42,14 @@ micro_lookup = {
     UnitTypeId.WIDOWMINE: WidowMineMicro,
 }
 common_objects: dict[str, Any] = {
-    "bot": None,
-    "enemy": None,
-    "map": None,
-    "my_workers": None,
-    "intel": None
+    "tactics": None
 }
 
 
 class MicroFactory:
     @staticmethod
     def set_common_objects(bot: BotAI, tactics: Tactics):
-        common_objects["bot"] = bot
-        common_objects["enemy"] = tactics.enemy
-        common_objects["map"] = tactics.map
-        common_objects["intel"] = tactics.intel
+        common_objects["tactics"] = tactics
 
     @staticmethod
     def get_unit_micro(unit_type: Unit | UnitTypeId) -> BaseUnitMicro:
@@ -66,17 +59,11 @@ class MicroFactory:
             if unit_type in micro_lookup:
                 logger.debug(f"creating {unit_type} micro for {unit_type}")
                 micro_class = micro_lookup[unit_type]
-                micro_instances[unit_type] = micro_class(common_objects["bot"],
-                                                       common_objects["enemy"],
-                                                       common_objects["map"],
-                                                       common_objects["intel"])
+                micro_instances[unit_type] = micro_class(common_objects["tactics"])
             else:
                 logger.debug(f"creating generic micro for {unit_type}")
                 if UnitTypeId.NOTAUNIT not in micro_instances:
-                    micro_instances[UnitTypeId.NOTAUNIT] = BaseUnitMicro(common_objects["bot"],
-                                                                         common_objects["enemy"],
-                                                                         common_objects["map"],
-                                                                         common_objects["intel"])
+                    micro_instances[UnitTypeId.NOTAUNIT] = BaseUnitMicro(common_objects["tactics"])
                 micro_instances[unit_type] = micro_instances[UnitTypeId.NOTAUNIT]
 
         return micro_instances[unit_type]

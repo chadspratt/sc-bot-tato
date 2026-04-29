@@ -21,7 +21,7 @@ from sc2.units import Units
 
 from bottato.counter import Counter
 from bottato.economy.workers import Workers
-from bottato.enums import BuildType, ExpansionSelection, Tactic
+from bottato.enums import ArmyMode, BuildType, ExpansionSelection, Tactic
 from bottato.log_helper import LogHelper
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import DebugMixin, GeometryMixin, timed, timed_async
@@ -155,6 +155,13 @@ class Military(GeometryMixin, DebugMixin):
         if self.offense_started and not mount_offense:
             self.aborted_attack_count += 1
         self.offense_started = mount_offense
+
+        if mount_offense:
+            self.tactics.army_mode = ArmyMode.ATTACKING
+        elif defend_with_main_army:
+            self.tactics.army_mode = ArmyMode.DEFENDING
+        else:
+            self.tactics.army_mode = ArmyMode.STAGING
     
         self.status_message = f"m{self.bot.minerals}, g{self.bot.vespene}, s{self.bot.supply_used}/{self.bot.supply_cap}, army ratio {self.intel.army_ratio:.2f}, avg enemy age {avg_enemy_age:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))

@@ -28,6 +28,7 @@ from bottato.map.map import Map
 from bottato.micro.custom_effect import CustomEffect
 from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
+from bottato.tactics import Tactics
 from bottato.unit_types import UnitTypes
 
 
@@ -67,11 +68,9 @@ class BaseUnitMicro(GeometryMixin):
         EffectId.LURKERMP,
         'KD8CHARGE',
     ]
-    def __init__(self, bot: BotAI, enemy: Enemy, map: Map, intel: EnemyIntel):
-        self.bot: BotAI = bot
-        self.enemy: Enemy = enemy
-        self.map: Map = map
-        self.intel: EnemyIntel = intel
+    def __init__(self, tactics: Tactics):
+        self.tactics: Tactics = tactics
+        self.bot: BotAI = tactics.bot
 
     @staticmethod
     def reset_tag_sets():
@@ -133,7 +132,7 @@ class BaseUnitMicro(GeometryMixin):
     def _move_unit(self, unit: Unit, target: Point2, previous_position: Point2 | None = None) -> UnitMicroType:
         position_to_compare = target if unit.is_moving else unit.position
         if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1.5:
-            unit.move(self.map.get_pathable_position(target, unit))
+            unit.move(self.tactics.map.get_pathable_position(target, unit))
             return UnitMicroType.MOVE
         return UnitMicroType.MOVE
     
@@ -181,7 +180,7 @@ class BaseUnitMicro(GeometryMixin):
                 action_taken = self._attack_something(unit, health_threshold=1.0, move_position=scouting_location)
         if action_taken == UnitMicroType.NONE:
             logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")
-            unit.move(self.map.get_pathable_position(scouting_location, unit))
+            unit.move(self.tactics.map.get_pathable_position(scouting_location, unit))
             action_taken = UnitMicroType.MOVE
         return action_taken
 
@@ -312,7 +311,7 @@ class BaseUnitMicro(GeometryMixin):
                     return UnitMicroType.NONE
             repairer_tags = BaseUnitMicro.repairers_by_target_prev_frame[unit.tag]
             repairers = self.bot.workers.filter(lambda w: w.tag in repairer_tags)
-            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3, first_only=True)
+            threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3, first_only=True)
             if threats:
                 repairers = repairers.further_than(5, unit)
             closest_repairer = cy_closest_to(unit.position, repairers) if repairers else None
@@ -334,7 +333,7 @@ class BaseUnitMicro(GeometryMixin):
         if self.last_targets_update_time != self.bot.time:
             self.last_targets_update_time = self.bot.time
             self.valid_targets = self.bot.enemy_units.filter(
-                lambda u: self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies()) and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
+                lambda u: self.tactics.enemy.can_be_attacked(u, self.tactics.enemy.get_recent_enemies()) and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
                 ) + self.bot.enemy_structures
 
         if not self.valid_targets:
@@ -366,7 +365,7 @@ class BaseUnitMicro(GeometryMixin):
 
         # below attack_health: if threats and no target in range, do nothing (retreat)
         if unit.health_percentage < health_threshold:
-            if self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6, first_only=True):
+            if self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6, first_only=True):
                 return UnitMicroType.NONE
 
         # venture out a bit further to attack
@@ -392,7 +391,7 @@ class BaseUnitMicro(GeometryMixin):
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.NONE
         
-        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=4)
+        threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=4)
         # normally the retreat threshold is lower than the attack, but a custom retreat threshold could be passed that is higher
         is_below_attack_health = unit.health_percentage < self.attack_health
         is_below_retreat_health = unit.health_percentage < health_threshold
@@ -466,7 +465,7 @@ class BaseUnitMicro(GeometryMixin):
 
         priority_targets = almost_closest_enemies.filter(lambda u: u.type_id in UnitTypes.get_priority_target_types(unit))
         if priority_targets:
-            in_range = self.enemy.in_attack_range(unit, priority_targets, bonus_distance, first_only=True)
+            in_range = self.tactics.enemy.in_attack_range(unit, priority_targets, bonus_distance, first_only=True)
             if in_range:
                 return in_range.first
 
@@ -474,17 +473,17 @@ class BaseUnitMicro(GeometryMixin):
         almost_closest_enemies = Units(cy_closer_than(almost_closest_enemies, closest_distance + 1, unit.position), bot_object=self.bot)
         offensive_targets = almost_closest_enemies.filter(lambda u: UnitTypes.can_attack(u))
         if offensive_targets:
-            threat_in_range = self.enemy.threat_in_attack_range(unit, offensive_targets, bonus_distance, first_only=True)
+            threat_in_range = self.tactics.enemy.threat_in_attack_range(unit, offensive_targets, bonus_distance, first_only=True)
             if threat_in_range:
                 return threat_in_range.first
-            in_range = self.enemy.in_attack_range(unit, offensive_targets, bonus_distance, first_only=True)
+            in_range = self.tactics.enemy.in_attack_range(unit, offensive_targets, bonus_distance, first_only=True)
             if in_range:
                 return in_range.first
 
         # targets that can't attack you
         passive_targets = almost_closest_enemies.filter(lambda u: not UnitTypes.can_attack(u))
         if passive_targets:
-            in_range = self.enemy.in_attack_range(unit, passive_targets, bonus_distance, first_only=True)
+            in_range = self.tactics.enemy.in_attack_range(unit, passive_targets, bonus_distance, first_only=True)
             if in_range:
                 return in_range.first
 
@@ -511,7 +510,7 @@ class BaseUnitMicro(GeometryMixin):
             # nearest target isn't a threat, check for nearby threats before closing
             threats = targets.filter(lambda t: UnitTypes.can_attack_target(t, unit))
             if not threats:
-                unit.move(self.map.get_pathable_position(nearest_target.position, unit), queue=queue)
+                unit.move(self.tactics.map.get_pathable_position(nearest_target.position, unit), queue=queue)
                 return UnitMicroType.MOVE
             nearest_target = self.closest_unit_to_unit(unit, threats)
         # move away if weapon on cooldown
@@ -549,7 +548,7 @@ class BaseUnitMicro(GeometryMixin):
         targets_to_avoid = Units([], bot_object=self.bot)
         workers_to_avoid = Units([], bot_object=self.bot)
         distance_to_advance: float = float('inf')
-        can_be_attacked = self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies())
+        can_be_attacked = self.tactics.enemy.can_be_attacked(unit, self.tactics.enemy.get_recent_enemies())
         can_outrun = True
         can_attack = unit.weapon_cooldown < self.time_in_frames_to_attack
         if can_be_attacked:
@@ -559,7 +558,7 @@ class BaseUnitMicro(GeometryMixin):
                     continue
                 attack_range = UnitTypes.range_vs_target(unit, target)
                 target_range = UnitTypes.range_vs_target(target, unit)
-                target_distance = self.distance(unit, target, self.enemy.predicted_positions) - target.radius - unit.radius
+                target_distance = self.distance(unit, target, self.tactics.enemy.predicted_positions) - target.radius - unit.radius
                 if can_attack and target_distance <= attack_range and target.health + target.shield <= unit.calculate_damage_vs_target(target)[0]:
                     # secure kills on units that are one-hit from death
                     unit.attack(target)
@@ -625,23 +624,23 @@ class BaseUnitMicro(GeometryMixin):
             # interceptors can't be targeted directly
             unit.attack(target.position)
         elif target.age > 0:
-            unit.move(self.map.get_pathable_position(self.enemy.predicted_positions[target.tag], unit))
+            unit.move(self.tactics.map.get_pathable_position(self.tactics.enemy.predicted_positions[target.tag], unit))
         else:
             unit.attack(target)
         return True
     
     def _move_to_pathable_position(self, unit: Unit, position: Point2, queue: bool = False) -> UnitMicroType:
         if unit.is_flying and self.bot.in_map_bounds(position) or cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, position):
-            unit.move(self.map.get_pathable_position(position, unit), queue=queue)
+            unit.move(self.tactics.map.get_pathable_position(position, unit), queue=queue)
             return UnitMicroType.MOVE
         return UnitMicroType.NONE
             
     @timed
     def _get_retreat_destination(self, unit: Unit, threats: Units | None = None) -> Point2 | Unit:
         if threats is None:
-            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=2)
+            threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=2)
         else:
-            threats = self.enemy.threats_to(unit, threats, attack_range_buffer=2)
+            threats = self.tactics.enemy.threats_to(unit, threats, attack_range_buffer=2)
         ultimate_destination: Point2 | Unit | None = None
         if unit.is_mechanical:
             # if not threats or not threats.filter(lambda t: t.can_attack):
@@ -684,22 +683,22 @@ class BaseUnitMicro(GeometryMixin):
         if not threats:
             if isinstance(ultimate_destination, Unit):
                 return ultimate_destination
-            return self.map.get_pathable_position(ultimate_destination, unit)
+            return self.tactics.map.get_pathable_position(ultimate_destination, unit)
 
         threat_center = Point2(cy_center(threats))
         closest_threat_to_destination = cy_closest_to(ultimate_destination.position, threats)
         if unit.position == threat_center or \
             cy_distance_to(unit.position, ultimate_destination.position) < cy_distance_to(closest_threat_to_destination.position, ultimate_destination.position) - 2:
-            return self.map.get_pathable_position(ultimate_destination.position, unit)
+            return self.tactics.map.get_pathable_position(ultimate_destination.position, unit)
 
         retreat_vector = GeometryMixin.get_vector_towards_biggest_gap(unit.position, [threat.position for threat in threats])
         retreat_distance = 10 if unit.is_flying else 5
         retreat_position = Point2(cy_towards(unit.position, unit.position + retreat_vector, retreat_distance))
         if unit.is_flying:
-            retreat_position = self.map.clamp_position_to_map_bounds(retreat_position, unit.position, self.bot)
-            return self.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
+            retreat_position = self.tactics.map.clamp_position_to_map_bounds(retreat_position, unit.position, self.bot)
+            return self.tactics.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
         if self._position_is_pathable(unit, retreat_position):
-            return self.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
+            return self.tactics.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
 
         circle_around_position = self.get_circle_around_position(unit, closest_threat_to_destination.position, ultimate_destination.position)
         return circle_around_position
@@ -717,7 +716,7 @@ class BaseUnitMicro(GeometryMixin):
             if unit.distance_to_squared(nearest_medivac) > 16:
                 unit.move(nearest_medivac)
             else:
-                unit.move(self._get_retreat_destination(unit,self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=4)))
+                unit.move(self._get_retreat_destination(unit,self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=4)))
             logger.debug(f"{unit} marine retreating to heal at {nearest_medivac} hp {unit.health_percentage}")
             self.healing_unit_tags.add(unit.tag)
         else:
@@ -727,7 +726,7 @@ class BaseUnitMicro(GeometryMixin):
     @timed
     def _retreat_to_better_unit(self, unit: Unit, can_attack: bool) -> bool:
         # retreat toward a unit that is better able to deal with whatever is threatening this unit.
-        if not self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies()):
+        if not self.tactics.enemy.can_be_attacked(unit, self.tactics.enemy.get_recent_enemies()):
             return False
 
         if unit.health_percentage >= 0.9:
@@ -736,11 +735,11 @@ class BaseUnitMicro(GeometryMixin):
             if not self.member_is_closer_than(unit, injured_friendlies, 5):
                 return False
 
-        threats = self.enemy.threats_to_friendly_unit(unit, 1)
+        threats = self.tactics.enemy.threats_to_friendly_unit(unit, 1)
         if not threats:
             return False
-        closest_threat = sorted(threats, key=lambda t: self.enemy.safe_distance_squared(t, unit) - self.enemy.get_attack_range_with_buffer_squared(t, unit, 0))[0]
-        closest_threat_distance_sq = self.enemy.safe_distance_squared(closest_threat, unit)
+        closest_threat = sorted(threats, key=lambda t: self.tactics.enemy.safe_distance_squared(t, unit) - self.tactics.enemy.get_attack_range_with_buffer_squared(t, unit, 0))[0]
+        closest_threat_distance_sq = self.tactics.enemy.safe_distance_squared(closest_threat, unit)
         if closest_threat_distance_sq > 225:
             return False
         if closest_threat.type_id == UnitTypeId.SIEGETANKSIEGED and closest_threat_distance_sq < 49:
@@ -762,9 +761,9 @@ class BaseUnitMicro(GeometryMixin):
             return False
 
         nearest_unit_to_retreat_to = cy_closest_to(unit.position, units_to_retreat_to)
-        ally_to_enemy_distance_sq = self.enemy.safe_distance_squared(nearest_unit_to_retreat_to, closest_threat)
+        ally_to_enemy_distance_sq = self.tactics.enemy.safe_distance_squared(nearest_unit_to_retreat_to, closest_threat)
 
-        if ally_to_enemy_distance_sq < 900 and ally_to_enemy_distance_sq > self.enemy.get_attack_range_with_buffer_squared(nearest_unit_to_retreat_to, closest_threat, 0):
+        if ally_to_enemy_distance_sq < 900 and ally_to_enemy_distance_sq > self.tactics.enemy.get_attack_range_with_buffer_squared(nearest_unit_to_retreat_to, closest_threat, 0):
             optimal_distance = UnitTypes.range_vs_target(nearest_unit_to_retreat_to, closest_threat) - UnitTypes.range_vs_target(closest_threat, nearest_unit_to_retreat_to) - unit.radius + nearest_unit_to_retreat_to.radius - 2.0
             unit.move(Point2(cy_towards(nearest_unit_to_retreat_to.position, unit.position, optimal_distance)))
             if nearest_unit_to_retreat_to.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED) \
@@ -772,7 +771,7 @@ class BaseUnitMicro(GeometryMixin):
                      or ally_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_unit_to_retreat_to.tag]):
                 BaseUnitMicro.tanks_being_retreated_to[nearest_unit_to_retreat_to.tag] = ally_to_enemy_distance_sq
             return True
-        elif not can_attack and ally_to_enemy_distance_sq < self.enemy.safe_distance_squared(unit, closest_threat) * 0.3:
+        elif not can_attack and ally_to_enemy_distance_sq < self.tactics.enemy.safe_distance_squared(unit, closest_threat) * 0.3:
             # defend tank if it's closer to enemy than unit
             unit.move(Point2(cy_towards(nearest_unit_to_retreat_to.position, closest_threat.position, 3)))
             if nearest_unit_to_retreat_to.tag not in BaseUnitMicro.tanks_being_retreated_to or ally_to_enemy_distance_sq < BaseUnitMicro.tanks_being_retreated_to[nearest_unit_to_retreat_to.tag]:
@@ -786,7 +785,7 @@ class BaseUnitMicro(GeometryMixin):
         if destination == unit.position:
             return destination
         if not unit.is_flying and cy_distance_to_squared(unit.position, destination) > 225:
-            path_to_destination = self.map.get_path_points(unit.position, destination)
+            path_to_destination = self.tactics.map.get_path_points(unit.position, destination)
             if len(path_to_destination) > 1:
                 for path_position in path_to_destination:
                     distance_squared = cy_distance_to_squared(unit.position, path_position)
@@ -808,4 +807,4 @@ class BaseUnitMicro(GeometryMixin):
                                     Point2(unit.position + tangent_vector2)]
         circle_around_positions.sort(key=lambda pos: cy_distance_to_squared(pos, destination))
         circle_around_position = Point2(cy_towards(circle_around_positions[0], threat_position, -1))
-        return self.map.get_pathable_position(circle_around_position, unit)
+        return self.tactics.map.get_pathable_position(circle_around_position, unit)

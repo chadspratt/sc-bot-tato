@@ -35,7 +35,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             # scout mode, don't land
             return UnitMicroType.NONE
         nearby_range = 25 if unit.is_flying else 27
-        enemy_army = self.enemy.get_army().filter(lambda u: u.age == 0 or u.is_flying and u.age < 10)
+        enemy_army = self.tactics.enemy.get_army().filter(lambda u: u.age == 0 or u.is_flying and u.age < 10)
         nearby_enemies = Units(cy_closer_than(enemy_army, nearby_range, unit.position) +
                                cy_closer_than(self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES), nearby_range, unit.position),
                                bot_object=self.bot)
@@ -61,12 +61,12 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 if nearby_enemies and len(nearby_enemies.filter(lambda u: u.is_flying or u.type_id == UnitTypeId.COLOSSUS)) == 0:
                     # land on enemy sieged tanks
                     nearest_enemy = cy_closest_to(unit.position, nearby_enemies)
-                    nearest_distance_sq = self.enemy.safe_distance_squared(unit, nearest_enemy)
+                    nearest_distance_sq = self.tactics.enemy.safe_distance_squared(unit, nearest_enemy)
                     if nearest_enemy.type_id == UnitTypeId.SIEGETANKSIEGED:
                         if nearest_distance_sq > 3.24:
-                            unit.move(self.map.get_pathable_position(nearest_enemy.position, unit))
+                            unit.move(self.tactics.map.get_pathable_position(nearest_enemy.position, unit))
                         elif nearest_distance_sq < 1.21:
-                            unit.move(self.map.get_pathable_position(Point2(cy_towards(nearest_enemy.position, unit.position, 1.5)), unit))
+                            unit.move(self.tactics.map.get_pathable_position(Point2(cy_towards(nearest_enemy.position, unit.position, 1.5)), unit))
                         else:
                             unit(AbilityId.MORPH_VIKINGASSAULTMODE)
                         return UnitMicroType.USE_ABILITY
@@ -137,7 +137,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             damage_vs_type: dict[UnitTypeId, float] = {}
             closest_counts: dict[int, int] = {}
             for defender in vikings:
-                enemies = self.enemy.in_friendly_attack_range(defender, attack_range_buffer=5)
+                enemies = self.tactics.enemy.in_friendly_attack_range(defender, attack_range_buffer=5)
                 closest_enemy: Unit | None = cy_closest_to(defender.position, enemies) if enemies else None
                 if closest_enemy:
                     closest_distance: float = self.distance(defender, closest_enemy)
@@ -190,20 +190,20 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 unit.attack(target)
                 return UnitMicroType.ATTACK
             else:
-                threats = self.enemy.threats_to_friendly_unit(unit, 2)
+                threats = self.tactics.enemy.threats_to_friendly_unit(unit, 2)
                 threats.append(target)
                 return self._kite(unit, threats)
 
         candidates: Units | None = None
         if not unit.is_flying:
             priority_ground_targets = self.bot.all_enemy_units.filter(lambda u: u.type_id in self.types_to_land_and_attack)
-            candidates = self.enemy.in_attack_range(unit, priority_ground_targets, 0)
+            candidates = self.tactics.enemy.in_attack_range(unit, priority_ground_targets, 0)
         if not candidates:
             enemies = self.bot.enemy_units + self.bot.enemy_structures.of_type(UnitTypes.OFFENSIVE_STRUCTURE_TYPES)
             attack_range_buffer = 2 if unit.is_flying else 4
-            candidates = self.enemy.in_attack_range(unit, enemies, attack_range_buffer)
+            candidates = self.tactics.enemy.in_attack_range(unit, enemies, attack_range_buffer)
             if not candidates:
-                candidates = self.enemy.in_attack_range(unit, self.bot.enemy_structures, attack_range_buffer)
+                candidates = self.tactics.enemy.in_attack_range(unit, self.bot.enemy_structures, attack_range_buffer)
 
         if not candidates:
             return UnitMicroType.NONE
@@ -213,7 +213,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
 
         # below attack_health: if threats and no target in range, do nothing
         if unit.is_flying and unit.health_percentage < health_threshold:
-            if self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6, first_only=True):
+            if self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6, first_only=True):
                 return UnitMicroType.NONE
 
         if can_attack and not unit.is_flying:
@@ -238,26 +238,26 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
         nearby_enemies: Units
         attack_range_buffer = 0 if can_attack or unit.health_percentage <= self.harass_retreat_health else 5
 
-        enemy_candidates = self.enemy.get_candidates(include_structures=False, include_out_of_view=False).sorted(lambda u: u.health + u.shield)
-        nearby_enemies = self.enemy.in_attack_range(unit, enemy_candidates, attack_range_buffer, first_only=True)
+        enemy_candidates = self.tactics.enemy.get_candidates(include_structures=False, include_out_of_view=False).sorted(lambda u: u.health + u.shield)
+        nearby_enemies = self.tactics.enemy.in_attack_range(unit, enemy_candidates, attack_range_buffer, first_only=True)
         if not nearby_enemies and attack_range_buffer == 0:
-            nearby_enemies = self.enemy.in_attack_range(unit, enemy_candidates, 5, first_only=True)
+            nearby_enemies = self.tactics.enemy.in_attack_range(unit, enemy_candidates, 5, first_only=True)
 
         # exclude enemies that are too close to anti-air structures
         anti_air_structures = self.bot.enemy_structures.filter(
             lambda s: s.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES and s.is_ready)
         if anti_air_structures:
-            nearby_enemies = nearby_enemies.filter(lambda e: self.enemy.get_closest_distance_squared(e, anti_air_structures) > 36)
+            nearby_enemies = nearby_enemies.filter(lambda e: self.tactics.enemy.get_closest_distance_squared(e, anti_air_structures) > 36)
 
-        if self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies()):
+        if self.tactics.enemy.can_be_attacked(unit, self.tactics.enemy.get_recent_enemies()):
             threat_range_buffer = 3 if nearby_enemies and can_attack and unit.health_percentage > self.harass_retreat_health else 5
-            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=threat_range_buffer)
+            threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=threat_range_buffer)
             if threats:
                 # below harass_attack_health: if threats and no target in range, do nothing
                 if unit.health_percentage < self.harass_attack_health and not nearby_enemies:
                     return UnitMicroType.NONE
                 for threat in threats:
-                    if threat.is_structure and self.enemy.safe_distance_squared(unit, threat) > self.enemy.get_attack_range_with_buffer_squared(threat, unit, 3):
+                    if threat.is_structure and self.tactics.enemy.safe_distance_squared(unit, threat) > self.tactics.enemy.get_attack_range_with_buffer_squared(threat, unit, 3):
                         continue
                     if not threat.is_flying or UnitTypes.air_range(threat) >= unit.air_range:
                         # don't attack enemies that outrange
@@ -270,14 +270,14 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             return UnitMicroType.NONE
         # if can_attack:
         #     enemy_structures = self.bot.enemy_structures.sorted(lambda u: u.health + u.shield)
-        #     nearby_enemy = self.enemy.in_attack_range(unit, enemy_structures, attack_range_buffer, first_only=True)
+        #     nearby_enemy = self.tactics.enemy.in_attack_range(unit, enemy_structures, attack_range_buffer, first_only=True)
         #     if nearby_enemy:
         #         self._attack(unit, nearby_enemy.first)
         #         return UnitMicroType.ATTACK
         if unit.tag in self.harass_location_reached_tags:
-            nearest_workers = self.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
+            nearest_workers = self.tactics.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
             if anti_air_structures:
-                nearest_workers = nearest_workers.filter(lambda u: not self.enemy.get_units_closer_than(u, anti_air_structures, 6).exists)
+                nearest_workers = nearest_workers.filter(lambda u: not self.tactics.enemy.get_units_closer_than(u, anti_air_structures, 6).exists)
             if nearest_workers:
                 target = sorted(nearest_workers, key=lambda t: t.health + t.shield)[0]
                 self._attack(unit, target)

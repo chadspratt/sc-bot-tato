@@ -102,12 +102,12 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                     if self.fire_armor_missile(unit, most_grouped_enemy):
                         return UnitMicroType.USE_ABILITY
 
-        enemy_unit, enemy_distance = self.enemy.get_closest_target(unit, distance_limit=20, include_structures=False, include_destructables=False,
+        enemy_unit, enemy_distance = self.tactics.enemy.get_closest_target(unit, distance_limit=20, include_structures=False, include_destructables=False,
                                                                    include_out_of_view=False)
         if enemy_unit is None:
             return UnitMicroType.NONE
 
-        threats = self.enemy.threats_to_friendly_unit(unit, 2)
+        threats = self.tactics.enemy.threats_to_friendly_unit(unit, 2)
         if threats and enemy_distance < self.ideal_enemy_distance - 2:
             # too close
             return UnitMicroType.NONE
@@ -115,7 +115,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         if enemy_unit.type_id == UnitTypeId.SIEGETANKSIEGED:
             return await self.drop_turret(unit, Point2(cy_towards(enemy_unit.position, unit.position, enemy_unit.radius + 1)))
         
-        return await self.attack_with_turret(unit, self.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
+        return await self.attack_with_turret(unit, self.tactics.enemy.get_predicted_position(enemy_unit, self.turret_drop_time))
 
     @timed_async
     async def attack_with_turret(self, unit: Unit, target: Point2) -> UnitMicroType:
@@ -169,10 +169,10 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                 is_near_destination = move_position is not None and move_position._distance_squared(unit.position) < 9
                 buffer = -1 if is_near_destination else 2
                 target_position = Point2(cy_towards(nearest_threat.position, unit.position, unit.sight_range + buffer))
-                unit.move(self.map.get_pathable_position(target_position, unit))
+                unit.move(self.tactics.map.get_pathable_position(target_position, unit))
                 return UnitMicroType.MOVE
         # provide detection
-        need_detection: List[Unit | Point2] = self.enemy.things_needing_detection(move_position)
+        need_detection: List[Unit | Point2] = self.tactics.enemy.things_needing_detection(move_position)
         for enemy in need_detection:
             if isinstance(enemy, Unit) and enemy.age == 0:
                 self.missing_hidden_units.discard(enemy.tag)
@@ -184,7 +184,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             if closest_distance < 30 and closest_distance > unit.sight_range:
                 target_position = Point2(cy_towards(closest_detection_target.position, unit.position, desired_distance))
 
-                unit.move(self.map.get_pathable_position(target_position, unit))
+                unit.move(self.tactics.map.get_pathable_position(target_position, unit))
                 return UnitMicroType.MOVE
             elif self.bot.is_visible(closest_detection_target.position):
                 if isinstance(closest_detection_target, Unit) and closest_detection_target.age > 0:
@@ -194,5 +194,5 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                 target_to_unit_angle = cy_angle_to(closest_detection_target.position, unit.position)
                 target_to_unit_angle += 0.2
                 target_to_unit = self.apply_rotation(target_to_unit_angle, target_to_unit)
-                unit.move(self.map.get_pathable_position(unit.position + target_to_unit, unit))
+                unit.move(self.tactics.map.get_pathable_position(unit.position + target_to_unit, unit))
         return UnitMicroType.NONE

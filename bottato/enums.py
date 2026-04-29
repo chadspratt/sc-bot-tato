@@ -107,6 +107,10 @@ class CustomEffectType(enum.Enum):
     ENEMY_EFFECT = 2
     ANTI_AIR = 3
 
+class ArmyMode(enum.Enum):
+    STAGING = 0
+    ATTACKING = 1
+    DEFENDING = 2
 
 class ActionErrorCode(enum.Enum):
   Success = 1
