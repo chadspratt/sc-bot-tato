@@ -27,7 +27,7 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
         if self.last_targets_update_time != self.bot.time:
             self.last_targets_update_time = self.bot.time
             self.valid_targets = self.bot.enemy_units.filter(
-                lambda u: self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies()) and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
+                lambda u: self.tactics.enemy.can_be_attacked(u, self.tactics.enemy.get_recent_enemies()) and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
                 ) + self.bot.enemy_structures
 
         if not self.valid_targets:
@@ -46,7 +46,7 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
         
         # below attack_health: if threats and no target in range, do nothing
         if unit.health_percentage < health_threshold:
-            if self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6, first_only=True):
+            if self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6, first_only=True):
                 return UnitMicroType.NONE
             
         # no enemy in range, stay near tanks

@@ -36,7 +36,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
             # don't stim if retreating
             return UnitMicroType.RETREAT
         
-        closest_enemy, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=UnitTypes.WORKER_TYPES)
+        closest_enemy, closest_distance = self.tactics.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=UnitTypes.WORKER_TYPES)
         if closest_enemy:
             if closest_enemy.age > 0:
                 # don't stim after out-of-view enemies

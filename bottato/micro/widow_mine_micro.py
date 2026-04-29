@@ -71,7 +71,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
             self.last_special_position_update_time = self.bot.time
             self.special_positions.clear()
             all_mines = self.bot.units.of_type({UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED})
-            latest_enemy_drop_locations = self.intel.get_recent_drop_locations(150)
+            latest_enemy_drop_locations = self.tactics.intel.get_recent_drop_locations(150)
             for mine in all_mines:
                 if not latest_enemy_drop_locations:
                     break
@@ -122,7 +122,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                     self.last_lockon_time[unit.tag] = None
                     current_target = None
                 if current_target:
-                    if unit.distance_to_squared(current_target) > self.enemy.get_attack_range_with_buffer_squared(unit, current_target, 0):
+                    if unit.distance_to_squared(current_target) > self.tactics.enemy.get_attack_range_with_buffer_squared(unit, current_target, 0):
                         # lost target
                         self.last_lockon_time[unit.tag] = None
                         self.current_targets[unit.tag] = None
@@ -147,7 +147,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                 valid_targets = self.bot.enemy_units.filter(lambda e: e.type_id not in [UnitTypeId.BROODLING, UnitTypeId.LARVA, UnitTypeId.EGG,
                                                                                         UnitTypeId.ADEPTPHASESHIFT, UnitTypeId.CHANGELING]
                                                                                         and e.health + e.shield > self.get_targeting_count(e) * 125)
-                targets_in_range = self.enemy.in_attack_range(unit, valid_targets, -0.1)
+                targets_in_range = self.tactics.enemy.in_attack_range(unit, valid_targets, -0.1)
                 if targets_in_range:
                     new_target = max(targets_in_range, key=lambda t: t.health + t.shield - self.get_targeting_count(t) * 125)
                     unit.smart(new_target)
@@ -187,7 +187,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
             return UnitMicroType.NONE
                     
         excluded_enemy_types = {UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.ADEPTPHASESHIFT} if is_burrowed else UnitTypes.NON_THREATS
-        new_target, closest_distance = self.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
+        new_target, closest_distance = self.tactics.enemy.get_closest_target(unit, include_structures=False, include_destructables=False,
                                                                         excluded_types=excluded_enemy_types)
 
         if closest_distance > 25:

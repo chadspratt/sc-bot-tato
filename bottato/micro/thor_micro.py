@@ -40,18 +40,18 @@ class ThorMicro(BaseUnitMicro):
         is_high_impact = unit.type_id == UnitTypeId.THORAP
         if is_high_impact:
             # transform back to explosive mode if there are no air targets
-            air_types = UnitTypes.get_types_with_attribute(UnitAttribute.AIR, self.enemy.enemy_race)
-            air_target, _ = self.enemy.get_target_closer_than(unit, 15, included_types=air_types)
+            air_types = UnitTypes.get_types_with_attribute(UnitAttribute.AIR, self.tactics.enemy.enemy_race)
+            air_target, _ = self.tactics.enemy.get_target_closer_than(unit, 15, included_types=air_types)
             if air_target is None:
-                ground_types = UnitTypes.get_types_with_attribute(UnitAttribute.GROUND, self.enemy.enemy_race)
-                ground_target, _ = self.enemy.get_target_closer_than(unit, 10, included_types=ground_types, include_structures=True)
+                ground_types = UnitTypes.get_types_with_attribute(UnitAttribute.GROUND, self.tactics.enemy.enemy_race)
+                ground_target, _ = self.tactics.enemy.get_target_closer_than(unit, 10, included_types=ground_types, include_structures=True)
                 if ground_target:
                     unit(AbilityId.MORPH_THOREXPLOSIVEMODE)
                     self.last_transform_time[unit.tag] = self.bot.time
                     return UnitMicroType.USE_ABILITY
         else:
             # transform to high impact mode if there are massive air targets or vikings which are probably numerous
-            high_impact_target, _ = self.enemy.get_target_closer_than(unit, 15, included_types=self.MASSIVE_AIR_TYPES)
+            high_impact_target, _ = self.tactics.enemy.get_target_closer_than(unit, 15, included_types=self.MASSIVE_AIR_TYPES)
 
             if high_impact_target is not None:
                 unit(AbilityId.MORPH_THORHIGHIMPACTMODE)

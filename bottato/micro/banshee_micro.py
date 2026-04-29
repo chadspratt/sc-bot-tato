@@ -30,13 +30,13 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             else:
                 return UnitMicroType.NONE
         if not unit.is_cloaked:
-            threats = self.enemy.get_recent_enemies().filter(
+            threats = self.tactics.enemy.get_recent_enemies().filter(
                 lambda u: not u.is_detector)
-            if unit.energy >= self.cloak_energy_threshold and self.enemy.threats_to(unit, threats, 2):
+            if unit.energy >= self.cloak_energy_threshold and self.tactics.enemy.threats_to(unit, threats, 2):
                 unit(AbilityId.BEHAVIOR_CLOAKON_BANSHEE)
                 return UnitMicroType.USE_ABILITY
         else:
-            if not self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=10).exists:
+            if not self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=10).exists:
                 unit(AbilityId.BEHAVIOR_CLOAKOFF_BANSHEE)
                 return UnitMicroType.USE_ABILITY
         return UnitMicroType.NONE
@@ -46,17 +46,17 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         # below retreat_health: do nothing
         if unit.health_percentage <= self.retreat_health:
             return UnitMicroType.NONE
-        if self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies()) \
+        if self.tactics.enemy.can_be_attacked(unit, self.tactics.enemy.get_recent_enemies()) \
                 and unit.health_percentage < self.attack_health \
-                and self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3):
+                and self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3):
             return UnitMicroType.NONE
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if force_move and not can_attack:
             return UnitMicroType.NONE
         attack_range_buffer = 0 if can_attack else 5
-        target_candidates = self.enemy.get_candidates(include_out_of_view=False).sorted(lambda u: u.health + u.shield)
+        target_candidates = self.tactics.enemy.get_candidates(include_out_of_view=False).sorted(lambda u: u.health + u.shield)
         attack_target = self._get_attack_target(unit, target_candidates, attack_range_buffer)
-        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=2)
+        threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=2)
         if attack_target and (can_attack
                               or attack_target.type_id in {UnitTypeId.MISSILETURRET, UnitTypeId.PHOTONCANNON, UnitTypeId.SPORECRAWLER} and attack_target.build_progress < 0.85
                               or not attack_target.is_structure):
@@ -65,7 +65,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
 
         if force_move:
             return UnitMicroType.NONE
-        nearest_priority, nearest_priority_distance = self.enemy.get_closest_target(unit, included_types=UnitTypes.get_priority_target_types(unit))
+        nearest_priority, nearest_priority_distance = self.tactics.enemy.get_closest_target(unit, included_types=UnitTypes.get_priority_target_types(unit))
         maximum_hunting_distance = 150
         if nearest_priority and nearest_priority_distance < maximum_hunting_distance:
             if can_attack:
@@ -74,7 +74,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             else:
                 return self._stay_at_max_range(unit, Units([nearest_priority], bot_object=self.bot))
         if self.cloak_researched and self.bot.enemy_units((UnitTypeId.OBSERVER, UnitTypeId.OVERSEER, UnitTypeId.RAVEN)).amount == 0:
-            nearest_enemy, enemy_distance = self.enemy.get_closest_target(unit, include_structures=False)
+            nearest_enemy, enemy_distance = self.tactics.enemy.get_closest_target(unit, include_structures=False)
             if nearest_enemy and enemy_distance < 20 and can_attack:
                 threats.append(nearest_enemy)
                 return self._kite(unit, threats)
@@ -98,18 +98,18 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                         and (s.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES or s.health + s.shield < 50)
                         and (not anti_banshee_structures or anti_banshee_structures.closest_distance_to(s) > 6)
             ).sorted(lambda s: s.health + s.shield)
-        nearby_enemy = self.enemy.in_attack_range(unit, incomplete_structures, 6, first_only=True)
+        nearby_enemy = self.tactics.enemy.in_attack_range(unit, incomplete_structures, 6, first_only=True)
         if not nearby_enemy:
-            enemy_candidates = self.enemy.get_candidates(include_structures=False, include_out_of_view=False).sorted(lambda u: u.health + u.shield)
-            nearby_enemy = self.enemy.in_attack_range(unit, enemy_candidates, attack_range_buffer, first_only=True)
+            enemy_candidates = self.tactics.enemy.get_candidates(include_structures=False, include_out_of_view=False).sorted(lambda u: u.health + u.shield)
+            nearby_enemy = self.tactics.enemy.in_attack_range(unit, enemy_candidates, attack_range_buffer, first_only=True)
             if anti_banshee_structures:
                 nearby_enemy = nearby_enemy.filter(lambda e: anti_banshee_structures.closest_distance_to(e) > 6)
             if not nearby_enemy and attack_range_buffer == 0:
-                nearby_enemy = self.enemy.in_attack_range(unit, enemy_candidates, 5, first_only=True)
+                nearby_enemy = self.tactics.enemy.in_attack_range(unit, enemy_candidates, 5, first_only=True)
 
-        if self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies()):
+        if self.tactics.enemy.can_be_attacked(unit, self.tactics.enemy.get_recent_enemies()):
             threat_range_buffer = 3 if nearby_enemy and can_attack and unit.health_percentage > self.harass_retreat_health else 5
-            threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=threat_range_buffer)
+            threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=threat_range_buffer)
             if threats:
                 if nearby_enemy and can_attack:
                     threats_are_just_detectors = min([u.is_structure or u.type_id in UnitTypes.NON_THREAT_DETECTORS for u in threats])
@@ -122,7 +122,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 for threat in threats:
                     if not UnitTypes.can_attack_target(threat, unit):
                         continue
-                    if threat.is_structure and self.enemy.safe_distance_squared(unit, threat) > self.enemy.get_attack_range_with_buffer_squared(threat, unit, 3):
+                    if threat.is_structure and self.tactics.enemy.safe_distance_squared(unit, threat) > self.tactics.enemy.get_attack_range_with_buffer_squared(threat, unit, 3):
                         continue
                     if threat.is_flying or UnitTypes.air_range(threat) >= unit.ground_range:
                         # don't attack enemies that outrange
@@ -135,14 +135,14 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             return UnitMicroType.NONE
         # if can_attack:
         #     enemy_structures = self.bot.enemy_structures.sorted(lambda u: u.health + u.shield)
-        #     nearby_enemy = self.enemy.in_attack_range(unit, enemy_structures, attack_range_buffer, first_only=True)
+        #     nearby_enemy = self.tactics.enemy.in_attack_range(unit, enemy_structures, attack_range_buffer, first_only=True)
         #     if nearby_enemy:
         #         self._attack(unit, nearby_enemy.first)
         #         return UnitMicroType.ATTACK
         if unit.tag in self.harass_location_reached_tags:
-            nearest_workers = self.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
+            nearest_workers = self.tactics.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
             if anti_banshee_structures:
-                nearest_workers = nearest_workers.filter(lambda u: not self.enemy.get_units_closer_than(u, anti_banshee_structures, 6).exists)
+                nearest_workers = nearest_workers.filter(lambda u: not self.tactics.enemy.get_units_closer_than(u, anti_banshee_structures, 6).exists)
             if nearest_workers:
                 target = sorted(nearest_workers, key=lambda t: t.health + t.shield)[0]
                 self._attack(unit, target)
@@ -161,8 +161,8 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if unit.health_percentage >= self.harass_attack_health:
             return UnitMicroType.NONE
 
-        can_be_attacked = self.enemy.can_be_attacked(unit, self.enemy.get_recent_enemies())
-        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5) if can_be_attacked else None
+        can_be_attacked = self.tactics.enemy.can_be_attacked(unit, self.tactics.enemy.get_recent_enemies())
+        threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=5) if can_be_attacked else None
 
         is_below_attack_health = unit.health_percentage < self.harass_attack_health
         is_below_retreat_health = unit.health_percentage <= self.harass_retreat_health

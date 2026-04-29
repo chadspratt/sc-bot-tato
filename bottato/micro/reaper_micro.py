@@ -50,13 +50,13 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         elif current_elevation - last_elevation > 1:
             self.previous_elevation[unit.tag] = current_elevation
 
-        targets: Units = self.enemy.get_enemies_in_range(unit, include_structures=False, excluded_types=self.excluded_types, visible_only=True)
+        targets: Units = self.tactics.enemy.get_enemies_in_range(unit, include_structures=False, excluded_types=self.excluded_types, visible_only=True)
         grenade_targets: List[Point2] = []
         if targets and await self.grenade_available(unit):
             for target_unit in targets:
                 # if target_unit.is_flying or target_unit.age > 0:
                 #     continue
-                # future_target_position = self.enemy.get_predicted_position(target_unit, self.grenade_timer)
+                # future_target_position = self.tactics.enemy.get_predicted_position(target_unit, self.grenade_timer)
                 # future_target_distance = cy_distance_to(future_target_position, unit.position)
                 # if future_target_distance > 5:
                 #     continue
@@ -89,13 +89,13 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         if is_low_health and not can_attack:
             return UnitMicroType.NONE
         # nearby_enemies: Units
-        candidates = self.enemy.get_candidates(included_types={UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE})
+        candidates = self.tactics.enemy.get_candidates(included_types={UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE})
         worker_buffer = 0 if can_attack else 5
-        nearby_workers = self.enemy.in_attack_range(unit, candidates, worker_buffer)
+        nearby_workers = self.tactics.enemy.in_attack_range(unit, candidates, worker_buffer)
         if not nearby_workers and worker_buffer == 0:
-            nearby_workers = self.enemy.in_attack_range(unit, candidates, 5)
+            nearby_workers = self.tactics.enemy.in_attack_range(unit, candidates, 5)
 
-        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
+        threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
         threats = threats.filter(lambda enemy: enemy.type_id not in UnitTypes.NON_THREATS)
 
         target = None
@@ -104,14 +104,14 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             # target lowest health but prioritize closest if very close
             target = nearby_workers.sorted(key=lambda t: t.shield + t.health).first
             closest_worker = self.closest_unit_to_unit(unit, nearby_workers)
-            if self.enemy.safe_distance_squared(unit, closest_worker) < 9:
+            if self.tactics.enemy.safe_distance_squared(unit, closest_worker) < 9:
                 targets.append(closest_worker)
                 target = closest_worker
 
         if threats:
             closest_distance: float = float('inf')
             if target:
-                closest_distance = self.enemy.safe_distance_squared(unit, target) - UnitTypes.ground_range(target)
+                closest_distance = self.tactics.enemy.safe_distance_squared(unit, target) - UnitTypes.ground_range(target)
             for threat in threats:
                 if threat.age > 0 and is_low_health:
                     continue
@@ -120,14 +120,14 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                     # don't attack enemies that outrange or have more health
                     self.add_bad_harass_experience_location(unit, harass_location)
                     return UnitMicroType.NONE
-                threat_distance = self.distance(unit, threat, self.enemy.predicted_positions) - threat_range
+                threat_distance = self.distance(unit, threat, self.tactics.enemy.predicted_positions) - threat_range
                 # if unit.health_percentage < self.attack_health and unit.health < threat.health + threat.shield - 10 and threat_distance < 2:
                 #     self.add_bad_harass_experience_location(unit, harass_location)
                 #     return UnitMicroType.NONE
-                threat_distance_squared = self.enemy.safe_distance_squared(unit, threat)
-                reaper_range_distance = self.enemy.get_attack_range_with_buffer_squared(unit, threat, 0)
+                threat_distance_squared = self.tactics.enemy.safe_distance_squared(unit, threat)
+                reaper_range_distance = self.tactics.enemy.get_attack_range_with_buffer_squared(unit, threat, 0)
                 threat_is_in_range = threat_distance_squared <= reaper_range_distance
-                threat_range_distance = self.enemy.get_attack_range_with_buffer_squared(threat, unit, 1)
+                threat_range_distance = self.tactics.enemy.get_attack_range_with_buffer_squared(threat, unit, 1)
                 reaper_is_threatened = threat_distance_squared <= threat_range_distance
                 if threat_distance < closest_distance:
                     closest_distance = threat_distance
@@ -143,7 +143,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         if not targets:
             if unit.tag in self.harass_location_reached_tags and not is_low_health:
-                nearest_workers = self.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
+                nearest_workers = self.tactics.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
                 if nearest_workers:
                     return self._kite(unit, nearest_workers)
             return UnitMicroType.NONE
@@ -181,7 +181,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     #                 target_exp_time = exp_time
     #     position_to_compare = preferred_target if unit.is_moving else unit.position
     #     if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1:
-    #         unit.move(self.map.get_pathable_position(target, unit))
+    #         unit.move(self.tactics.map.get_pathable_position(target, unit))
     #         return UnitMicroType.MOVE
     #     return UnitMicroType.NONE
 
@@ -200,13 +200,13 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             self.retreat_scout_location = None
             return UnitMicroType.NONE
 
-        threats = self.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
+        threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
 
         # recently hopped down a cliff - move away from the edge before doing
         # anything else so the reaper doesn't immediately hop back up
         if recently_hopped and threats:
             away_position = Point2(cy_towards(unit.position, Point2(cy_center(threats)), -5))
-            unit.move(self.map.get_pathable_position(away_position, unit))
+            unit.move(self.tactics.map.get_pathable_position(away_position, unit))
             return UnitMicroType.RETREAT
 
         is_below_retreat_health = unit.health_percentage < health_threshold
@@ -231,10 +231,10 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             if not threats:
                 # scout next enemy expansion location
                 if self.retreat_scout_location is None or self.bot.is_visible(self.retreat_scout_location):
-                    scout_locations = self.intel.get_next_enemy_expansion_scout_locations()
+                    scout_locations = self.tactics.intel.get_next_enemy_expansion_scout_locations()
                     # pick a location that isn't visible
                     self.retreat_scout_location = min(scout_locations, key=lambda loc: self.bot.is_visible(loc.expansion_position)).expansion_position
-                path = self.map.get_path(unit.position, self.retreat_scout_location)
+                path = self.tactics.map.get_path(unit.position, self.retreat_scout_location)
                 if path.zones:
                     # follow path to avoid hopping back up a cliff
                     unit.move(path.zones[1].midpoint)
