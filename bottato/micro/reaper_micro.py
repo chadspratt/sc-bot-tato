@@ -113,7 +113,11 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
             if target:
                 closest_distance = self.tactics.enemy.safe_distance_squared(unit, target) - UnitTypes.ground_range(target)
             for threat in threats:
-                if threat.age > 0 and is_low_health:
+                is_winning_reaper_1v1 = (
+                    threat.type_id == UnitTypeId.REAPER
+                    and unit.health >= threat.health + threat.shield
+                )
+                if threat.age > 0 and is_low_health and not is_winning_reaper_1v1:
                     continue
                 threat_range = UnitTypes.ground_range(threat)
                 if threat_range > unit.ground_range or threat_range == unit.ground_range and unit.health < threat.health + threat.shield:

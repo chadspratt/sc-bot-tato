@@ -6,6 +6,7 @@ from typing import Dict
 from cython_extensions.geometry import cy_distance_to, cy_towards
 from sc2.bot_ai import BotAI
 from sc2.data import race_townhalls
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
 
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -87,6 +88,11 @@ class HarassSquad(Squad, GeometryMixin):
                     continue
                 else:
                     destination = self.harass_locations[unit.tag] if unit.health_percentage > 0.65 else self.bot.start_location
+                    # fight enemy reapers directly when we have same or more health
+                    if (nearest_threat.type_id == UnitTypeId.REAPER
+                            and unit.health >= nearest_threat.health + nearest_threat.shield):
+                        await micro.harass(unit, self.harass_locations[unit.tag])
+                        continue
                     # try to circle around threats that outrange us
                     if unit.position == nearest_threat.position:
                         # avoid divide by zero
