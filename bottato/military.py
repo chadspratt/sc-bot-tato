@@ -335,18 +335,17 @@ class Military(GeometryMixin, DebugMixin):
         enemy_is_almost_in_range = False
 
         if visible_enemies:
-            if is_occupied_by_healthy_unit:
-                closest_enemy = self.closest_unit_to_unit(bunker.structure, visible_enemies)
-                enemy_distance_to_bunker = closest_enemy.distance_to_squared(bunker.structure)
-                bunker_range = self.enemy.get_attack_range_with_buffer_squared(bunker.structure, closest_enemy, buffer)
-                if enemy_distance_to_bunker < bunker_range + 4:
-                    enemy_is_almost_in_range = True
-                if enemy_distance_to_bunker < bunker_range:
-                    enemy_is_in_range = True
-                else:
-                    # kick out healthy if enemies are too far
-                    self.empty_bunker(bunker, closest_enemy)
-                    return
+            closest_enemy = self.closest_unit_to_unit(bunker.structure, visible_enemies)
+            enemy_distance_to_bunker = closest_enemy.distance_to_squared(bunker.structure)
+            bunker_range = self.enemy.get_attack_range_with_buffer_squared(bunker.structure, closest_enemy, buffer)
+            if enemy_distance_to_bunker < bunker_range + 4:
+                enemy_is_almost_in_range = True
+            if enemy_distance_to_bunker < bunker_range:
+                enemy_is_in_range = True
+            elif is_occupied_by_healthy_unit:
+                # kick out healthy if enemies are too far
+                self.empty_bunker(bunker, closest_enemy)
+                return
         else:
             # no enemies nearby but maybe was recently attacked
             last_attacked = self.last_damage_taken_time.get(bunker.structure.tag, 0)
