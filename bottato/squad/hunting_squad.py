@@ -62,7 +62,7 @@ class HuntingSquad(Squad, GeometryMixin):
             for unit in self.units:
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
                 destination = Point2(cy_towards(target.position, unit.position, UnitTypes.range_vs_target(unit, target) - 0.5))
-                if await micro.move(unit, destination) == UnitMicroType.RETREAT:
+                if await micro.scout(unit, destination) == UnitMicroType.RETREAT:
                     self.unsafe_targets[target.tag] = self.bot.time
         else:
             scout_locations = self.tactics.map.expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY]
@@ -71,7 +71,7 @@ class HuntingSquad(Squad, GeometryMixin):
             self.next_location = sorted(scout_locations[:location_count], key=lambda loc: loc.last_seen)[0]
             for unit in self.units:
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
-                await micro.harass(unit, self.next_location.scouting_position)
+                await micro.scout(unit, self.next_location.scouting_position)
 
             # mark location as seen if can't get closer for 5 seconds
             distance_to_next_location = cy_distance_to_squared(self.units.center, self.next_location.scouting_position)
