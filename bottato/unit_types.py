@@ -410,6 +410,16 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.ASSIMILATOR,
     }
 
+    TOWNHALL_TYPES = {
+        UnitTypeId.COMMANDCENTER,
+        UnitTypeId.ORBITALCOMMAND,
+        UnitTypeId.PLANETARYFORTRESS,
+        UnitTypeId.HATCHERY,
+        UnitTypeId.LAIR,
+        UnitTypeId.HIVE,
+        UnitTypeId.NEXUS,
+    }
+
     @staticmethod
     def is_worker(unit_type_id: UnitTypeId) -> bool:
         """
