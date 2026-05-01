@@ -268,6 +268,10 @@ class Production():
                         logger.debug(f"can't build addon {unit_type} at {candidate} - addon_blocked: {candidate.addon_blocked}, time_since_destruction: {self.bot.time - candidate.addon_destroyed_time}")
                         continue
 
+                if candidate.unit.health_percentage < 0.95 and cy_closer_than(self.bot.enemy_units, 10, candidate.unit.position):
+                    logger.debug(f"can't build {unit_type} at {candidate} - under attack")
+                    continue
+
                 if candidate.has_capacity:
                     return candidate
                 else:

@@ -327,17 +327,17 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             # only scan enemies if attackers nearby to make use of scan
             if isinstance(enemy, Unit) and enemy.is_flying:
                 if air_attackers is None:
-                    air_attackers = self.bot.units.filter(lambda u: UnitTypes.can_attack_air(u))
+                    air_attackers = self.bot.all_own_units.filter(lambda u: UnitTypes.can_attack_air(u))
                 attackers = air_attackers
             else:
                 if ground_attackers is None:
-                    ground_attackers = self.bot.units.filter(lambda u: UnitTypes.can_attack_ground(u))
+                    ground_attackers = self.bot.all_own_units.filter(lambda u: UnitTypes.can_attack_ground(u))
                 attackers = ground_attackers
             if not attackers:
                 continue
             if isinstance(enemy, Unit):
                 attackers = self.enemy.threats_to(enemy, attackers)
-                if attackers.amount > 1:
+                if attackers.amount > 1 or attackers.of_type(UnitTypeId.BUNKER):
                     enemies_to_scan.append(enemy)
             elif attackers.closer_than(6, enemy).amount > 2:
                 # position to scan, don't worry about grouping and just scan it

@@ -142,7 +142,13 @@ class StructureBuildStep(BuildStep):
                     self.position = self.unit_in_charge.add_on_position
         elif self.unit_type_id == UnitTypeId.SCV:
             # scv
-            facility_candidates = self.bot.townhalls.filter(lambda x: x.is_ready and x.is_idle and not x.is_flying and x.tag not in self.production.townhall_tags_with_new_work_this_step)
+            facility_candidates = self.bot.townhalls.filter(lambda x: x.is_ready
+                                                            and x.is_idle
+                                                            and not x.is_flying
+                                                            and x.tag not in self.production.townhall_tags_with_new_work_this_step
+                                                            and (x.health_percentage >= 0.95
+                                                                or not self.bot.enemy_units.closer_than(10, x))
+                                                            )
             facility_candidates.sort(key=lambda x: x.type_id == UnitTypeId.COMMANDCENTER)
             if facility_candidates:
                 self.unit_in_charge = facility_candidates[0]
@@ -150,17 +156,17 @@ class StructureBuildStep(BuildStep):
             else:
                 self.unit_in_charge = None
         else:
-            facility_candidates = self.bot.structures.filter(lambda x: x.type_id in self.builder_type and x.is_ready and x.is_idle and not x.is_flying)
+            facility_candidates = self.bot.structures.filter(lambda x: x.type_id in self.builder_type
+                                                             and x.is_ready
+                                                             and x.is_idle
+                                                             and not x.is_flying
+                                                             and (x.health_percentage >= 0.95
+                                                                 or not self.bot.enemy_units.closer_than(10, x))
+                                                            )
             self.unit_in_charge = facility_candidates[0] if facility_candidates else None
 
         if self.unit_in_charge is None:
             logger.debug("no idle training facility")
-            response = BuildResponseCode.NO_FACILITY
-        elif (
-            self.unit_in_charge.health_percentage < 0.95
-            and self.bot.enemy_units.closer_than(10, self.unit_in_charge)
-        ):
-            logger.debug(f"Building {self.unit_in_charge} is under attack, skipping training")
             response = BuildResponseCode.NO_FACILITY
         else:
             if self.unit_type_id in {UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}:
