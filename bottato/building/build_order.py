@@ -248,6 +248,8 @@ class BuildOrder():
             self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue, position=0)
             self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT], position=1, queue=self.priority_queue)
         elif change == BuildOrderChange.CANNON_RUSH:
+            # continue with reaper to do counter-damage
+            self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
             # need a tank to destroy cannon rush
             if self.bot.structures(UnitTypeId.FACTORY).amount == 0 and self.get_in_progress_count(UnitTypeId.FACTORY) == 0:
                 self.move_between_queues(UnitTypeId.FACTORY, self.static_queue, self.priority_queue)
