@@ -156,6 +156,12 @@ class StructureBuildStep(BuildStep):
         if self.unit_in_charge is None:
             logger.debug("no idle training facility")
             response = BuildResponseCode.NO_FACILITY
+        elif (
+            self.unit_in_charge.health_percentage < 0.95
+            and self.bot.enemy_units.closer_than(10, self.unit_in_charge)
+        ):
+            logger.debug(f"Building {self.unit_in_charge} is under attack, skipping training")
+            response = BuildResponseCode.NO_FACILITY
         else:
             if self.unit_type_id in {UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}:
                 self.unit_being_built = self.unit_in_charge
