@@ -339,11 +339,12 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 attackers = self.enemy.threats_to(enemy, attackers)
                 if attackers.amount > 1 or attackers.of_type(UnitTypeId.BUNKER):
                     enemies_to_scan.append(enemy)
-            elif attackers.closer_than(6, enemy).amount > 2:
-                # position to scan, don't worry about grouping and just scan it
-                orbital_with_energy(AbilityId.SCANNERSWEEP_SCAN, enemy)
-                self.last_scan_time = self.bot.time
-                return
+            # elif attackers.closer_than(6, enemy).amount > 2:
+            #     # position to scan, don't worry about grouping and just scan it
+            #     LogHelper.add_log(f"Scanning to detect {enemy}")
+            #     orbital_with_energy(AbilityId.SCANNERSWEEP_SCAN, enemy)
+            #     self.last_scan_time = self.bot.time
+            #     return
 
         # find unit that has most hidden enemies nearby then scan center of the group
         if enemies_to_scan:
