@@ -56,7 +56,11 @@ class Tactics:
                             # keep it going if it's working
                             new_value = True
         elif tactic == Tactic.RUSH_DEFENSE:
-            new_value = self.bot.time < 240 and BuildType.RUSH in self.intel.enemy_builds_detected
+            new_value = (
+                self.bot.time < 240
+                and BuildType.RUSH in self.intel.enemy_builds_detected
+                and BuildType.CANNON_RUSH not in self.intel.enemy_builds_detected
+            )
         if not new_value and self.last_values[tactic]:
             LogHelper.add_log(f"ending tactic {tactic}")
 

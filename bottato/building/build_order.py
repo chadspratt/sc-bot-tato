@@ -106,7 +106,6 @@ class BuildOrder():
             # abort static build order if we need a specialized response
             self.static_queue = self.static_queue[:10]
 
-
         self.only_build_units = False
 
         self.queue_townhall_work(detected_enemy_builds)
@@ -114,7 +113,7 @@ class BuildOrder():
 
 
         self.queue_command_center(self.intel.army_ratio, detected_enemy_builds)
-        self.queue_upgrade(self.changes_enacted)
+        self.queue_upgrade()
         self.queue_marines(detected_enemy_builds, self.intel.army_ratio)
         if len(self.static_queue) < 5 or self.bot.time > 300:
             self.queue_turret(self.intel)
@@ -724,17 +723,18 @@ class BuildOrder():
 
     @timed
     def queue_marines(self, detected_enemy_builds: Dict[BuildType, float], army_ratio: float) -> None:
+        defending_rush = self.tactics.is_active(Tactic.RUSH_DEFENSE)
         if self.tactics.is_active(Tactic.PROXY_BARRACKS):
             # if enemy expands early, prioritize marines to punish
             self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue, position=0)
             return
-        if self.tactics.is_active(Tactic.RUSH_DEFENSE):
+        if defending_rush:
             marine_count = self.bot.units.of_type(UnitTypeId.MARINE).amount + self.get_in_progress_count(UnitTypeId.MARINE)
             if marine_count < 6:
                 self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue, position=0)
         # use excess minerals and idle barracks
         need_early_marines: bool = self.bot.time < 300 and army_ratio < 0.8 and \
-            (BuildType.RUSH in detected_enemy_builds or len(cy_closer_than(self.bot.enemy_units, 20, self.map.natural_position)) > 2)
+            (defending_rush or len(cy_closer_than(self.bot.enemy_units, 20, self.map.natural_position)) > 2)
             
         if need_early_marines and self.bot.minerals >= 50 and self.bot.structures(UnitTypeId.BARRACKSREACTOR):
             idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
@@ -795,9 +795,9 @@ class BuildOrder():
     }
 
     @timed
-    def queue_upgrade(self, build_order_changes: Set[BuildOrderChange]) -> None:
+    def queue_upgrade(self) -> None:
         for facility_type in self.upgrade_building_types:
-            next_upgrade = self.upgrades.next_upgrade(facility_type, build_order_changes)
+            next_upgrade = self.upgrades.next_upgrade(facility_type, self.changes_enacted)
             if next_upgrade is None or self.upgrade_is_in_progress(next_upgrade):
                 continue
             if self.bot.structures(facility_type).ready.idle:
