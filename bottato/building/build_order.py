@@ -614,10 +614,14 @@ class BuildOrder():
     def queue_command_center(self, army_ratio: float, detected_enemy_builds) -> None:
         if self.bot.time < 100:
             return
-        if self.bot.townhalls.amount == 2 and self.bot.townhalls.flying:
-            # don't queue another expansion if current one is still in air
-            # probably unsafe or it would have landed
-            return
+        if self.bot.townhalls.amount == 2:
+            if self.bot.townhalls.flying:
+                # don't queue another expansion if current one is still in air
+                # probably unsafe or it would have landed
+                return
+            if self.bot.enemy_structures.of_type(UnitTypes.TOWNHALL_TYPES).amount < 2:
+                # enemy has not expanded, hold off on taking a third
+                return
         if BuildType.RUSH in detected_enemy_builds and self.bot.time < 160:
             # don't expand too early during rush
             return
