@@ -75,12 +75,15 @@ def main():
 
     bot = BotTato()
 
+    logs_dir = BOT_DIR / "logs"
+    logs_dir.mkdir(exist_ok=True)
+
     opponent = DockerBotProcess(
         bot_dir=opponent_dir,
         race=opponent_race,
         name=opponent_name,
         image=IMAGE,
-        stdout=str(BOT_DIR / "logs" / f"{opponent_name}_docker.log"),
+        stdout=str(logs_dir / f"{opponent_name}_docker.log"),
     )
 
     map_name = os.environ.get("SCII_MAP", "MagannathaAIE_v2")
