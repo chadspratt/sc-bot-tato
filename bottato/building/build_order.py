@@ -141,6 +141,10 @@ class BuildOrder():
         if len(self.static_queue) < 5 or self.bot.time > 300:
             self.queue_refinery()
 
+        if BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.minerals < 100 and self.bot.time < 120:
+            # save minerals for repairing during worker rush
+            return Cost(minerals=self.bot.minerals, vespene=self.bot.vespene)
+
         remaining_resources: Cost = await self.execute_pending_builds(self.only_build_units, detected_enemy_builds)
         if remaining_resources.minerals > 100 and self.only_build_units:
             remaining_resources: Cost = await self.execute_pending_builds(False, detected_enemy_builds, remaining_resources=remaining_resources)
@@ -217,7 +221,7 @@ class BuildOrder():
         no_rush_vs_zerg = (
             self.bot.enemy_race == Race.Zerg
             and self.intel.initial_scout_completed
-            and (BuildType.ZERGLING_RUSH not in detected_enemy_builds
+            and (not {BuildType.ZERGLING_RUSH, BuildType.WORKER_RUSH}.intersection(detected_enemy_builds)
             or BuildType.EARLY_EXPANSION in detected_enemy_builds)
         )
         self.make_one_time_build_change(no_rush_vs_zerg, BuildOrderChange.ZERG_NO_RUSH, detected_enemy_builds)

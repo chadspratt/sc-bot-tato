@@ -165,7 +165,7 @@ class EnemyIntel(GeometryMixin):
         if BuildType.WORKER_RUSH not in self.enemy_builds_detected and self.bot.time < 60:
             rushing_enemy_workers = self.bot.enemy_units.filter(
                 lambda u: cy_distance_to(u.position, self.bot.start_location) - 15 < cy_distance_to(u.position, self.bot.enemy_start_locations[0]))
-            if rushing_enemy_workers.amount >= 3:
+            if rushing_enemy_workers.amount >= 2:
                 await LogHelper.add_chat("worker rush detected")
                 self.add_detected_build(BuildType.WORKER_RUSH)
                 self.add_detected_build(BuildType.RUSH)

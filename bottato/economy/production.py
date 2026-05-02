@@ -315,7 +315,11 @@ class Production():
             return {UnitTypeId.COMMANDCENTER}
         if unit_type_id == UnitTypeId.REFINERYRICH:
             return {UnitTypeId.SCV}
-        return UNIT_TRAINED_FROM[unit_type_id]
+        try:
+            return UNIT_TRAINED_FROM[unit_type_id]
+        except KeyError:
+            logger.debug(f"no builder type found for {unit_type_id}")
+            return set()
     
     costs: dict[UnitTypeId | UpgradeId, Cost] = {}
     
