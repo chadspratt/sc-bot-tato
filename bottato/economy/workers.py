@@ -431,8 +431,14 @@ class Workers(GeometryMixin):
         targetable_enemies = self.bot.enemy_units.filter(
             lambda u: not u.is_flying
             and self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies())
-            and u.position.manhattan_distance(self.bot.start_location) < 30
+            and u.position.manhattan_distance(self.bot.start_location) < 23
         )
+        valid_enemy_structures = self.bot.enemy_structures.filter(
+            lambda u: not u.is_ready or u.type_id not in {UnitTypeId.BUNKER, UnitTypeId.PHOTONCANNON}
+        )
+        nearby_enemy_structures = cy_closer_than(valid_enemy_structures, 23, self.bot.start_location)
+        targetable_enemies.extend(nearby_enemy_structures)
+
         enemies_inside_wall = self.filter_enemies_outside_wall(targetable_enemies)
         total_worker_count = len(available_workers)
         max_workers_to_send = min(total_worker_count - 2, len(enemies_inside_wall) + 2)
@@ -811,7 +817,7 @@ class Workers(GeometryMixin):
         return enemies.filter(lambda u: not self.is_outside_wall(u))
     
     def is_outside_wall(self, unit: Unit) -> bool:
-        return cy_distance_to_squared(unit.position, self.bot.main_base_ramp.top_center) <= 9 \
+        return cy_distance_to_squared(unit.position, self.bot.main_base_ramp.top_center) < 9 \
                                 or self.bot.get_terrain_height(unit) + 0.1 < self.bot.get_terrain_height(self.bot.main_base_ramp.top_center)
 
     def attack_enemy(self, enemy: Unit):
