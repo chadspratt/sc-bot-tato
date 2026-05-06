@@ -583,7 +583,7 @@ class BaseUnitMicro(GeometryMixin):
                             distance_to_advance = excess_distance
                         if excess_distance < 0:
                             targets_to_avoid.append(target)
-                    continue
+                        continue
                 desired_distance = 0
                 if target.type_id in UnitTypes.WORKER_TYPES:
                     desired_distance = target_range + 2.0

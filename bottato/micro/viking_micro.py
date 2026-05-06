@@ -4,7 +4,12 @@ from socket import close
 from typing import Dict, List, Tuple
 
 from cython_extensions.geometry import cy_distance_to, cy_towards
-from cython_extensions.units_utils import cy_center, cy_closer_than, cy_closest_to
+from cython_extensions.units_utils import (
+    cy_center,
+    cy_closer_than,
+    cy_closest_to,
+    cy_sorted_by_distance_to,
+)
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -140,10 +145,15 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 enemies = self.tactics.enemy.in_friendly_attack_range(defender, attack_range_buffer=5)
                 closest_enemy: Unit | None = cy_closest_to(defender.position, enemies) if enemies else None
                 if closest_enemy:
+                    threat_found = UnitTypes.can_attack_air(closest_enemy)
                     closest_distance: float = self.distance(defender, closest_enemy)
                     closest_counts[closest_enemy.tag] = closest_counts.get(closest_enemy.tag, 0) + 1
-                    enemies = cy_closer_than(enemies, closest_distance + 1, defender.position)
+                    enemies = cy_sorted_by_distance_to(cy_closer_than(enemies, closest_distance + 3, defender.position), defender.position)
                     for enemy in enemies:
+                        if not threat_found:
+                            # count all enemies as closest up to and including the first threat to allow pushing in deeper to hit a better target
+                            closest_counts[enemy.tag] = closest_counts.get(enemy.tag, 0) + 1
+                            threat_found = UnitTypes.can_attack_air(enemy)
                         all_enemies[enemy.tag] = enemy
                         if enemy.type_id not in damage_vs_type:
                             damage_vs_type[enemy.type_id] = defender.calculate_damage_vs_target(enemy)[0]
@@ -153,7 +163,6 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 other_type_friendlies[defender.tag] = Units(cy_closer_than(self.bot.units.exclude_type(UnitTypeId.VIKINGFIGHTER), 4, defender.position), bot_object=self.bot)
 
             # sort enemies by how many vikings have them as closest
-            # enemies.sort(key=lambda e: e.health + e.shield)
             def enemy_sort_key(enemy_tag: int) -> float:
                 enemy_unit = all_enemies[enemy_tag]
                 return enemy_unit.health + enemy_unit.shield - damage_vs_type[enemy_unit.type_id] * closest_counts.get(enemy_tag, 0)
@@ -167,12 +176,6 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                     continue
                 other_nearby_threats = Units(cy_closer_than(self.bot.enemy_units, 4, enemy_unit.position), bot_object=self.bot).filter(
                     lambda unit: UnitTypes.can_attack_air(unit) and unit.tag != enemy_tag)
-                # enemy_type = enemy_unit.type_id
-                # same_type_threats = self.bot.enemy_units.filter(lambda u:
-                #                                                 UnitTypes.can_attack_air(u)
-                #                                                 and u.tag != enemy_tag
-                #                                                 and u.type_id == enemy_type)
-                # other_type_threats = other_nearby_threats.exclude_type(enemy_unit.type_id)
                 if len(other_nearby_threats) <= len(defenders) * 3 or UnitTypes.range_vs_target(defenders[0], enemy_unit) > UnitTypes.range_vs_target(enemy_unit, defenders[0]):
                     enemy_health = enemy_unit.health + enemy_unit.shield
                     for defender in defenders:
