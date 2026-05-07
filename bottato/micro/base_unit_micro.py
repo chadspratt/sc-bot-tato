@@ -605,10 +605,14 @@ class BaseUnitMicro(GeometryMixin):
         # find a target if we can attack now or if we don't need to run
         if can_attack or not should_run:
             targets.sort(key=lambda t: t.health + t.shield)
-            target = self._get_attack_target(unit, targets, bonus_distance, require_in_range_target=can_attack)
+            target = self._get_attack_target(unit, targets, bonus_distance, require_in_range_target=force_move)
 
         if can_attack and target:
-            self._attack(unit, target)
+            if cy_distance_to_squared(unit.position, target.position) <= self.tactics.enemy.get_attack_range_with_buffer_squared(unit, target, 0.0):
+                self._attack(unit, target)
+            else:
+                # out of range of desired target, a-move in case there is something in between that can be attacked now
+                unit.attack(target.position)
             return UnitMicroType.ATTACK
 
         if can_outrun and targets_to_avoid:
