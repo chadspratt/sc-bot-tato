@@ -361,10 +361,6 @@ class BaseUnitMicro(GeometryMixin):
             micro_taken = self._kite(unit, nearby_enemies, bonus_distance, force_move=force_move)
             if micro_taken != UnitMicroType.NONE:
                 return micro_taken
-            # attack_target = self._get_attack_target(unit, nearby_enemies, bonus_distance)
-            # if attack_target:
-            #     self._kite(unit, nearby_enemies)
-            #     return UnitMicroType.ATTACK
         
         # retreat towards better counter for threats
         if self._retreat_to_better_unit(unit, can_attack):
@@ -466,6 +462,9 @@ class BaseUnitMicro(GeometryMixin):
         non_gas_buildings = valid_targets.exclude_type(UnitTypes.GAS_STRUCTURE_TYPES)
         if len(non_gas_buildings) > 0:
             valid_targets = non_gas_buildings
+
+        if require_in_range_target:
+            bonus_distance = 0
 
         closest_target = cy_closest_to(unit.position, valid_targets)
         closest_distance = max(cy_distance_to(unit.position, closest_target.position), UnitTypes.range(unit))
@@ -595,7 +594,7 @@ class BaseUnitMicro(GeometryMixin):
                 if excess_distance < distance_to_advance:
                     distance_to_advance = excess_distance
                 if excess_distance < 0:
-                    can_outrun = can_outrun and (unit.movement_speed >= target.movement_speed or target_range == 0)
+                    # can_outrun = can_outrun and (unit.movement_speed >= target.movement_speed or target_range == 0)
                     if target.type_id in UnitTypes.WORKER_TYPES:
                         workers_to_avoid.append(target)
                     else:
@@ -606,7 +605,7 @@ class BaseUnitMicro(GeometryMixin):
         # find a target if we can attack now or if we don't need to run
         if can_attack or not should_run:
             targets.sort(key=lambda t: t.health + t.shield)
-            target = self._get_attack_target(unit, targets, bonus_distance, require_in_range_target=force_move)
+            target = self._get_attack_target(unit, targets, bonus_distance, require_in_range_target=can_attack)
 
         if can_attack and target:
             self._attack(unit, target)

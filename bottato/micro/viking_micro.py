@@ -19,6 +19,7 @@ from sc2.units import Units
 from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin, timed, timed_async
+from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 
 
@@ -133,45 +134,41 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             # update targets once per frame
             self.last_enemies_in_range_update = self.bot.time
             defenders_in_range: dict[int, List[Unit]] = {}
-            all_enemies: Dict[int, Unit] = {}
             self.target_assignments.clear()
             vikings = self.bot.units.filter(lambda unit: unit.type_id == UnitTypeId.VIKINGFIGHTER
                                             and unit.is_flying and unit.health_percentage >= self.attack_health)
-            other_type_friendlies: Dict[int, Units] = {}
             # make lists of vikings that can attack each enemy
             damage_vs_type: dict[UnitTypeId, float] = {}
             closest_counts: dict[int, int] = {}
             for defender in vikings:
                 enemies = self.tactics.enemy.in_friendly_attack_range(defender, attack_range_buffer=5)
-                closest_enemy: Unit | None = cy_closest_to(defender.position, enemies) if enemies else None
-                if closest_enemy:
-                    threat_found = UnitTypes.can_attack_air(closest_enemy)
-                    closest_distance: float = self.distance(defender, closest_enemy)
-                    closest_counts[closest_enemy.tag] = closest_counts.get(closest_enemy.tag, 0) + 1
-                    enemies = cy_sorted_by_distance_to(cy_closer_than(enemies, closest_distance + 3, defender.position), defender.position)
+                if enemies:
+                    enemies = cy_sorted_by_distance_to(enemies, defender.position)
+                    closest_distance: float = self.distance(defender, enemies[0])
+                    threat_found = False
                     for enemy in enemies:
-                        if not threat_found:
-                            # count all enemies as closest up to and including the first threat to allow pushing in deeper to hit a better target
-                            closest_counts[enemy.tag] = closest_counts.get(enemy.tag, 0) + 1
-                            threat_found = UnitTypes.can_attack_air(enemy)
-                        all_enemies[enemy.tag] = enemy
+                        # count all enemies up to and including the first threat to allow pushing in deeper to hit a better target
+                        closest_counts[enemy.tag] = closest_counts.get(enemy.tag, 0) + 1
                         if enemy.type_id not in damage_vs_type:
                             damage_vs_type[enemy.type_id] = defender.calculate_damage_vs_target(enemy)[0]
                         if enemy.tag not in defenders_in_range:
                             defenders_in_range[enemy.tag] = []
                         defenders_in_range[enemy.tag].append(defender)
-                other_type_friendlies[defender.tag] = Units(cy_closer_than(self.bot.units.exclude_type(UnitTypeId.VIKINGFIGHTER), 4, defender.position), bot_object=self.bot)
+
+                        threat_found = UnitTypes.can_attack_air(enemy)
+                        if threat_found or cy_distance_to(defender.position, enemy.position) > closest_distance + 3:
+                            break
 
             # sort enemies by how many vikings have them as closest
             def enemy_sort_key(enemy_tag: int) -> float:
-                enemy_unit = all_enemies[enemy_tag]
+                enemy_unit = UnitReferenceHelper.units_by_tag[enemy_tag]
                 return enemy_unit.health + enemy_unit.shield - damage_vs_type[enemy_unit.type_id] * closest_counts.get(enemy_tag, 0)
             enemy_order = sorted(defenders_in_range.keys(), key=enemy_sort_key)
 
             # for each enemy compare number of vikings that can attack it to number of nearby threats of same type
             for enemy_tag in enemy_order:
                 defenders = defenders_in_range[enemy_tag]
-                enemy_unit = all_enemies.get(enemy_tag)
+                enemy_unit = UnitReferenceHelper.units_by_tag.get(enemy_tag)
                 if enemy_unit is None:
                     continue
                 other_nearby_threats = Units(cy_closer_than(self.bot.enemy_units, 4, enemy_unit.position), bot_object=self.bot).filter(
