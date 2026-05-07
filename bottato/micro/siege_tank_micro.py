@@ -132,6 +132,10 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             response = self._early_game_siege_tank_micro(unit, is_sieged)
             if response != UnitMicroType.NONE:
                 return response
+        elif unit.tag in self.early_game_siege_positions:
+            # reset so siege process can repeat if tank is sent back to main base after initial defense
+            self.early_game_siege_step[unit.tag] = TankSiegeStep.MOVE_TO_BARRACKS
+            del self.early_game_siege_positions[unit.tag]
         
         if is_sieged and unit.weapon_cooldown > 0:
             self.last_siege_attack_time[unit.tag] = self.bot.time - (self.sieged_weapon_cooldown - unit.weapon_cooldown / 22.4)
@@ -313,7 +317,6 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 tank_position = ramp_top_center
 
             step = self.early_game_siege_step.get(unit.tag, TankSiegeStep.MOVE_TO_BARRACKS)
-
             # Step 1: Move toward backside of ramp barracks (away from ramp)
             if step == TankSiegeStep.MOVE_TO_BARRACKS:
                 ramp_barracks_list = cy_closer_than(
@@ -378,4 +381,4 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                     self.early_game_siege_step[unit.tag] = step
                     return UnitMicroType.MOVE
 
-            return UnitMicroType.MOVE
+            return UnitMicroType.NONE
