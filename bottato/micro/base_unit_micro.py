@@ -588,8 +588,10 @@ class BaseUnitMicro(GeometryMixin):
                     desired_distance = target_range + 2.0
                 elif target.type_id == UnitTypeId.SIEGETANKSIEGED:
                     desired_distance = 0
+                elif attack_range == 0:
+                    desired_distance = target_range + target.radius + unit.radius + 0.5
                 else:
-                    desired_distance = min(attack_range - 0.1, max(attack_range - 1.0, target_range + 0.5))
+                    desired_distance = min(attack_range - 0.1, max(attack_range - 1.0, target_range + 0.5)) + target.radius + unit.radius
                 excess_distance = target_distance - desired_distance
                 if excess_distance < distance_to_advance:
                     distance_to_advance = excess_distance
@@ -777,7 +779,7 @@ class BaseUnitMicro(GeometryMixin):
         ally_to_enemy_distance_sq = self.tactics.enemy.safe_distance_squared(nearest_unit_to_retreat_to, closest_threat)
 
         if ally_to_enemy_distance_sq < 900 and ally_to_enemy_distance_sq > self.tactics.enemy.get_attack_range_with_buffer_squared(nearest_unit_to_retreat_to, closest_threat, 0):
-            optimal_distance = UnitTypes.range_vs_target(nearest_unit_to_retreat_to, closest_threat) - UnitTypes.range_vs_target(closest_threat, nearest_unit_to_retreat_to) - unit.radius + nearest_unit_to_retreat_to.radius - 2.0
+            optimal_distance = UnitTypes.range_vs_target(nearest_unit_to_retreat_to, closest_threat) - UnitTypes.range_vs_target(closest_threat, unit) - nearest_unit_to_retreat_to.radius + unit.radius - 1.0
             unit.move(Point2(cy_towards(nearest_unit_to_retreat_to.position, unit.position, optimal_distance)))
             if nearest_unit_to_retreat_to.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED) \
                 and (nearest_unit_to_retreat_to.tag not in BaseUnitMicro.tanks_being_retreated_to \

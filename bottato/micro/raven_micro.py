@@ -94,6 +94,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         if unit.energy >= self.missile_energy_cost and army_is_nearby:
             nearby_enemies = self.bot.enemy_units.filter(
                 lambda enemy: enemy.type_id not in self.excluded_types
+                and enemy.type_id != UnitTypeId.ZEALOT # zealots are likely to charge in and cause friendly fire
                 and not enemy.has_buff(BuffId.RAVENSHREDDERMISSILEARMORREDUCTION)
                 and enemy.distance_to_squared(unit) < 225)
             if nearby_enemies:
