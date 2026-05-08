@@ -13,11 +13,13 @@ from bottato.unit_reference_helper import UnitReferenceHelper
 
 
 class Tactics:
-    def __init__(self, bot: BotAI, enemy: Enemy, map: Map, intel: EnemyIntel):
+    def __init__(self, bot: BotAI):
         self.bot = bot
-        self.enemy = enemy
-        self.map = map
-        self.intel = intel
+        
+        self.enemy: Enemy = Enemy(bot)
+        self.map = Map(bot)
+        self.intel = EnemyIntel(bot, self.map, self.enemy)
+
         self.army_mode = ArmyMode.STAGING
 
         self.last_values: dict[Tactic, bool] = {

@@ -88,7 +88,7 @@ class BotTato(BotAI):
                 if action_error.result == ActionErrorCode.CantBuildOnThat.value:
                     self.commander.build_order.mark_position_invalid_by_worker_tag(action_error.unit_tag)
                 elif action_error.result == ActionErrorCode.CantBuildLocationInvalid.value:
-                    self.commander.enemy.mark_position_as_needing_detection(unit.position)
+                    self.commander.tactics.enemy.mark_position_as_needing_detection(unit.position)
             except Exception as e:
                 LogHelper.add_log(f"Error processing action error: {e}")
         # XXX very slow
@@ -98,7 +98,7 @@ class BotTato(BotAI):
 
         # self.print_all_timers(30)
         if self.draw_map:
-            self.commander.map.draw()
+            self.commander.tactics.map.draw()
         self.print_game_state_summary(10)
         LogHelper.print_logs(iteration)
 
@@ -143,7 +143,7 @@ class BotTato(BotAI):
                 passengers.extend(unit_with_cargo.passengers)
             friendly_units = self.units + passengers
             LogHelper.add_log('army: ' + ', '.join([f"{unit_type.name}: {count}" for unit_type, count in UnitTypes.count_units_by_type(friendly_units).items()]))
-            enemy_units = self.commander.enemy.get_army().filter(lambda unit: not unit.is_structure)
+            enemy_units = self.commander.tactics.enemy.get_army().filter(lambda unit: not unit.is_structure)
             LogHelper.add_log('enemy: ' + ', '.join([f"{unit_type.name}: {count}" for unit_type, count in UnitTypes.count_units_by_type(enemy_units).items()]))
             LogHelper.add_log(f"{self.commander.build_order.get_build_queue_string()}")
 

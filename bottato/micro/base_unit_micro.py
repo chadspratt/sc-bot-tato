@@ -561,53 +561,55 @@ class BaseUnitMicro(GeometryMixin):
         can_outrun = True
         can_attack = unit.weapon_cooldown < self.time_in_frames_to_attack
         if can_be_attacked:
-            for target in targets:
-                if target.health == 0:
-                    # cloaked, can't attack
-                    continue
-                attack_range = UnitTypes.range_vs_target(unit, target)
-                target_range = UnitTypes.range_vs_target(target, unit)
-                target_distance = self.distance(unit, target, self.tactics.enemy.predicted_positions) - target.radius - unit.radius
-                if can_attack and target_distance <= attack_range and target.health + target.shield <= unit.calculate_damage_vs_target(target)[0]:
-                    # secure kills on units that are one-hit from death
-                    unit.attack(target)
+            # keep distance from zerg structures that spawn broodlings on death
+            if self.tactics.intel.enemy_race == Race.Zerg:
+                structures_to_avoid = self.bot.enemy_structures.filter(lambda s: s.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS)
+                for structure in structures_to_avoid:
+                    desired_distance = UnitTypes.range_vs_target(unit, structure)
+                    threat_distance = self.distance(unit, structure, self.tactics.enemy.predicted_positions) - structure.radius - unit.radius
+                    excess_distance = threat_distance - desired_distance
+                    if excess_distance < distance_to_advance:
+                        distance_to_advance = excess_distance
+                    if excess_distance < 0:
+                        targets_to_avoid.append(structure)
+
+            threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=2)
+            for threat in threats:
+                attack_range = UnitTypes.range_vs_target(unit, threat)
+                threat_range = UnitTypes.range_vs_target(threat, unit)
+                threat_distance = self.distance(unit, threat, self.tactics.enemy.predicted_positions) - threat.radius - unit.radius
+
+                # secure kills on units that are one-hit from death
+                if can_attack and threat_distance <= attack_range and threat.health + threat.shield <= unit.calculate_damage_vs_target(threat)[0]:
+                    unit.attack(threat)
                     return UnitMicroType.ATTACK
-                if target_range == 0:
-                    if target.is_structure and target.race == Race.Zerg \
-                            and target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS:
-                        # keep distance from zerg structures that spawn broodlings on death
-                        desired_distance = attack_range
-                        excess_distance = target_distance - desired_distance
-                        if excess_distance < distance_to_advance:
-                            distance_to_advance = excess_distance
-                        if excess_distance < 0:
-                            targets_to_avoid.append(target)
-                        continue
+
                 desired_distance = 0
-                if target.type_id in UnitTypes.WORKER_TYPES:
-                    desired_distance = target_range + 2.0
-                elif target.type_id == UnitTypeId.SIEGETANKSIEGED:
+                if threat.type_id in UnitTypes.WORKER_TYPES:
+                    desired_distance = threat_range + 2.0
+                elif threat.type_id == UnitTypeId.SIEGETANKSIEGED:
                     desired_distance = 0
                 elif attack_range == 0:
-                    desired_distance = target_range + target.radius + unit.radius + 0.5
+                    desired_distance = threat_range + threat.radius + unit.radius + 0.5
                 else:
-                    desired_distance = min(attack_range - 0.1, max(attack_range - 1.0, target_range + 0.5)) + target.radius + unit.radius
-                excess_distance = target_distance - desired_distance
+                    desired_distance = min(attack_range - 0.1, max(attack_range - 1.0, threat_range + 0.5)) + threat.radius + unit.radius
+
+                excess_distance = threat_distance - desired_distance
                 if excess_distance < distance_to_advance:
                     distance_to_advance = excess_distance
                 if excess_distance < 0:
                     # can_outrun = can_outrun and (unit.movement_speed >= target.movement_speed or target_range == 0)
-                    if target.type_id in UnitTypes.WORKER_TYPES:
-                        workers_to_avoid.append(target)
+                    if threat.type_id in UnitTypes.WORKER_TYPES:
+                        workers_to_avoid.append(threat)
                     else:
-                        targets_to_avoid.append(target)
+                        targets_to_avoid.append(threat)
         
-        target = None
-        should_run = workers_to_avoid or targets_to_avoid and can_outrun
+        target: Unit | None = None
+        should_run: bool = (workers_to_avoid.amount > 0 or targets_to_avoid.amount > 0) and can_outrun
         # find a target if we can attack now or if we don't need to run
         if can_attack or not should_run:
             targets.sort(key=lambda t: t.health + t.shield)
-            target = self._get_attack_target(unit, targets, bonus_distance, require_in_range_target=force_move)
+            target = self._get_attack_target(unit, targets, bonus_distance, require_in_range_target=should_run)
 
         if can_attack and target:
             if cy_distance_to_squared(unit.position, target.position) <= self.tactics.enemy.get_attack_range_with_buffer_squared(unit, target, 0.0):

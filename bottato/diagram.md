@@ -4,164 +4,143 @@
 
 ```mermaid
 graph TD
-    subgraph Core
-        BotTato["🤖 BotTato\n(BotAI)"]
-        Commander["⚔️ Commander"]
-        LogHelper["📝 LogHelper"]
-        UnitReferenceHelper["🔗 UnitReferenceHelper"]
+
+    subgraph Army
+        Military["Military"]
+        InitialScout["InitialScout"]
+        Scout["Scout"]
+        FormationSquad["FormationSquad"]
+        Bunker["Bunker"]
+        StuckRescue["StuckRescue"]
+        Scouting["Scouting"]
+        Formation["Formation"]
+        Squad["Squad"]
+        HarassSquad["HarassSquad"]
+        HuntingSquad["HuntingSquad"]
+        ParentFormation["ParentFormation"]
+        MedivacDropSquad["MedivacDropSquad"]
     end
-
-    BotTato -->|creates| Commander
-    BotTato -->|inits| LogHelper
-    BotTato -->|inits| UnitReferenceHelper
-
+    
     subgraph Strategy
-        Military["🎖️ Military"]
-        Enemy["👾 Enemy"]
-        EnemyIntel["🔍 EnemyIntel"]
-        Counter["⚖️ Counter"]
+        Tactics["Tactics"]
+        Enemy["Enemy"]
+        EnemyIntel["EnemyIntel"]
+        Map["Map"]
+        InfluenceMaps["InfluenceMaps"]
+        Zone["Zone"]
+        Path["Path"]
     end
 
-    subgraph Building
-        BuildOrder["📋 BuildOrder"]
-        SCVBuildStep["🔨 SCVBuildStep"]
-        StructureBuildStep["🏗️ StructureBuildStep"]
-        UpgradeBuildStep["⬆️ UpgradeBuildStep"]
-        SpecialLocations["📍 SpecialLocations"]
-        BuildStarts["🕐 BuildStarts"]
-    end
-
-    subgraph Economy
-        Workers["👷 Workers"]
-        Production["🏭 Production"]
-        Minerals["💎 Minerals"]
-        Vespene["⛽ Vespene"]
-        Facility["🏢 Facility"]
-    end
-
-    subgraph MapModule["Map"]
-        Map["🗺️ Map"]
-        InfluenceMaps["🌡️ InfluenceMaps"]
-        Zone["📍 Zone"]
-        Path["🛤️ Path"]
-    end
-
-    subgraph Squads
-        FormationSquad["🪖 FormationSquad"]
-        Bunker["🏰 Bunker"]
-        HarassSquad["💥 HarassSquad"]
-        HuntingSquad["🎯 HuntingSquad"]
-        StuckRescue["🆘 StuckRescue"]
-        Scouting["👁️ Scouting"]
-        Scout["🔭 Scout"]
-        InitialScout["🔭 InitialScout"]
-        EnemySquad["👾 EnemySquad"]
-        Formation["📐 Formation"]
-        ParentFormation["📐 ParentFormation"]
+    subgraph Macro
+        BuildOrder["BuildOrder"]
+        BuildStep["BuildStep"]
+        SCVBuildStep["SCVBuildStep"]
+        StructureBuildStep["StructureBuildStep"]
+        UpgradeBuildStep["UpgradeBuildStep"]
+        SpecialLocations["SpecialLocations"]
+        BuildStarts["BuildStarts"]
+        Counter["Counter"]
+        Upgrades["Upgrades"]
+        TechTree["TechTree"]
+        Workers["Workers"]
+        Minerals["Minerals"]
+        Vespene["Vespene"]
+        Production["Production"]
+        Facility["Facility"]
     end
 
     subgraph Micro
-        MicroFactory["🔧 MicroFactory"]
-        BaseUnitMicro["🎮 BaseUnitMicro"]
-        StructureMicro["🏗️ StructureMicro"]
-        MarineMicro["🔫 MarineMicro"]
-        MarauderMicro["💪 MarauderMicro"]
-        MedivacMicro["🚁 MedivacMicro"]
-        SiegeTankMicro["🔥 SiegeTankMicro"]
+        MicroFactory["MicroFactory"]
+        BaseUnitMicro["BaseUnitMicro"]
+        MarineMicro["MarineMicro"]
+        MarauderMicro["MarauderMicro"]
+        MedivacMicro["MedivacMicro"]
+        SiegeTankMicro["SiegeTankMicro"]
         OtherMicros["... BansheeMicro\nGhostMicro\nHellionMicro\nRavenMicro\nReaperMicro\nSCVMicro\nVikingMicro\nWidowMineMicro"]
     end
 
     subgraph Data["Data / Utilities"]
-        UnitTypes["📊 UnitTypes"]
-        Upgrades["📈 Upgrades"]
-        TechTree["🌳 TechTree"]
-        Enums["🏷️ Enums"]
-        Mixins["🧩 GeometryMixin\nDebugMixin"]
+        UnitTypes["UnitTypes"]
+        Enums["Enums"]
+        Mixins["GeometryMixin\nDebugMixin"]
+        LogHelper["LogHelper"]
+        UnitReferenceHelper["UnitReferenceHelper"]
     end
 
+    BotTato --> Commander
+
     %% Commander creates
-    Commander -->|creates| Enemy
-    Commander -->|creates| Map
-    Commander -->|creates| Production
-    Commander -->|creates| EnemyIntel
-    Commander -->|creates| StructureMicro
-    Commander -->|creates| Workers
-    Commander -->|creates| Military
-    Commander -->|creates| BuildOrder
-    Commander -->|creates| Scouting
-    Commander -->|calls| MicroFactory
+    Commander --> Tactics
+    Commander --> StructureMicro
+    Commander --> Workers
+    Commander --> Military
+    Commander --> BuildOrder
+    Commander --> Scouting
+
+    Tactics --> Enemy
+    Tactics --> Map
+    Tactics --> EnemyIntel
 
     %% Military creates
-    Military -->|creates| FormationSquad
-    Military -->|creates| Bunker
-    Military -->|creates| HarassSquad
-    Military -->|creates| HuntingSquad
-    Military -->|creates| StuckRescue
-    Military -.->|refs| Enemy
-    Military -.->|refs| Map
-    Military -.->|refs| Workers
-    Military -.->|refs| EnemyIntel
+    Military --> Squad
+    Military -.-> Tactics
+    Military -.-> Workers
+
+    Squad --> FormationSquad
+    Squad --> Bunker
+    Squad --> HarassSquad
+    Squad --> HuntingSquad
+    Squad --> StuckRescue
+    Squad --> MedivacDropSquad
 
     %% BuildOrder creates/refs
-    BuildOrder -->|creates| Counter
-    BuildOrder -->|creates| UnitTypes
-    BuildOrder -->|creates| Upgrades
-    BuildOrder -->|creates| SpecialLocations
-    BuildOrder -->|manages| SCVBuildStep
-    BuildOrder -->|manages| StructureBuildStep
-    BuildOrder -->|manages| UpgradeBuildStep
-    BuildOrder -.->|refs| Workers
-    BuildOrder -.->|refs| Production
-    BuildOrder -.->|refs| Map
-    BuildOrder -.->|refs| Military
-    BuildOrder -.->|refs| EnemyIntel
-    BuildOrder -.->|refs| Enemy
+    BuildOrder --> Counter
+    BuildOrder --> Upgrades
+    BuildOrder --> SpecialLocations
+    BuildOrder --> BuildStep
+    BuildStep --> SCVBuildStep
+    BuildStep --> StructureBuildStep
+    BuildStep --> UpgradeBuildStep
+    BuildOrder -.-> Workers
+    BuildOrder -.-> Production
+    BuildOrder -.-> Military
+    BuildOrder -.-> Tactics
 
     %% Workers
-    Workers -->|creates| Minerals
-    Workers -->|creates| Vespene
-    Workers -.->|refs| Enemy
-    Workers -.->|refs| Map
+    Workers --> Minerals
+    Workers --> Vespene
+    Workers -.-> Tactics
 
     %% Production
-    Production -->|manages| Facility
+    Production --> Facility
 
     %% Map
-    Map -->|creates| InfluenceMaps
-    Map -->|manages| Zone
-    Zone -->|contains| Path
+    Map --> InfluenceMaps
+    Map --> Zone
+    Zone --> Path
 
     %% Scouting
-    Scouting -->|creates| Scout
-    Scouting -->|creates| InitialScout
-    Scouting -.->|refs| Enemy
-    Scouting -.->|refs| Map
-    Scouting -.->|refs| Workers
-    Scouting -.->|refs| Military
-    Scouting -.->|refs| EnemyIntel
+    Scouting --> Scout
+    Scouting --> InitialScout
+    Scouting -.-> Tactics
+    Scouting -.-> Workers
+    Scouting -.-> Military
 
     %% Squad internals
-    FormationSquad -->|creates| ParentFormation
-    ParentFormation -->|manages| Formation
-    StuckRescue -.->|refs| FormationSquad
-    Enemy -->|manages| EnemySquad
-    EnemyIntel -.->|refs| Map
-    EnemyIntel -.->|refs| Enemy
+    FormationSquad --> ParentFormation
+    ParentFormation --> Formation
 
     %% Micro
-    MicroFactory -->|creates/caches| BaseUnitMicro
-    MicroFactory -->|creates/caches| StructureMicro
-    MicroFactory -->|creates/caches| MarineMicro
-    MicroFactory -->|creates/caches| MarauderMicro
-    MicroFactory -->|creates/caches| MedivacMicro
-    MicroFactory -->|creates/caches| SiegeTankMicro
-    MicroFactory -->|creates/caches| OtherMicros
+    MicroFactory --> BaseUnitMicro
+    BaseUnitMicro --> MarineMicro
+    BaseUnitMicro --> MarauderMicro
+    BaseUnitMicro --> MedivacMicro
+    BaseUnitMicro --> SiegeTankMicro
+    BaseUnitMicro --> OtherMicros
 
     %% Data references
-    BuildOrder -.->|uses| TechTree
-    UnitTypes -.->|uses| Enums
-    Counter -.->|uses| UnitTypes
-    Upgrades -.->|uses| TechTree
+    BuildOrder -.-> TechTree
+    Upgrades -.-> TechTree
 ```
 
 ## Inheritance

@@ -171,8 +171,8 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 enemy_unit = UnitReferenceHelper.units_by_tag.get(enemy_tag)
                 if enemy_unit is None:
                     continue
-                other_nearby_threats = Units(cy_closer_than(self.bot.enemy_units, 4, enemy_unit.position), bot_object=self.bot).filter(
-                    lambda unit: UnitTypes.can_attack_air(unit) and unit.tag != enemy_tag)
+                all_threats = self.bot.enemy_units.filter(lambda unit: UnitTypes.can_attack_air(unit) and unit.tag != enemy_tag)
+                other_nearby_threats = Units(cy_closer_than(all_threats, 5, enemy_unit.position), bot_object=self.bot)
                 if len(other_nearby_threats) <= len(defenders) * 3 or UnitTypes.range_vs_target(defenders[0], enemy_unit) > UnitTypes.range_vs_target(enemy_unit, defenders[0]):
                     enemy_health = enemy_unit.health + enemy_unit.shield
                     for defender in defenders:

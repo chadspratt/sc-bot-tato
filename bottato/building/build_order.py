@@ -56,17 +56,16 @@ class BuildOrder():
     rush_defense_enacted: bool = False
     time_to_deviate_from_build_order = 50
 
-    def __init__(self, build_name: str, bot: BotAI, tactics: Tactics, workers: Workers, production: Production) -> None:
+    def __init__(self, build_name: str, bot: BotAI, tactics: Tactics, workers: Workers) -> None:
         self.bot = bot
         self.workers = workers
-        self.production = production
         self.tactics = tactics
+        self.production: Production = Production(bot, self.tactics)
         self.map = tactics.map
         self.intel = tactics.intel
         self.enemy = tactics.enemy
 
         self.counter = Counter()
-        self.unit_types = UnitTypes()
         self.upgrades = Upgrades(bot)
         self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
         self.changes_enacted: Set[BuildOrderChange] = set()
@@ -85,6 +84,7 @@ class BuildOrder():
 
     @timed_async
     async def update_references(self) -> None:
+        await self.production.update_references()
         for build_step in self.all_steps:
             build_step.update_references()
             build_step.draw_debug_box()
@@ -468,7 +468,7 @@ class BuildOrder():
         for unit_type, count in ideal_composition.items():
             if unit_type in (UnitTypeId.MULE, UnitTypeId.SCV) or count < 0:
                 continue
-            supply_cost: int = self.unit_types.get_unit_info(unit_type)["supply"]
+            supply_cost: int = UnitTypes.get_unit_info(unit_type)["supply"]
             ideal_supply += supply_cost * count
         # scale composition to fit military cap
         
@@ -498,7 +498,7 @@ class BuildOrder():
 
             needed_count = ideal_count - existing_count - in_progress_count - queued_count
             if needed_count > 0:
-                # queued_supply += needed_count * self.unit_types.get_unit_info(unit_type)["supply"]
+                # queued_supply += needed_count * UnitTypes.get_unit_info(unit_type)["supply"]
                 if needed_count >= 5 or existing_count + in_progress_count + queued_count == 0:
                     priority_queue.append(unit_type)
                     needed_count -= 1

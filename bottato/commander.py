@@ -18,10 +18,8 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.building.build_order import BuildOrder
-from bottato.economy.production import Production
 from bottato.economy.workers import Workers
-from bottato.enemy import Enemy
-from bottato.enums import BuildType, CustomEffectType, Tactic, WorkerJobType
+from bottato.enums import CustomEffectType
 from bottato.log_helper import LogHelper
 from bottato.map.destructibles import BUILDING_RADIUS
 from bottato.map.map import Map
@@ -31,7 +29,6 @@ from bottato.micro.structure_micro import StructureMicro
 from bottato.military import Military
 from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.squad.bunker import Bunker
-from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.scouting import Scouting
 from bottato.tactics import Tactics
 from bottato.unit_reference_helper import UnitReferenceHelper
@@ -42,18 +39,13 @@ class Commander(GeometryMixin):
     def __init__(self, bot: BotAI) -> None:
         self.bot = bot
 
-        self.enemy: Enemy = Enemy(bot)
-        self.map = Map(bot)
-
-        self.intel = EnemyIntel(bot, self.map, self.enemy)
-        self.tactics: Tactics = Tactics(bot, self.enemy, self.map, self.intel)
-        self.production: Production = Production(bot, self.tactics)
+        self.tactics: Tactics = Tactics(bot)
         MicroFactory.set_common_objects(bot, self.tactics)
         self.structure_micro: StructureMicro = StructureMicro(bot, self.tactics)
         self.my_workers: Workers = Workers(bot, self.tactics)
         self.military: Military = Military(bot, self.tactics, self.my_workers)
         self.build_order: BuildOrder = BuildOrder(
-            "pig_b2gm", bot, self.tactics, self.my_workers, self.production
+            "pig_b2gm", bot, self.tactics, self.my_workers
         )
         self.scouting = Scouting(bot, self.tactics, self.my_workers, self.military)
 
@@ -63,7 +55,7 @@ class Commander(GeometryMixin):
         self.stuck_units: Units = Units([], bot_object=bot)
 
     async def init_map(self):
-        await self.map.init(self.intel.scouting_locations)
+        await self.tactics.map.init(self.tactics.intel.scouting_locations)
         logger.info("Map initialized, initializing scouting routes...")
         self.scouting.init_scouting_routes()
 
@@ -71,9 +63,9 @@ class Commander(GeometryMixin):
     async def command(self, iteration: int):
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(nearest_worker.position), 3, (255, 0, 0))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(self.bot.game_info.map_center), 1, (255, 255, 255))
-        # ramp_to_natural_vector = (self.map.natural_position - self.bot.main_base_ramp.bottom_center).normalized
+        # ramp_to_natural_vector = (self.tactics.map.natural_position - self.bot.main_base_ramp.bottom_center).normalized
         # ramp_to_natural_perp_vector = Point2((-ramp_to_natural_vector.y, ramp_to_natural_vector.x))
-        # toward_natural = Point2(cy_towards(self.bot.main_base_ramp.bottom_center, self.map.natural_position, 3))
+        # toward_natural = Point2(cy_towards(self.bot.main_base_ramp.bottom_center, self.tactics.map.natural_position, 3))
         # candidates = [toward_natural + ramp_to_natural_perp_vector * 3, toward_natural - ramp_to_natural_perp_vector * 3]
         # candidates.sort(key=lambda p: cy_distance_to_squared(p, self.bot.game_info.map_center))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(toward_natural), 1, (0, 255, 0))
@@ -82,14 +74,14 @@ class Commander(GeometryMixin):
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(Point2(cy_towards(toward_natural, self.bot.game_info.map_center, 3)), 1, (0, 0, 255))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(nearest_worker.position, self.bot), 3, (255, 0, 0))
 
-        await self.map.refresh_map() # fast
+        await self.tactics.map.refresh_map() # fast
         # check for stuck units
         await self.detect_stuck_units(iteration) # fast
 
-        self.map.update_influence_maps(self.new_damage_by_position) # fast
+        self.tactics.map.update_influence_maps(self.new_damage_by_position) # fast
         BaseUnitMicro.reset_tag_sets()
 
-        await self.structure_micro.execute(self.intel.army_ratio, self.stuck_units) # fast
+        await self.structure_micro.execute(self.tactics.intel.army_ratio, self.stuck_units) # fast
 
         # do before build_order so scouts can be freed if they're done. mostly applies to building proxy barracks in response to early expansion
         await self.scout() # fast
@@ -101,12 +93,12 @@ class Commander(GeometryMixin):
         self.add_custom_effects_to_avoid()
         # very slow, 70% of command time
         await self.military.manage_squads(iteration,
-                                          self.intel.get_newest_enemy_base(),
-                                          self.intel.enemy_builds_detected,
-                                          self.intel.proxy_buildings)
+                                          self.tactics.intel.get_newest_enemy_base(),
+                                          self.tactics.intel.enemy_builds_detected,
+                                          self.tactics.intel.proxy_buildings)
 
-        await self.my_workers.attack_nearby_enemies(self.intel.enemy_builds_detected) # ultra fast
-        await self.my_workers.redistribute_workers(remaining_resources, self.intel.enemy_builds_detected)
+        await self.my_workers.attack_nearby_enemies(self.tactics.intel.enemy_builds_detected) # ultra fast
+        await self.my_workers.redistribute_workers(remaining_resources, self.tactics.intel.enemy_builds_detected)
         await self.my_workers.speed_mine() # slow, 15% of command time
         # if self.bot.time > 240:
         #     logger.debug(f"minerals gathered: {self.bot.state.score.collected_minerals}")
@@ -153,7 +145,7 @@ class Commander(GeometryMixin):
 
     @timed_async
     async def detect_stuck_units(self, iteration: int):
-        if self.intel.main_army_staging_location and cy_distance_to_squared(self.intel.main_army_staging_location, self.bot.start_location) < 225:
+        if self.tactics.intel.main_army_staging_location and cy_distance_to_squared(self.tactics.intel.main_army_staging_location, self.bot.start_location) < 225:
             # if staging location is too close to start location, don't check for stuck units because they're probably already near start
             return
         if iteration % 3 == 0:
@@ -161,7 +153,7 @@ class Commander(GeometryMixin):
             # skip if ramp depots are raised
             if self.member_is_closer_than(self.bot.main_base_ramp.top_center, self.bot.structures(UnitTypeId.SUPPLYDEPOT), 5):
                 return
-            path_checking_position = await self.map.get_path_checking_position()
+            path_checking_position = await self.tactics.map.get_path_checking_position()
             if path_checking_position is not None:
                 paths_to_check: list[tuple[Unit, Point2]] = [(unit, path_checking_position) for unit in self.bot.units
                                   if unit.type_id != UnitTypeId.SIEGETANKSIEGED and not unit.is_flying
@@ -173,13 +165,13 @@ class Commander(GeometryMixin):
                             self.bot.client.debug_text_3d("STUCK", path[0].position3d)
                             self.stuck_units.append(path[0])
                             logger.debug(f"unit is stuck {path[0]}")
-        await self.military.rescue_stuck_units(self.stuck_units, self.map.path_checking_position)
-        await self.enemy.detect_stuck_enemies(iteration)
+        await self.military.rescue_stuck_units(self.stuck_units, self.tactics.map.path_checking_position)
+        await self.tactics.enemy.detect_stuck_enemies(iteration)
 
     @timed_async
     async def scout(self):
         self.scouting.update_visibility()
-        await self.intel.update()
+        await self.tactics.intel.update()
         await self.scouting.scout(self.new_damage_by_unit)
 
     @timed_async
@@ -187,9 +179,8 @@ class Commander(GeometryMixin):
         self.my_workers.update_references(self.build_order.get_assigned_worker_tags())
         self.military.update_references()
         self.tactics.update_references()
-        self.enemy.update_references()
+        self.tactics.enemy.update_references()
         await self.build_order.update_references()
-        await self.production.update_references()
         self.stuck_units = UnitReferenceHelper.get_updated_unit_references(self.stuck_units)
 
     def update_started_structure(self, unit: Unit):
@@ -198,7 +189,7 @@ class Commander(GeometryMixin):
     def update_completed_structure(self, unit: Unit):
         self.build_order.update_completed_structure(unit)
         LogHelper.write_log_to_db(f'Building', unit.type_id.name)
-        self.production.add_builder(unit)
+        self.build_order.production.add_builder(unit)
         if unit.type_id == UnitTypeId.BARRACKS and len(self.bot.structures(UnitTypeId.BARRACKS)) == 1:
             # set rally point for first barracks away from ramp
             rally_point = Point2(cy_towards(unit.position, self.bot.main_base_ramp.top_center, -2))
@@ -215,7 +206,7 @@ class Commander(GeometryMixin):
                 # not top ramp, assume natural
                 self.military.natural_bunker.structure = unit
                 return
-            new_bunker = Bunker(self.bot, self.enemy, len(self.military.bunkers), unit)
+            new_bunker = Bunker(self.bot, self.tactics.enemy, len(self.military.bunkers), unit)
             self.military.bunkers.append(new_bunker)
             self.military.squads.append(new_bunker)
             return
@@ -256,7 +247,7 @@ class Commander(GeometryMixin):
             if destroyed_unit.type_id == UnitTypeId.BUNKER and destroyed_unit.build_progress == 1.0:
                 LogHelper.add_log('Priority queueing bunker to replace destroyed bunker')
                 self.build_order.add_to_build_queue([UnitTypeId.BUNKER], queue=self.build_order.priority_queue)
-        self.enemy.record_death(unit_tag)
+        self.tactics.enemy.record_death(unit_tag)
         self.military.record_death(unit_tag)
         self.my_workers.record_death(unit_tag)
 
