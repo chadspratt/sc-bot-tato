@@ -43,7 +43,7 @@ class Commander(GeometryMixin):
         MicroFactory.set_common_objects(bot, self.tactics)
         self.structure_micro: StructureMicro = StructureMicro(bot, self.tactics)
         self.my_workers: Workers = Workers(bot, self.tactics)
-        self.military: Military = Military(bot, self.tactics, self.my_workers)
+        self.military: Military = Military(bot, self.tactics)
         self.build_order: BuildOrder = BuildOrder(
             "pig_b2gm", bot, self.tactics, self.my_workers
         )

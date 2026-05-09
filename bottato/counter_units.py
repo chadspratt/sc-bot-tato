@@ -8,7 +8,7 @@ from sc2.units import Units
 from bottato.unit_types import UnitTypes
 
 
-class Counter():
+class CounterUnits():
     counters: dict[UnitTypeId, dict[UnitTypeId, float]] = {
         # Protoss units
         UnitTypeId.ADEPT: { # 2
@@ -240,8 +240,8 @@ class Counter():
 
         counter_units: dict[UnitTypeId, float] = {}
         for enemy_type, enemy_count in enemy_counts.items():
-            if enemy_type in Counter.counters:
-                unit_counters = Counter.counters[enemy_type]
+            if enemy_type in CounterUnits.counters:
+                unit_counters = CounterUnits.counters[enemy_type]
                 for counter_type, counter_count in unit_counters.items():
                     needed = counter_count * enemy_count
                     if counter_type in counter_units:
@@ -258,5 +258,5 @@ class Counter():
 
     @staticmethod
     def get_counter_list(enemy_units: Units) -> List[UnitTypeId]:
-        counter_units = Counter.get_counters(enemy_units)
+        counter_units = CounterUnits.get_counters(enemy_units)
         return [unit for unit, count in counter_units.items() for _ in range(math.ceil(count))]

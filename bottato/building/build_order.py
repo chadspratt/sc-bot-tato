@@ -18,7 +18,7 @@ from bottato.building.scv_build_step import SCVBuildStep
 from bottato.building.special_locations import SpecialLocation, SpecialLocations
 from bottato.building.structure_build_step import StructureBuildStep
 from bottato.building.upgrade_build_step import UpgradeBuildStep
-from bottato.counter import Counter
+from bottato.counter_units import CounterUnits
 from bottato.economy.production import Production
 from bottato.economy.workers import Workers
 from bottato.enemy import Enemy
@@ -30,12 +30,9 @@ from bottato.enums import (
     WorkerJobType,
 )
 from bottato.log_helper import LogHelper
-from bottato.map.map import Map
-from bottato.military import Military
 from bottato.mixins import timed, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.tactics import Tactics
-from bottato.tech_tree import TECH_TREE
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 from bottato.upgrades import Upgrades
@@ -65,7 +62,6 @@ class BuildOrder():
         self.intel = tactics.intel
         self.enemy = tactics.enemy
 
-        self.counter = Counter()
         self.upgrades = Upgrades(bot)
         self.special_locations = SpecialLocations(ramp=self.bot.main_base_ramp)
         self.changes_enacted: Set[BuildOrderChange] = set()
@@ -458,7 +454,7 @@ class BuildOrder():
         worker_supply_cap = min(self.workers.max_workers, self.bot.workers.amount * 1.15)
         military_cap = self.bot.supply_cap - worker_supply_cap
         enemy_army = enemy.get_army(include_scouts=True, seconds_since_killed=60)
-        ideal_composition = self.counter.get_counters(enemy_army)
+        ideal_composition = CounterUnits.get_counters(enemy_army)
         current_composition = UnitTypes.count_units_by_type(self.bot.units)
         if not ideal_composition:
             # if no enemy units, current army is doing pretty well?

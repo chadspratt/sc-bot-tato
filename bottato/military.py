@@ -19,8 +19,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bottato.counter import Counter
-from bottato.economy.workers import Workers
+from bottato.counter_units import CounterUnits
 from bottato.enums import ArmyMode, BuildType, ExpansionSelection, Tactic
 from bottato.log_helper import LogHelper
 from bottato.micro.micro_factory import MicroFactory
@@ -39,13 +38,12 @@ from bottato.unit_types import UnitTypes
 
 
 class Military(GeometryMixin, DebugMixin):
-    def __init__(self, bot: BotAI, tactics: Tactics, workers: Workers) -> None:
+    def __init__(self, bot: BotAI, tactics: Tactics) -> None:
         self.bot = bot
         self.tactics = tactics
         self.enemy = tactics.enemy
         self.map = tactics.map
         self.intel = tactics.intel
-        self.workers = workers
 
         self.squads: List[Squad] = []
         self.squads_by_unit_tag: Dict[int, Squad | None] = {}
@@ -262,10 +260,6 @@ class Military(GeometryMixin, DebugMixin):
 
         # assign squads to counter enemies that are alone or in small groups
         for enemy in self.enemies_in_base:
-            if not self.main_army.units and enemy.type_id == UnitTypeId.PROBE:
-                # cannon rush response
-                self.workers.attack_enemy(enemy)
-                continue
             if BuildType.RUSH in detected_enemy_builds and len(self.main_army.units) < 10:
                 # don't send out units if getting rushed and army is small
                 defend_with_main_army = True
@@ -284,7 +278,7 @@ class Military(GeometryMixin, DebugMixin):
             defense_squad = FormationSquad(self.bot, self.enemy, self.map, name=f"defense{defense_squad_count}")
             defense_squad_count += 1
 
-            desired_counters = Counter.get_counter_list(Units(enemy_group, self.bot))
+            desired_counters = CounterUnits.get_counter_list(Units(enemy_group, self.bot))
             if not desired_counters:
                 continue
             for unit_type in desired_counters:
