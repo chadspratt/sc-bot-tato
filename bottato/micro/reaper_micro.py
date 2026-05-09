@@ -243,8 +243,8 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                     # follow path to avoid hopping back up a cliff
                     unit.move(path.zones[1].midpoint)
                 else:
-                    # might be on a double ledge with no pathing
-                    unit.move(self.bot.start_location)
+                    # in the destination zone, just move to the location
+                    unit.move(self.retreat_scout_location)
                 return UnitMicroType.RETREAT
 
             destination = self.bot.start_location

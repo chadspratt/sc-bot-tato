@@ -514,9 +514,10 @@ class Map(GeometryMixin):
         
         for enemy in self.bot.all_enemy_units:
             if enemy.is_detector:
-                self.influence_maps.add_cost((enemy.position[0], enemy.position[1]), enemy.sight_range + 1.5, self.detection_grid)
-            if enemy.type_id in self.anti_air_structures and enemy.is_ready:
-                self.influence_maps.add_cost((enemy.position[0], enemy.position[1]), UnitTypes.air_range(enemy) + 1.5, self.anti_air_grid)
+                self.influence_maps.add_cost((enemy.position[0], enemy.position[1]), enemy.sight_range + 1.5, self.detection_grid, np.inf)
+            air_range = UnitTypes.air_range(enemy)
+            if air_range > 0 and enemy.is_ready:
+                self.influence_maps.add_cost((enemy.position[0], enemy.position[1]), air_range + 1.5, self.anti_air_grid)
         for effect in self.bot.state.effects:
             if effect.id == EffectId.SCANNERSWEEP:
                 for position in effect.positions:

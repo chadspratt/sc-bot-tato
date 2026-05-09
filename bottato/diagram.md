@@ -145,3 +145,58 @@ graph TD
     BaseUnitMicro --> OtherMicros
     BaseUnitMicro --> StructureMicro
 ```
+
+## Micro
+```mermaid
+stateDiagram-v2
+    state move {
+        [*] --> avoid_effects
+        avoid_effects --> use_ability: no action taken
+        avoid_effects --> [*]: action taken
+        use_ability --> move_to_repairer
+        use_ability --> [*]
+        move_to_repairer --> _attack_something
+        move_to_repairer --> [*]
+        _attack_something --> _retreat
+        _attack_something --> [*]
+        _retreat --> _move_unit
+        _retreat --> [*]
+        _move_unit --> [*]
+    }
+    state harass {
+        [*] --> _avoid_effects
+        _avoid_effects --> _use_ability: no action taken
+        _avoid_effects --> [*]: action taken
+        _use_ability --> _move_to_repairer
+        _use_ability --> [*]
+        _move_to_repairer --> _harass_attack_something
+        _move_to_repairer --> [*]
+        _harass_attack_something --> _harass_retreat
+        _harass_attack_something --> [*]
+        _harass_retreat --> _harass_move_unit
+        _harass_retreat --> [*]
+        _harass_move_unit --> [*]
+    }
+    state scout {
+        [*] --> Avoid_effects
+        Avoid_effects --> Retreat: no action taken
+        Avoid_effects --> [*]: action taken
+        Retreat --> Attack_something
+        Retreat --> [*]
+        Attack_something --> Move
+        Attack_something --> [*]
+        Move --> [*]
+    }
+    state repair {
+        [*] --> Avoid_Effects
+        Avoid_Effects --> Repair_Defenses: no action taken
+        Avoid_Effects --> [*]: action taken
+        Repair_Defenses --> _retreat_to_better_unit
+        Repair_Defenses --> [*]
+        _retreat_to_better_unit --> _Retreat
+        _retreat_to_better_unit --> [*]
+        _Retreat --> Repair
+        _Retreat --> [*]
+        Repair --> [*]
+    }
+```

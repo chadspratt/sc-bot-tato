@@ -68,11 +68,8 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         nearest_priority, nearest_priority_distance = self.tactics.enemy.get_closest_target(unit, included_types=UnitTypes.get_priority_target_types(unit))
         maximum_hunting_distance = 150
         if nearest_priority and nearest_priority_distance < maximum_hunting_distance:
-            if can_attack:
-                threats.append(nearest_priority)
-                return self._kite(unit, threats)
-            else:
-                return self._stay_at_max_range(unit, Units([nearest_priority], bot_object=self.bot))
+            threats.append(nearest_priority)
+            return self._kite(unit, threats)
         if self.cloak_researched and self.bot.enemy_units((UnitTypeId.OBSERVER, UnitTypeId.OVERSEER, UnitTypeId.RAVEN)).amount == 0:
             nearest_enemy, enemy_distance = self.tactics.enemy.get_closest_target(unit, include_structures=False)
             if nearest_enemy and enemy_distance < 20 and can_attack:

@@ -216,15 +216,13 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             if self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6, first_only=True):
                 return UnitMicroType.NONE
 
-        if can_attack and not unit.is_flying:
-            # stick to assigned targets for flying but landed can target normally
-            closest_target = cy_closest_to(unit.position, candidates)
-            if closest_target.is_structure:
-                unit.attack(closest_target)
-                return UnitMicroType.ATTACK
-            return self._kite(unit, candidates)
-
-        return self._stay_at_max_range(unit, candidates)
+        # if can_attack and not unit.is_flying:
+        #     # stick to assigned targets for flying but landed can target normally
+        #     closest_target = cy_closest_to(unit.position, candidates)
+        #     if closest_target.is_structure:
+        #         unit.attack(closest_target)
+        #         return UnitMicroType.ATTACK
+        return self._kite(unit, candidates)
     
     # copied from banshee micro
     @timed
