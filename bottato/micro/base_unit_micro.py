@@ -263,20 +263,18 @@ class BaseUnitMicro(GeometryMixin):
             i -= 1
         # avoid all nearby
         if effects_to_avoid:
+            move_away_from_position = self.bot.enemy_start_locations[0]
             number_of_effects = len(effects_to_avoid)
             if number_of_effects == 1:
-                # move directly away from effect
-                if unit.position == effects_to_avoid[0]:
-                    new_position = Point2(cy_towards(unit.position, self.bot.start_location, 2))
-                else:
-                    new_position = Point2(cy_towards(unit.position, effects_to_avoid[0], -2))
-                unit.move(new_position)
-                return UnitMicroType.AVOID_EFFECTS
-            average_x = sum(p.x for p in effects_to_avoid) / number_of_effects
-            average_y = sum(p.y for p in effects_to_avoid) / number_of_effects
-            average_position = Point2((average_x, average_y))
-            # move out of effect radius
-            new_position = Point2(cy_towards(unit.position, average_position, -2))
+                if unit.position != effects_to_avoid[0]:
+                    move_away_from_position = effects_to_avoid[0]
+            else:
+                average_x = sum(p.x for p in effects_to_avoid) / number_of_effects
+                average_y = sum(p.y for p in effects_to_avoid) / number_of_effects
+                average_position = Point2((average_x, average_y))
+                if unit.position != average_position:
+                    move_away_from_position = average_position
+            new_position = Point2(cy_towards(unit.position, move_away_from_position, -2))
             unit.move(new_position)
             return UnitMicroType.AVOID_EFFECTS
         return UnitMicroType.NONE
