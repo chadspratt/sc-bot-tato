@@ -567,7 +567,7 @@ class BaseUnitMicro(GeometryMixin):
         return UnitMicroType.NONE
     
     def _get_desired_attack_range(self, unit: Unit, target: Unit) -> float:
-        desired_distance: float = max(2.5, target.radius + unit.radius)
+        desired_distance: float = min(2.5, target.radius + unit.radius)
 
         unit_range = UnitTypes.range_vs_target(unit, target)
         target_range = UnitTypes.range_vs_target(target, unit)
