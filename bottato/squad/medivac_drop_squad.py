@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from enum import Enum, auto
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 from cython_extensions.geometry import cy_distance_to_squared, cy_towards
 from sc2.bot_ai import BotAI
@@ -18,6 +18,7 @@ from bottato.micro.medivac_micro import MedivacMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.harass_squad import HarassSquad
+from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 
 
@@ -45,6 +46,7 @@ class MedivacDropSquad(HarassSquad):
         self.initial_marine_count: int = 0
         # clockwise=1, counter-clockwise=-1, keyed by medivac tag
         self.flank_direction: Dict[int, int] = {}
+        self.marine_tags: List[int] = []
         self.medivac_micro: BaseUnitMicro = MicroFactory.get_unit_micro(UnitTypeId.MEDIVAC)
         
         self.enemy_corner = self._nearest_corner(self.bot.enemy_start_locations[0])
@@ -183,27 +185,33 @@ class MedivacDropSquad(HarassSquad):
         return flank_position
 
     def _best_attack_target(self, medivac: Unit) -> Optional[Unit]:
-        if self.bot.enemy_units:
+        if self.bot.enemy_units.exclude_type([UnitTypeId.LARVA, UnitTypeId.EGG, UnitTypeId.CHANGELING,
+                                              UnitTypeId.ADEPTPHASESHIFT, UnitTypeId.MULE]):
             return self.bot.enemy_units.closest_to(medivac.position)
-        if self.bot.enemy_structures:
+        if self.bot.enemy_structures.exclude_type([UnitTypeId.REFINERY, UnitTypeId.EXTRACTOR, UnitTypeId.ASSIMILATOR,
+                                                   UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORQUEEN, UnitTypeId.BUNKER,
+                                                   UnitTypeId.PHOTONCANNON, UnitTypeId.SPORECRAWLER, UnitTypeId.SPINECRAWLER,
+                                                   UnitTypeId.PLANETARYFORTRESS]):
             return self.bot.enemy_structures.closest_to(medivac.position)
         return None
 
     # Override harass from HarassSquad — completely different behaviour
     async def harass(self, intel: EnemyIntel):
-        if not self.units:
-            return
+        # Re-add any marines that were unloaded from the medivac back into self.units
+        if self.marine_tags and len(self.marine_tags) > len(self.units) - 1:
+            for marine in UnitReferenceHelper.get_updated_unit_references_by_tags(self.marine_tags):
+                self.recruit(marine)
 
         medivac = self.medivac_unit
         if not medivac:
             self.state = DropState.DISBANDING
             return
 
-        # Check disband condition (3 marines killed)
+        # Check disband condition (1 marine killed)
         if (
             self.state not in (DropState.LOADING, DropState.DISBANDING)
             and self.initial_marine_count > 0
-            and self._marines_killed(medivac) >= 3
+            and self._marines_killed(medivac) >= 1
         ):
             self.state = DropState.DISBANDING
 
@@ -350,12 +358,18 @@ class MedivacDropSquad(HarassSquad):
 
     def load_marines(self) -> bool:
         # load marines into transport, return True if all marines loaded or no medivac
-        if not self.medivac_unit:
+        medivac = self.medivac_unit
+        if not medivac:
             return True
         if not self.marines:
             return True
-        self.medivac_unit(AbilityId.LOAD, self.marines[0])
+        # Save tags of visible marines before they enter cargo and disappear from all_units
         for marine in self.marines:
-            marine.smart(self.medivac_unit)
+            if marine.tag not in self.marine_tags:
+                self.marine_tags.append(marine.tag)
+        nearest = self.marines.closest_to(medivac.position)
+        medivac(AbilityId.LOAD, nearest)
+        for marine in self.marines:
+            marine.smart(medivac)
         return False
 

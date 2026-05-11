@@ -211,7 +211,8 @@ class CreepClearingSquad(HuntingSquad):
                     await micro.harass(raven, self.current_waypoint)
             return
 
-        squad_center = ground_units.center
+        _, group_units = self.get_most_grouped_unit(ground_units, self.bot)
+        squad_center = group_units.center
         for raven in ravens:
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(raven)
             dist_sq = cy_distance_to_squared(raven.position, squad_center)

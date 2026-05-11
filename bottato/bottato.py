@@ -79,6 +79,10 @@ class BotTato(BotAI):
                 )
                 await self.client.leave()
                 return
+        if self.units.amount == 0:
+            logger.info("No units remaining. Forfeiting.")
+            await self.client.leave()
+            return
 
         for action_error in self.state.action_errors:
             try:

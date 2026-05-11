@@ -78,6 +78,9 @@ class Enemy(GeometryMixin):
                 self.enemies_out_of_view.remove(enemy_unit)
             elif enemy_unit.tag in UnitReferenceHelper.units_by_tag or time_since_last_seen > self.unit_may_not_exist_seconds:
                 self.enemies_out_of_view.remove(enemy_unit)
+            elif enemy_unit.type_id.name.endswith("BURROWED"):
+                # treat out-of-view burrowed as stationary
+                self.predicted_positions[enemy_unit.tag] = self.get_predicted_position(enemy_unit, 0)
             else:
                 # assume unit continues in same direction
                 self.last_seen_positions[enemy_unit.tag].append(None)
@@ -85,32 +88,31 @@ class Enemy(GeometryMixin):
                 # move projection to edge of visibility
                 if self.is_visible(new_prediction, enemy_unit.radius):
                     if self.last_seen_position[enemy_unit.tag] != new_prediction:
-                        predicted_vector = (new_prediction - self.last_seen_position[enemy_unit.tag]).normalized
-                    elif self.bot.units:
+                        predicted_vector = new_prediction - self.last_seen_position[enemy_unit.tag]
+                    else:
                         closest_friendly_unit = self.closest_unit_to_unit(enemy_unit, self.bot.units)
                         predicted_vector = new_prediction - closest_friendly_unit.position
-                        if predicted_vector.length > 0:
-                            predicted_vector = predicted_vector.normalized
-                    else:
-                        continue
-                    position_found = False
-                    # check both directions along predicted vector
-                    # checking forward is useful when enemy unit is running away
-                    # checking backward is useful when friendly unit is running away
-                    # use whichever direction gets out of vision first
-                    new_prediction1 = new_prediction + predicted_vector
-                    new_prediction2 = new_prediction - predicted_vector
-                    while not position_found:
-                        if not self.is_visible(new_prediction1, enemy_unit.radius):
-                            position_found = True
-                            new_prediction = new_prediction1
-                            break
-                        if not self.is_visible(new_prediction2, enemy_unit.radius):
-                            position_found = True
-                            new_prediction = new_prediction2
-                            break
-                        new_prediction1 += predicted_vector
-                        new_prediction2 -= predicted_vector
+
+                    if predicted_vector.length > 0:
+                        predicted_vector = predicted_vector.normalized
+                        position_found = False
+                        # check both directions along predicted vector
+                        # checking forward is useful when enemy unit is running away
+                        # checking backward is useful when friendly unit is running away
+                        # use whichever direction gets out of vision first
+                        new_prediction1 = new_prediction + predicted_vector
+                        new_prediction2 = new_prediction - predicted_vector
+                        while not position_found:
+                            if not self.is_visible(new_prediction1, enemy_unit.radius):
+                                position_found = True
+                                new_prediction = new_prediction1
+                                break
+                            if not self.is_visible(new_prediction2, enemy_unit.radius):
+                                position_found = True
+                                new_prediction = new_prediction2
+                                break
+                            new_prediction1 += predicted_vector
+                            new_prediction2 -= predicted_vector
                 self.predicted_positions[enemy_unit.tag] = new_prediction
 
                 if time_since_last_seen <= self.unit_probably_moved_seconds:

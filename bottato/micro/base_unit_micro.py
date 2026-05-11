@@ -505,7 +505,7 @@ class BaseUnitMicro(GeometryMixin):
         can_attack = unit.weapon_cooldown < self.time_in_frames_to_attack
 
         # keep distance from zerg structures that spawn broodlings on death
-        if self.tactics.intel.enemy_race == Race.Zerg:
+        if self.tactics.intel.enemy_race == Race.Zerg and not unit.is_flying:
             structures_to_avoid = self.bot.enemy_structures.filter(lambda s: s.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS)
             for structure in structures_to_avoid:
                 threat_distance = self.distance(unit, structure, self.tactics.enemy.predicted_positions) - structure.radius - unit.radius
@@ -513,7 +513,7 @@ class BaseUnitMicro(GeometryMixin):
                 if threat_distance < desired_distance:
                     threats_to_avoid.append(structure)
 
-        threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=2)
+        threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3)
         threats.extend(targets)
         for threat in threats:
             attack_range = UnitTypes.range_vs_target(unit, threat)
@@ -525,9 +525,9 @@ class BaseUnitMicro(GeometryMixin):
                 unit.attack(threat)
                 return UnitMicroType.ATTACK
 
-            desired_distance = self._get_desired_attack_range(unit, threat)
 
             if threat_range > 0:
+                desired_distance = self._get_desired_attack_range(unit, threat)
                 if threat_distance < desired_distance:
                     can_outrun = can_outrun and unit.movement_speed >= threat.movement_speed
                     if threat.type_id in UnitTypes.WORKER_TYPES:
@@ -567,12 +567,12 @@ class BaseUnitMicro(GeometryMixin):
         return UnitMicroType.NONE
     
     def _get_desired_attack_range(self, unit: Unit, target: Unit) -> float:
-        desired_distance: float = target.radius + unit.radius
+        desired_distance: float = max(2.5, target.radius + unit.radius)
 
         unit_range = UnitTypes.range_vs_target(unit, target)
         target_range = UnitTypes.range_vs_target(target, unit)
  
-        if unit_range == 0:
+        if unit_range == 0 or target.type_id in UnitTypes.get_priority_avoidance_types(unit):
             desired_distance += target_range + 0.5
         elif target.type_id in UnitTypes.WORKER_TYPES:
             desired_distance += 3.0
