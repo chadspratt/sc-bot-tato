@@ -311,7 +311,6 @@ class Military(GeometryMixin, DebugMixin):
         if self.tactics.is_active(Tactic.PROXY_BARRACKS):
             self.empty_bunker(bunker)
             return
-        
         for passenger in bunker.structure.passengers:
             if passenger.type_id == UnitTypeId.SCV:
                 # SCV accidentally entered bunker, remove them
@@ -336,16 +335,17 @@ class Military(GeometryMixin, DebugMixin):
                 enemy_is_almost_in_range = True
             if enemy_distance_to_bunker < bunker_range:
                 enemy_is_in_range = True
-            elif is_occupied_by_healthy_unit:
-                # kick out healthy if enemies are too far
-                self.empty_bunker(bunker, closest_enemy)
-                return
-        else:
+
+        if not (keep_occupied or enemy_is_almost_in_range):
             # no enemies nearby but maybe was recently attacked
-            last_attacked = self.last_damage_taken_time.get(bunker.structure.tag, 0)
-            recently_attacked = self.bot.time - last_attacked < 60
-            if not recently_attacked and not keep_occupied:
-                self.empty_bunker(bunker)
+            do_empty = is_occupied_by_healthy_unit
+            if not do_empty:
+                last_attacked = self.last_damage_taken_time.get(bunker.structure.tag, 0)
+                recently_attacked = self.bot.time - last_attacked < 60
+                do_empty = not recently_attacked
+            if do_empty:
+                if is_currently_occupied:
+                    self.empty_bunker(bunker)
                 return
 
         # add units to bunker
@@ -362,9 +362,11 @@ class Military(GeometryMixin, DebugMixin):
                 pass
 
         cargo_max = bunker.structure.cargo_max
-        cargo_used = sum(u.cargo_size for u in bunker.units)
-        cargo_remaining = cargo_max - cargo_used
-        if cargo_used < cargo_max:
+        cargo_used = bunker.structure.cargo_used
+        cargo_assigned = cargo_used + sum(u.cargo_size for u in bunker.units)
+
+        cargo_remaining = cargo_max - cargo_assigned
+        if cargo_assigned < cargo_max:
             for squad in self.squads:
                 if squad == self.main_army or squad.name.startswith("defense"):
                     valid_units = squad.units.of_type({UnitTypeId.MARINE, UnitTypeId.MARAUDER, UnitTypeId.GHOST})
@@ -433,8 +435,14 @@ class Military(GeometryMixin, DebugMixin):
     @timed_async
     async def manage_medivac_drop(self):
         """Create and manage a medivac drop harass squad when conditions are met."""
-        medivacs = self.main_army.units.of_type(UnitTypeId.MEDIVAC)
-        marines = self.main_army.units.of_type(UnitTypeId.MARINE)
+        enemy_threats = self.bot.enemy_units.exclude_type(UnitTypes.NON_THREATS)
+        medivacs = self.main_army.units.of_type(UnitTypeId.MEDIVAC).filter(
+            lambda m: not GeometryMixin.member_is_closer_than(m, enemy_threats, 15)
+        )
+        marines = self.main_army.units.of_type(UnitTypeId.MARINE).filter(
+            lambda m: not GeometryMixin.member_is_closer_than(m, enemy_threats, 15)
+        )
+        # form from medivac and marines that aren't currently near a battle
 
         if self.medivac_drop is None:
             if self.bot.time < self.medivac_drop_last_disband + self.medivac_drop_disband_cooldown:

@@ -31,6 +31,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     units_to_pick_up_last_update: int = -1
     units_to_pick_up_potential_damage: dict[int, float] = {}
     threat_damage: dict[UnitTypeId, float] = {}
+    harassing_medivacs: dict[int, float] = {}
 
     # @timed_async
     # async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
@@ -88,7 +89,8 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                     passenger.move(unit.position) # possible passenger already received an order, but shouldn't hurt
                     self.units_to_pick_up.remove(passenger)
                     return UnitMicroType.USE_ABILITY
-        if unit.cargo_used > 0 and unit.distance_to_squared(move_position) < 100 and self.closest_distance_squared(unit, self.bot.enemy_units) > 100:
+        is_harassing = self.bot.time - self.harassing_medivacs.get(unit.tag, 0) < 5
+        if not is_harassing and unit.cargo_used > 0 and unit.distance_to_squared(move_position) < 100 and self.closest_distance_squared(unit, self.bot.enemy_units) > 100:
             unit(AbilityId.UNLOADALLAT, unit)
             return UnitMicroType.USE_ABILITY
         if not self.heal_available(unit):
@@ -117,6 +119,9 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
 
         return UnitMicroType.USE_ABILITY if unit.tag in self.bot.unit_tags_received_action else UnitMicroType.NONE
 
+    def _harass_attack_something(self, unit: Unit, health_threshold: float, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
+        self.harassing_medivacs[unit.tag] = self.bot.time
+        return super()._harass_attack_something(unit, health_threshold, harass_location, force_move)
     # @timed
     # def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
     #     # doesn't have an attack
@@ -142,7 +147,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
         return self._move_unit(unit, target, previous_position)
         
     def use_booster(self, unit: Unit) -> bool:
-        if unit.tag in self.last_afterburner_time and self.bot.time - self.last_afterburner_time[unit.tag] < 14.0:
+        if unit.tag in self.last_afterburner_time and self.bot.time - self.last_afterburner_time[unit.tag] < 14.3:
             return False
         unit(AbilityId.EFFECT_MEDIVACIGNITEAFTERBURNERS)
         self.last_afterburner_time[unit.tag] = self.bot.time

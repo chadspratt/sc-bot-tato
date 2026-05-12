@@ -16,6 +16,7 @@ graph TD
         HarassSquad["HarassSquad"]
         HuntingSquad["HuntingSquad"]
         MedivacDropSquad["MedivacDropSquad"]
+        CreepClearingSquad
     end
     
     subgraph scout
@@ -96,7 +97,8 @@ graph TD
     Squad --> HarassSquad
     Squad --> HuntingSquad
     Squad --> StuckRescue
-    Squad --> MedivacDropSquad
+    HarassSquad --> MedivacDropSquad
+    HuntingSquad --> CreepClearingSquad
 
     %% BuildOrder creates/refs
     BuildOrder --> BuildStep

@@ -1,15 +1,13 @@
-from typing import Dict
 
 from sc2.bot_ai import BotAI
 from sc2.ids.ability_id import AbilityId
-from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
-from sc2.units import Units
 
 from bottato.enemy import Enemy
 from bottato.mixins import GeometryMixin
 from bottato.squad.squad import Squad
 from bottato.unit_reference_helper import UnitReferenceHelper
+
 
 class Bunker(Squad, GeometryMixin):
     def __init__(self, bot: BotAI, enemy: Enemy, number: int, structure: Unit | None = None):
@@ -42,6 +40,7 @@ class Bunker(Squad, GeometryMixin):
         return self.structure and len(self.units) < 4
     
     def update_references(self):
+        super().update_references()
         if self.structure:
             try:
                 self.structure = UnitReferenceHelper.get_updated_unit_reference(self.structure)

@@ -19,8 +19,8 @@ class CounterUnits():
             UnitTypeId.MARINE: 2
         },
         UnitTypeId.ARCHON: { # 4
-            UnitTypeId.THOR: 0.6,
-            UnitTypeId.GHOST: 0.4,
+            UnitTypeId.THOR: 0.4,
+            UnitTypeId.GHOST: 0.6,
             UnitTypeId.SIEGETANK: 0.2
         },
         UnitTypeId.CARRIER: { # 6

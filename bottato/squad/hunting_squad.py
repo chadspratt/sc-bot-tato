@@ -41,6 +41,7 @@ class HuntingSquad(Squad, GeometryMixin):
         return f"HuntingSquad({self.name},{len(self.units)})"
 
     unsafe_targets: Dict[int, float] = {}
+    unsafe_points: Dict[Point2, float] = {}
     @timed_async
     async def hunt(self, target_types: Set[UnitTypeId]):
         if not self.units:
@@ -58,10 +59,11 @@ class HuntingSquad(Squad, GeometryMixin):
         if candidates:
             self.next_location = None
             self.closest_distance_to_next_location = float('inf')
-            target = self.closest_unit_to_unit(self.units.center, candidates)
+            target = self.closest_unit_to_unit(self.units.center, candidates, self.enemy.predicted_positions)
+            target_position = self.enemy.predicted_positions.get(target.tag, target.position)
             for unit in self.units:
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
-                destination = Point2(cy_towards(target.position, unit.position, UnitTypes.range_vs_target(unit, target) - 0.5))
+                destination = Point2(cy_towards(target_position, unit.position, UnitTypes.range_vs_target(unit, target) - 0.5))
                 if await micro.scout(unit, destination) == UnitMicroType.RETREAT:
                     self.unsafe_targets[target.tag] = self.bot.time
         else:

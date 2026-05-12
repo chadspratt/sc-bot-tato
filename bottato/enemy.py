@@ -592,8 +592,10 @@ class Enemy(GeometryMixin):
         for candidate in candidates:
             if visible_only and candidate.age != 0:
                 continue
-            range = self.distance(friendly_unit, candidate) - friendly_unit.radius - candidate.radius
             attack_range = UnitTypes.range_vs_target(friendly_unit, candidate)
+            if attack_range == 0:
+                continue
+            range = self.distance(friendly_unit, candidate) - friendly_unit.radius - candidate.radius
             if range <= attack_range:
                 enemies_in_range.append(candidate)
         return enemies_in_range

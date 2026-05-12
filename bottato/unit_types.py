@@ -615,7 +615,9 @@ class UnitTypes(GeometryMixin):
     @staticmethod
     def get_priority_avoidance_types(unit: Unit) -> Set[UnitTypeId]:
         if unit.type_id == UnitTypeId.BANSHEE:
-            return {UnitTypeId.HYDRALISK,}
+            return {UnitTypeId.HYDRALISK, UnitTypeId.QUEEN,
+                    UnitTypeId.CYCLONE, UnitTypeId.WIDOWMINEBURROWED,
+                    UnitTypeId.STALKER, UnitTypeId.HIGHTEMPLAR}
         return set()
 
     type_by_attribute_cache: Dict[Tuple[UnitAttribute, Race], Set[UnitTypeId]] = {}

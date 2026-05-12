@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import math
-from typing import Dict, Set
+from typing import Dict, List, Set
 
 from cython_extensions.geometry import (
-    cy_angle_to,
     cy_distance_to,
     cy_distance_to_squared,
     cy_towards,
 )
+from cython_extensions.units_utils import cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
+from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.enums import ExpansionSelection, UnitMicroType
@@ -80,7 +81,7 @@ class CreepClearingSquad(HuntingSquad):
         ))
         return center + offset
 
-    def _sort_targets_by_edge_priority(self, targets: Units) -> list:
+    def _sort_targets_by_edge_priority(self, targets: List[Unit | Point2]) -> List[Unit | Point2]:
         """Sort creep targets so those closest to friendly structures come first."""
         structures = self.bot.townhalls
         if not structures:
@@ -106,21 +107,34 @@ class CreepClearingSquad(HuntingSquad):
         ground_units = self._get_ground_units()
         ravens = self._get_raven()
 
-        # --- find creep targets ---
-        all_targets = self.enemy.get_recent_enemies().filter(
-            lambda u: u.type_id in target_types
-        )
-        safe_targets = all_targets.filter(
-            lambda u: self.bot.time - self.unsafe_targets.get(u.tag, 0) > 20
-        )
+        # check for need detection targets and prioritize those before hunting for creep to clear
+        all_targets: List[Unit | Point2] = self.tactics.enemy.things_needing_detection()
+        if not all_targets:        
+            # --- find creep targets ---
+            all_targets.extend(self.enemy.get_recent_enemies().filter(
+                lambda u: u.type_id in target_types
+            ))
+        safe_targets: List[Unit | Point2] = []
+        for t in all_targets:
+            if isinstance(t, Unit):
+                if self.bot.time - self.unsafe_targets.get(t.tag, 0) > 20:
+                    safe_targets.append(t)
+            else:
+                if self.bot.time - self.unsafe_points.get(t, 0) > 20:
+                    safe_targets.append(t)
+        
         if not safe_targets:
-            safe_targets = all_targets.filter(
-                lambda u: self.bot.time - self.unsafe_targets.get(u.tag, 0) > 5
-            )
+            for t in all_targets:
+                if isinstance(t, Unit):
+                    if self.bot.time - self.unsafe_targets.get(t.tag, 0) > 5:
+                        safe_targets.append(t)
+                else:
+                    if self.bot.time - self.unsafe_points.get(t, 0) > 5:
+                        safe_targets.append(t)
 
         # --- priority 2: edge-first — sort by proximity to friendly structures ---
         if safe_targets:
-            sorted_targets = self._sort_targets_by_edge_priority(safe_targets)
+            sorted_targets: List[Unit | Point2] = self._sort_targets_by_edge_priority(safe_targets)
             target = sorted_targets[0]
 
             # Reset patrol state while actively clearing
@@ -139,7 +153,10 @@ class CreepClearingSquad(HuntingSquad):
                     )
                 )
                 if await micro.move(unit, destination) == UnitMicroType.RETREAT:
-                    self.unsafe_targets[target.tag] = self.bot.time
+                    if isinstance(target, Unit):
+                        self.unsafe_targets[target.tag] = self.bot.time
+                    else:
+                        self.unsafe_points[target] = self.bot.time
 
             # Raven keeps ground units in view instead of running independently
             await self._raven_follow_squad(ravens, ground_units)

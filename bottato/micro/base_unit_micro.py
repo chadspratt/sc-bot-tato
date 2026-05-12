@@ -290,7 +290,7 @@ class BaseUnitMicro(GeometryMixin):
         if unit.tag in BaseUnitMicro.repairers_by_target_prev_frame and unit.health_percentage < 1.0 and self.bot.minerals > 30:
             if unit.health_percentage > 0.8:
                 # check for targets nearby and don't waste time getting repaired if there are
-                target = self._get_attack_target(unit, self.bot.enemy_units, bonus_distance=7)
+                target = self._get_attack_target(unit, self.bot.enemy_units, bonus_distance=7, require_in_range_target=True)
                 if target:
                     return UnitMicroType.NONE
             repairer_tags = BaseUnitMicro.repairers_by_target_prev_frame[unit.tag]
@@ -567,7 +567,8 @@ class BaseUnitMicro(GeometryMixin):
         return UnitMicroType.NONE
     
     def _get_desired_attack_range(self, unit: Unit, target: Unit) -> float:
-        desired_distance: float = min(2.5, target.radius + unit.radius)
+        # units don't get close enough to 5x5 structures if using actual radius of 2.5, so override with 1.5
+        desired_distance: float = min(1.5, target.radius) + unit.radius
 
         unit_range = UnitTypes.range_vs_target(unit, target)
         target_range = UnitTypes.range_vs_target(target, unit)

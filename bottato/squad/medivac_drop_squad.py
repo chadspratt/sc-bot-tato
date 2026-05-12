@@ -4,7 +4,11 @@ import math
 from enum import Enum, auto
 from typing import Dict, List, Optional
 
-from cython_extensions.geometry import cy_distance_to_squared, cy_towards
+from cython_extensions.geometry import (
+    cy_distance_to,
+    cy_distance_to_squared,
+    cy_towards,
+)
 from sc2.bot_ai import BotAI
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -48,6 +52,7 @@ class MedivacDropSquad(HarassSquad):
         self.flank_direction: Dict[int, int] = {}
         self.marine_tags: List[int] = []
         self.medivac_micro: BaseUnitMicro = MicroFactory.get_unit_micro(UnitTypeId.MEDIVAC)
+        self.marine_micro: BaseUnitMicro = MicroFactory.get_unit_micro(UnitTypeId.MARINE)
         
         self.enemy_corner = self._nearest_corner(self.bot.enemy_start_locations[0])
 
@@ -208,10 +213,14 @@ class MedivacDropSquad(HarassSquad):
             return
 
         # Check disband condition (1 marine killed)
+        
+        have_healthy_passengers = any(p.health_percentage > 0.5 for p in medivac.passengers)
+        have_healthy_ground_units = any(m.health_percentage > 0.5 for m in self.units(UnitTypeId.MARINE))
+        have_healthy_marines = have_healthy_passengers or have_healthy_ground_units
         if (
             self.state not in (DropState.LOADING, DropState.DISBANDING)
             and self.initial_marine_count > 0
-            and self._marines_killed(medivac) >= 1
+            and (self._marines_killed(medivac) >= 1 or not have_healthy_marines)
         ):
             self.state = DropState.DISBANDING
 
@@ -244,21 +253,21 @@ class MedivacDropSquad(HarassSquad):
             LogHelper.add_log("medivac drop disbanding, insufficient marines")
             return
         
-        self.load_marines()
+        await self.load_marines()
 
     async def _do_flying_to_edge(self, medivac: Unit):
         """Fly to the nearest map edge."""
         edge_point = self._nearest_edge_point(medivac.position)
-        if medivac.position._distance_squared(edge_point) < 9:  # within 3 range
+        if cy_distance_to_squared(medivac.position, edge_point) < 9:  # within 3 range
             self.state = DropState.FOLLOWING_EDGE
             LogHelper.add_log("medivac drop reached edge")
         else:
-            self.medivac_micro._harass_move_unit(medivac, edge_point)
+            await self.medivac_micro.harass(medivac, edge_point)
 
     async def _do_following_edge(self, medivac: Unit, intel: EnemyIntel):
         """Follow map edge towards nearest enemy base."""
         # If close enough to enemy, transition to attack/flank decision
-        if medivac.position.distance_to(self.enemy_corner) < 20:
+        if cy_distance_to(medivac.position, self.enemy_corner) < 20:
             await self._decide_action(medivac)
             return
 
@@ -276,7 +285,7 @@ class MedivacDropSquad(HarassSquad):
         else:
             waypoint = self._nearest_edge_point(medivac.position)
 
-        medivac.move(waypoint)
+        await self.medivac_micro.harass(medivac, waypoint)
 
     async def _decide_action(self, medivac: Unit):
         """Decide attack vs retreat based on nearby enemy military supply."""
@@ -299,7 +308,6 @@ class MedivacDropSquad(HarassSquad):
             self.state = DropState.RETREATING
             return
 
-        dist = medivac.position.distance_to(target.position)
 
         # Check if anti-air structure blocks direct access
         aa_structures = self.bot.enemy_structures.filter(
@@ -308,32 +316,37 @@ class MedivacDropSquad(HarassSquad):
             and s.position.distance_to(target.position) < 10
         )
 
+        # Command unloaded marines to attack
+        have_healthy_passengers = any(p.health_percentage > 0.5 for p in medivac.passengers)
+        for marine in self.marines:
+            if marine.health_percentage <= 0.3:
+                marine.smart(medivac)
+            else:
+                await self.marine_micro.move(marine, target.position)
+
         if aa_structures:
             aa = aa_structures.closest_to(medivac.position)
             aa_range = UnitTypes.air_range(aa)
-            # Drop just outside AA range
-            dx = medivac.position.x - aa.position.x
-            dy = medivac.position.y - aa.position.y
-            dist_to_aa = math.hypot(dx, dy) or 1.0
-            safe_x = aa.position.x + dx / dist_to_aa * (aa_range + 2)
-            safe_y = aa.position.y + dy / dist_to_aa * (aa_range + 2)
-            drop_pos = Point2((safe_x, safe_y))
-            if medivac.position._distance_squared(drop_pos) < 4:
+            aa_distance = cy_distance_to(aa.position, medivac.position)
+            safe_distance = aa_range + aa.radius + medivac.radius + 2
+            safe_pos = Point2(cy_towards(aa.position, medivac.position, safe_distance))
+            if aa_distance < safe_distance:
+                await self.medivac_micro.harass(medivac, safe_pos)
+                return
+            if cy_distance_to_squared(medivac.position, safe_pos) < 4 and have_healthy_passengers:
                 medivac(AbilityId.UNLOADALLAT, medivac)
-            else:
-                self.medivac_micro._harass_move_unit(medivac, drop_pos)
-        elif dist <= self.MARINE_ATTACK_RANGE + 3 and medivac.passengers:
+                return
+
+        dist = medivac.position.distance_to(target.position)
+        if dist <= self.MARINE_ATTACK_RANGE + 3 and have_healthy_passengers:
             medivac(AbilityId.UNLOADALLAT, medivac)
         else:
-            self.medivac_micro._harass_move_unit(medivac, target.position)
+            await self.medivac_micro.harass(medivac, Point2(cy_towards(target.position, medivac.position, self.MARINE_ATTACK_RANGE)))
 
-        # Command unloaded marines to attack
-        for marine in self.marines:
-            marine.attack(target.position)
 
     async def _do_retreating(self, medivac: Unit):
         """Load any unloaded marines, then start flanking."""
-        if self.load_marines():
+        if await self.load_marines():
             # All loaded or dead — start flanking
             self.state = DropState.FLANKING
 
@@ -345,18 +358,18 @@ class MedivacDropSquad(HarassSquad):
             return
 
         flank_pos = self._get_flank_position(medivac, target.position)
-        if medivac.position._distance_squared(flank_pos) < 9:
+        if cy_distance_to_squared(medivac.position, flank_pos) < 9:
             await self._decide_action(medivac)
         else:
-            self.medivac_micro._harass_move_unit(medivac, flank_pos)
+            await self.medivac_micro.harass(medivac, flank_pos)
 
     async def _do_disbanding(self, medivac: Unit):
         """Load remaining marines, fly toward base to be dissolved by Military."""
         # All marines aboard — head home
-        if self.load_marines():
+        if await self.load_marines():
             medivac.move(self.bot.start_location)
 
-    def load_marines(self) -> bool:
+    async def load_marines(self) -> bool:
         # load marines into transport, return True if all marines loaded or no medivac
         medivac = self.medivac_unit
         if not medivac:
@@ -370,6 +383,9 @@ class MedivacDropSquad(HarassSquad):
         nearest = self.marines.closest_to(medivac.position)
         medivac(AbilityId.LOAD, nearest)
         for marine in self.marines:
-            marine.smart(medivac)
+            if cy_distance_to_squared(marine.position, medivac.position) < 9:
+                marine.smart(medivac)
+            else:
+                await self.marine_micro.harass(marine, medivac.position)
         return False
 
