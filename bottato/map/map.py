@@ -160,7 +160,12 @@ class Map(GeometryMixin):
             except Exception as e:
                 logger.debug(f"error calculating distance from edge at distance {current_distance}: {e}")
 
-    def get_distance_from_edge(self, point: Point2) -> int:
+    def get_distance_from_edge(self, point: Point2, unit: Unit | None = None) -> float:
+        if unit and unit.is_flying:
+            return min(point.x - self.bot.game_info.playable_area.x,
+                       point.y - self.bot.game_info.playable_area.y,
+                       self.bot.game_info.playable_area.right - point.x,
+                       self.bot.game_info.playable_area.top - point.y)
         coords = (point.x, point.y)
         if coords in self.distance_from_edge:
             return self.distance_from_edge[coords]
@@ -170,8 +175,8 @@ class Map(GeometryMixin):
     # otherwise only neighbors of similar height are included
     def neighbors4(self, coords) -> Set[Tuple]:
         if coords not in self.cached_neighbors4:
-            max_x = self.bot.game_info.pathing_grid.width - 1
-            max_y = self.bot.game_info.pathing_grid.height - 1
+            max_x = self.bot.game_info.playable_area.width - 1
+            max_y = self.bot.game_info.playable_area.height - 1
             neighbors: Set[Tuple] = set()
             self.cached_neighbors4[coords] = neighbors
 
@@ -198,8 +203,8 @@ class Map(GeometryMixin):
     # otherwise only neighbors of similar height are included
     def neighbors8(self, coords: Tuple) -> Set[Tuple]:
         if coords not in self.cached_neighbors8:
-            max_x = self.bot.game_info.pathing_grid.width - 1
-            max_y = self.bot.game_info.pathing_grid.height - 1
+            max_x = self.bot.game_info.playable_area.width - 1
+            max_y = self.bot.game_info.playable_area.height - 1
             neighbors: Set[Tuple] = set()
             self.cached_neighbors8[coords] = neighbors
 

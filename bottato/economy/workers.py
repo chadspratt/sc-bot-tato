@@ -22,6 +22,7 @@ from bottato.economy.resources import ResourceNode, Resources
 from bottato.economy.vespene import Vespene
 from bottato.enums import BuildType, UnitMicroType, WorkerJobType
 from bottato.log_helper import LogHelper
+from bottato.magic_numbers import MagicNumbers as MN
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import GeometryMixin, timed, timed_async
@@ -66,9 +67,6 @@ class Workers(GeometryMixin):
         }
         self.minerals = Minerals(bot, self.map)
         self.vespene = Vespene(bot)
-        self.max_workers = 75
-        self.health_per_repairer = 50
-        self.max_repairers = 10
         for worker in self.bot.workers:
             self.add_worker(worker)
         self.aged_mules: Units = Units([], bot)
@@ -169,7 +167,7 @@ class Workers(GeometryMixin):
     def drop_mules(self):
         # take off mules that are about to expire so they don't waste minerals
         for mule in self.aged_mules.copy():
-            if mule.age > 58:
+            if mule.age > MN.MULE_AGE_LIMIT:
                 try:
                     updated_mule = self.bot.units.by_tag(mule.tag)
                     if not updated_mule.is_carrying_resource:
@@ -179,13 +177,14 @@ class Workers(GeometryMixin):
                 except KeyError:
                     self.remove_mule(mule)
 
-        reserve_for_scan = 0 if self.bot.units(UnitTypeId.RAVEN) else 60
+        reserve_for_scan = 0 if self.bot.units(UnitTypeId.RAVEN) else MN.SCAN_RESERVE_ENERGY
         available_energy = 0
         for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND):
             available_energy += orbital.energy
-            if available_energy - reserve_for_scan < 50:
+            if available_energy - reserve_for_scan < MN.MULE_ENERGY_COST:
                 continue
-            mineral_fields: Units = self.minerals.nodes_with_mule_capacity().filter(lambda mf: self.closest_distance_squared(mf, self.bot.enemy_units) > 225)
+            mineral_fields: Units = self.minerals.nodes_with_mule_capacity().filter(
+                lambda mf: self.closest_distance_squared(mf, self.bot.enemy_units) > MN.MULE_MIN_ENEMY_DISTANCE_SQ)
             if mineral_fields:
                 fullest_mineral_field: Unit = max(mineral_fields, key=lambda x: x.mineral_contents)
                 nearest_townhall: Unit = cy_closest_to(fullest_mineral_field.position, self.bot.townhalls)
@@ -214,7 +213,8 @@ class Workers(GeometryMixin):
             if assignment.on_attack_break \
                     or not assignment.unit_available \
                     or assignment.job_type not in [WorkerJobType.MINERALS, WorkerJobType.VESPENE] \
-                    or await self.worker_micro._retreat(assignment.unit, 0.7) != UnitMicroType.NONE:
+                    or await self.worker_micro._retreat(assignment.unit,
+                                                        MN.WORKER_SPEED_MINE_RETREAT_HEALTH_PERCENT_THRESHOLD) != UnitMicroType.NONE:
                 continue
 
             if not self.bot.townhalls.ready:
@@ -381,10 +381,7 @@ class Workers(GeometryMixin):
             if first_order.ability.id != AbilityId.HARVEST_GATHER or first_order.target != target.tag:
                 worker(AbilityId.SMART, target)
 
-    min_workers_to_keep_on_minerals = 5
-    # enemy workers deal 5 damage
-    RETREAT_HEALTH: float = 15
-    MINERAL_WALK_OBSTRUCTION_DISTANCE: float = 0.375
+    min_workers_to_keep_on_minerals = MN.WORKER_ATTACK_PULL_RESERVE_MINERS
 
     @timed_async
     async def attack_nearby_enemies(self, enemy_builds_detected: Dict[BuildType, float]) -> None:
@@ -406,14 +403,14 @@ class Workers(GeometryMixin):
             return
 
         # After early game, workers only fight back against very close enemies
-        if self.bot.time >= 200:
+        if self.bot.time >= MN.WORKER_ATTACK_PULL_CUTOFF_TIME:
             nearby_enemies = self.bot.enemy_units.filter(
                 lambda u: not u.is_flying
                 and self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies())
             )
             for worker in self.bot.workers:
-                if worker.health_percentage > 0.6:
-                    close_enemies = cy_closer_than(nearby_enemies, 3, worker.position)
+                if worker.health_percentage > MN.WORKER_ATTACK_NEARBY_RETREAT_HEALTH_PERCENT_THRESHOLD:
+                    close_enemies = cy_closer_than(nearby_enemies, MN.WORKER_ATTACK_NEARBY_ENEMY_RANGE, worker.position)
                     if close_enemies:
                         worker.attack(cy_closest_to(worker.position, close_enemies))
             self._release_non_defenders(defender_tags)
@@ -425,23 +422,26 @@ class Workers(GeometryMixin):
         available_workers = self.bot.workers.filter(
             lambda u: self.assignments_by_worker[u.tag].job_type != WorkerJobType.SCOUT
         )
-        healthy_workers = available_workers.filter(lambda u: u.health > self.RETREAT_HEALTH)
-        unhealthy_workers = available_workers.filter(lambda u: u.health <= self.RETREAT_HEALTH)
+        healthy_workers = available_workers.filter(lambda u: u.health > MN.WORKER_ATTACK_RETREAT_HEALTH_THRESHOLD)
+        unhealthy_workers = available_workers.filter(lambda u: u.health <= MN.WORKER_ATTACK_RETREAT_HEALTH_THRESHOLD)
 
         targetable_enemies = self.bot.enemy_units.filter(
             lambda u: not u.is_flying
             and self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies())
-            and u.position.manhattan_distance(self.bot.start_location) < 23
+            and u.position.manhattan_distance(self.bot.start_location) < MN.WORKER_ATTACK_PULL_ENEMY_RANGE
         )
         valid_enemy_structures = self.bot.enemy_structures.filter(
             lambda u: not u.is_ready or u.type_id not in {UnitTypeId.BUNKER, UnitTypeId.PHOTONCANNON}
         )
-        nearby_enemy_structures = cy_closer_than(valid_enemy_structures, 23, self.bot.start_location)
+        nearby_enemy_structures = cy_closer_than(valid_enemy_structures,
+                                                 MN.WORKER_ATTACK_PULL_ENEMY_RANGE,
+                                                 self.bot.start_location)
         targetable_enemies.extend(nearby_enemy_structures)
 
         enemies_inside_wall = self.filter_enemies_outside_wall(targetable_enemies)
         total_worker_count = len(available_workers)
-        max_workers_to_send = min(total_worker_count - 2, len(enemies_inside_wall) + 2)
+        max_workers_to_send = min(total_worker_count - MN.WORKER_ATTACK_PULL_RESERVE_MINERS,
+                                  len(enemies_inside_wall) + MN.WORKER_ATTACK_PULL_EXTRA_DEFENDERS)
         self.min_workers_to_keep_on_minerals = total_worker_count - max_workers_to_send
 
         self.units_to_attack = set(
@@ -468,7 +468,7 @@ class Workers(GeometryMixin):
                     if closest_enemy.distance_to_squared(worker) < 4:
                         if worker.is_constructing_scv:
                             worker(AbilityId.HALT)
-                        if worker.health > self.RETREAT_HEALTH:
+                        if worker.health > MN.WORKER_ATTACK_RETREAT_HEALTH_THRESHOLD:
                             assignment.on_attack_break = True
                             assigned_defender_counts[closest_enemy.tag] += 1
                             defender_tags.add(worker.tag)
@@ -539,7 +539,7 @@ class Workers(GeometryMixin):
                     self.bot.get_terrain_height(worker.position)
                     - self.bot.get_terrain_height(target_position)
                 )
-                if dist_sq > 625 or height_diff > 5:
+                if dist_sq > MN.WORKER_ATTACK_PULL_RANGE_SQ or height_diff > MN.WORKER_ATTACK_PULL_HEIGHT_RANGE:
                     continue
                 tags.add(worker.tag)
                 pool.remove(worker)
@@ -563,7 +563,9 @@ class Workers(GeometryMixin):
         valid_enemy_structures = self.bot.enemy_structures.filter(
             lambda u: not u.is_ready or u.type_id not in {UnitTypeId.BUNKER, UnitTypeId.PHOTONCANNON}
         )
-        nearby_enemy_structures = cy_closer_than(valid_enemy_structures, 23, position.position)
+        nearby_enemy_structures = cy_closer_than(valid_enemy_structures,
+                                                 MN.WORKER_ATTACK_PULL_ENEMY_RANGE,
+                                                 position.position)
         if nearby_enemy_structures:
             nearby_enemy_structures.sort(
                 key=lambda a: (a.type_id != UnitTypeId.PHOTONCANNON) * 1_000_000
@@ -579,15 +581,18 @@ class Workers(GeometryMixin):
             if cy_distance_to_squared(predicted, position.position) < radius_sq:
                 nearby_enemies_list.append(enemy)
 
-        workers_per_enemy = 2 if nearby_enemy_structures or self.bot.enemy_race != Race.Protoss else 3
+        workers_per_enemy = MN.WORKER_ATTACK_PER_ENEMY
+        if self.bot.enemy_race == Race.Protoss and len(nearby_enemy_structures) == 0:
+            workers_per_enemy = MN.WORKER_ATTACK_PER_PROBE_NO_STRUCTURES
         all_nearby = nearby_enemies_list
         all_nearby.extend(nearby_enemy_structures)
         for nearby_enemy in all_nearby:
             closest_friendly = cy_closest_to(nearby_enemy.position, self.bot.workers)
             enemy_position = nearby_enemy.position
-            if not cy_is_facing(nearby_enemy, closest_friendly, 0.3):
+            if not cy_is_facing(nearby_enemy, closest_friendly, MN.IS_FACING_ANGLE_ERROR):
                 # use predicted position if enemy is running away to try to cut them off
-                enemy_position = self.enemy.get_predicted_position(nearby_enemy, 2.0)
+                enemy_position = self.enemy.get_predicted_position(nearby_enemy,
+                                                                   MN.WORKER_ATTACK_ENEMY_PREDICTION_SECONDS)
             target_count = 4 if nearby_enemy.is_structure else workers_per_enemy
             needed = target_count - assigned_defender_counts[nearby_enemy.tag]
             if needed > 0:
@@ -626,37 +631,37 @@ class Workers(GeometryMixin):
             enemies_for_fighter = targetable_enemies if worker_is_outside_wall else enemies_inside_wall
 
             nearby_enemies = Units(
-                cy_closer_than(enemies_for_fighter, 8, fighter.position), bot_object=self.bot
+                cy_closer_than(enemies_for_fighter, MN.WORKER_ATTACK_TARGET_RANGE, fighter.position), bot_object=self.bot
             )
 
             if nearby_enemies:
                 attack_target = self._pick_attack_target(fighter, nearby_enemies)
                 if attack_target:
                     # 1. Retreat if low health ─────────────────────────────────
-                    if fighter.health <= self.RETREAT_HEALTH:
+                    if fighter.health <= MN.WORKER_ATTACK_RETREAT_HEALTH_THRESHOLD:
                         self._mineral_walk_retreat(fighter)
                     else:
                         # 2. Attack if able ────────────────────────────────────────
                         fighter.attack(attack_target)
                     continue
                 # keep moving away from enemies to make room for healthier fighters to engage
-                if fighter.health <= self.RETREAT_HEALTH:
+                if fighter.health <= MN.WORKER_ATTACK_RETREAT_HEALTH_THRESHOLD:
                     closest_enemy = cy_closest_to(fighter.position, nearby_enemies)
                     enemy_distance = cy_distance_to(fighter.position, closest_enemy.position)
-                    if enemy_distance < 1.6:
+                    if enemy_distance < MN.WORKER_ATTACK_MINERAL_WALK_RETREAT_DISTANCE:
                         self._mineral_walk_retreat(fighter)
                         continue
 
             # 3. Repair a nearby injured friendly ──────────────────────
-            if fighter.health_percentage < 0.85:
+            if fighter.health_percentage < MN.WORKER_ATTACK_PRIORITIZE_REPAIR_HEALTH_PERCENT_THRESHOLD:
                 nearby_friendlies = Units(
-                    cy_closer_than(fighters, 4, fighter.position), bot_object=self.bot
+                    cy_closer_than(fighters, MN.WORKER_ATTACK_INJURED_REPAIR_NEARBY_RANGE, fighter.position), bot_object=self.bot
                 ).filter(
                     lambda u: u.tag != fighter.tag
                     and u.health_percentage < 1.0
                     and u.is_mechanical
                 )
-                if nearby_friendlies and self.bot.minerals >= 5:
+                if nearby_friendlies and self.bot.minerals >= MN.WORKER_REPAIR_MIN_MINERALS:
                     repair_target = cy_closest_to(fighter.position, nearby_friendlies)
                     fighter.repair(repair_target)
                     continue
@@ -667,15 +672,15 @@ class Workers(GeometryMixin):
                 if self._is_path_obstructed(fighter, closest_enemy):
                     # if self._mineral_walk_toward_enemy(fighter, closest_enemy):
                     #     continue
-                    if fighter.health_percentage > 0.85:
+                    if fighter.health_percentage > MN.WORKER_ATTACK_PRIORITIZE_REPAIR_HEALTH_PERCENT_THRESHOLD:
                         nearby_friendlies = Units(
-                            cy_closer_than(fighters, 0.8, fighter.position), bot_object=self.bot
+                            cy_closer_than(fighters, MN.WORKER_ATTACK_HEALTHY_REPAIR_NEARBY_RANGE, fighter.position), bot_object=self.bot
                         ).filter(
                             lambda u: u.tag != fighter.tag
                             and u.health_percentage < 1.0
                             and u.is_mechanical
                         )
-                        if nearby_friendlies and self.bot.minerals >= 5:
+                        if nearby_friendlies and self.bot.minerals >= MN.WORKER_REPAIR_MIN_MINERALS:
                             repair_target = cy_closest_to(fighter.position, nearby_friendlies)
                             fighter.repair(repair_target)
                             continue
@@ -711,7 +716,7 @@ class Workers(GeometryMixin):
             return None
         enemy_nat = self.map.enemy_natural_position
         candidates = Units(
-            cy_closer_than(self.bot.mineral_field, 15, enemy_nat),
+            cy_closer_than(self.bot.mineral_field, MN.MINERAL_MAX_DISTANCE_FROM_BASE, enemy_nat),
             bot_object=self.bot,
         )
         if candidates:
@@ -778,7 +783,7 @@ class Workers(GeometryMixin):
         between us and the enemy within a short distance."""
         dist_to_enemy = cy_distance_to(worker.position, enemy.position)
         midpoint = Point2(cy_towards(worker.position, enemy.position, min(dist_to_enemy * 0.5, 1.5)))
-        nearby_friendlies = cy_closer_than(self.bot.workers, self.MINERAL_WALK_OBSTRUCTION_DISTANCE, midpoint)
+        nearby_friendlies = cy_closer_than(self.bot.workers, MN.WORKER_ATTACK_MINERAL_WALK_OBSTRUCTION_DISTANCE, midpoint)
         # discount self
         blocker_count = sum(1 for u in nearby_friendlies if u.tag != worker.tag)
         return blocker_count >= 1
@@ -996,8 +1001,8 @@ class Workers(GeometryMixin):
                 if worker.tag not in self.builder_idle_time:
                     self.builder_idle_time[worker.tag] = self.bot.time
                     continue
-                elif self.bot.time - self.builder_idle_time[worker.tag] < 5:
-                    # wait up to 5 seconds before determining worker is idle
+                elif self.bot.time - self.builder_idle_time[worker.tag] < MN.BUILDER_ALLOWED_IDLE_TIME:
+                    # wait before determining worker is idle
                     continue
                 else:
                     del self.builder_idle_time[worker.tag]
@@ -1050,16 +1055,16 @@ class Workers(GeometryMixin):
         await self.update_repairers(enemy_builds_detected)
         await self.distribute_idle()
 
-        remaining_cooldown = 3 - (self.bot.time - self.last_worker_stop)
+        remaining_cooldown = MN.WORKER_REDISTRIBUTE_COOLDOWN - (self.bot.time - self.last_worker_stop)
         if remaining_cooldown > 0:
             logger.debug(f"Distribute workers is on cooldown for {remaining_cooldown}")
             return -1
 
-        max_workers_to_move = 10
-        if remaining_resources.vespene < 90:
+        max_workers_to_move = MN.WORKER_REDISTRIBUTE_MAX_COUNT
+        if remaining_resources.vespene < MN.WORKER_REDISTRIBUTE_VESPENE_BANK_TARGET:
             logger.debug("saturate vespene")
             return self.move_workers_to_vespene(max_workers_to_move)
-        if remaining_resources.minerals < 0:
+        if remaining_resources.minerals < MN.WORKER_REDISTRIBUTE_MINERAL_BANK_TARGET:
             logger.debug("saturate minerals")
             return self.move_workers_to_minerals(max_workers_to_move)
 
@@ -1071,13 +1076,14 @@ class Workers(GeometryMixin):
         assigned_repairers: Units = Units([], bot_object=self.bot)
         units_with_no_repairer: List[Unit] = []
         injured_units: Units = Units([], bot_object=self.bot)
-        if self.bot.minerals > 20:
+        if self.bot.minerals > MN.WORKER_REPAIR_MIN_MINERALS:
             injured_units = self.units_needing_repair(enemy_builds_detected)
             if injured_units:
                 # LogHelper.add_log(f"{len(injured_units)} injured units needing repair")
                 missing_health = 0
                 # limit to percentage of total workers
-                max_repairers = min(self.max_repairers, math.floor(len(self.bot.workers) / 5))
+                max_repairers = min(MN.MAX_REPAIRERS,
+                                    math.floor(len(self.bot.workers) * MN.WORKER_REPAIR_PERCENT_ASSIGNED))
                 candidates: Units = Units([
                                 worker for worker in self.bot.workers
                                 if self.assignments_by_worker[worker.tag].job_type != WorkerJobType.BUILD
@@ -1104,19 +1110,20 @@ class Workers(GeometryMixin):
                         assigned_repairers.extend(await self.assign_repairers_to_structure(injured_unit, 3, candidates))
                     else:
                         missing_health += injured_unit.health_max - injured_unit.health
-                        if self.bot.time < 300:
+                        if self.bot.time < MN.WORKER_REPAIR_RAMP_WALL_TIME:
                             units_with_no_repairer.append(injured_unit)
 
-                if missing_health > 0 and self.bot.time < 180 and structure_is_injured:
+                if missing_health > 0 and self.bot.time < MN.WORKER_REPAIR_EARLY_RESPONSE_TIME and structure_is_injured:
                     # early game, just assign a bunch so wall isn't broken by a rush
-                    needed_repairers = max(needed_repairers, 5)
+                    needed_repairers = max(needed_repairers, MN.WORKER_REPAIR_EARLY_RESPONSE_COUNT)
                 else:
-                    needed_repairers = math.ceil(missing_health / self.health_per_repairer)
+                    needed_repairers = math.ceil(missing_health / MN.HEALTH_PER_REPAIRER)
                     if needed_repairers > max_repairers:
                         needed_repairers = max_repairers
                     else:
                         # minimum 1 repairer per injured, up to 3. mostly for repairing initial wall
-                        needed_repairers = max(needed_repairers, min(3, len(injured_units)))
+                        needed_repairers = max(needed_repairers, min(MN.WORKER_REPAIR_PER_INJURED_MAX,
+                                                                     len(injured_units)))
             
         current_repairers: Units = self.availiable_workers_on_job(WorkerJobType.REPAIR).filter(
             lambda u: u.tag not in assigned_repairers.tags)
@@ -1124,7 +1131,7 @@ class Workers(GeometryMixin):
         for worker in current_repairers:
             if worker.is_repairing and not worker.is_moving:
                 current_repair_targets[worker.orders[0].target] = worker.tag
-            elif worker.health_percentage < 0.5:
+            elif worker.health_percentage < MN.WORKER_REPAIRER_HEALTH_PERCENT_THRESHOLD:
                 self.set_as_idle(worker)
                 current_repairers.remove(worker)
 
@@ -1154,8 +1161,8 @@ class Workers(GeometryMixin):
                 inactive_repairers.remove(retiring_repairer)
                 current_repairers.remove(retiring_repairer)
 
-        if len(units_with_no_repairer) > 5:
-            units_with_no_repairer = units_with_no_repairer[:5]  # spread out repairers to up to 5 units, mostly to keep initial wall repaired
+        if len(units_with_no_repairer) > MN.WORKER_REPAIR_EARLY_MAX_TARGETS:
+            units_with_no_repairer = units_with_no_repairer[:MN.WORKER_REPAIR_EARLY_MAX_TARGETS]  # spread out repairers to up to 5 units, mostly to keep initial wall repaired
 
         for repairer in current_repairers:
             if repairer.is_constructing_scv:
@@ -1178,7 +1185,7 @@ class Workers(GeometryMixin):
             candidates: Units = Units([
                     worker for worker in self.bot.workers
                     if self.assignments_by_worker[worker.tag].job_type not in (WorkerJobType.BUILD, WorkerJobType.REPAIR)
-                    and worker.health_percentage > 0.5
+                    and worker.health_percentage > MN.WORKER_REPAIRER_HEALTH_PERCENT_THRESHOLD
                 ], bot_object=self.bot)
             if len(injured_units) == 1:
                 candidates = candidates.filter(lambda unit: unit.tag not in injured_units.tags)
@@ -1195,7 +1202,10 @@ class Workers(GeometryMixin):
                     break
                 if not unit_to_repair.is_structure:
                     repairer_distance = cy_distance_to(repairer.position, unit_to_repair.position)
-                    if unit_to_repair.type_id == UnitTypeId.SCV and repairer_distance > 10 or repairer_distance > 60 and self.bot.time < 540:
+                    if (unit_to_repair.type_id == UnitTypeId.SCV
+                        and repairer_distance > MN.WORKER_REPAIR_WORKER_MAX_DISTANCE
+                        or repairer_distance > MN.WORKER_REPAIR_MAX_DISTANCE
+                        and self.bot.time < MN.WORKER_REPAIR_LIMIT_DISTANCE_UNTIL_TIME):
                         # don't send repairer too far to repair
                         continue
 
@@ -1250,7 +1260,7 @@ class Workers(GeometryMixin):
                                                 and unit.health < unit.health_max
                                                     #  and (repair_scvs or unit.type_id != UnitTypeId.SCV)
                                                 and (
-                                                    unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(unit) < 20
+                                                    unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(unit) < MN.WORKER_REPAIR_DEFENSIVE_TANK_DISTANCE
                                                 or self.enemy.threats_to_repairer(unit, attack_range_buffer=1).amount == 0))
         logger.debug(f"injured mechanical units {injured_units}")
 
@@ -1259,7 +1269,7 @@ class Workers(GeometryMixin):
             injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
                                                             and unit.build_progress == 1
                                                             and unit.health < unit.health_max
-                                                            and ((self.bot.time < 300 and unit.type_id in self.ramp_wall_structers)
+                                                            and ((self.bot.time < MN.WORKER_REPAIR_RAMP_WALL_TIME and unit.type_id in self.ramp_wall_structers)
                                                                 or unit.type_id in self.defensive_structures
                                                                 or len(self.enemy.threats_to_repairer(unit, attack_range_buffer=-unit.radius)) == 0))
             logger.debug(f"injured structures {injured_structures}")

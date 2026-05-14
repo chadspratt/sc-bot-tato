@@ -30,6 +30,7 @@ from bottato.enums import (
     WorkerJobType,
 )
 from bottato.log_helper import LogHelper
+from bottato.magic_numbers import MagicNumbers as MN
 from bottato.mixins import timed, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.tactics import Tactics
@@ -451,7 +452,7 @@ class BuildOrder():
 
     @timed
     def get_military_queue(self, enemy: Enemy, intel: EnemyIntel) -> Tuple[List[UnitTypeId | UpgradeId], List[UnitTypeId | UpgradeId]]:
-        worker_supply_cap = min(self.workers.max_workers, self.bot.workers.amount * 1.15)
+        worker_supply_cap = min(MN.MAX_WORKERS_GLOBAL, self.bot.workers.amount * 1.15)
         military_cap = self.bot.supply_cap - worker_supply_cap
         enemy_army = enemy.get_army(include_scouts=True, seconds_since_killed=60)
         ideal_composition = CounterUnits.get_counters(enemy_army)
@@ -634,7 +635,7 @@ class BuildOrder():
         projected_worker_capacity += cc_count * 16
 
         # adds number of townhalls to account for near-term production
-        projected_worker_count = min(self.workers.max_workers,
+        projected_worker_count = min(MN.MAX_WORKERS_GLOBAL,
                                      len(self.workers.assignments_by_job[WorkerJobType.MINERALS]) + len(self.bot.townhalls) * 4)
         surplus_worker_count = projected_worker_count - projected_worker_capacity
         needed_cc_count = math.ceil(surplus_worker_count / 16)
@@ -680,7 +681,7 @@ class BuildOrder():
         cc_queued_upgrade_count = self.get_queued_count([UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS],
                                                         self.interrupted_queue + self.priority_queue)
         worker_build_capacity -= cc_queued_upgrade_count
-        desired_worker_count = min(self.workers.max_workers, self.bot.townhalls.amount * 25)
+        desired_worker_count = min(MN.MAX_WORKERS_GLOBAL, self.bot.townhalls.amount * MN.MAX_WORKERS_PER_BASE)
         number_to_build = desired_worker_count - len(self.workers.assignments_by_worker)
         if (worker_build_capacity > 0 and number_to_build > 0):
             self.add_to_build_queue([UnitTypeId.SCV] * min(number_to_build, worker_build_capacity), queue=self.priority_queue, position=0)

@@ -86,10 +86,10 @@ class MedivacDropSquad(HarassSquad):
     def _playable_rect(self):
         area = self.bot.game_info.playable_area
         return (
-            area.x + 1,
-            area.y + 1,
-            area.x + area.width - 1,
-            area.y + area.height - 1,
+            area.x,
+            area.y,
+            area.right,
+            area.top,
         )
 
     def _nearest_edge_point(self, pos: Point2) -> Point2:

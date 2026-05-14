@@ -211,7 +211,7 @@ class EnemyIntel(GeometryMixin):
                 (self.number_seen(UnitTypeId.FUSIONCORE) > 0 or
                  self.number_seen(UnitTypeId.BATTLECRUISER) > 0)
             multiple_barracks = not self.initial_scout_completed and self.number_seen(UnitTypeId.BARRACKS) > 1
-            mutiple_reapers = self.bot.enemy_units(UnitTypeId.REAPER).amount >= 2 and self.bot.time < 180
+            multiple_reapers = self.bot.enemy_units(UnitTypeId.REAPER).amount >= 2 and self.bot.time < 180
             if battlecruiser:
                 await LogHelper.add_chat("battlecruiser rush detected")
                 self.add_detected_build(BuildType.BATTLECRUISER_RUSH)
@@ -219,7 +219,7 @@ class EnemyIntel(GeometryMixin):
             if multiple_barracks:
                 await LogHelper.add_chat("multiple early barracks detected")
                 self.add_detected_build(BuildType.RUSH)
-            if mutiple_reapers:
+            if multiple_reapers:
                 await LogHelper.add_chat("multiple reapers detected")
                 self.add_detected_build(BuildType.MULTIPLE_REAPER)
             # if no_expansion:

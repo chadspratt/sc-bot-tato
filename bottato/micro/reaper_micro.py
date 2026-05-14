@@ -61,7 +61,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 # if future_target_distance > 5:
                 #     continue
                 # grenade_target: Point2 = future_target_position
-                # if cy_is_facing(target_unit, unit, angle_error=0.15):
+                # if cy_is_facing(target_unit, unit, angle_error=MagicNumbers.IS_FACING_ANGLE_ERROR):
                 #     # throw towards current position to avoid cutting off own retreat when predicted position is behind
                 #     grenade_target = Point2(cy_towards(unit.position, target_unit.position, future_target_distance))
                 grenade_target: Point2 = target_unit.position
@@ -89,74 +89,81 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         if is_low_health and not can_attack:
             return UnitMicroType.NONE
         # nearby_enemies: Units
-        candidates = self.tactics.enemy.get_candidates(included_types={UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE})
-        worker_buffer = 0 if can_attack else 5
-        nearby_workers = self.tactics.enemy.in_attack_range(unit, candidates, worker_buffer)
-        if not nearby_workers and worker_buffer == 0:
-            nearby_workers = self.tactics.enemy.in_attack_range(unit, candidates, 5)
-
-        threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
-        threats = threats.filter(lambda enemy: enemy.type_id not in UnitTypes.NON_THREATS)
-
-        target = None
-        targets: Units = Units([], bot_object=self.bot)
-        if nearby_workers:
-            # target lowest health but prioritize closest if very close
-            target = nearby_workers.sorted(key=lambda t: t.shield + t.health).first
-            closest_worker = self.closest_unit_to_unit(unit, nearby_workers)
-            if self.tactics.enemy.safe_distance_squared(unit, closest_worker) < 9:
-                targets.append(closest_worker)
-                target = closest_worker
-
-        if threats:
-            closest_distance: float = float('inf')
-            if target:
-                closest_distance = self.tactics.enemy.safe_distance_squared(unit, target) - UnitTypes.ground_range(target)
-            for threat in threats:
-                is_winning_reaper_1v1 = (
-                    threat.type_id == UnitTypeId.REAPER
-                    and unit.health >= threat.health + threat.shield
-                )
-                if threat.age > 0 and is_low_health and not is_winning_reaper_1v1:
-                    continue
-                threat_range = UnitTypes.ground_range(threat)
-                if threat_range > unit.ground_range or threat_range == unit.ground_range and unit.health < threat.health + threat.shield:
-                    # don't attack enemies that outrange or have more health
-                    self.add_bad_harass_experience_location(unit, harass_location)
-                    return UnitMicroType.NONE
-                threat_distance = self.distance(unit, threat, self.tactics.enemy.predicted_positions) - threat_range
-                # if unit.health_percentage < self.attack_health and unit.health < threat.health + threat.shield - 10 and threat_distance < 2:
-                #     self.add_bad_harass_experience_location(unit, harass_location)
-                #     return UnitMicroType.NONE
-                threat_distance_squared = self.tactics.enemy.safe_distance_squared(unit, threat)
-                reaper_range_distance = self.tactics.enemy.get_attack_range_with_buffer_squared(unit, threat, 0)
-                threat_is_in_range = threat_distance_squared <= reaper_range_distance
-                threat_range_distance = self.tactics.enemy.get_attack_range_with_buffer_squared(threat, unit, 1)
-                reaper_is_threatened = threat_distance_squared <= threat_range_distance
-                if threat_distance < closest_distance:
-                    closest_distance = threat_distance
-                    target = threat
-                if threat_is_in_range or reaper_is_threatened:
-                    if threat.age > 0:
-                        height_difference = threat.position3d.z - self.bot.get_terrain_z_height(unit)
-                        if height_difference > 0.5:
-                            # don't attack enemies significantly higher than us
-                            self.add_bad_harass_experience_location(unit, harass_location)
-                            return UnitMicroType.NONE
-                    targets.append(threat)
-
-        if not targets:
-            if unit.tag in self.harass_location_reached_tags and not is_low_health:
-                nearest_workers = self.tactics.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
-                if nearest_workers:
-                    return self._kite(unit, nearest_workers)
-            return UnitMicroType.NONE
-
         if self.bot.time - self.last_hop_down_time.get(unit.tag, 0) < 1:
             # recently hopped down while retreating, don't immediately go back up
             return UnitMicroType.NONE
 
-        return self._kite(unit, targets)
+        candidates = self.tactics.enemy.get_candidates(included_types={UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.ZERGLING, UnitTypeId.ZEALOT, UnitTypeId.MARINE, UnitTypeId.REAPER})
+        if candidates:
+            action = self._kite(unit, candidates, force_move=force_move)
+            if action == UnitMicroType.RETREAT:
+                self.add_bad_harass_experience_location(unit, harass_location)
+            return action
+        return UnitMicroType.NONE
+        # worker_buffer = 0 if can_attack else 5
+        # nearby_workers = self.tactics.enemy.in_attack_range(unit, candidates, worker_buffer)
+        # if not nearby_workers and worker_buffer == 0:
+        #     nearby_workers = self.tactics.enemy.in_attack_range(unit, candidates, 5)
+
+        # threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=6)
+        # threats = threats.filter(lambda enemy: enemy.type_id not in UnitTypes.NON_THREATS)
+
+        # target = None
+        # targets: Units = Units([], bot_object=self.bot)
+        # if nearby_workers:
+        #     # target lowest health but prioritize closest if very close
+        #     target = nearby_workers.sorted(key=lambda t: t.shield + t.health).first
+        #     closest_worker = self.closest_unit_to_unit(unit, nearby_workers)
+        #     if self.tactics.enemy.safe_distance_squared(unit, closest_worker) < 9:
+        #         targets.append(closest_worker)
+        #         target = closest_worker
+
+        # if threats:
+        #     closest_distance: float = float('inf')
+        #     if target:
+        #         closest_distance = self.tactics.enemy.safe_distance_squared(unit, target) - UnitTypes.ground_range(target)
+        #     for threat in threats:
+        #         is_winning_reaper_1v1 = (
+        #             threat.type_id == UnitTypeId.REAPER
+        #             and unit.health >= threat.health + threat.shield
+        #         )
+        #         if threat.age > 0 and is_low_health and not is_winning_reaper_1v1:
+        #             continue
+        #         threat_range = UnitTypes.ground_range(threat)
+        #         if threat_range > unit.ground_range or threat_range == unit.ground_range and unit.health < threat.health + threat.shield:
+        #             # don't attack enemies that outrange or have more health
+        #             self.add_bad_harass_experience_location(unit, harass_location)
+        #             return UnitMicroType.NONE
+        #         threat_distance = self.distance(unit, threat, self.tactics.enemy.predicted_positions) - threat_range
+        #         # if unit.health_percentage < self.attack_health and unit.health < threat.health + threat.shield - 10 and threat_distance < 2:
+        #         #     self.add_bad_harass_experience_location(unit, harass_location)
+        #         #     return UnitMicroType.NONE
+        #         threat_distance_squared = self.tactics.enemy.safe_distance_squared(unit, threat)
+        #         reaper_range_distance = self.tactics.enemy.get_attack_range_with_buffer_squared(unit, threat, 0)
+        #         threat_is_in_range = threat_distance_squared <= reaper_range_distance
+        #         threat_range_distance = self.tactics.enemy.get_attack_range_with_buffer_squared(threat, unit, 1)
+        #         reaper_is_threatened = threat_distance_squared <= threat_range_distance
+        #         if threat_distance < closest_distance:
+        #             closest_distance = threat_distance
+        #             target = threat
+        #         if threat_is_in_range or reaper_is_threatened:
+        #             if threat.age > 0:
+        #                 height_difference = threat.position3d.z - self.bot.get_terrain_z_height(unit)
+        #                 if height_difference > 0.5:
+        #                     # don't attack enemies significantly higher than us
+        #                     self.add_bad_harass_experience_location(unit, harass_location)
+        #                     return UnitMicroType.NONE
+        #             targets.append(threat)
+
+        # if not targets:
+        #     if unit.tag in self.harass_location_reached_tags and not is_low_health:
+        #         nearest_workers = self.tactics.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
+        #         if nearest_workers:
+        #             return self._kite(unit, nearest_workers)
+        #     return UnitMicroType.NONE
+
+
+        # return self._kite(unit, targets)
     
     def add_bad_harass_experience_location(self, unit: Unit, location: Point2):
         if cy_distance_to_squared(unit.position, location) <= 225:

@@ -77,8 +77,8 @@ class GeometryMixin:
     
     @staticmethod
     def clamp_position_to_map_bounds(position: Point2, origin: Point2, bot: BotAI) -> Point2:
-        clamped_x = max(0, min(position.x, bot.game_info.terrain_height.width))
-        clamped_y = max(0, min(position.y, bot.game_info.terrain_height.height))
+        clamped_x = max(bot.game_info.playable_area.x, min(position.x, bot.game_info.playable_area.right))
+        clamped_y = max(bot.game_info.playable_area.y, min(position.y, bot.game_info.playable_area.top))
         excess_x = abs(position.x - clamped_x)
         excess_y = abs(position.y - clamped_y)
         if excess_x > 0 and excess_y > 0:

@@ -4,6 +4,7 @@ import random
 from typing import Dict
 
 from cython_extensions.geometry import cy_distance_to, cy_towards
+from cython_extensions.units_utils import cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.data import race_townhalls
 from sc2.ids.unit_typeid import UnitTypeId
@@ -61,8 +62,19 @@ class HarassSquad(Squad, GeometryMixin):
                 lambda structure: structure.is_ready and UnitTypes.can_attack_target(structure, unit)
                     and cy_distance_to(structure.position, unit.position) < UnitTypes.range_vs_target(structure, unit) + 3)
 
+            base_threat_target: Point2 | None = None
+            if self.bot.townhalls:
+                closest_th = cy_closest_to(unit.position, self.bot.townhalls)
+                if cy_distance_to(unit.position, closest_th.position) < 30:
+                    base_threats = self.bot.enemy_units.filter(
+                        lambda u: u.type_id not in UnitTypes.NON_THREATS
+                        and cy_distance_to(u.position, closest_th.position) < 20
+                    )
+                    if base_threats:
+                        base_threat_target = cy_closest_to(closest_th.position, base_threats).position
+
             if not nearby_enemies and not threatening_structures:
-                await micro.harass(unit, self.harass_locations[unit.tag])
+                await micro.harass(unit, base_threat_target or self.harass_locations[unit.tag])
                 continue
 
             nearest_threat = None
@@ -90,7 +102,7 @@ class HarassSquad(Squad, GeometryMixin):
                     destination = self.harass_locations[unit.tag] if unit.health_percentage > 0.65 else self.bot.start_location
                     # fight enemy reapers directly when we have same or more health
                     if (nearest_threat.type_id == UnitTypeId.REAPER
-                            and unit.health >= nearest_threat.health + nearest_threat.shield):
+                            and unit.health >= nearest_threat.health):
                         await micro.harass(unit, self.harass_locations[unit.tag])
                         continue
                     # try to circle around threats that outrange us

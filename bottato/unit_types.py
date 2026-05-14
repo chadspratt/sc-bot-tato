@@ -618,6 +618,10 @@ class UnitTypes(GeometryMixin):
             return {UnitTypeId.HYDRALISK, UnitTypeId.QUEEN,
                     UnitTypeId.CYCLONE, UnitTypeId.WIDOWMINEBURROWED,
                     UnitTypeId.STALKER, UnitTypeId.HIGHTEMPLAR}
+        if unit.type_id == UnitTypeId.REAPER:
+            return {UnitTypeId.ROACH, UnitTypeId.QUEEN,
+                    UnitTypeId.ADEPT, UnitTypeId.STALKER,
+                    UnitTypeId.CYCLONE, UnitTypeId.WIDOWMINEBURROWED}
         return set()
 
     type_by_attribute_cache: Dict[Tuple[UnitAttribute, Race], Set[UnitTypeId]] = {}
