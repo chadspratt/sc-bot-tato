@@ -38,9 +38,8 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
         
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if can_attack:
-            bonus_distance = -2 if unit.health_percentage < health_threshold else 0
             # attack enemy in range
-            micro_taken = self._kite(unit, nearby_enemies, bonus_distance, force_move=force_move)
+            micro_taken = self._kite(unit, nearby_enemies, force_move=force_move)
             if micro_taken != UnitMicroType.NONE:
                 return micro_taken
         
@@ -56,12 +55,10 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
         if can_attack:
             # venture out to attack further enemy but don't chase too far
             if move_position is not None and move_position.manhattan_distance(unit.position) < 20:
-                micro_taken = self._kite(unit, nearby_enemies, 5)
+                micro_taken = self._kite(unit, nearby_enemies)
                 if micro_taken != UnitMicroType.NONE:
                     return micro_taken
         elif self.valid_targets:
-            defending_ramp = unit.position.manhattan_distance(self.bot.main_base_ramp.top_center) < 10
-            buffer = -5 if defending_ramp else -1
-            return self._kite(unit, self.valid_targets, bonus_distance=buffer)
+            return self._kite(unit, self.valid_targets)
 
         return UnitMicroType.NONE
