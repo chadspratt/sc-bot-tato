@@ -438,6 +438,18 @@ class Workers(GeometryMixin):
                                                  self.bot.start_location)
         targetable_enemies.extend(nearby_enemy_structures)
 
+        # When 2+ enemy workers are present: keep workers mining.
+        # Workers attack enemies that come near them but are not pulled off mining.
+        enemy_workers_in_base = [u for u in targetable_enemies if u.type_id in UnitTypes.WORKER_TYPES]
+        if len(enemy_workers_in_base) >= 2:
+            for worker in self.bot.workers:
+                if worker.health_percentage > MN.WORKER_ATTACK_NEARBY_RETREAT_HEALTH_PERCENT_THRESHOLD:
+                    close_enemies = cy_closer_than(targetable_enemies, MN.WORKER_ATTACK_NEARBY_ENEMY_RANGE, worker.position)
+                    if close_enemies:
+                        worker.attack(cy_closest_to(worker.position, close_enemies))
+            self._release_non_defenders(defender_tags)
+            return
+
         enemies_inside_wall = self.filter_enemies_outside_wall(targetable_enemies)
         total_worker_count = len(available_workers)
         max_workers_to_send = min(total_worker_count - MN.WORKER_ATTACK_PULL_RESERVE_MINERS,

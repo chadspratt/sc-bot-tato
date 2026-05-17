@@ -36,6 +36,7 @@ from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import timed, timed_async
 from bottato.tactics import Tactics
 from bottato.tech_tree import TECH_TREE
+from bottato.magic_numbers import MagicNumbers as MN
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 
@@ -367,6 +368,27 @@ class SCVBuildStep(BuildStep):
                 new_build_position = special_locations.find_placement(unit_type_id)
             if new_build_position is None:
                 new_build_position = await self.map.get_non_visible_position_in_main()
+        elif unit_type_id == UnitTypeId.BARRACKS and BuildType.WORKER_RUSH in detected_enemy_builds \
+                and not self.bot.structures(UnitTypeId.BARRACKS):
+            # During worker rush: place first barracks near mineral line, in the
+            # gap between the command center and the gas nearest to the ramp.
+            ramp_top = self.bot.main_base_ramp.top_center
+            main_geysers = cy_closer_than(
+                self.bot.vespene_geyser, MN.MINERAL_MAX_DISTANCE_FROM_BASE, self.bot.start_location
+            )
+            if main_geysers:
+                nearest_gas_to_ramp = cy_closest_to(ramp_top, main_geysers)
+                candidate = (self.bot.start_location + nearest_gas_to_ramp.position) / 2
+                new_build_position = await self.bot.find_placement(
+                    unit_type_id,
+                    near=candidate,
+                    placement_step=1,
+                    addon_place=True,
+                    max_distance=6,
+                )
+            if new_build_position is None:
+                new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
+            LogHelper.add_log(f"Worker rush barracks position: {new_build_position}")
         elif unit_type_id == UnitTypeId.BARRACKS and self.tactics.is_active(Tactic.PROXY_BARRACKS) and self.bot.structures(UnitTypeId.BARRACKS).amount < 2 and self.bot.time < 180:
             proxy_base_index = 2
             if detected_enemy_builds[BuildType.EARLY_EXPANSION] < 50:
