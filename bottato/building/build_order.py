@@ -52,7 +52,7 @@ class BuildOrder():
     # next_unfinished_step_index: int
     tech_tree: Dict[UnitTypeId, List[UnitTypeId]] = {}
     rush_defense_enacted: bool = False
-    time_to_deviate_from_build_order = 50
+    time_to_deviate_from_build_order = 40
 
     def __init__(self, build_name: str, bot: BotAI, tactics: Tactics, workers: Workers) -> None:
         self.bot = bot

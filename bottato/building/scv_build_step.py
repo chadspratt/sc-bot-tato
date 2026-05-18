@@ -193,11 +193,11 @@ class SCVBuildStep(BuildStep):
         if self.unit_in_charge is None:
             return BuildResponseCode.NO_BUILDER
 
-        if not build_despite_enemies:
-            micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
-            if await micro._retreat(self.unit_in_charge, 0.8) == UnitMicroType.RETREAT:
-                return BuildResponseCode.TOO_CLOSE_TO_ENEMY
+        micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
+        if await micro._retreat(self.unit_in_charge, 0.8) == UnitMicroType.RETREAT:
+            return BuildResponseCode.TOO_CLOSE_TO_ENEMY
 
+        if not build_despite_enemies:
             threats = self.bot.enemy_units.filter(
                 lambda u: u.type_id not in UnitTypes.WORKER_TYPES \
                     and UnitTypes.can_attack_ground(u))
