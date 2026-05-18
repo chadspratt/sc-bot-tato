@@ -202,11 +202,14 @@ class SCVBuildStep(BuildStep):
             closest_enemy = cy_closest_to(self.unit_in_charge.position, self.bot.enemy_units)
             if closest_enemy:
                 closest_enemy_distance = cy_distance_to(closest_enemy.position, self.unit_in_charge.position)
-                if closest_enemy_distance < distance_to_build + 1.5:
+                if closest_enemy_distance < 1.5:
+                    return BuildResponseCode.TOO_CLOSE_TO_ENEMY
+                elif closest_enemy_distance < distance_to_build + 1.5:
                     # enemy is closer to the build site than the unit, try to flank around them
                     flank_position = micro.get_circle_around_position(self.unit_in_charge, closest_enemy.position, self.position)
                     self.unit_in_charge.move(flank_position)
                     return BuildResponseCode.TOO_CLOSE_TO_ENEMY
+            
         else:
             safe_range = 1.5 if build_despite_enemies else 10
             threats = self.bot.enemy_units.filter(
