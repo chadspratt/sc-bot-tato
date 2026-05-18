@@ -930,18 +930,25 @@ class Workers(GeometryMixin):
                 self.units_to_attack.remove(existing_enemy)
                 break
 
-    def get_builder(self, building_position: Point2, current_builder: Unit | None = None) -> Unit | None:
+    def get_builder(self,
+                    building_position: Point2,
+                    current_builder: Unit | None = None,
+                    high_priority: bool = False) -> Unit | None:
         builder = None
-        if current_builder:
-            current_assignment = self.assignments_by_worker[current_builder.tag]
-            if not current_assignment.on_attack_break:
-                return current_builder
-        candidates: Units = (
-            self.availiable_workers_on_job(WorkerJobType.IDLE)
-            + self.availiable_workers_on_job(WorkerJobType.VESPENE)
-            + self.availiable_workers_on_job(WorkerJobType.MINERALS)
-            # + self.availiable_workers_on_job(JobType.REPAIR)
-        )
+        if high_priority:
+            # get absolute closest worker regardless of what it's doing
+            candidates = self.bot.workers
+        else:
+            if current_builder:
+                current_assignment = self.assignments_by_worker[current_builder.tag]
+                if not current_assignment.on_attack_break:
+                    return current_builder
+            candidates: Units = (
+                self.availiable_workers_on_job(WorkerJobType.IDLE)
+                + self.availiable_workers_on_job(WorkerJobType.VESPENE)
+                + self.availiable_workers_on_job(WorkerJobType.MINERALS)
+                # + self.availiable_workers_on_job(JobType.REPAIR)
+            )
         if not candidates:
             logger.debug("FAILED TO GET BUILDER")
         else:

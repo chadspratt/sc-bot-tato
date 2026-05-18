@@ -182,22 +182,29 @@ class SCVBuildStep(BuildStep):
                     self.no_position_count += 1
                     return BuildResponseCode.NO_LOCATION
 
-        self.unit_in_charge = self.workers.get_builder(self.position, self.unit_in_charge)
+        build_despite_enemies = (
+            BuildType.WORKER_RUSH in detected_enemy_builds
+            and self.bot.time < 120
+            and self.unit_type_id in (UnitTypeId.SUPPLYDEPOT, UnitTypeId.BARRACKS)
+        )
+        high_priority = build_despite_enemies and self.unit_being_built is None
+
+        self.unit_in_charge = self.workers.get_builder(self.position, self.unit_in_charge, high_priority)
         if self.unit_in_charge is None:
             return BuildResponseCode.NO_BUILDER
 
-        micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
-        if await micro._retreat(self.unit_in_charge, 0.8) == UnitMicroType.RETREAT:
-            return BuildResponseCode.TOO_CLOSE_TO_ENEMY
-            LogHelper.add_log(f"{self} interrupted due to retreating worker {self.unit_in_charge}")
+        if not build_despite_enemies:
+            micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
+            if await micro._retreat(self.unit_in_charge, 0.8) == UnitMicroType.RETREAT:
+                return BuildResponseCode.TOO_CLOSE_TO_ENEMY
 
-        threats = self.bot.enemy_units.filter(
-            lambda u: u.type_id not in UnitTypes.WORKER_TYPES \
-                and UnitTypes.can_attack_ground(u))
-        enemy_is_close = self.tactics.enemy.get_units_closer_than(self.unit_in_charge, threats, 15).exists \
-              or self.tactics.enemy.get_units_closer_than(self.position, threats, 10).exists
-        if enemy_is_close:
-            return BuildResponseCode.TOO_CLOSE_TO_ENEMY
+            threats = self.bot.enemy_units.filter(
+                lambda u: u.type_id not in UnitTypes.WORKER_TYPES \
+                    and UnitTypes.can_attack_ground(u))
+            enemy_is_close = self.tactics.enemy.get_units_closer_than(self.unit_in_charge, threats, 15).exists \
+                or self.tactics.enemy.get_units_closer_than(self.position, threats, 10).exists
+            if enemy_is_close:
+                return BuildResponseCode.TOO_CLOSE_TO_ENEMY
 
         build_response: bool | UnitCommand
         if self.unit_being_built:
@@ -206,8 +213,12 @@ class SCVBuildStep(BuildStep):
             if self.unit_type_id == UnitTypeId.REFINERY and self.geysir:
                 build_response = self.unit_in_charge.build_gas(self.geysir)
             else:
+                queue_order = False
+                if high_priority and self.unit_in_charge.is_constructing_scv and len(self.unit_in_charge.orders) == 1:
+                    self.unit_in_charge(AbilityId.HALT)
+                    queue_order = True
                 build_response = self.unit_in_charge.build(
-                    self.unit_type_id, self.position
+                    self.unit_type_id, self.position, queue=queue_order
                 )
 
         if build_response:
