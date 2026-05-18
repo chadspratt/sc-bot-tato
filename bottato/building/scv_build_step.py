@@ -29,6 +29,7 @@ from bottato.enums import (
     WorkerJobType,
 )
 from bottato.log_helper import LogHelper
+from bottato.magic_numbers import MagicNumbers as MN
 from bottato.map.destructibles import BUILDING_RADIUS
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -36,7 +37,6 @@ from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import timed, timed_async
 from bottato.tactics import Tactics
 from bottato.tech_tree import TECH_TREE
-from bottato.magic_numbers import MagicNumbers as MN
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 
@@ -373,19 +373,22 @@ class SCVBuildStep(BuildStep):
             # During worker rush: place first barracks near mineral line, in the
             # gap between the command center and the gas nearest to the ramp.
             ramp_top = self.bot.main_base_ramp.top_center
-            main_geysers = cy_closer_than(
-                self.bot.vespene_geyser, MN.MINERAL_MAX_DISTANCE_FROM_BASE, self.bot.start_location
+            resources = self.bot.vespene_geyser + self.bot.mineral_field
+            main_resources = cy_closer_than(
+                resources, MN.MINERAL_MAX_DISTANCE_FROM_BASE, self.bot.start_location
             )
-            if main_geysers:
-                nearest_gas_to_ramp = cy_closest_to(ramp_top, main_geysers)
-                candidate = (self.bot.start_location + nearest_gas_to_ramp.position) / 2
-                new_build_position = await self.bot.find_placement(
-                    unit_type_id,
-                    near=candidate,
-                    placement_step=1,
-                    addon_place=True,
-                    max_distance=6,
-                )
+            if main_resources:
+                nearest_resource_to_ramp = cy_closest_to(ramp_top, main_resources)
+                candidates = self.get_triangle_point_c(self.bot.start_location, nearest_resource_to_ramp.position, 4.0, 3.0)
+                if candidates:
+                    candidate = min(list(candidates), key=lambda p: cy_distance_to_squared(p, ramp_top))
+                    new_build_position = await self.bot.find_placement(
+                        unit_type_id,
+                        near=candidate,
+                        placement_step=1,
+                        addon_place=True,
+                        max_distance=6,
+                    )
             if new_build_position is None:
                 new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
             LogHelper.add_log(f"Worker rush barracks position: {new_build_position}")

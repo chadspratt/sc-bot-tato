@@ -208,9 +208,11 @@ class BuildOrder():
         self.make_one_time_build_change(BuildType.BATTLECRUISER_RUSH, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.CANNON_RUSH, BuildOrderChange.CANNON_RUSH, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.MULTIPLE_REAPER, BuildOrderChange.REAPER, detected_enemy_builds)
-        if {BuildType.BATTLECRUISER_RUSH, BuildType.CANNON_RUSH}.isdisjoint(detected_enemy_builds.keys()):
-            self.make_one_time_build_change(BuildType.RUSH, BuildOrderChange.RUSH, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.ZERGLING_RUSH, BuildOrderChange.ZERGLING_RUSH, detected_enemy_builds)
+        specific_rush_types = {BuildType.WORKER_RUSH, BuildType.BATTLECRUISER_RUSH, BuildType.CANNON_RUSH,
+                               BuildType.MULTIPLE_REAPER, BuildType.ZERGLING_RUSH}
+        if specific_rush_types.isdisjoint(detected_enemy_builds.keys()):
+            self.make_one_time_build_change(BuildType.RUSH, BuildOrderChange.RUSH, detected_enemy_builds)
         self.make_one_time_build_change(self.bot.enemy_race == Race.Terran, BuildOrderChange.BANSHEE_HARASS, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.STARGATE, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.SPIRE, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
@@ -245,8 +247,10 @@ class BuildOrder():
         if change == BuildOrderChange.WORKER_RUSH:
             self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.static_queue)
             self.remove_step_from_queue(UnitTypeId.REFINERY, self.static_queue, remove_all=True)
+            self.remove_step_from_queue(UnitTypeId.REAPER, self.static_queue)
             self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue, position=0)
-            self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT], position=1, queue=self.priority_queue)
+            if self.get_in_progress_count(UnitTypeId.BARRACKS) == 0:
+                self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue, position=0)
         elif change == BuildOrderChange.CANNON_RUSH:
             # continue with reaper to do counter-damage
             self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)

@@ -438,18 +438,6 @@ class Workers(GeometryMixin):
                                                  self.bot.start_location)
         targetable_enemies.extend(nearby_enemy_structures)
 
-        # When 2+ enemy workers are present: keep workers mining.
-        # Workers attack enemies that come near them but are not pulled off mining.
-        enemy_workers_in_base = [u for u in targetable_enemies if u.type_id in UnitTypes.WORKER_TYPES]
-        if len(enemy_workers_in_base) >= 2:
-            for worker in self.bot.workers:
-                if worker.health_percentage > MN.WORKER_ATTACK_NEARBY_RETREAT_HEALTH_PERCENT_THRESHOLD:
-                    close_enemies = cy_closer_than(targetable_enemies, MN.WORKER_ATTACK_NEARBY_ENEMY_RANGE, worker.position)
-                    if close_enemies:
-                        worker.attack(cy_closest_to(worker.position, close_enemies))
-            self._release_non_defenders(defender_tags)
-            return
-
         enemies_inside_wall = self.filter_enemies_outside_wall(targetable_enemies)
         total_worker_count = len(available_workers)
         max_workers_to_send = min(total_worker_count - MN.WORKER_ATTACK_PULL_RESERVE_MINERS,
@@ -465,12 +453,12 @@ class Workers(GeometryMixin):
         # — per-worker enemy proximity check (same selection logic) —
         for worker in self.bot.workers:
             assignment = self.assignments_by_worker[worker.tag]
-            if assignment.job_type == WorkerJobType.SCOUT:
+            if assignment.job_type in (WorkerJobType.SCOUT, WorkerJobType.IDLE):
                 continue
 
             worker_is_outside_wall = self.is_outside_wall(worker)
             enemies_for_worker = targetable_enemies if worker_is_outside_wall else enemies_inside_wall
-            position = assignment.target if assignment.target and not worker_rush_detected else worker
+            position = assignment.target if assignment.target else worker
             nearby_enemies = cy_closer_than(enemies_for_worker, 5, position.position)
 
             if nearby_enemies:
@@ -480,7 +468,7 @@ class Workers(GeometryMixin):
                     if closest_enemy.distance_to_squared(worker) < 4:
                         if worker.is_constructing_scv:
                             worker(AbilityId.HALT)
-                        if worker.health > MN.WORKER_ATTACK_RETREAT_HEALTH_THRESHOLD:
+                        if worker.health > MN.WORKER_ATTACK_RETREAT_HEALTH_THRESHOLD and len(nearby_enemies) == 1:
                             assignment.on_attack_break = True
                             assigned_defender_counts[closest_enemy.tag] += 1
                             defender_tags.add(worker.tag)
@@ -500,28 +488,28 @@ class Workers(GeometryMixin):
                         assigned_defender_counts[nearby_enemy.tag] += len(new_defenders)
                         defender_tags.update(new_defenders)
 
-        # — base / ramp defense —
-        for townhall in self.bot.townhalls:
+        # only defend base area against single workers and structures
+        if len(nearby_enemy_structures) > 0 or targetable_enemies(UnitTypes.WORKER_TYPES).amount == 1:
+            LogHelper.add_log(f"Defending base against {len(targetable_enemies)} nearby enemies")
+            # — base / ramp defense —
+            for townhall in self.bot.townhalls:
+                defender_tags.update(
+                    self._select_position_defenders(
+                        townhall, 18, assigned_defender_counts,
+                        healthy_workers, unhealthy_workers,
+                        worker_rush_detected, enemies_inside_wall,
+                    )
+                )
             defender_tags.update(
                 self._select_position_defenders(
-                    townhall, 18, assigned_defender_counts,
+                    self.bot.main_base_ramp.top_center, 3, assigned_defender_counts,
                     healthy_workers, unhealthy_workers,
                     worker_rush_detected, enemies_inside_wall,
                 )
             )
-        defender_tags.update(
-            self._select_position_defenders(
-                self.bot.main_base_ramp.top_center, 3, assigned_defender_counts,
-                healthy_workers, unhealthy_workers,
-                worker_rush_detected, enemies_inside_wall,
-            )
-        )
 
         # ── Phase 2: Control fighters ───────────────────────────────────
-        fighters = Units(
-            [self.bot.workers.by_tag(t) for t in defender_tags if t in self.bot.workers.tags],
-            bot_object=self.bot,
-        )
+        fighters = UnitReferenceHelper.get_updated_unit_references_by_tags(defender_tags)
         await self._control_fighters(fighters, targetable_enemies, enemies_inside_wall)
 
         # release any workers no longer needed
