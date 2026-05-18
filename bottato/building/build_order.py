@@ -1051,6 +1051,16 @@ class BuildOrder():
             time_since_last_cancel = self.bot.time - build_step.last_cancel_time
             if time_since_last_cancel < 10:
                 continue
+            if BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.time < 120:
+                # only build one barracks, two depots, workers and marines
+                if build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT):
+                    if self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount >= 2:
+                        continue
+                elif build_step.is_unit_type(UnitTypeId.BARRACKS):
+                    if self.bot.structures(UnitTypeId.BARRACKS).amount >= 1:
+                        continue
+                elif not build_step.is_unit_type(UnitTypeId.SCV) and not build_step.is_unit_type(UnitTypeId.MARINE):
+                    continue
             
             production_readiness = 1.0
             if isinstance(build_step, StructureBuildStep) or isinstance(build_step, UpgradeBuildStep):
