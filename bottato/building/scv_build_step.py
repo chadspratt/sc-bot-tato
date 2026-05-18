@@ -197,14 +197,25 @@ class SCVBuildStep(BuildStep):
         if await micro._retreat(self.unit_in_charge, 0.8) == UnitMicroType.RETREAT:
             return BuildResponseCode.TOO_CLOSE_TO_ENEMY
 
-        safe_range = 3 if build_despite_enemies else 10
-        threats = self.bot.enemy_units.filter(
-            lambda u: u.type_id not in UnitTypes.WORKER_TYPES \
-                and UnitTypes.can_attack_ground(u))
-        enemy_is_close = self.tactics.enemy.get_units_closer_than(self.unit_in_charge, threats, safe_range).exists \
-            or self.tactics.enemy.get_units_closer_than(self.position, threats, safe_range).exists
-        if enemy_is_close:
-            return BuildResponseCode.TOO_CLOSE_TO_ENEMY
+        if high_priority:
+            distance_to_build = cy_distance_to(self.unit_in_charge.position, self.position)
+            closest_enemy = cy_closest_to(self.unit_in_charge.position, self.bot.enemy_units)
+            if closest_enemy:
+                closest_enemy_distance = cy_distance_to(closest_enemy.position, self.unit_in_charge.position)
+                if closest_enemy_distance < distance_to_build + 1.5:
+                    # enemy is closer to the build site than the unit, try to flank around them
+                    flank_position = micro.get_circle_around_position(self.unit_in_charge, closest_enemy.position, self.position)
+                    self.unit_in_charge.move(flank_position)
+                    return BuildResponseCode.TOO_CLOSE_TO_ENEMY
+        else:
+            safe_range = 1.5 if build_despite_enemies else 10
+            threats = self.bot.enemy_units.filter(
+                lambda u: u.type_id not in UnitTypes.WORKER_TYPES \
+                    and UnitTypes.can_attack_ground(u))
+            enemy_is_close = self.tactics.enemy.get_units_closer_than(self.unit_in_charge, threats, safe_range).exists \
+                or self.tactics.enemy.get_units_closer_than(self.position, threats, safe_range).exists
+            if enemy_is_close:
+                return BuildResponseCode.TOO_CLOSE_TO_ENEMY
 
         build_response: bool | UnitCommand
         if self.unit_being_built:
