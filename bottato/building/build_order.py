@@ -138,9 +138,6 @@ class BuildOrder():
         if len(self.static_queue) < 5 or self.bot.time > 300:
             self.queue_refinery()
 
-        if BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.minerals < 100 and self.bot.time < 120:
-            # save minerals for repairing during worker rush
-            return Cost(minerals=self.bot.minerals, vespene=self.bot.vespene)
 
         remaining_resources: Cost = await self.execute_pending_builds(self.only_build_units, detected_enemy_builds)
         if remaining_resources.minerals > 100 and self.only_build_units:
@@ -251,6 +248,9 @@ class BuildOrder():
             self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue, position=0)
             if self.get_in_progress_count(UnitTypeId.BARRACKS) == 0:
                 self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue, position=0)
+            for step in self.started:
+                if isinstance(step, SCVBuildStep) and step.is_unit_type(UnitTypeId.REFINERY):
+                    step.cancel_construction()
         elif change == BuildOrderChange.CANNON_RUSH:
             # continue with reaper to do counter-damage
             self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
@@ -1019,6 +1019,9 @@ class BuildOrder():
                         and pending.unit_in_charge and not pending.unit_in_charge.is_constructing_scv:
                     # if we have pending builds that haven't started yet, subtract their cost from available resources
                     remaining_resources = remaining_resources - pending.cost
+        
+        worker_rush_active = BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.time < 120
+        wall_is_built = self.bot.structures.of_type([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.BARRACKS]).amount >= 3
 
         while execution_index < len(build_queue):
             execution_index += 1
@@ -1036,13 +1039,21 @@ class BuildOrder():
                 continue
             if not isinstance(build_step, UpgradeBuildStep) and build_step.get_unit_type_id() in failed_types:
                 continue
+            if worker_rush_active and not wall_is_built:
+                # only allow building the wall until it's started
+                if build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT) and self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount < 2:
+                    pass
+                elif build_step.is_unit_type(UnitTypeId.BARRACKS) and self.bot.structures(UnitTypeId.BARRACKS).amount < 1:
+                    pass
+                else:
+                    continue
             if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
                 build_response = BuildResponseCode.NO_SUPPLY
                 if not allow_skip:
                     remaining_resources.minerals = 0
                     break
                 continue
-            if only_build_units and not build_step.is_unit() \
+            if only_build_units and not worker_rush_active and not build_step.is_unit() \
                     and not build_step.is_unit_type(UnitTypeId.COMMANDCENTER) \
                     and not build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT) \
                     and not build_step.is_unit_production_facility() \
@@ -1051,16 +1062,6 @@ class BuildOrder():
             time_since_last_cancel = self.bot.time - build_step.last_cancel_time
             if time_since_last_cancel < 10:
                 continue
-            if BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.time < 120:
-                # only build one barracks, two depots, workers and marines
-                if build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT):
-                    if self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount >= 2:
-                        continue
-                elif build_step.is_unit_type(UnitTypeId.BARRACKS):
-                    if self.bot.structures(UnitTypeId.BARRACKS).amount >= 1:
-                        continue
-                elif not build_step.is_unit_type(UnitTypeId.SCV) and not build_step.is_unit_type(UnitTypeId.MARINE):
-                    continue
             
             production_readiness = 1.0
             if isinstance(build_step, StructureBuildStep) or isinstance(build_step, UpgradeBuildStep):

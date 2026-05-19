@@ -459,7 +459,7 @@ class Workers(GeometryMixin):
             worker_is_outside_wall = self.is_outside_wall(worker)
             enemies_for_worker = targetable_enemies if worker_is_outside_wall else enemies_inside_wall
             position = assignment.target if assignment.target else worker
-            nearby_enemies = cy_closer_than(enemies_for_worker, 5, position.position)
+            nearby_enemies = cy_closer_than(enemies_for_worker, MN.WORKER_ATTACK_NEARBY_ENEMY_RANGE_WORKER_RUSH, position.position)
 
             if nearby_enemies:
                 # builders: stop & fight only if melee-range and healthy
@@ -472,7 +472,9 @@ class Workers(GeometryMixin):
                             assignment.on_attack_break = True
                             assigned_defender_counts[closest_enemy.tag] += 1
                             defender_tags.add(worker.tag)
-                    continue
+                    if cy_distance_to(worker.position, self.bot.start_location) > 8:
+                        # wait until worker is near base to send other workers over to fight
+                        continue
 
                 if len(nearby_enemies) >= len(available_workers) and not worker_rush_detected:
                     continue
@@ -489,7 +491,7 @@ class Workers(GeometryMixin):
                         defender_tags.update(new_defenders)
 
         # only defend base area against single workers and structures
-        if len(nearby_enemy_structures) > 0 or targetable_enemies(UnitTypes.WORKER_TYPES).amount == 1:
+        if len(nearby_enemy_structures) > 0 or targetable_enemies(UnitTypes.WORKER_TYPES).amount <= 3:
             LogHelper.add_log(f"Defending base against {len(targetable_enemies)} nearby enemies")
             # — base / ramp defense —
             for townhall in self.bot.townhalls:
@@ -621,39 +623,97 @@ class Workers(GeometryMixin):
           3. Repair a nearby injured friendly worker.
           4. Move / mineral-walk toward the enemy.
         """
+        out_of_range_healthy: List[Unit] = []
+        in_range_healthy: List[Unit] = []
+        in_range_unhealthy: List[Unit] = []
+        out_of_range_unhealthy: List[Unit] = []
+        healers_assigned: Set[int] = set()
+        closest_enemies: Dict[int, Unit] = {}
         for fighter in fighters:
             if fighter.is_carrying_resource:
                 # deliver resources before fighting so mineral walking will work
                 if self.bot.townhalls:
                     fighter.smart(cy_closest_to(fighter.position, self.bot.townhalls))
                 continue
+            assignment = self.assignments_by_worker[fighter.tag]
+            if assignment.job_type == WorkerJobType.BUILD:
+                continue
             worker_is_outside_wall = self.is_outside_wall(fighter)
             enemies_for_fighter = targetable_enemies if worker_is_outside_wall else enemies_inside_wall
+            if not enemies_for_fighter:
+                continue
+            is_healthy = fighter.health > MN.WORKER_ATTACK_RETREAT_HEALTH_THRESHOLD
+            closest_enemy = cy_closest_to(fighter.position, enemies_for_fighter)
+            closest_enemies[fighter.tag] = closest_enemy
+            is_near_enemy = cy_distance_to_squared(fighter.position, closest_enemy.position) < self.enemy.get_attack_range_with_buffer_squared(fighter, closest_enemy, attack_range_buffer=1.0)
 
+            if is_healthy:
+                if is_near_enemy:
+                    in_range_healthy.append(fighter)
+                else:
+                    out_of_range_healthy.append(fighter)
+            else:
+                if is_near_enemy:
+                    in_range_unhealthy.append(fighter)
+                else:
+                    out_of_range_unhealthy.append(fighter)
+
+        for fighter in in_range_healthy:
+            # recruit a healer and be near it before attacking
+            healer_candidates = [u for u in out_of_range_healthy if u.tag not in healers_assigned]
+            if not healer_candidates:
+                healer_candidates = [u for u in out_of_range_unhealthy if u.tag not in healers_assigned]
+            if healer_candidates:
+                closest_healer = cy_closest_to(fighter.position, healer_candidates)
+                healers_assigned.add(closest_healer.tag)
+                if fighter.health_percentage < 1.0:
+                    closest_healer.repair(fighter)
+                else:
+                    closest_healer.move(fighter)
+
+            # attack enemy
+            closest_enemy = closest_enemies[fighter.tag]
+            closest_enemy_distance = cy_distance_to(fighter.position, closest_enemy.position)
             nearby_enemies = Units(
-                cy_closer_than(enemies_for_fighter, MN.WORKER_ATTACK_TARGET_RANGE, fighter.position), bot_object=self.bot
+                cy_closer_than(targetable_enemies, closest_enemy_distance + 0.1, fighter.position), bot_object=self.bot
             )
+            attack_target = min(nearby_enemies, key=lambda u: u.health + u.shield)
+            fighter.attack(attack_target)
 
-            if nearby_enemies:
-                attack_target = self._pick_attack_target(fighter, nearby_enemies)
-                if attack_target:
-                    # 1. Retreat if low health ─────────────────────────────────
-                    if fighter.health <= MN.WORKER_ATTACK_RETREAT_HEALTH_THRESHOLD:
-                        self._mineral_walk_retreat(fighter)
-                    else:
-                        # 2. Attack if able ────────────────────────────────────────
-                        fighter.attack(attack_target)
+        for fighter in out_of_range_healthy:
+            if fighter.tag in healers_assigned:
+                continue
+
+            # recruit a healer and be near it before attacking
+            healer_candidates = [u for u in out_of_range_healthy if u.tag not in healers_assigned]
+            if not healer_candidates:
+                healer_candidates = [u for u in out_of_range_unhealthy if u.tag not in healers_assigned]
+            if healer_candidates:
+                closest_healer = cy_closest_to(fighter.position, healer_candidates)
+                healers_assigned.add(closest_healer.tag)
+                if fighter.health_percentage < 1.0:
+                    closest_healer.repair(fighter)
+                else:
+                    closest_healer.move(fighter)
+                if cy_distance_to(fighter.position, closest_healer.position) > 1.0:
+                    fighter.move(closest_healer)
                     continue
-                # keep moving away from enemies to make room for healthier fighters to engage
-                if fighter.health <= MN.WORKER_ATTACK_RETREAT_HEALTH_THRESHOLD:
-                    closest_enemy = cy_closest_to(fighter.position, nearby_enemies)
-                    enemy_distance = cy_distance_to(fighter.position, closest_enemy.position)
-                    if enemy_distance < MN.WORKER_ATTACK_MINERAL_WALK_RETREAT_DISTANCE:
-                        self._mineral_walk_retreat(fighter)
-                        continue
 
-            # 3. Repair a nearby injured friendly ──────────────────────
-            if fighter.health_percentage < MN.WORKER_ATTACK_PRIORITIZE_REPAIR_HEALTH_PERCENT_THRESHOLD:
+            closest_enemy = closest_enemies[fighter.tag]
+            # XXX consider mineral-walking
+            fighter.attack(closest_enemy)
+
+        for fighter in in_range_unhealthy:
+            # run away
+            self._mineral_walk_retreat(fighter)
+
+        for fighter in out_of_range_unhealthy:
+            closest_enemy = closest_enemies[fighter.tag]
+            enemy_distance = cy_distance_to(fighter.position, closest_enemy.position)
+            # run further away
+            if enemy_distance < MN.WORKER_ATTACK_MINERAL_WALK_RETREAT_DISTANCE:
+                self._mineral_walk_retreat(fighter)
+            else:
                 nearby_friendlies = Units(
                     cy_closer_than(fighters, MN.WORKER_ATTACK_INJURED_REPAIR_NEARBY_RANGE, fighter.position), bot_object=self.bot
                 ).filter(
@@ -664,31 +724,6 @@ class Workers(GeometryMixin):
                 if nearby_friendlies and self.bot.minerals >= MN.WORKER_REPAIR_MIN_MINERALS:
                     repair_target = cy_closest_to(fighter.position, nearby_friendlies)
                     fighter.repair(repair_target)
-                    continue
-
-            # 4. Close the gap — mineral walk if obstructed, else move ─
-            if nearby_enemies:
-                closest_enemy = cy_closest_to(fighter.position, nearby_enemies)
-                if self._is_path_obstructed(fighter, closest_enemy):
-                    # if self._mineral_walk_toward_enemy(fighter, closest_enemy):
-                    #     continue
-                    if fighter.health_percentage > MN.WORKER_ATTACK_PRIORITIZE_REPAIR_HEALTH_PERCENT_THRESHOLD:
-                        nearby_friendlies = Units(
-                            cy_closer_than(fighters, MN.WORKER_ATTACK_HEALTHY_REPAIR_NEARBY_RANGE, fighter.position), bot_object=self.bot
-                        ).filter(
-                            lambda u: u.tag != fighter.tag
-                            and u.health_percentage < 1.0
-                            and u.is_mechanical
-                        )
-                        if nearby_friendlies and self.bot.minerals >= MN.WORKER_REPAIR_MIN_MINERALS:
-                            repair_target = cy_closest_to(fighter.position, nearby_friendlies)
-                            fighter.repair(repair_target)
-                            continue
-
-                fighter.attack(closest_enemy)
-            elif targetable_enemies:
-                closest_enemy = cy_closest_to(fighter.position, targetable_enemies)
-                fighter.attack(closest_enemy)
 
     # ─── Mineral walking helpers ────────────────────────────────────────
 
@@ -787,16 +822,6 @@ class Workers(GeometryMixin):
         # discount self
         blocker_count = sum(1 for u in nearby_friendlies if u.tag != worker.tag)
         return blocker_count >= 1
-
-    def _pick_attack_target(self, worker: Unit, enemies: Units) -> Unit | None:
-        """Pick best target in or near attack range. Prefers enemies already
-        in range, then lowest-health enemy nearby."""
-        in_range = self.enemy.in_attack_range(worker, enemies, attack_range_buffer=0.5, first_only=False)
-        if in_range:
-            # lowest health in range
-            return min(in_range, key=lambda u: u.health + u.shield)
-        # nothing in range
-        return None
 
     # ─── Cleanup ────────────────────────────────────────────────────────
 
@@ -935,27 +960,30 @@ class Workers(GeometryMixin):
                     current_builder: Unit | None = None,
                     high_priority: bool = False) -> Unit | None:
         builder = None
-        if high_priority:
-            # get absolute closest worker regardless of what it's doing
-            candidates = self.bot.workers
-        else:
-            if current_builder:
-                current_assignment = self.assignments_by_worker[current_builder.tag]
-                if not current_assignment.on_attack_break:
-                    return current_builder
-            candidates: Units = (
-                self.availiable_workers_on_job(WorkerJobType.IDLE)
-                + self.availiable_workers_on_job(WorkerJobType.VESPENE)
-                + self.availiable_workers_on_job(WorkerJobType.MINERALS)
-                # + self.availiable_workers_on_job(JobType.REPAIR)
-            )
+
+        if current_builder:
+            current_assignment = self.assignments_by_worker[current_builder.tag]
+            if not current_assignment.on_attack_break:
+                return current_builder
+        candidates: Units = (
+            self.availiable_workers_on_job(WorkerJobType.IDLE)
+            + self.availiable_workers_on_job(WorkerJobType.VESPENE)
+            + self.availiable_workers_on_job(WorkerJobType.MINERALS)
+            # + self.availiable_workers_on_job(JobType.REPAIR)
+        )
+
         if not candidates:
             logger.debug("FAILED TO GET BUILDER")
+        elif high_priority:
+            builder = min(candidates,
+                          key=lambda u: cy_distance_to(u.position, building_position)
+                                      - cy_distance_to(u.position, cy_closest_to(u.position, self.bot.enemy_units).position)/2)
         else:
             builder = cy_closest_to(building_position, candidates)
-            if builder is not None:
-                logger.debug(f"found builder {builder}")
-                self.update_assigment(builder, WorkerJobType.BUILD, None)
+
+        if builder is not None:
+            logger.debug(f"found builder {builder}")
+            self.update_assigment(builder, WorkerJobType.BUILD, None)
 
         return builder
 
@@ -1067,11 +1095,12 @@ class Workers(GeometryMixin):
             logger.debug(f"Distribute workers is on cooldown for {remaining_cooldown}")
             return -1
 
+        worker_rush_active = self.bot.time < 120 and BuildType.WORKER_RUSH in enemy_builds_detected
         max_workers_to_move = MN.WORKER_REDISTRIBUTE_MAX_COUNT
-        if remaining_resources.vespene < MN.WORKER_REDISTRIBUTE_VESPENE_BANK_TARGET:
+        if remaining_resources.vespene < MN.WORKER_REDISTRIBUTE_VESPENE_BANK_TARGET and not worker_rush_active:
             logger.debug("saturate vespene")
             return self.move_workers_to_vespene(max_workers_to_move)
-        if remaining_resources.minerals < MN.WORKER_REDISTRIBUTE_MINERAL_BANK_TARGET:
+        if remaining_resources.minerals < MN.WORKER_REDISTRIBUTE_MINERAL_BANK_TARGET or worker_rush_active:
             logger.debug("saturate minerals")
             return self.move_workers_to_minerals(max_workers_to_move)
 

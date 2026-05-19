@@ -187,8 +187,8 @@ class SCVBuildStep(BuildStep):
             and self.bot.time < 120
             and self.unit_type_id in (UnitTypeId.SUPPLYDEPOT, UnitTypeId.BARRACKS)
         )
-        high_priority = build_despite_enemies and self.unit_being_built is None
 
+        high_priority = build_despite_enemies and self.unit_being_built is None
         self.unit_in_charge = self.workers.get_builder(self.position, self.unit_in_charge, high_priority)
         if self.unit_in_charge is None:
             return BuildResponseCode.NO_BUILDER
@@ -197,19 +197,18 @@ class SCVBuildStep(BuildStep):
         if await micro._retreat(self.unit_in_charge, 0.8) == UnitMicroType.RETREAT:
             return BuildResponseCode.TOO_CLOSE_TO_ENEMY
 
-        if high_priority:
-            distance_to_build = cy_distance_to(self.unit_in_charge.position, self.position)
+        if build_despite_enemies and self.bot.enemy_units:
             closest_enemy = cy_closest_to(self.unit_in_charge.position, self.bot.enemy_units)
-            if closest_enemy:
-                closest_enemy_distance = cy_distance_to(closest_enemy.position, self.unit_in_charge.position)
-                if closest_enemy_distance < 1.5:
-                    return BuildResponseCode.TOO_CLOSE_TO_ENEMY
-                elif closest_enemy_distance < distance_to_build + 1.5:
+            closest_enemy_distance = cy_distance_to(closest_enemy.position, self.unit_in_charge.position)
+            if closest_enemy_distance < 1.5:
+                return BuildResponseCode.TOO_CLOSE_TO_ENEMY
+            elif not self.unit_being_built:
+                distance_to_build = cy_distance_to(self.unit_in_charge.position, self.position)
+                if closest_enemy_distance < distance_to_build + 1.5:
                     # enemy is closer to the build site than the unit, try to flank around them
                     flank_position = micro.get_circle_around_position(self.unit_in_charge, closest_enemy.position, self.position)
                     self.unit_in_charge.move(flank_position)
                     return BuildResponseCode.TOO_CLOSE_TO_ENEMY
-            
         else:
             safe_range = 1.5 if build_despite_enemies else 10
             threats = self.bot.enemy_units.filter(
@@ -228,9 +227,6 @@ class SCVBuildStep(BuildStep):
                 build_response = self.unit_in_charge.build_gas(self.geysir)
             else:
                 queue_order = False
-                if high_priority and self.unit_in_charge.is_constructing_scv and len(self.unit_in_charge.orders) == 1:
-                    self.unit_in_charge(AbilityId.HALT)
-                    queue_order = True
                 build_response = self.unit_in_charge.build(
                     self.unit_type_id, self.position, queue=queue_order
                 )
@@ -585,7 +581,9 @@ class SCVBuildStep(BuildStep):
             if not self.check_idle:
                 return False
             flee_enemies = True
-            if self.unit_type_id in self.unit_types_to_finish_despite_enemies and self.unit_being_built and self.unit_being_built.build_progress > 0.6:
+            if self.unit_being_built and (self.unit_being_built.build_progress > 0.6 and 
+                    self.unit_type_id in self.unit_types_to_finish_despite_enemies
+                    or self.bot.time < 120):
                 flee_enemies = False
             if flee_enemies:
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
