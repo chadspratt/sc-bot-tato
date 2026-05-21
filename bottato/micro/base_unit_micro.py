@@ -373,6 +373,8 @@ class BaseUnitMicro(GeometryMixin):
         # normally the retreat threshold is lower than the attack, but a custom retreat threshold could be passed that is higher
         is_below_attack_health = unit.health_percentage < self.attack_health
         is_below_retreat_health = unit.health_percentage < health_threshold
+        if unit.type_id == UnitTypeId.SCV and threats(UnitTypes.OFFENSIVE_STRUCTURE_TYPES):
+            is_below_attack_health = True
         if not is_below_attack_health and threats:
             if not unit.health_max:
                 # rare weirdness
@@ -650,6 +652,15 @@ class BaseUnitMicro(GeometryMixin):
         if not ultimate_destination:
             ultimate_destination = self.bot.game_info.player_start_location
         
+        if not unit.is_flying and not unit.type_id == UnitTypeId.REAPER:
+            retreat_path = self.tactics.map.get_path(unit.position, ultimate_destination.position)
+            if retreat_path:
+                for zone in retreat_path.zones:
+                    ultimate_destination = zone.midpoint
+                    if cy_distance_to(unit.position, ultimate_destination) > 10:
+                        break
+        
+        threats = threats.filter(lambda t: self.position_is_between(t.position, unit.position, ultimate_destination.position))
         if not threats:
             if isinstance(ultimate_destination, Unit):
                 return ultimate_destination

@@ -112,6 +112,8 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 if unit.health_percentage < self.harass_attack_health and not targets:
                     return UnitMicroType.NONE
                 for threat in threats:
+                    if not self.position_is_between(threat.position, unit.position, harass_location):
+                        continue
                     if threat.is_structure and self.tactics.enemy.safe_distance_squared(unit, threat) > self.tactics.enemy.get_attack_range_with_buffer_squared(threat, unit, 3):
                         continue
                     if threat.is_flying or UnitTypes.air_range(threat) >= unit.ground_range:

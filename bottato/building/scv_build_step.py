@@ -195,19 +195,17 @@ class SCVBuildStep(BuildStep):
 
         micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
         if await micro._retreat(self.unit_in_charge, 0.8) == UnitMicroType.RETREAT:
+            LogHelper.add_log(f"Builder {self.unit_in_charge} retreating instead of building {self.unit_type_id} at {self.position} due to nearby enemies")
             return BuildResponseCode.TOO_CLOSE_TO_ENEMY
 
         if build_despite_enemies and self.bot.enemy_units:
             closest_enemy = cy_closest_to(self.unit_in_charge.position, self.bot.enemy_units)
-            closest_enemy_distance = cy_distance_to(closest_enemy.position, self.unit_in_charge.position)
-            if closest_enemy_distance < 1.5:
-                return BuildResponseCode.TOO_CLOSE_TO_ENEMY
-            elif not self.unit_being_built:
-                distance_to_build = cy_distance_to(self.unit_in_charge.position, self.position)
-                if closest_enemy_distance < distance_to_build + 1.5:
+            if not self.unit_being_built:
+                if self.position_is_between(closest_enemy.position, self.unit_in_charge.position, self.position):
                     # enemy is closer to the build site than the unit, try to flank around them
                     flank_position = micro.get_circle_around_position(self.unit_in_charge, closest_enemy.position, self.position)
                     self.unit_in_charge.move(flank_position)
+                    LogHelper.add_log(f"Flanking builder from {self.unit_in_charge.position} to {flank_position} to avoid enemy at {closest_enemy.position}")
                     return BuildResponseCode.TOO_CLOSE_TO_ENEMY
         else:
             safe_range = 1.5 if build_despite_enemies else 10

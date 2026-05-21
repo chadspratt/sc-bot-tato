@@ -116,8 +116,8 @@ class Upgrades:
 
     required_unit_counts: dict[UpgradeId, int] = {
         UpgradeId.BANSHEECLOAK: 1,
-        UpgradeId.BANSHEESPEED: 2,
-        UpgradeId.INTERFERENCEMATRIX: 1,
+        UpgradeId.BANSHEESPEED: 1,
+        UpgradeId.INTERFERENCEMATRIX: 2,
         UpgradeId.STIMPACK: 1,
         UpgradeId.DRILLCLAWS: 2,
         UpgradeId.TERRANINFANTRYWEAPONSLEVEL1: 1,

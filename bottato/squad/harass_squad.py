@@ -106,7 +106,7 @@ class HarassSquad(Squad, GeometryMixin):
                         await micro.harass(unit, self.harass_locations[unit.tag])
                         continue
                     # try to circle around threats that outrange us
-                    if unit.position == nearest_threat.position:
+                    if unit.position == nearest_threat.position or not self.position_is_between(nearest_threat.position, unit.position, destination):
                         # avoid divide by zero
                         await micro.harass(unit, destination)
                     else:

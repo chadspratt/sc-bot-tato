@@ -220,7 +220,7 @@ class MedivacDropSquad(HarassSquad):
         if (
             self.state not in (DropState.LOADING, DropState.DISBANDING)
             and self.initial_marine_count > 0
-            and (self._marines_killed(medivac) >= 1 or not have_healthy_marines)
+            and (self._marines_killed(medivac) >= 1 or not have_healthy_marines or medivac.health_percentage < 0.5)
         ):
             self.state = DropState.DISBANDING
 
@@ -365,8 +365,12 @@ class MedivacDropSquad(HarassSquad):
 
     async def _do_disbanding(self, medivac: Unit):
         """Load remaining marines, fly toward base to be dissolved by Military."""
-        # All marines aboard — head home
-        if await self.load_marines():
+        if medivac.health_percentage < 0.25:
+            medivac(AbilityId.UNLOADALL, medivac)
+        elif medivac.health_percentage < 0.5:
+            medivac.move(self.bot.start_location)
+        elif await self.load_marines():
+            # All marines aboard — head home
             medivac.move(self.bot.start_location)
 
     async def load_marines(self) -> bool:

@@ -266,7 +266,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         closest_enemy = cy_closest_to(unit.position, self.bot.all_enemy_units) if self.bot.all_enemy_units else None
         enemy_is_in_range = False
         if closest_enemy:
-            closest_enemy_distance = unit.distance_to_squared(closest_enemy)
+            closest_enemy_distance = cy_distance_to(unit.position, closest_enemy.position)
             if closest_enemy_distance > 25:
                 closest_enemy = None
             else:

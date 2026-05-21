@@ -418,6 +418,10 @@ class Workers(GeometryMixin):
 
         worker_rush_detected = BuildType.WORKER_RUSH in enemy_builds_detected
 
+        # if worker_rush_detected:
+        #     self.do_worker_rush_defense()
+        #     return
+
         # ── Phase 1: Select fighters ────────────────────────────────────
         available_workers = self.bot.workers.filter(
             lambda u: self.assignments_by_worker[u.tag].job_type != WorkerJobType.SCOUT
@@ -642,6 +646,8 @@ class Workers(GeometryMixin):
             enemies_for_fighter = targetable_enemies if worker_is_outside_wall else enemies_inside_wall
             if not enemies_for_fighter:
                 continue
+            if self.worker_micro._avoid_effects(fighter, False) != UnitMicroType.NONE:
+                continue
             is_healthy = fighter.health > MN.WORKER_ATTACK_RETREAT_HEALTH_THRESHOLD
             closest_enemy = cy_closest_to(fighter.position, enemies_for_fighter)
             closest_enemies[fighter.tag] = closest_enemy
@@ -658,11 +664,22 @@ class Workers(GeometryMixin):
                 else:
                     out_of_range_unhealthy.append(fighter)
 
+        fight_is_started = len(in_range_healthy) + len(in_range_unhealthy) > 0
+
         for fighter in in_range_healthy:
-            # recruit a healer and be near it before attacking
-            healer_candidates = [u for u in out_of_range_healthy if u.tag not in healers_assigned]
-            if not healer_candidates:
-                healer_candidates = [u for u in out_of_range_unhealthy if u.tag not in healers_assigned]
+            closest_enemy = closest_enemies[fighter.tag]
+            closest_enemy_distance = cy_distance_to(fighter.position, closest_enemy.position)
+
+            # recruit a healer that is further from the enemy than the fighter and be near it before attacking
+            healer_candidates = []
+            for unit_pool in [out_of_range_healthy, out_of_range_unhealthy]:
+                healer_candidates = [
+                    u for u in unit_pool
+                    if u.tag not in healers_assigned
+                    and cy_distance_to(u.position, closest_enemy.position) > closest_enemy_distance
+                ]
+                if healer_candidates:
+                    break
             if healer_candidates:
                 closest_healer = cy_closest_to(fighter.position, healer_candidates)
                 healers_assigned.add(closest_healer.tag)
@@ -672,8 +689,6 @@ class Workers(GeometryMixin):
                     closest_healer.move(fighter)
 
             # attack enemy
-            closest_enemy = closest_enemies[fighter.tag]
-            closest_enemy_distance = cy_distance_to(fighter.position, closest_enemy.position)
             nearby_enemies = Units(
                 cy_closer_than(targetable_enemies, closest_enemy_distance + 0.1, fighter.position), bot_object=self.bot
             )
@@ -684,22 +699,30 @@ class Workers(GeometryMixin):
             if fighter.tag in healers_assigned:
                 continue
 
-            # recruit a healer and be near it before attacking
-            healer_candidates = [u for u in out_of_range_healthy if u.tag not in healers_assigned]
-            if not healer_candidates:
-                healer_candidates = [u for u in out_of_range_unhealthy if u.tag not in healers_assigned]
-            if healer_candidates:
-                closest_healer = cy_closest_to(fighter.position, healer_candidates)
-                healers_assigned.add(closest_healer.tag)
-                if fighter.health_percentage < 1.0:
-                    closest_healer.repair(fighter)
-                else:
-                    closest_healer.move(fighter)
-                if cy_distance_to(fighter.position, closest_healer.position) > 1.0:
-                    fighter.move(closest_healer)
-                    continue
-
             closest_enemy = closest_enemies[fighter.tag]
+            closest_enemy_distance = cy_distance_to(fighter.position, closest_enemy.position)
+            if not fight_is_started:
+                # recruit a healer that is further from the enemy than the fighter and be near it before attacking
+                healer_candidates = []
+                for unit_pool in [out_of_range_healthy, out_of_range_unhealthy]:
+                    healer_candidates = [
+                        u for u in unit_pool
+                        if u.tag not in healers_assigned
+                        and cy_distance_to(u.position, closest_enemy.position) > closest_enemy_distance
+                    ]
+                    if healer_candidates:
+                        break
+                if healer_candidates:
+                    closest_healer = cy_closest_to(fighter.position, healer_candidates)
+                    healers_assigned.add(closest_healer.tag)
+                    if fighter.health_percentage < 1.0:
+                        closest_healer.repair(fighter)
+                    else:
+                        closest_healer.move(fighter)
+                    if cy_distance_to(fighter.position, closest_healer.position) > 1.0:
+                        fighter.move(closest_healer)
+                        continue
+
             # XXX consider mineral-walking
             fighter.attack(closest_enemy)
 
@@ -713,7 +736,7 @@ class Workers(GeometryMixin):
             # run further away
             if enemy_distance < MN.WORKER_ATTACK_MINERAL_WALK_RETREAT_DISTANCE:
                 self._mineral_walk_retreat(fighter)
-            else:
+            elif fight_is_started:
                 nearby_friendlies = Units(
                     cy_closer_than(fighters, MN.WORKER_ATTACK_INJURED_REPAIR_NEARBY_RANGE, fighter.position), bot_object=self.bot
                 ).filter(
@@ -725,6 +748,10 @@ class Workers(GeometryMixin):
                     repair_target = cy_closest_to(fighter.position, nearby_friendlies)
                     fighter.repair(repair_target)
 
+    def do_worker_rush_defense(self) -> None:
+        # when enemies approach main base mineral line, choose the main base mineral patch that is furthest from the enemies
+        # start mineral-walking the workers that are near the enemies toward the chosen patch to stack them up
+        pass
     # ─── Mineral walking helpers ────────────────────────────────────────
 
     def _get_mineral_near_base(self) -> Unit | None:
@@ -1290,24 +1317,30 @@ class Workers(GeometryMixin):
     ])
     def units_needing_repair(self, enemy_builds_detected: Dict[BuildType, float]) -> Units:
         injured_units = Units([], self.bot)
-        # repair_scvs = self.bot.time > 240
+        worker_health_threshold = 1.0
+        if (BuildType.WORKER_RUSH in enemy_builds_detected and self.bot.time < 120):
+            needed_minerals = 100 * (2 - self.bot.structures([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED]).amount)
+            needed_minerals += 150 * (1 - self.bot.structures(UnitTypeId.BARRACKS).amount)
+            if self.bot.minerals < needed_minerals + 25:
+                # repair less when trying to afford wall
+                worker_health_threshold = MN.WORKER_RUSH_REPAIR_WORKER_HEALTH_THRESHOLD
         injured_units = self.bot.units.filter(lambda unit: unit.is_mechanical
                                                 and unit.type_id != UnitTypeId.MULE
                                                 and unit.health < unit.health_max
-                                                    #  and (repair_scvs or unit.type_id != UnitTypeId.SCV)
+                                                and (unit.type_id != UnitTypeId.SCV or unit.health < worker_health_threshold)
                                                 and (
                                                     unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(unit) < MN.WORKER_REPAIR_DEFENSIVE_TANK_DISTANCE
-                                                or self.enemy.threats_to_repairer(unit, attack_range_buffer=1).amount == 0))
+                                                or self.enemy.threats_to_repairer(unit, attack_range_buffer=0).amount == 0))
         logger.debug(f"injured mechanical units {injured_units}")
 
         # can only repair fully built structures
-        if BuildType.WORKER_RUSH not in enemy_builds_detected:
+        if BuildType.WORKER_RUSH not in enemy_builds_detected or self.bot.time > 120:
             injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
                                                             and unit.build_progress == 1
                                                             and unit.health < unit.health_max
                                                             and ((self.bot.time < MN.WORKER_REPAIR_RAMP_WALL_TIME and unit.type_id in self.ramp_wall_structers)
                                                                 or unit.type_id in self.defensive_structures
-                                                                or len(self.enemy.threats_to_repairer(unit, attack_range_buffer=-unit.radius)) == 0))
+                                                                or len(self.enemy.threats_to_repairer(unit, attack_range_buffer=-unit.radius*1.5)) == 0))
             logger.debug(f"injured structures {injured_structures}")
             injured_units.extend(injured_structures)
         return injured_units
