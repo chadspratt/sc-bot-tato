@@ -173,7 +173,8 @@ class BaseUnitMicro(GeometryMixin):
                 unit.repair(target)
                 action_taken = UnitMicroType.REPAIR
         if action_taken == UnitMicroType.NONE:
-            if self.bot.time < 360 and cy_distance_to_squared(target.position, self.bot.main_base_ramp.top_center) < 25:
+            if target.type_id in (UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.BUNKER, UnitTypeId.BARRACKS) \
+                    and self.bot.time < 360 and cy_distance_to_squared(target.position, self.bot.main_base_ramp.top_center) < 25:
                 # keep ramp wall repaired early game
                 unit.repair(target)
                 action_taken = UnitMicroType.REPAIR
@@ -181,7 +182,7 @@ class BaseUnitMicro(GeometryMixin):
             if self._retreat_to_better_unit(unit, can_attack=True):
                 action_taken = UnitMicroType.RETREAT
         if action_taken == UnitMicroType.NONE:
-            action_taken = await self._retreat(unit, health_threshold=0.25)
+            action_taken = await self._retreat(unit, health_threshold=0.5)
         if action_taken == UnitMicroType.NONE and not target.is_structure:
             # Don't approach a repair target if enemies are nearby — repairers
             # were taking heavy losses by walking into dangerous positions.

@@ -81,7 +81,7 @@ class Commander(GeometryMixin):
         self.tactics.map.update_influence_maps(self.new_damage_by_position) # fast
         BaseUnitMicro.reset_tag_sets()
 
-        await self.structure_micro.execute(self.tactics.intel.army_ratio, self.stuck_units) # fast
+        await self.structure_micro.execute(self.tactics.intel.army_ratio, self.stuck_units, iteration) # fast
 
         # do before build_order so scouts can be freed if they're done. mostly applies to building proxy barracks in response to early expansion
         await self.scout() # fast

@@ -38,11 +38,11 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         self.destinations: Dict[int, Point2] = {}
 
     @timed_async
-    async def execute(self, army_ratio: float, stuck_units: Units):
+    async def execute(self, army_ratio: float, stuck_units: Units, iteration: int):
         # logger.debug("adjust_supply_depots_for_enemies step")
         self.adjust_supply_depots_for_enemies()
         self.target_autoturrets()
-        await self.move_command_centers()
+        await self.move_command_centers(iteration)
         await self.move_ramp_barracks(army_ratio)
         await self.move_proxy_barracks()
         self.scan()
@@ -96,7 +96,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
     #                     break
 
     @timed_async
-    async def move_command_centers(self):
+    async def move_command_centers(self, iteration: int):
         for cc in self.bot.structures((UnitTypeId.COMMANDCENTER, UnitTypeId.COMMANDCENTERFLYING, UnitTypeId.ORBITALCOMMAND, UnitTypeId.ORBITALCOMMANDFLYING)).ready:
             if cc.is_flying:
                 destination = self.building_destinations.get(cc.tag, None)
@@ -160,9 +160,14 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                         threats = nearby_enemies.filter(lambda enemy: UnitTypes.can_attack_ground(enemy))
                         if threats:
                             self.building_destinations[cc.tag] = cc.position
-                            cc(AbilityId.CANCEL_LAST)
-                            cc(AbilityId.CANCEL, queue=True)
-                            cc(AbilityId.LIFT, queue=True)
+                            # queuing orders always breaks, so alternate cancels until orders are empty then lift
+                            if len(cc.orders) > 0 and cc.orders[0].ability.id != AbilityId.LIFT:
+                                if iteration % 2:
+                                    cc(AbilityId.CANCEL_LAST)
+                                else:
+                                    cc(AbilityId.CANCEL)
+                            else:
+                                cc(AbilityId.LIFT)
 
     @timed_async
     async def move_ramp_barracks(self, army_ratio: float):
