@@ -214,9 +214,9 @@ class MedivacDropSquad(HarassSquad):
 
         # Check disband condition (1 marine killed)
         
-        have_healthy_passengers = any(p.health_percentage > 0.5 for p in medivac.passengers)
-        have_healthy_ground_units = any(m.health_percentage > 0.5 for m in self.units(UnitTypeId.MARINE))
-        have_healthy_marines = have_healthy_passengers or have_healthy_ground_units
+        healthy_passenger_count = sum(1 for p in medivac.passengers if p.health_percentage > 0.5)
+        healthy_ground_unit_count = sum(1 for m in self.units(UnitTypeId.MARINE) if m.health_percentage > 0.5)
+        have_healthy_marines = healthy_passenger_count + healthy_ground_unit_count > 3
         if (
             self.state not in (DropState.LOADING, DropState.DISBANDING)
             and self.initial_marine_count > 0

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from loguru import logger
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 
 from cython_extensions.geometry import cy_distance_to, cy_distance_to_squared
 from cython_extensions.units_utils import cy_closest_to
@@ -77,7 +77,7 @@ class Resources(GeometryMixin):
             candidates = [node for node in self.nodes if node.needed_workers() > 0]
         return candidates
 
-    danger_blacklist: Dict[int, float] = {}
+    danger_blacklist: Dict[Tuple[int, int], float] = {}
     def add_worker(self, worker: Unit) -> Unit | None:
         if worker is None:
             return None
@@ -96,19 +96,19 @@ class Resources(GeometryMixin):
                 node for node in self.nodes
                 if not node.is_long_distance
                 and node.needed_workers() > 0
-                and self.danger_blacklist.get(node.node.tag, 0) < self.bot.time - 5
+                and self.danger_blacklist.get((worker.tag, node.node.tag), 0) <= max(0, self.bot.time - 5)
             ]
             if not nodes_needing_workers:
                 nodes_needing_workers = [
                     node for node in self.nodes
                     if node.is_long_distance
                     and node.needed_workers() > 0
-                    and self.danger_blacklist.get(node.node.tag, 0) < self.bot.time - 5
+                    and self.danger_blacklist.get((worker.tag, node.node.tag), 0) <= max(0, self.bot.time - 5)
                 ]
             
-            # if nodes_needing_workers:
-            #     most_needed = max(node.needed_workers() for node in nodes_needing_workers)
-            #     candidates = Units([node.node for node in nodes_needing_workers if node.needed_workers() == most_needed], bot_object=self.bot)
+            if nodes_needing_workers:
+                most_needed = max(node.needed_workers() for node in nodes_needing_workers)
+                candidates = Units([node.node for node in nodes_needing_workers if node.needed_workers() == most_needed], bot_object=self.bot)
 
         if candidates:
             node = cy_closest_to(worker.position, candidates)
@@ -116,7 +116,7 @@ class Resources(GeometryMixin):
             if closest_enemy and cy_distance_to_squared(worker.position, closest_enemy.position) < 121:
                 while self.position_is_between(closest_enemy.position, worker.position, node.position):
                     # if enemy is between worker and node, blacklist this node for 5 seconds and pick next closest
-                    self.danger_blacklist[node.tag] = self.bot.time
+                    self.danger_blacklist[(worker.tag, node.node.tag)] = self.bot.time
                     candidates = candidates - Units([node], bot_object=self.bot)
                     if not candidates:
                         logger.debug(f"All candidate nodes for worker {worker} are dangerous")
