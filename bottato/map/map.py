@@ -104,13 +104,7 @@ class Map(GeometryMixin):
         return None
     
     def get_retreat_path(self, unit: Unit, ultimate_destination: Point2) -> List[Point2]:
-        grid = self.influence_maps.anti_air_grid if unit.is_flying else self.influence_maps.ground_grid
-        if unit.is_cloaked:
-            grid += self.influence_maps.detection_grid
-        retreat_path = self.influence_maps.get_path(unit.position, ultimate_destination, grid)
-        if retreat_path is None:
-            return [unit.position, ultimate_destination]
-        return retreat_path
+        return self.influence_maps.get_path(unit, ultimate_destination)
     
     previous_reaper_elevations: Dict[int, float] = {}
     @timed_async

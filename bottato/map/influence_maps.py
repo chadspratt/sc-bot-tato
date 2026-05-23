@@ -101,9 +101,17 @@ class InfluenceMaps():
         return self.map_data.pather.add_cost(position=position, radius=radius, arr=grid, weight=weight, safe=safe,
                                              initial_default_weights=initial_default_weights)
     
-    def get_path(self, start: Point2, end: Point2, grid: np.ndarray) -> List[Point2] | None:
-        pathing_grid = self.map_data.pather.get_pyastar_grid(base_grid=grid)
-        return self.map_data.pathfind((start.x, start.y), (end.x, end.y), grid=pathing_grid)
+    def get_path(self, start: Point2 | Unit, end: Point2, grid: Optional[np.ndarray] = None) -> List[Point2]:
+        if isinstance(start, Unit):
+            grid = self.anti_air_grid if start.is_flying else self.ground_grid
+            if start.is_cloaked:
+                grid += self.detection_grid
+            start = start.position
+        
+        path = self.map_data.pathfind((start.x, start.y), (end.x, end.y), grid=grid)
+        if path is None:
+            return [start, end]
+        return path
     
     def get_path_distance(self, start: Point2, end: Point2, grid: np.ndarray) -> float:
         path = self.get_path(start, end, grid)
