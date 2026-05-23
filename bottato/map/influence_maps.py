@@ -1,11 +1,12 @@
 from itertools import chain
 from loguru import logger
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from cython_extensions.geometry import cy_distance_to
 from MapAnalyzer import MapData
 from sc2.bot_ai import BotAI
+from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
 from sc2.unit import Unit
@@ -13,6 +14,7 @@ from scipy.spatial import distance
 
 from bottato.map.destructibles import BUILDINGS
 from bottato.map.utils import change_destructible_status_in_grid
+from bottato.unit_types import UnitTypes
 
 
 class InfluenceMaps():
@@ -22,14 +24,31 @@ class InfluenceMaps():
         self.map_data = MapData(bot, corner_distance=0)
         self.map_name: str = bot.game_info.map_name
 
-    def get_base_pathing_grid(self, include_destructibles: bool = True):
-        return self.map_data.pather.get_base_pathing_grid(include_destructables=include_destructibles)
+    def update_maps(self, damage_by_position: Dict[Point2, List[Tuple[float, float]]]):
+        self.ground_grid = self.map_data.pather.get_pyastar_grid()
+        self.detection_grid = self.map_data.pather.get_clean_air_grid()
+        self.anti_air_grid = self.detection_grid.copy()
 
-    def get_clean_air_grid(self, default_weight: float = 1) -> np.ndarray:
-        return self.map_data.pather.get_clean_air_grid(default_weight=default_weight)
-
-    def get_pyastar_grid(self, default_weight: float = 1, include_destructables: bool = True) -> np.ndarray:
-        return self.map_data.pather.get_pyastar_grid(default_weight=default_weight, include_destructables=include_destructables)
+        cutoff_time = self.bot.time - 10
+        for position, damage_list in damage_by_position.items():
+            total_damage = 0.0
+            for damage, time in damage_list:
+                if time < cutoff_time:
+                    continue
+                total_damage += damage
+            if total_damage > 0:
+                self.add_cost((position[0], position[1]), 1.5, self.ground_grid, total_damage)
+        
+        for enemy in self.bot.all_enemy_units:
+            if enemy.is_detector:
+                self.add_cost((enemy.position[0], enemy.position[1]), enemy.sight_range + 1.5, self.detection_grid, np.inf)
+            air_range = UnitTypes.air_range(enemy)
+            if air_range > 0 and enemy.is_ready:
+                self.add_cost((enemy.position[0], enemy.position[1]), air_range + 1.5, self.anti_air_grid)
+        for effect in self.bot.state.effects:
+            if effect.id == EffectId.SCANNERSWEEP:
+                for position in effect.positions:
+                    self.add_cost((position[0], position[1]), 14, self.detection_grid, np.inf)
 
     def get_zone_grid(self, include_destructables: bool = True) -> np.ndarray:
         """Grid for zone/topology computation — terrain + destructibles, no player structures.
@@ -83,7 +102,8 @@ class InfluenceMaps():
                                              initial_default_weights=initial_default_weights)
     
     def get_path(self, start: Point2, end: Point2, grid: np.ndarray) -> List[Point2] | None:
-        return self.map_data.pathfind((start.x, start.y), (end.x, end.y), grid=grid)
+        pathing_grid = self.map_data.pather.get_pyastar_grid(base_grid=grid)
+        return self.map_data.pathfind((start.x, start.y), (end.x, end.y), grid=pathing_grid)
     
     def get_path_distance(self, start: Point2, end: Point2, grid: np.ndarray) -> float:
         path = self.get_path(start, end, grid)

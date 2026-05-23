@@ -38,7 +38,7 @@ class Map(GeometryMixin):
         self.last_refresh_time = 0
         self.natural_position: Point2 = self.bot.start_location
         self.enemy_natural_position: Point2 = self.bot.enemy_start_locations[0]
-        self.all_damage_by_position: dict[Point2, List[Tuple[float, float]]] = {}
+        self.all_damage_by_position: Dict[Point2, List[Tuple[float, float]]] = {}
         self.expansion_orders: Dict[ExpansionSelection, List[ScoutingLocation]] = {
             ExpansionSelection.CLOSEST: [],
             ExpansionSelection.AWAY_FROM_ENEMY: []
@@ -104,9 +104,9 @@ class Map(GeometryMixin):
         return None
     
     def get_retreat_path(self, unit: Unit, ultimate_destination: Point2) -> List[Point2]:
-        grid = self.anti_air_grid if unit.is_flying else self.ground_grid
+        grid = self.influence_maps.anti_air_grid if unit.is_flying else self.influence_maps.ground_grid
         if unit.is_cloaked:
-            grid += self.detection_grid
+            grid += self.influence_maps.detection_grid
         retreat_path = self.influence_maps.get_path(unit.position, ultimate_destination, grid)
         if retreat_path is None:
             return [unit.position, ultimate_destination]
@@ -137,6 +137,20 @@ class Map(GeometryMixin):
                     for damage, time in damage_list:
                         zone.add_damage(damage, time)
             self.last_refresh_time = self.bot.time
+
+    @timed
+    def update_influence_maps(self, damage_by_position: dict[Point2, float]) -> None:
+        for position, damage in damage_by_position.items():
+            zone = self.zone_lookup_by_coord.get((position.x, position.y))
+            if zone:
+                zone.add_damage(damage, self.bot.time)
+            if position not in self.all_damage_by_position:
+                self.all_damage_by_position[position] = []
+            self.all_damage_by_position[position].append((damage, self.bot.time))
+
+        self.influence_maps.update_maps(self.all_damage_by_position)
+        
+        # self.draw_influence()
 
     @timed
     def init_distance_from_edge(self, pathing_grid: np.ndarray):
@@ -471,11 +485,11 @@ class Map(GeometryMixin):
 
     @timed
     def get_pathable_position(self, position: Point2, unit: Unit) -> Point2:
-        grid = self.ground_grid
+        grid = self.influence_maps.ground_grid
         if unit.is_cloaked:
-            grid = self.detection_grid
+            grid = self.influence_maps.detection_grid
         elif unit.is_flying:
-            grid = self.anti_air_grid
+            grid = self.influence_maps.anti_air_grid
         candidates = self.influence_maps.find_lowest_cost_points(position, 4, grid)
         if candidates is None:
             pathable_position = position
@@ -495,7 +509,7 @@ class Map(GeometryMixin):
             if position_cost <= pathable_cost and pathable_position._distance_squared(position) < 2.25:
                 pathable_position = position
             elif unit and not unit.is_flying:
-                self.influence_maps.add_cost((pathable_position[0], pathable_position[1]), unit.radius, self.ground_grid, np.inf)
+                self.influence_maps.add_cost((pathable_position[0], pathable_position[1]), unit.radius, self.influence_maps.ground_grid, np.inf)
         return pathable_position
     
     async def get_path_checking_position(self) -> Point2 | None:
@@ -504,49 +518,6 @@ class Map(GeometryMixin):
             self.path_checking_position = await self.bot.find_placement(UnitTypeId.MISSILETURRET, self.bot.game_info.map_center, 25, placement_step = 5)
 
         return self.path_checking_position
-
-    anti_air_structures: Set[UnitTypeId] = set([
-        UnitTypeId.MISSILETURRET,
-        UnitTypeId.BUNKER,
-        UnitTypeId.PHOTONCANNON,
-        UnitTypeId.SPORECRAWLER,
-    ])
-    @timed
-    def update_influence_maps(self, damage_by_position: dict[Point2, float]) -> None:
-        self.ground_grid = self.influence_maps.get_pyastar_grid()
-        self.detection_grid = self.influence_maps.get_clean_air_grid()
-        self.anti_air_grid = self.influence_maps.get_clean_air_grid()
-
-        for position, damage in damage_by_position.items():
-            zone = self.zone_lookup_by_coord.get((position.x, position.y))
-            if zone:
-                zone.add_damage(damage, self.bot.time)
-            if position not in self.all_damage_by_position:
-                self.all_damage_by_position[position] = []
-            self.all_damage_by_position[position].append((damage, self.bot.time))
-
-        cutoff_time = self.bot.time - 10
-        for position, damage_list in self.all_damage_by_position.items():
-            total_damage = 0.0
-            for damage, time in damage_list:
-                if time < cutoff_time:
-                    continue
-                total_damage += damage
-            if total_damage > 0:
-                self.influence_maps.add_cost((position[0], position[1]), 1.5, self.ground_grid, total_damage)
-        
-        for enemy in self.bot.all_enemy_units:
-            if enemy.is_detector:
-                self.influence_maps.add_cost((enemy.position[0], enemy.position[1]), enemy.sight_range + 1.5, self.detection_grid, np.inf)
-            air_range = UnitTypes.air_range(enemy)
-            if air_range > 0 and enemy.is_ready:
-                self.influence_maps.add_cost((enemy.position[0], enemy.position[1]), air_range + 1.5, self.anti_air_grid)
-        for effect in self.bot.state.effects:
-            if effect.id == EffectId.SCANNERSWEEP:
-                for position in effect.positions:
-                    self.influence_maps.add_cost((position[0], position[1]), 14, self.detection_grid, np.inf)
-        
-        # self.draw_influence()
     
     async def get_natural_position(self, start_position: Point2) -> Point2:
         """Find natural location, given friendly or enemy start position"""
@@ -594,7 +565,7 @@ class Map(GeometryMixin):
 
     def draw_influence(self) -> None:
         # self.influence_maps.draw_influence_in_game(self.ground_grid, 1, 2000)
-        self.influence_maps.draw_influence_in_game(self.detection_grid, 1, 2000)
+        self.influence_maps.draw_influence_in_game(self.influence_maps.detection_grid, 1, 2000)
         return
 
     @timed
