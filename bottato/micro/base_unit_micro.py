@@ -652,39 +652,42 @@ class BaseUnitMicro(GeometryMixin):
         
         if not ultimate_destination:
             ultimate_destination = self.bot.game_info.player_start_location
+
+        retreat_path = self.tactics.map.get_retreat_path(unit, ultimate_destination.position)
+        return retreat_path[1] if len(retreat_path) > 1 else ultimate_destination
         
-        if not unit.is_flying and not unit.type_id == UnitTypeId.REAPER:
-            retreat_path = self.tactics.map.get_path(unit.position, ultimate_destination.position)
-            if retreat_path:
-                for zone in retreat_path.zones:
-                    ultimate_destination = zone.midpoint
-                    if cy_distance_to(unit.position, ultimate_destination) > 10:
-                        break
+        # if not unit.is_flying and not unit.type_id == UnitTypeId.REAPER:
+        #     retreat_path = self.tactics.map.get_path(unit.position, ultimate_destination.position)
+        #     if retreat_path:
+        #         for zone in retreat_path.zones:
+        #             ultimate_destination = zone.midpoint
+        #             if cy_distance_to(unit.position, ultimate_destination) > 10:
+        #                 break
         
-        threats = threats.filter(lambda t: self.position_is_between(t.position, unit.position, ultimate_destination.position))
-        if not threats:
-            if isinstance(ultimate_destination, Unit):
-                return ultimate_destination
-            return self.tactics.map.get_pathable_position(ultimate_destination, unit)
+        # threats = threats.filter(lambda t: self.position_is_between(t.position, unit.position, ultimate_destination.position))
+        # if not threats:
+        #     if isinstance(ultimate_destination, Unit):
+        #         return ultimate_destination
+        #     return self.tactics.map.get_pathable_position(ultimate_destination, unit)
 
-        _, grouped_units = self.get_most_grouped_unit(threats, self.bot, 5.0)
-        threat_center = Point2(cy_center(grouped_units))
-        closest_threat_to_destination = cy_closest_to(ultimate_destination.position, grouped_units)
-        if unit.position == threat_center or \
-            cy_distance_to(unit.position, ultimate_destination.position) < cy_distance_to(closest_threat_to_destination.position, ultimate_destination.position) - 2:
-            return self.tactics.map.get_pathable_position(ultimate_destination.position, unit)
+        # _, grouped_units = self.get_most_grouped_unit(threats, self.bot, 5.0)
+        # threat_center = Point2(cy_center(grouped_units))
+        # closest_threat_to_destination = cy_closest_to(ultimate_destination.position, grouped_units)
+        # if unit.position == threat_center or \
+        #     cy_distance_to(unit.position, ultimate_destination.position) < cy_distance_to(closest_threat_to_destination.position, ultimate_destination.position) - 2:
+        #     return self.tactics.map.get_pathable_position(ultimate_destination.position, unit)
 
-        retreat_vector = GeometryMixin.get_vector_towards_biggest_gap(unit.position, [threat.position for threat in grouped_units])
-        retreat_distance = 10 if unit.is_flying else 5
-        retreat_position = Point2(cy_towards(unit.position, unit.position + retreat_vector, retreat_distance))
-        if unit.is_flying:
-            retreat_position = self.tactics.map.clamp_position_to_map_bounds(retreat_position, unit.position, self.bot)
-            return self.tactics.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
-        if self._position_is_pathable(unit, retreat_position):
-            return self.tactics.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
+        # retreat_vector = GeometryMixin.get_vector_towards_biggest_gap(unit.position, [threat.position for threat in grouped_units])
+        # retreat_distance = 10 if unit.is_flying else 5
+        # retreat_position = Point2(cy_towards(unit.position, unit.position + retreat_vector, retreat_distance))
+        # if unit.is_flying:
+        #     retreat_position = self.tactics.map.clamp_position_to_map_bounds(retreat_position, unit.position, self.bot)
+        #     return self.tactics.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
+        # if self._position_is_pathable(unit, retreat_position):
+        #     return self.tactics.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
 
-        circle_around_position = self.get_circle_around_position(unit, closest_threat_to_destination.position, ultimate_destination.position)
-        return circle_around_position
+        # circle_around_position = self.get_circle_around_position(unit, closest_threat_to_destination.position, ultimate_destination.position)
+        # return circle_around_position
     
     def _position_is_pathable(self, unit: Unit, position: Point2) -> bool:
         if unit.is_flying and self.bot.in_map_bounds(position) or cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, position):

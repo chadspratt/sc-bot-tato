@@ -64,36 +64,54 @@ class Map(GeometryMixin):
 
     def init_expansion_orders(self):
         # uses pathing so has to be called after map is initialized
+        zone_grid = self.influence_maps.get_zone_grid(False)
         self.expansion_orders[ExpansionSelection.CLOSEST] = sorted(
             self.scouting_locations,
-            key=lambda loc: cy_distance_to_squared(loc.expansion_position, self.bot.start_location)
+            key=lambda loc: self.influence_maps.get_path_distance(self.bot.start_location, loc.expansion_position, grid=zone_grid)
+            # key=lambda loc: cy_distance_to_squared(loc.expansion_position, self.bot.start_location)
         )
         self.expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY] = sorted(
             self.scouting_locations,
                 key=lambda loc: self._distance_minus_enemy_distance(
                     loc,
                     self.bot.start_location,
-                    self.bot.enemy_start_locations[0])
+                    self.bot.enemy_start_locations[0],
+                    zone_grid)
         )
         # compute both for enemy because we don't know which they use
         self.enemy_expansion_orders[ExpansionSelection.CLOSEST] = sorted(
             self.scouting_locations,
-            key=lambda loc: cy_distance_to_squared(loc.expansion_position, self.bot.enemy_start_locations[0])
+            key=lambda loc: self.influence_maps.get_path_distance(self.bot.enemy_start_locations[0], loc.expansion_position, grid=zone_grid)
         )
         self.enemy_expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY] = sorted(
             self.scouting_locations,
                 key=lambda loc: self._distance_minus_enemy_distance(
                     loc,
                     self.bot.enemy_start_locations[0],
-                    self.bot.start_location)
+                    self.bot.start_location,
+                    zone_grid)
         )
+
+    def _distance_minus_enemy_distance(self, location: ScoutingLocation, start_position: Point2, enemy_start_position: Point2, grid: np.ndarray) -> float:
+        """Helper function for sorting expansions by distance from enemy."""
+        path = self.influence_maps.get_path_distance(start_position, location.expansion_position, grid)
+        return path - cy_distance_to(location.expansion_position, enemy_start_position)
     
     def get_next_expansion(self, selection: ExpansionSelection = ExpansionSelection.AWAY_FROM_ENEMY) -> Point2 | None:
         for location in self.expansion_orders[selection]:
             if not self.member_is_closer_than(location.expansion_position, self.bot.townhalls, 5):
                 return location.expansion_position
         return None
-
+    
+    def get_retreat_path(self, unit: Unit, ultimate_destination: Point2) -> List[Point2]:
+        grid = self.anti_air_grid if unit.is_flying else self.ground_grid
+        if unit.is_cloaked:
+            grid += self.detection_grid
+        retreat_path = self.influence_maps.get_path(unit.position, ultimate_destination, grid)
+        if retreat_path is None:
+            return [unit.position, ultimate_destination]
+        return retreat_path
+    
     previous_reaper_elevations: Dict[int, float] = {}
     @timed_async
     async def refresh_map(self):
@@ -544,11 +562,6 @@ class Map(GeometryMixin):
                 closest = el
 
         return closest
-    
-    def _distance_minus_enemy_distance(self, location: ScoutingLocation, start_position: Point2, enemy_start_position: Point2) -> float:
-        """Helper function for sorting expansions by distance from enemy."""
-        path = self.get_path(start_position, location.expansion_position)
-        return path.length - cy_distance_to(location.expansion_position, enemy_start_position)
 
     checked_zones = set()
     zones_to_check: List[Zone] = []

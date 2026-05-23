@@ -3,6 +3,7 @@ from loguru import logger
 from typing import List, Optional, Tuple
 
 import numpy as np
+from cython_extensions.geometry import cy_distance_to
 from MapAnalyzer import MapData
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
@@ -30,7 +31,7 @@ class InfluenceMaps():
     def get_pyastar_grid(self, default_weight: float = 1, include_destructables: bool = True) -> np.ndarray:
         return self.map_data.pather.get_pyastar_grid(default_weight=default_weight, include_destructables=include_destructables)
 
-    def get_zone_grid(self) -> np.ndarray:
+    def get_zone_grid(self, include_destructables: bool = True) -> np.ndarray:
         """Grid for zone/topology computation — terrain + destructibles, no player structures.
 
         Zones represent map terrain topology and should not be fragmented by
@@ -38,7 +39,7 @@ class InfluenceMaps():
         init_zones when many buildings are present (e.g. continue-from-replay).
         """
         grid = self.map_data.pather.long_range_grid.copy()
-        grid = self.map_data.pather._add_non_pathables_ground(grid=grid, include_destructables=True, include_structures=False)
+        grid = self.map_data.pather._add_non_pathables_ground(grid=grid, include_destructables=include_destructables, include_structures=False)
         return grid
     
     def destructables_changed(self) -> bool:
@@ -80,6 +81,21 @@ class InfluenceMaps():
         """
         return self.map_data.pather.add_cost(position=position, radius=radius, arr=grid, weight=weight, safe=safe,
                                              initial_default_weights=initial_default_weights)
+    
+    def get_path(self, start: Point2, end: Point2, grid: np.ndarray) -> List[Point2] | None:
+        return self.map_data.pathfind((start.x, start.y), (end.x, end.y), grid=grid)
+    
+    def get_path_distance(self, start: Point2, end: Point2, grid: np.ndarray) -> float:
+        path = self.get_path(start, end, grid)
+        if path is None:
+            return float('inf')
+        distance = 0
+        prev_position = None
+        for position in path:
+            if prev_position is not None:
+                distance += cy_distance_to(prev_position, position)
+            prev_position = position
+        return distance
 
     def draw_influence_in_game(self, grid: np.ndarray,
                                lower_threshold: int = 1,
