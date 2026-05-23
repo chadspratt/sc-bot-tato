@@ -558,7 +558,7 @@ class Military(GeometryMixin, DebugMixin):
         enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
         bunker_staging_location: Point2 | None = None
         if self.tactics.is_active(Tactic.PROXY_BARRACKS):
-            self.intel.main_army_staging_location = self.map.enemy_expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY][2].expansion_position
+            self.intel.main_army_staging_location = self.map.enemy_expansion_orders[ExpansionSelection.CLOSEST][2].expansion_position
             LogHelper.add_log(f"squad {self.main_army} staging near proxy barracks")
         elif BuildType.RUSH in detected_enemy_builds and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
             ramp_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOT).filter(lambda depot: depot.position.manhattan_distance(self.bot.main_base_ramp.top_center) < 5)

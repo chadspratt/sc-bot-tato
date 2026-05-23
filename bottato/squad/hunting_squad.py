@@ -67,7 +67,7 @@ class HuntingSquad(Squad, GeometryMixin):
                 if await micro.scout(unit, destination) == UnitMicroType.RETREAT:
                     self.unsafe_targets[target.tag] = self.bot.time
         else:
-            scout_locations = self.tactics.map.expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY]
+            scout_locations = self.tactics.map.expansion_orders[ExpansionSelection.CLOSEST]
             location_count = len(scout_locations) // 2 + 1
             # only hunt on friendly side of map
             self.next_location = sorted(scout_locations[:location_count], key=lambda loc: loc.last_seen)[0]

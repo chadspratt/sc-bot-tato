@@ -64,7 +64,7 @@ class CreepClearingSquad(HuntingSquad):
 
     def _get_priority_expansion(self) -> Point2 | None:
         """Return the position of the next expansion we want to keep creep-free."""
-        return self.tactics.map.get_next_expansion(ExpansionSelection.AWAY_FROM_ENEMY)
+        return self.tactics.map.get_next_expansion(ExpansionSelection.CLOSEST)
 
     def _get_ground_units(self) -> Units:
         return self.units.filter(lambda u: u.type_id != UnitTypeId.RAVEN)
@@ -261,7 +261,7 @@ class CreepClearingSquad(HuntingSquad):
 
     async def _fallback_scout(self, ground_units: Units, ravens: Units):
         """When nothing to clear and no expansion to patrol, scout friendly expansions."""
-        scout_locations = self.tactics.map.expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY]
+        scout_locations = self.tactics.map.expansion_orders[ExpansionSelection.CLOSEST]
         location_count = len(scout_locations) // 2 + 1
         self.next_location = sorted(scout_locations[:location_count], key=lambda loc: loc.last_seen)[0]
 

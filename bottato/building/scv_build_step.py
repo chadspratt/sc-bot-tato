@@ -293,7 +293,7 @@ class SCVBuildStep(BuildStep):
                     new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
             else:
                 # modified from bot_ai get_next_expansion
-                sorted_expansions = self.map.expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY]
+                sorted_expansions = self.map.expansion_orders[ExpansionSelection.CLOSEST]
                 available_expansions = []
                 for location in sorted_expansions:
                     def is_near_to_expansion(t: Unit):
@@ -416,7 +416,7 @@ class SCVBuildStep(BuildStep):
             if detected_enemy_builds[BuildType.EARLY_EXPANSION] < 50:
                 # very fast expansion, they might go for a fast third and discover the proxy so use 4th instead
                 proxy_base_index = 3
-            new_build_position = self.map.enemy_expansion_orders[ExpansionSelection.AWAY_FROM_ENEMY][proxy_base_index].expansion_position
+            new_build_position = self.map.enemy_expansion_orders[ExpansionSelection.CLOSEST][proxy_base_index].expansion_position
             LogHelper.add_log(f"Proxy barracks position: {new_build_position}")
         else:
             new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
