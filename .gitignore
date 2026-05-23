@@ -6,7 +6,6 @@ bot_tato.log
 *.sc2replay
 *.so
 /sc2
-MapAnalyzer
 other_bots
 cython_extensions/*.c
 cython_extensions/*.h
