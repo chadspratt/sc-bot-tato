@@ -54,9 +54,10 @@ class Tactics:
                         # start the proxy
                         new_value = True
                     elif self.last_values[tactic] and self.proxy_barracks:
-                        if self.bot.time < 240 and self.intel.army_ratio > 1.1 or self.intel.army_ratio > 3:
-                            # keep it going if it's working
-                            new_value = True
+                        # keep it going if it's working
+                        new_value = self.bot.enemy_units([UnitTypeId.HELLION]).amount == 0 \
+                            and (self.bot.time < 240 and self.intel.army_ratio > 1.1
+                                 or self.intel.army_ratio > 3)
         elif tactic == Tactic.RUSH_DEFENSE:
             new_value = (
                 self.bot.time < 240

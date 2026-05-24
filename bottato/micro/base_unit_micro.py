@@ -654,7 +654,7 @@ class BaseUnitMicro(GeometryMixin):
             ultimate_destination = self.bot.game_info.player_start_location
 
         retreat_path = self.tactics.map.get_retreat_path(unit, ultimate_destination.position)
-        return retreat_path[1] if len(retreat_path) > 1 else ultimate_destination
+        return retreat_path[2] if len(retreat_path) > 2 else ultimate_destination
         
         # if not unit.is_flying and not unit.type_id == UnitTypeId.REAPER:
         #     retreat_path = self.tactics.map.get_path(unit.position, ultimate_destination.position)
