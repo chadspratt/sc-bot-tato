@@ -4,6 +4,7 @@ from typing import Dict, override
 from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.dicts.unit_train_build_abilities import TRAIN_INFO
+from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
@@ -32,7 +33,10 @@ class StructureBuildStep(BuildStep):
 
     def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers, production: Production, tactics: Tactics):
         super().__init__(unit_type_id, bot, workers, production, tactics)
-        self.unit_type_id = unit_type_id
+        if unit_type_id in UNIT_UNIT_ALIAS:
+            self.unit_type_id = UNIT_UNIT_ALIAS[unit_type_id]
+        else:
+            self.unit_type_id = unit_type_id
 
     def __repr__(self) -> str:
         builder = self.unit_in_charge if self.unit_in_charge else self.builder_type

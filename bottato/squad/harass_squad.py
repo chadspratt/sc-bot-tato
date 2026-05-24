@@ -15,14 +15,18 @@ from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import GeometryMixin, timed
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.squad import Squad
+from bottato.tactics import Tactics
 from bottato.unit_types import UnitTypes
 
 
 class HarassSquad(Squad, GeometryMixin):
-    def __init__(self, bot: BotAI, name: str):
+    def __init__(self, bot: BotAI, name: str, tactics: Tactics):
         super().__init__(bot, name, color=(0, 255, 255))
         self.harass_locations: Dict[int, Point2] = {}
         self.arrived: Dict[int, bool] = {}
+        self.harass_location_blacklist_times: Dict[Point2, float] = {}
+        self.tactics = tactics
+
     def __repr__(self):
         return f"HarassSquad({self.name},{len(self.units)})"
 
@@ -53,8 +57,21 @@ class HarassSquad(Squad, GeometryMixin):
                     elif distance_to_harass_location > 15:
                         # arrived but got chased away, pick new location
                         self.arrived[unit.tag] = False
-                        other_enemy_bases = [loc for loc in intel.enemy_base_built_times.keys() if loc.manhattan_distance(self.harass_locations[unit.tag]) > 15]
-                        self.harass_locations[unit.tag] = random.choice(other_enemy_bases) if other_enemy_bases else self.harass_locations[unit.tag]
+                        self.harass_location_blacklist_times[self.harass_locations[unit.tag]] = self.bot.time
+                        time_limit = 9999 if unit.type_id == UnitTypeId.REAPER else 45
+                        other_enemy_bases = [
+                            loc for loc in intel.enemy_base_built_times.keys()
+                            if self.bot.time - self.harass_location_blacklist_times.get(loc, -999) > time_limit
+                        ]
+                        if other_enemy_bases:
+                            self.harass_locations[unit.tag] = random.choice(other_enemy_bases)
+                        else:
+                            expansion_location = self.tactics.map.get_next_enemy_expansion()
+                            if expansion_location:
+                                self.harass_locations[unit.tag] = expansion_location
+                            else:
+                                # every expansion has been taken
+                                self.harass_locations[unit.tag] = self.bot.enemy_start_locations[0]
 
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
             nearby_enemies = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_target(u, unit) and u.distance_to_squared(unit) < 225)

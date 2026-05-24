@@ -653,8 +653,7 @@ class BaseUnitMicro(GeometryMixin):
         if not ultimate_destination:
             ultimate_destination = self.bot.game_info.player_start_location
 
-        retreat_path = self.tactics.map.get_retreat_path(unit, ultimate_destination.position)
-        return retreat_path[2] if len(retreat_path) > 2 else ultimate_destination
+        return self.tactics.map.get_influence_path_waypoint(unit, ultimate_destination.position)
         
         # if not unit.is_flying and not unit.type_id == UnitTypeId.REAPER:
         #     retreat_path = self.tactics.map.get_path(unit.position, ultimate_destination.position)
@@ -768,33 +767,34 @@ class BaseUnitMicro(GeometryMixin):
     
     @timed
     def get_circle_around_position(self, unit: Unit, threat_position: Point2, destination: Point2) -> Point2:
-        if destination == unit.position:
-            return destination
-        if not unit.is_flying and cy_distance_to_squared(unit.position, destination) > 225:
-            path_to_destination = self.tactics.map.get_path_points(unit.position, destination)
-            if len(path_to_destination) > 1:
-                for path_position in path_to_destination:
-                    distance_squared = cy_distance_to_squared(unit.position, path_position)
-                    if distance_squared > cy_distance_to_squared(threat_position, path_position):
-                        break
-                    if distance_squared > 400 or path_position == path_to_destination[-1]:
-                        # if no enemies along path, go to first node
-                        return path_to_destination[1]
-        if unit.position == threat_position:
-            return destination
-        threat_to_unit_vector = (unit.position - threat_position).normalized
-        unit_to_destination_vector = (destination - unit.position).normalized
-        if self.vectors_go_same_direction(threat_to_unit_vector, unit_to_destination_vector):
-            # on same side, go directly to destination
-            return destination
-        tangent_vector1 = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
-        tangent_vector2 = Point2((-tangent_vector1.x, -tangent_vector1.y))
-        circle_around_positions = [Point2(unit.position + tangent_vector1),
-                                    Point2(unit.position + tangent_vector2)]
-        if unit.is_flying:
-            away_from_edge_positions = [pos for pos in circle_around_positions if self.tactics.map.get_distance_from_edge(pos, unit) > 3]
-            if away_from_edge_positions:
-                circle_around_positions = away_from_edge_positions
-        circle_around_positions.sort(key=lambda pos: cy_distance_to_squared(pos, destination))
-        circle_around_position = Point2(cy_towards(circle_around_positions[0], threat_position, -1))
-        return self.tactics.map.get_pathable_position(circle_around_position, unit)
+        return self.tactics.map.get_influence_path_waypoint(unit, destination)
+        # if destination == unit.position:
+        #     return destination
+        # if not unit.is_flying and cy_distance_to_squared(unit.position, destination) > 225:
+        #     path_to_destination = self.tactics.map.get_path_points(unit.position, destination)
+        #     if len(path_to_destination) > 1:
+        #         for path_position in path_to_destination:
+        #             distance_squared = cy_distance_to_squared(unit.position, path_position)
+        #             if distance_squared > cy_distance_to_squared(threat_position, path_position):
+        #                 break
+        #             if distance_squared > 400 or path_position == path_to_destination[-1]:
+        #                 # if no enemies along path, go to first node
+        #                 return path_to_destination[1]
+        # if unit.position == threat_position:
+        #     return destination
+        # threat_to_unit_vector = (unit.position - threat_position).normalized
+        # unit_to_destination_vector = (destination - unit.position).normalized
+        # if self.vectors_go_same_direction(threat_to_unit_vector, unit_to_destination_vector):
+        #     # on same side, go directly to destination
+        #     return destination
+        # tangent_vector1 = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed
+        # tangent_vector2 = Point2((-tangent_vector1.x, -tangent_vector1.y))
+        # circle_around_positions = [Point2(unit.position + tangent_vector1),
+        #                             Point2(unit.position + tangent_vector2)]
+        # if unit.is_flying:
+        #     away_from_edge_positions = [pos for pos in circle_around_positions if self.tactics.map.get_distance_from_edge(pos, unit) > 3]
+        #     if away_from_edge_positions:
+        #         circle_around_positions = away_from_edge_positions
+        # circle_around_positions.sort(key=lambda pos: cy_distance_to_squared(pos, destination))
+        # circle_around_position = Point2(cy_towards(circle_around_positions[0], threat_position, -1))
+        # return self.tactics.map.get_pathable_position(circle_around_position, unit)

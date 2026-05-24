@@ -22,6 +22,7 @@ from bottato.micro.medivac_micro import MedivacMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.harass_squad import HarassSquad
+from bottato.tactics import Tactics
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 
@@ -44,8 +45,8 @@ class MedivacDropSquad(HarassSquad):
     DROP_SUPPLY = 10
     MARINE_ATTACK_RANGE = 5.0
 
-    def __init__(self, bot: BotAI, name: str):
-        super().__init__(bot, name)
+    def __init__(self, bot: BotAI, name: str, tactics: Tactics):
+        super().__init__(bot, name, tactics)
         self.state: DropState = DropState.LOADING
         self.initial_marine_count: int = 0
         # clockwise=1, counter-clockwise=-1, keyed by medivac tag

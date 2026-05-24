@@ -68,8 +68,8 @@ class Military(GeometryMixin, DebugMixin):
         self.natural_bunker = Bunker(self.bot,  self.enemy,  2)
         self.bunkers = [self.top_ramp_bunker, self.natural_bunker]
         self.stuck_rescue = StuckRescue(self.bot, self.main_army, self.squads_by_unit_tag)
-        self.reaper_harass = HarassSquad(self.bot, name="reaper harass")
-        self.banshee_harass = HarassSquad(self.bot, name="banshee harass")
+        self.reaper_harass = HarassSquad(self.bot, name="reaper harass", tactics=self.tactics)
+        self.banshee_harass = HarassSquad(self.bot, name="banshee harass", tactics=self.tactics)
         self.medivac_drop: MedivacDropSquad | None = None
         self.medivac_drop_disband_cooldown = 60.0
         self.medivac_drop_last_disband: float = 0.0
@@ -450,7 +450,7 @@ class Military(GeometryMixin, DebugMixin):
                 return
             # Create new drop squad when we have enough medivacs and marines
             if medivacs.amount >= 3 and marines.amount >= 18:
-                self.medivac_drop = MedivacDropSquad(self.bot, name="medivac drop")
+                self.medivac_drop = MedivacDropSquad(self.bot, name="medivac drop", tactics=self.tactics)
                 medivac_unit = medivacs.first
                 # Transfer 1 medivac and 6 healthiest marines
                 self.transfer(medivac_unit, self.main_army, self.medivac_drop)

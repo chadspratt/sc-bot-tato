@@ -115,8 +115,8 @@ class BuildOrder():
             self.queue_turret(self.intel)
             await self.queue_bunker(self.intel.main_army_staging_location)
 
-            # randomize unit queue so it doesn't get stuck on one unit type
             military_queue, priority_military_queue = self.get_military_queue(self.enemy, self.intel)
+            # randomize unit queue so it doesn't get stuck on one unit type
             military_queue.sort(key=lambda step: random.randint(0,255))
             # prioritize building at least one of each requested unit type
             military_queue.sort(key=lambda step: isinstance(step, UnitTypeId) and self.bot.units(step).amount > 0)
@@ -311,6 +311,7 @@ class BuildOrder():
             self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue, position=0)
             self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue, position=0)
             self.add_to_build_queue([UnitTypeId.WIDOWMINE, UnitTypeId.HELLION], queue=self.priority_queue, position=0)
+            self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue, position=0)
             if self.bot.structures(UnitTypeId.BUNKER).amount > 0:
                 self.remove_step_from_queue(UnitTypeId.BUNKER, self.static_queue, remove_all=True)
         elif change == BuildOrderChange.ANTI_AIR:

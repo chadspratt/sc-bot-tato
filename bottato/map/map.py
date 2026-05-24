@@ -103,8 +103,18 @@ class Map(GeometryMixin):
                 return location.expansion_position
         return None
     
-    def get_retreat_path(self, unit: Unit, ultimate_destination: Point2) -> List[Point2]:
+    def get_next_enemy_expansion(self, selection: ExpansionSelection = ExpansionSelection.CLOSEST) -> Point2 | None:
+        for location in self.enemy_expansion_orders[selection]:
+            if not self.member_is_closer_than(location.expansion_position, self.bot.townhalls, 5):
+                return location.expansion_position
+        return None
+    
+    def get_influence_path(self, unit: Unit, ultimate_destination: Point2) -> List[Point2]:
         return self.influence_maps.get_path(unit, ultimate_destination)
+    
+    def get_influence_path_waypoint(self, unit: Unit, ultimate_destination: Point2) -> Point2:
+        path = self.get_influence_path(unit, ultimate_destination)
+        return path[2] if len(path) > 2 else ultimate_destination
     
     previous_reaper_elevations: Dict[int, float] = {}
     @timed_async
