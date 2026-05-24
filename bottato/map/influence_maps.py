@@ -25,9 +25,10 @@ class InfluenceMaps():
         self.map_name: str = bot.game_info.map_name
 
     def update_maps(self, damage_by_position: Dict[Point2, List[Tuple[float, float]]]):
-        self.ground_grid = self.map_data.pather.get_pyastar_grid()
-        self.detection_grid = self.map_data.pather.get_clean_air_grid()
-        self.anti_air_grid = self.detection_grid.copy()
+        self.ground_grid = self.map_data.get_pyastar_grid()
+        self.reaper_grid = self.map_data.get_climber_grid()
+        self.anti_air_grid = self.map_data.get_air_vs_ground_grid()
+        self.detection_grid = self.map_data.get_clean_air_grid()
 
         cutoff_time = self.bot.time - 10
         for position, damage_list in damage_by_position.items():
@@ -37,18 +38,29 @@ class InfluenceMaps():
                     continue
                 total_damage += damage
             if total_damage > 0:
-                self.add_cost((position[0], position[1]), 1.5, self.ground_grid, total_damage)
+                self.add_cost((position[0], position[1]), 1.5, self.ground_grid, total_damage*10)
+                self.add_cost((position[0], position[1]), 1.5, self.reaper_grid, total_damage*10)
         
         for enemy in self.bot.all_enemy_units:
-            if enemy.is_detector:
-                self.add_cost((enemy.position[0], enemy.position[1]), enemy.sight_range + 1.5, self.detection_grid, np.inf)
+            ground_range = UnitTypes.ground_range(enemy)
+            if ground_range > 0 and enemy.is_ready:
+                self.add_cost((enemy.position[0], enemy.position[1]), ground_range + 1.5, self.ground_grid)
+                self.add_cost((enemy.position[0], enemy.position[1]), ground_range + 1.5, self.reaper_grid)
+
             air_range = UnitTypes.air_range(enemy)
             if air_range > 0 and enemy.is_ready:
                 self.add_cost((enemy.position[0], enemy.position[1]), air_range + 1.5, self.anti_air_grid)
+
+            if enemy.is_detector:
+                self.add_cost((enemy.position[0], enemy.position[1]), enemy.sight_range + 1.5, self.detection_grid, 5)
+
         for effect in self.bot.state.effects:
             if effect.id == EffectId.SCANNERSWEEP:
                 for position in effect.positions:
-                    self.add_cost((position[0], position[1]), 14, self.detection_grid, np.inf)
+                    self.add_cost((position[0], position[1]), 14, self.detection_grid, 5)
+
+        # cap detection weights at 5x (detection is multiplied with other grid for cloaked units)
+        self.detection_grid = np.minimum(self.detection_grid, 5)
 
     def get_zone_grid(self, include_destructables: bool = True) -> np.ndarray:
         """Grid for zone/topology computation — terrain + destructibles, no player structures.
@@ -103,9 +115,14 @@ class InfluenceMaps():
     
     def get_path(self, start: Point2 | Unit, end: Point2, grid: Optional[np.ndarray] = None) -> List[Point2]:
         if isinstance(start, Unit):
-            grid = self.anti_air_grid if start.is_flying else self.ground_grid
+            if start.type_id == UnitTypeId.REAPER:
+                grid = self.reaper_grid
+            elif start.is_flying:
+                grid = self.anti_air_grid
+            else:
+                grid = self.ground_grid
             if start.is_cloaked:
-                grid += self.detection_grid
+                grid *= self.detection_grid
             start = start.position
         
         path = self.map_data.pathfind((start.x, start.y), (end.x, end.y), grid=grid)
