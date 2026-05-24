@@ -108,7 +108,6 @@ class BuildOrder():
         self.queue_townhall_work(detected_enemy_builds)
         self.queue_supply()
 
-
         self.queue_command_center(self.intel.army_ratio, detected_enemy_builds)
         self.queue_upgrade()
         self.queue_marines(detected_enemy_builds, self.intel.army_ratio)
@@ -624,7 +623,7 @@ class BuildOrder():
                 # don't queue another expansion if current one is still in air
                 # probably unsafe or it would have landed
                 return
-            if self.bot.enemy_structures.of_type(UnitTypes.TOWNHALL_TYPES).amount < 2:
+            if self.bot.enemy_structures.of_type(UnitTypes.TOWNHALL_TYPES).amount < 2 and self.bot.time < 360:
                 # enemy has not expanded, hold off on taking a third
                 return
         if BuildType.RUSH in detected_enemy_builds and self.bot.time < 160:
