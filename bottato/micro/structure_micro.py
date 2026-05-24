@@ -187,7 +187,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 return
             self.building_destinations[ramp_barracks.tag] = desired_position
 
-        is_in_position = ramp_barracks.position == desired_position
+        is_in_position = ramp_barracks.position == desired_position and not ramp_barracks.is_flying
         if not is_in_position:
             # Check if natural townhall is in position
             natural_townhalls = cy_closer_than(self.bot.townhalls, 1, self.map.natural_position)

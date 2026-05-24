@@ -136,12 +136,13 @@ class Military(GeometryMixin, DebugMixin):
         elif mount_offense: # previously 600
             military_scouts = self.bot.units([UnitTypeId.REAPER, UnitTypeId.VIKINGFIGHTER])
             reaper_is_alive = military_scouts.of_type(UnitTypeId.REAPER).exists
+            enemy_is_one_basing = len(self.intel.enemy_base_built_times) < 2
             if military_scouts.amount == 0 and self.bot.time < 420:
                 # wait for a scout to attack
                 mount_offense = False
             # elif BuildType.RUSH in detected_enemy_builds and self.bot.time < 360:
             #     mount_offense = False
-            elif self.bot.supply_used < 50 and not reaper_is_alive: # previously 110
+            elif self.bot.supply_used < 50 and not reaper_is_alive or enemy_is_one_basing: # previously 110
                 # allow attacks at low supply if reaper is scouting so army_ratio is reliable
                 mount_offense = False
         if self.tactics.is_active(Tactic.PROXY_BARRACKS) and self.bot.units(UnitTypeId.MARINE).amount > 3:
