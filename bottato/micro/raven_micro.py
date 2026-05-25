@@ -13,10 +13,9 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from bottato.enums import CustomEffectType, UnitMicroType
+from bottato.enums import CustomEffectTargetArea, CustomEffectType, UnitMicroType
 from bottato.log_helper import LogHelper
 from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.micro.custom_effect import CustomEffect
 from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.unit_types import UnitTypes
 
@@ -62,7 +61,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             if self.bot.time - last_time < 11 and unit.energy < energy_before_launch and not launch_detected:
                 self.last_missile_launch[unit.tag] = (enemy_unit, last_time, energy_before_launch, True, ability)
                 if ability == AbilityId.EFFECT_ANTIARMORMISSILE:
-                    BaseUnitMicro.add_custom_effect(CustomEffectType.ENEMY, enemy_unit, 3.5, self.bot.time, 3.0)
+                    BaseUnitMicro.add_custom_effect(CustomEffectType.ENEMY, CustomEffectTargetArea.BOTH, enemy_unit, 3.5, self.bot.time, 3.0)
                     RavenMicro.last_armor_missile_time = self.bot.time
                 elif ability == AbilityId.EFFECT_INTERFERENCEMATRIX:
                     RavenMicro.interference_target_cooldowns[enemy_unit.tag] = self.bot.time
