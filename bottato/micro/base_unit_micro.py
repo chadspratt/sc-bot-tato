@@ -21,7 +21,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bottato.enums import CustomEffectType, UnitMicroType
+from bottato.enums import CustomEffectTargetArea, CustomEffectType, UnitMicroType
 from bottato.log_helper import LogHelper
 from bottato.magic_numbers import MagicNumbers as MN
 from bottato.micro.custom_effect import CustomEffect
@@ -212,13 +212,17 @@ class BaseUnitMicro(GeometryMixin):
         EffectId.SCANNERSWEEP: 13,
     }
     @staticmethod
-    def add_custom_effect(type: CustomEffectType, position: Unit | Point2, radius: float, start_time: float, duration: float):
+    def add_custom_effect(type: CustomEffectType,
+                          target_area: CustomEffectTargetArea,
+                          position: Unit | Point2, radius: float,
+                          start_time: float, duration: float):
         for effect in BaseUnitMicro.custom_effects_to_avoid:
             if effect.position.position == position.position and effect.radius == radius:
                 effect.start_time = start_time
                 # don't add duplicates
                 return
-        BaseUnitMicro.custom_effects_to_avoid.append(CustomEffect(type, position, radius, start_time, duration))
+        BaseUnitMicro.custom_effects_to_avoid.append(
+            CustomEffect(type, target_area, position, radius, start_time, duration))
 
     @timed
     def _avoid_effects(self, unit: Unit, force_move: bool) -> UnitMicroType:
@@ -232,6 +236,7 @@ class BaseUnitMicro(GeometryMixin):
                 for position in effect.positions:
                     # bile lands a second after effect disappears so replace with custom effect
                     self.add_custom_effect(CustomEffectType.ENEMY_EFFECT,
+                                           CustomEffectTargetArea.BOTH,
                                            position=position,
                                            radius=effect.radius,
                                            start_time=self.bot.time,
@@ -251,10 +256,8 @@ class BaseUnitMicro(GeometryMixin):
             if self.bot.time - effect.start_time > effect.duration:
                 self.custom_effects_to_avoid.pop(i)
             else:
-                if effect.type == CustomEffectType.ANTI_AIR and not unit.is_flying:
-                    i -= 1
-                    continue
-                if effect.type == CustomEffectType.BUILDING_FOOTPRINT and unit.is_flying:
+                if (effect.target_area == CustomEffectTargetArea.AIR and not unit.is_flying
+                    or effect.target_area == CustomEffectTargetArea.GROUND and unit.is_flying):
                     i -= 1
                     continue
                 effect_position = effect.position.position
@@ -455,6 +458,12 @@ class BaseUnitMicro(GeometryMixin):
     @timed
     def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0, require_in_range_target: bool = False) -> Unit | None:
         valid_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack_target(unit, u))
+        if require_in_range_target:
+            bonus_distance = 0
+            unit_height = self.bot.get_terrain_height(unit.position)
+            valid_targets = valid_targets.filter(
+                lambda u: self.bot.get_terrain_height(u.position) <= unit_height or self.bot.is_visible(u)
+            )
         if not valid_targets:
             return None
 
@@ -462,9 +471,6 @@ class BaseUnitMicro(GeometryMixin):
         non_gas_buildings = valid_targets.exclude_type(UnitTypes.GAS_STRUCTURE_TYPES)
         if len(non_gas_buildings) > 0:
             valid_targets = non_gas_buildings
-
-        if require_in_range_target:
-            bonus_distance = 0
 
         closest_target = cy_closest_to(unit.position, valid_targets)
         closest_distance = max(cy_distance_to(unit.position, closest_target.position), UnitTypes.range(unit))
@@ -502,7 +508,6 @@ class BaseUnitMicro(GeometryMixin):
     def _kite(self, unit: Unit, targets: Units | Unit, force_move: bool = False) -> UnitMicroType:
         if isinstance(targets, Unit):
             targets = Units([targets], bot_object=self.bot)
-        safe_targets = targets
         threats_to_avoid = Units([], bot_object=self.bot)
         workers_to_avoid = Units([], bot_object=self.bot)
         can_attack = unit.weapon_cooldown < self.time_in_frames_to_attack
@@ -534,11 +539,7 @@ class BaseUnitMicro(GeometryMixin):
                         workers_to_avoid.append(threat)
                     else:
                         threats_to_avoid.append(threat)
-                # filter out targets that are too close to the threat
-                safe_targets = safe_targets.filter(lambda t: cy_distance_to(threat.position, t.position) + UnitTypes.range_vs_target(unit, t) > desired_distance)
-        
-        if safe_targets.amount > 0:
-            targets = safe_targets
+
         targets.sort(key=lambda t: t.health + t.shield)
         bonus_distance = 0.0 if can_attack else 3.0
         target: Unit | None = self._get_attack_target(unit, targets, bonus_distance, require_in_range_target=can_attack)
@@ -630,6 +631,8 @@ class BaseUnitMicro(GeometryMixin):
                     pass
             if repairer is None:
                 repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags.union(BaseUnitMicro.repairer_tags_prev_frame))
+                if threats:
+                    repairers = repairers.further_than(5, unit)
                 if not repairers:
                     repairers = self.bot.workers.filter(lambda w: w.tag not in BaseUnitMicro.scout_tags)
                 if repairers and unit.type_id == UnitTypeId.SCV:
@@ -641,9 +644,13 @@ class BaseUnitMicro(GeometryMixin):
                     else:
                         ultimate_destination = closest_repairer
         else:
-            medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC)
+            medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC).filter(lambda m: m.energy > 5)
             if medivacs:
                 ultimate_destination = cy_closest_to(unit.position, medivacs)
+            else:
+                other_healers = self.bot.destructables(UnitTypeId.XELNAGAHEALINGSHRINE)
+                if other_healers:
+                    ultimate_destination = cy_closest_to(unit.position, other_healers)
         if ultimate_destination is None:
             bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
             if bunkers:

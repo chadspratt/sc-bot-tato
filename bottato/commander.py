@@ -19,7 +19,7 @@ from sc2.units import Units
 
 from bottato.building.build_order import BuildOrder
 from bottato.economy.workers import Workers
-from bottato.enums import CustomEffectType
+from bottato.enums import CustomEffectTargetArea, CustomEffectType
 from bottato.log_helper import LogHelper
 from bottato.map.destructibles import BUILDING_RADIUS
 from bottato.map.map import Map
@@ -73,12 +73,11 @@ class Commander(GeometryMixin):
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(candidates[1]), 1, (255, 255, 0))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(Point2(cy_towards(toward_natural, self.bot.game_info.map_center, 3)), 1, (0, 0, 255))
         # self.bot.client.debug_sphere_out(self.convert_point2_to_3(nearest_worker.position, self.bot), 3, (255, 0, 0))
-
-        await self.tactics.map.refresh_map() # fast
+ 
+        await self.tactics.map.refresh_map(self.new_damage_by_position) # fast
         # check for stuck units
         await self.detect_stuck_units(iteration) # fast
 
-        self.tactics.map.update_influence_maps(self.new_damage_by_position) # fast
         BaseUnitMicro.reset_tag_sets()
 
         await self.structure_micro.execute(self.tactics.intel.army_ratio, self.stuck_units, iteration) # fast
@@ -120,24 +119,28 @@ class Commander(GeometryMixin):
                 if closest_enemy_distance < 25:
                     continue
             BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
+                                            CustomEffectTargetArea.BOTH,
                                             position=position,
                                             radius=BUILDING_RADIUS[blueprint.get_unit_type_id()],
                                             start_time=self.bot.time,
                                             duration=0.3)
         for nova in self.bot.enemy_units.of_type(UnitTypeId.DISRUPTORPHASED):
             BaseUnitMicro.add_custom_effect(CustomEffectType.ENEMY,
+                                            CustomEffectTargetArea.GROUND,
                                             position=nova,
-                                            radius=1.5 + 1,
+                                            radius=1.5 + 2,
                                             start_time=self.bot.time,
                                             duration=0.05)
         for anti_air_structure in self.bot.enemy_structures.filter(lambda u: u.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES and u.is_ready and u.is_visible):
             BaseUnitMicro.add_custom_effect(CustomEffectType.ANTI_AIR,
+                                            CustomEffectTargetArea.AIR,
                                             position=anti_air_structure,
                                             radius=UnitTypes.air_range(anti_air_structure),
                                             start_time=self.bot.time,
                                             duration=0.1)
         # for baneling in self.bot.enemy_units.of_type(UnitTypeId.BANELING):
         #     BaseUnitMicro.add_custom_effect(CustomEffectType.ENEMY,
+        #                                     CustomEffectTargetArea.GROUND,
         #                                     position=baneling,
         #                                     radius=2.2,
         #                                     start_time=self.bot.time,

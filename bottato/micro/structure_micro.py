@@ -12,7 +12,13 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.enemy import Enemy
-from bottato.enums import BuildType, CustomEffectType, ExpansionSelection, Tactic
+from bottato.enums import (
+    BuildType,
+    CustomEffectTargetArea,
+    CustomEffectType,
+    ExpansionSelection,
+    Tactic,
+)
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -59,7 +65,10 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 if self.distance(enemy_unit, depot) < distance_threshold - 2:
                     depot(AbilityId.MORPH_SUPPLYDEPOT_RAISE)
                     # fake effect to tell units to get off the depot
-                    BaseUnitMicro.custom_effects_to_avoid.append(CustomEffect(CustomEffectType.BUILDING_FOOTPRINT, depot.position, depot.radius, self.bot.time, 1))
+                    BaseUnitMicro.custom_effects_to_avoid.append(CustomEffect(CustomEffectType.BUILDING_FOOTPRINT,
+                                                                              CustomEffectTargetArea.GROUND,
+                                                                              depot.position, depot.radius,
+                                                                              self.bot.time, 1))
                     break
         # Lower depots when no enemies are nearby
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:
@@ -143,7 +152,10 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                             cc.move(destination)
                         continue
                 if cc.position == destination:
-                    BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT, cc.position, cc.radius + 0.5, self.bot.time, 0.5)
+                    BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
+                                                    CustomEffectTargetArea.GROUND,
+                                                    cc.position, cc.radius + 0.5,
+                                                    self.bot.time, 0.5)
                     cc(AbilityId.LAND, destination)
                 else:
                     cc.move(destination)
@@ -238,7 +250,10 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     if new_destination:
                         await self.move(structure, destination, force_move=True)
                 else:
-                    BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT, structure.position, structure.radius, self.bot.time, 0.5)
+                    BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
+                                                    CustomEffectTargetArea.GROUND,
+                                                    structure.position, structure.radius,
+                                                    self.bot.time, 0.5)
                     structure(AbilityId.LAND, destination)
             else:
                 # landed in position

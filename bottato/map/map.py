@@ -105,10 +105,11 @@ class Map(GeometryMixin):
     
     def get_next_enemy_expansion(self, selection: ExpansionSelection = ExpansionSelection.CLOSEST) -> Point2 | None:
         for location in self.enemy_expansion_orders[selection]:
-            if not self.member_is_closer_than(location.expansion_position, self.bot.townhalls, 5):
+            if not self.member_is_closer_than(location.expansion_position, self.bot.enemy_structures, 5):
                 return location.expansion_position
         return None
     
+    @timed
     def get_influence_path(self, unit: Unit, ultimate_destination: Point2) -> List[Point2]:
         return self.influence_maps.get_path(unit, ultimate_destination)
     
@@ -118,7 +119,7 @@ class Map(GeometryMixin):
     
     previous_reaper_elevations: Dict[int, float] = {}
     @timed_async
-    async def refresh_map(self):
+    async def refresh_map(self, damage_by_position: dict[Point2, float]) -> None:
         for reaper in self.bot.units(UnitTypeId.REAPER):
             if reaper.tag not in self.previous_reaper_elevations:
                 self.previous_reaper_elevations[reaper.tag] = self.bot.get_terrain_z_height(reaper.position)
@@ -142,8 +143,6 @@ class Map(GeometryMixin):
                         zone.add_damage(damage, time)
             self.last_refresh_time = self.bot.time
 
-    @timed
-    def update_influence_maps(self, damage_by_position: dict[Point2, float]) -> None:
         for position, damage in damage_by_position.items():
             zone = self.zone_lookup_by_coord.get((position.x, position.y))
             if zone:

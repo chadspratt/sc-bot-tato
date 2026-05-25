@@ -50,6 +50,8 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         elif current_elevation - last_elevation > 1:
             self.previous_elevation[unit.tag] = current_elevation
 
+        if unit.health_percentage < self.retreat_health:
+            return UnitMicroType.NONE
         targets: Units = self.tactics.enemy.get_enemies_in_range(unit, include_structures=False, excluded_types=self.excluded_types, visible_only=True)
         grenade_targets: List[Point2] = []
         if targets and await self.grenade_available(unit):

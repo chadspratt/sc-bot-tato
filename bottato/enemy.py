@@ -589,8 +589,11 @@ class Enemy(GeometryMixin):
                              excluded_types=[], visible_only=False) -> Units:
         enemies_in_range: Units = Units([], self.bot)
         candidates = self.get_candidates(include_structures, include_units, include_destructables, excluded_types=excluded_types)
+        friendly_elevation = self.bot.get_terrain_height(friendly_unit)
         for candidate in candidates:
-            if visible_only and candidate.age != 0:
+            if visible_only and (
+                    candidate.age != 0
+                    or self.bot.get_terrain_height(candidate) > friendly_elevation and not self.bot.is_visible(candidate)):
                 continue
             attack_range = UnitTypes.range_vs_target(friendly_unit, candidate)
             if attack_range == 0:

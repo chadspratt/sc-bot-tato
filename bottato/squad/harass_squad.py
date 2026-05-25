@@ -45,33 +45,27 @@ class HarassSquad(Squad, GeometryMixin):
                 self.harass_locations[unit.tag] = self.bot.enemy_start_locations[0]
                 self.arrived[unit.tag] = False
             else:
-                enemy_townhalls = self.bot.enemy_structures(race_townhalls[self.bot.enemy_race]).filter(lambda u: u.is_ready)
-                if enemy_townhalls and enemy_townhalls.closest_distance_to(self.harass_locations[unit.tag]) > 10:
-                    # enemy base destroyed, pick new
-                    self.harass_locations[unit.tag] = enemy_townhalls.random.position
+                distance_to_harass_location = self.units.closest_distance_to(self.harass_locations[unit.tag])
+                if not self.arrived[unit.tag]:
+                    self.arrived[unit.tag] = distance_to_harass_location < 20
+                elif distance_to_harass_location > 25:
+                    # arrived but got chased away, pick new location
                     self.arrived[unit.tag] = False
-                else:
-                    distance_to_harass_location = self.units.closest_distance_to(self.harass_locations[unit.tag])
-                    if not self.arrived[unit.tag]:
-                        self.arrived[unit.tag] = distance_to_harass_location < 15
-                    elif distance_to_harass_location > 15:
-                        # arrived but got chased away, pick new location
-                        self.arrived[unit.tag] = False
-                        self.harass_location_blacklist_times[self.harass_locations[unit.tag]] = self.bot.time
-                        time_limit = 9999 if unit.type_id == UnitTypeId.REAPER else 45
-                        other_enemy_bases = [
-                            loc for loc in intel.enemy_base_built_times.keys()
-                            if self.bot.time - self.harass_location_blacklist_times.get(loc, -999) > time_limit
-                        ]
-                        if other_enemy_bases:
-                            self.harass_locations[unit.tag] = random.choice(other_enemy_bases)
+                    self.harass_location_blacklist_times[self.harass_locations[unit.tag]] = self.bot.time
+                    time_limit = 9999 if unit.type_id == UnitTypeId.REAPER else 45
+                    other_enemy_bases = [
+                        loc for loc in intel.enemy_base_built_times.keys()
+                        if self.bot.time - self.harass_location_blacklist_times.get(loc, -999) > time_limit
+                    ]
+                    if other_enemy_bases:
+                        self.harass_locations[unit.tag] = random.choice(other_enemy_bases)
+                    else:
+                        expansion_location = self.tactics.map.get_next_enemy_expansion()
+                        if expansion_location:
+                            self.harass_locations[unit.tag] = expansion_location
                         else:
-                            expansion_location = self.tactics.map.get_next_enemy_expansion()
-                            if expansion_location:
-                                self.harass_locations[unit.tag] = expansion_location
-                            else:
-                                # every expansion has been taken
-                                self.harass_locations[unit.tag] = self.bot.enemy_start_locations[0]
+                            # every expansion has been taken
+                            self.harass_locations[unit.tag] = self.bot.enemy_start_locations[0]
 
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
             nearby_enemies = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_target(u, unit) and u.distance_to_squared(unit) < 225)
