@@ -49,7 +49,22 @@ jobs:
       run: pip install cython numpy setuptools requests
 
     - name: Compile MapAnalyzer C extension
-      run: cd temp-sc2mapanalysis && python setup.py build_ext --inplace && cp mapanalyzerext*.so ../MapAnalyzer/cext/
+      run: |
+        cd temp-sc2mapanalysis
+        python -c "
+        from setuptools import setup, Extension
+        import numpy
+        setup(
+          name='mapanalyzerext',
+          ext_modules=[Extension(
+            'mapanalyzerext',
+            sources=['MapAnalyzer/cext/src/ma_ext.c'],
+            extra_compile_args=['-DNDEBUG', '-O2'],
+            include_dirs=[numpy.get_include()]
+          )]
+        )
+        " build_ext --inplace
+        cp mapanalyzerext*.so ../MapAnalyzer/cext/
 
     - name: Compile Cython extensions
       run: python cython_extensions/setup.py build_ext --inplace
