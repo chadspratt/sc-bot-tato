@@ -421,7 +421,10 @@ class BaseUnitMicro(GeometryMixin):
     def _move_unit(self, unit: Unit, target: Point2, previous_position: Point2 | None = None) -> UnitMicroType:
         position_to_compare = target if unit.is_moving else unit.position
         if previous_position is None or position_to_compare.manhattan_distance(previous_position) > 1.5:
-            unit.move(self.tactics.map.get_pathable_position(target, unit))
+            if not unit.is_structure:
+                # don't break structure placement with pathing grid adjustments
+                target = self.tactics.map.get_pathable_position(target, unit)
+            unit.move(target)
             return UnitMicroType.MOVE
         return UnitMicroType.MOVE
     
@@ -621,45 +624,45 @@ class BaseUnitMicro(GeometryMixin):
         else:
             threats = self.tactics.enemy.threats_to(unit, threats, attack_range_buffer=2)
         ultimate_destination: Point2 | Unit | None = None
-        if unit.is_mechanical:
-            # if not threats or not threats.filter(lambda t: t.can_attack):
-            repairer: Unit | None = None
-            if unit.tag in self.repairers_by_target_prev_frame:
-                try:
-                    repairers: Units = self.bot.units.filter(lambda w: w.tag in BaseUnitMicro.repairers_by_target_prev_frame[unit.tag])
+        healing_shrines = self.bot.destructables(UnitTypeId.XELNAGAHEALINGSHRINE)
+        if healing_shrines:
+            # if near a shrine, always prefer it
+            closest_shrine = cy_closest_to(unit.position, healing_shrines)
+            if cy_distance_to_squared(unit.position, closest_shrine.position) < 400 \
+                    or unit.tag in self.harass_tags \
+                    or unit.tag in self.scout_tags:
+                ultimate_destination = closest_shrine
+        
+        if ultimate_destination is None:
+            if unit.is_mechanical:
+                # prefer repairers that are already assigned to this unit, unless threats are too close, then prefer repairers that aren't nearby
+                # will also prefer a shrine if it's closer
+                if unit.tag in self.repairers_by_target_prev_frame:
+                    try:
+                        repairers: Units = self.bot.units.filter(lambda w: w.tag in BaseUnitMicro.repairers_by_target_prev_frame[unit.tag])
+                        if threats:
+                            repairers = repairers.further_than(5, unit)
+                        if repairers:
+                            ultimate_destination = cy_closest_to(unit.position, repairers + healing_shrines)
+                    except KeyError:
+                        pass
+                # no assigned repairers, expand search to all workers except scouts
+                if ultimate_destination is None:
+                    repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags.union(BaseUnitMicro.repairer_tags_prev_frame))
+                    if not repairers:
+                        repairers = self.bot.workers.filter(lambda w: w.tag not in BaseUnitMicro.scout_tags)
+                    if repairers and unit.type_id == UnitTypeId.SCV:
+                        repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
                     if threats:
                         repairers = repairers.further_than(5, unit)
                     if repairers:
-                        repairer = cy_closest_to(unit.position, repairers)
-                        ultimate_destination = repairer
-                except KeyError:
-                    pass
-            if repairer is None:
-                repairers: Units = self.bot.workers.filter(lambda w: w.tag in BaseUnitMicro.repairer_tags.union(BaseUnitMicro.repairer_tags_prev_frame))
-                if threats:
-                    repairers = repairers.further_than(5, unit)
-                if not repairers:
-                    repairers = self.bot.workers.filter(lambda w: w.tag not in BaseUnitMicro.scout_tags)
-                if repairers and unit.type_id == UnitTypeId.SCV:
-                    repairers = repairers.filter(lambda worker: worker.tag != unit.tag)
-                if repairers:
-                    closest_repairer = cy_closest_to(unit.position, repairers)
-                    if closest_repairer.position.manhattan_distance(unit.position) < 1:
-                        ultimate_destination = unit
-                    else:
-                        ultimate_destination = closest_repairer
-            if unit.tag in self.harass_tags or unit.tag in self.scout_tags:
-                healing_shrines = self.bot.destructables(UnitTypeId.XELNAGAHEALINGSHRINE)
-                if healing_shrines and (not ultimate_destination or cy_distance_to(unit.position, ultimate_destination.position) > 20):
-                    ultimate_destination = cy_closest_to(unit.position, healing_shrines)
-        else:
-            medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC).filter(lambda m: m.energy > 5)
-            if medivacs:
-                ultimate_destination = cy_closest_to(unit.position, medivacs)
+                        ultimate_destination = cy_closest_to(unit.position, repairers + healing_shrines)
+                        if ultimate_destination.position.manhattan_distance(unit.position) < 1:
+                            ultimate_destination = self.tactics.map.get_pathable_position(ultimate_destination.position, unit)
             else:
-                other_healers = self.bot.destructables(UnitTypeId.XELNAGAHEALINGSHRINE)
-                if other_healers:
-                    ultimate_destination = cy_closest_to(unit.position, other_healers)
+                healers = self.bot.units.of_type(UnitTypeId.MEDIVAC).filter(lambda m: m.energy > 5) + healing_shrines
+                if healers:
+                    ultimate_destination = cy_closest_to(unit.position, healers)
         if ultimate_destination is None:
             bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
             if bunkers:
