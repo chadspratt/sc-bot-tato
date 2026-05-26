@@ -48,6 +48,9 @@ jobs:
     - name: Install dependencies
       run: pip install cython numpy setuptools requests
 
+    - name: Compile MapAnalyzer C extension
+      run: cd temp-sc2mapanalysis && python setup.py build_ext --inplace && cp mapanalyzerext*.so ../MapAnalyzer/cext/
+
     - name: Compile Cython extensions
       run: python cython_extensions/setup.py build_ext --inplace
 
