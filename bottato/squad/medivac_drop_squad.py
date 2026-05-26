@@ -205,7 +205,7 @@ class MedivacDropSquad(HarassSquad):
     async def harass(self, intel: EnemyIntel):
         # Re-add any marines that were unloaded from the medivac back into self.units
         if self.marine_tags and len(self.marine_tags) > len(self.units) - 1:
-            for marine in UnitReferenceHelper.get_updated_unit_references_by_tags(self.marine_tags):
+            for marine in UnitReferenceHelper.get_updated_units_by_tag(self.marine_tags):
                 self.recruit(marine)
 
         medivac = self.medivac_unit

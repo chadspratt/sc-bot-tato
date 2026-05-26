@@ -117,7 +117,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
             current_target = self.current_targets.get(unit.tag)
             if current_target:
                 try:
-                    current_target = UnitReferenceHelper.get_updated_unit_reference(current_target)
+                    current_target = UnitReferenceHelper.get_updated_unit(current_target)
                 except UnitReferenceHelper.UnitNotFound:
                     self.last_lockon_time[unit.tag] = None
                     current_target = None

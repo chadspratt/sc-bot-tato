@@ -48,7 +48,7 @@ class StructureBuildStep(BuildStep):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
         if self.unit_in_charge:
             try:
-                self.unit_in_charge = UnitReferenceHelper.get_updated_unit_reference(self.unit_in_charge)
+                self.unit_in_charge = UnitReferenceHelper.get_updated_unit(self.unit_in_charge)
             except UnitReferenceHelper.UnitNotFound:
                 self.unit_in_charge = None
 

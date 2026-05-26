@@ -72,7 +72,7 @@ class Scouting(Squad, DebugMixin):
         while i >= 0:
             if self.bot.is_visible(self.intel.proxy_buildings[i].position):
                 try:
-                    self.intel.proxy_buildings[i] = UnitReferenceHelper.get_updated_unit_reference(self.intel.proxy_buildings[i])
+                    self.intel.proxy_buildings[i] = UnitReferenceHelper.get_updated_unit(self.intel.proxy_buildings[i])
                 except Exception as e:
                     LogHelper.add_log(f"proxy building no longer detected: {self.intel.proxy_buildings[i]}")
                     self.intel.proxy_buildings.remove(self.intel.proxy_buildings[i])

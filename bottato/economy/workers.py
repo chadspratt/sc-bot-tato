@@ -89,19 +89,19 @@ class Workers(GeometryMixin):
         self.assignments_by_job[WorkerJobType.SCOUT].clear()
         for assignment in self.assignments_by_worker.values():
             try:
-                assignment.unit = UnitReferenceHelper.get_updated_unit_reference(assignment.unit)
+                assignment.unit = UnitReferenceHelper.get_updated_unit(assignment.unit)
                 assignment.unit_available = True
             except UnitReferenceHelper.UnitNotFound:
                 # unit is inside a structure
                 assignment.unit_available = False
 
             try:
-                assignment.target = UnitReferenceHelper.get_updated_unit_reference(assignment.target)
+                assignment.target = UnitReferenceHelper.get_updated_unit(assignment.target)
             except UnitReferenceHelper.UnitNotFound:
                 assignment.target = None
 
             try:
-                assignment.dropoff_target = UnitReferenceHelper.get_updated_unit_reference(assignment.dropoff_target)
+                assignment.dropoff_target = UnitReferenceHelper.get_updated_unit(assignment.dropoff_target)
             except UnitReferenceHelper.UnitNotFound:
                 assignment.dropoff_target = None
                 assignment.dropoff_position = None
@@ -515,7 +515,7 @@ class Workers(GeometryMixin):
             )
 
         # ── Phase 2: Control fighters ───────────────────────────────────
-        fighters = UnitReferenceHelper.get_updated_unit_references_by_tags(defender_tags)
+        fighters = UnitReferenceHelper.get_updated_units_by_tag(defender_tags)
         await self._control_fighters(fighters, targetable_enemies, enemies_inside_wall)
 
         # release any workers no longer needed

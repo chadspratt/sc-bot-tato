@@ -4,7 +4,7 @@ from loguru import logger
 from typing import Dict, List, Set, Tuple
 
 from cython_extensions.geometry import cy_angle_to, cy_distance_to, cy_towards
-from cython_extensions.units_utils import cy_closer_than, cy_closest_to
+from cython_extensions.units_utils import cy_closest_to
 from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId

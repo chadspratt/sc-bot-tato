@@ -4,7 +4,6 @@ from typing import Dict
 from cython_extensions.geometry import cy_distance_to, cy_towards
 from cython_extensions.units_utils import cy_center, cy_closer_than
 from sc2.bot_ai import BotAI
-from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
@@ -12,13 +11,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.enemy import Enemy
-from bottato.enums import (
-    BuildType,
-    CustomEffectTargetArea,
-    CustomEffectType,
-    ExpansionSelection,
-    Tactic,
-)
+from bottato.enums import CustomEffectTargetArea, CustomEffectType, Tactic
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -26,7 +19,6 @@ from bottato.micro.custom_effect import CustomEffect
 from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.tactics import Tactics
-from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 
 

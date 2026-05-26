@@ -34,7 +34,7 @@ class Tactics:
     def update_references(self):
         if self.proxy_barracks:
             try:
-                self.proxy_barracks = UnitReferenceHelper.get_updated_unit_reference(self.proxy_barracks)
+                self.proxy_barracks = UnitReferenceHelper.get_updated_unit(self.proxy_barracks)
             except UnitReferenceHelper.UnitNotFound:
                 self.proxy_barracks = None
         elif self.is_active(Tactic.PROXY_BARRACKS):

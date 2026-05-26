@@ -43,6 +43,6 @@ class Bunker(Squad, GeometryMixin):
         super().update_references()
         if self.structure:
             try:
-                self.structure = UnitReferenceHelper.get_updated_unit_reference(self.structure)
+                self.structure = UnitReferenceHelper.get_updated_unit(self.structure)
             except UnitReferenceHelper.UnitNotFound:
                 self.structure = None

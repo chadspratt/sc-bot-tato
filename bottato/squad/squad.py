@@ -30,7 +30,7 @@ class Squad():
         return f"BaseSquad({self.name},{len(self.units)})"
 
     def update_references(self):
-        self.units = UnitReferenceHelper.get_updated_unit_references(self.units)
+        self.units = UnitReferenceHelper.get_updated_units(self.units)
 
     @property
     def is_empty(self) -> bool:

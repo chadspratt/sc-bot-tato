@@ -70,17 +70,17 @@ class SCVBuildStep(BuildStep):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
         if self.unit_in_charge:
             try:
-                self.unit_in_charge = UnitReferenceHelper.get_updated_unit_reference(self.unit_in_charge)
+                self.unit_in_charge = UnitReferenceHelper.get_updated_unit(self.unit_in_charge)
             except UnitReferenceHelper.UnitNotFound:
                 self.unit_in_charge = None
         if self.geysir:
             try:
-                self.geysir = UnitReferenceHelper.get_updated_unit_reference(self.geysir)
+                self.geysir = UnitReferenceHelper.get_updated_unit(self.geysir)
             except UnitReferenceHelper.UnitNotFound:
                 self.geysir = None
         if self.unit_being_built:
             try:
-                self.unit_being_built = UnitReferenceHelper.get_updated_unit_reference(self.unit_being_built)
+                self.unit_being_built = UnitReferenceHelper.get_updated_unit(self.unit_being_built)
             except UnitReferenceHelper.UnitNotFound:
                 self.unit_being_built = None
 
@@ -673,7 +673,7 @@ class SCVBuildStep(BuildStep):
         logger.debug(f"canceling build of {self.unit_being_built}")
         if self.unit_being_built:
             if self.unit_being_built.age != 0:
-                self.unit_being_built = UnitReferenceHelper.get_updated_unit_reference(self.unit_being_built)
+                self.unit_being_built = UnitReferenceHelper.get_updated_unit(self.unit_being_built)
             self.unit_being_built(AbilityId.CANCEL_BUILDINPROGRESS)
         self.last_cancel_time = self.bot.time
         self.unit_being_built = None

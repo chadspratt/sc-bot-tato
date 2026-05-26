@@ -364,7 +364,7 @@ class ParentFormation(GeometryMixin):
             positions = [self.destination + offset for offset in formation_offsets]
 
             # match positions to closest units
-            formation_units = UnitReferenceHelper.get_updated_unit_references_by_tags(list(formation.unit_tags))
+            formation_units = UnitReferenceHelper.get_updated_units_by_tag(list(formation.unit_tags))
             for position in positions:
                 if not formation_units:
                     break

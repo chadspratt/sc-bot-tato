@@ -349,7 +349,7 @@ class Military(GeometryMixin, DebugMixin):
         # add units to bunker
         for unit in bunker.units:
             try:
-                unit = UnitReferenceHelper.get_updated_unit_reference(unit)
+                unit = UnitReferenceHelper.get_updated_unit(unit)
                 # unit didn't enter bunker, maybe got stuck behind wall
                 if unit.distance_to_squared(bunker.structure) <= 40:
                     unit.smart(bunker.structure)

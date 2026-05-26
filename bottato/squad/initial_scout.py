@@ -93,7 +93,7 @@ class InitialScout(Squad, GeometryMixin):
             
         if self.unit:
             try:
-                self.unit = UnitReferenceHelper.get_updated_unit_reference(self.unit)
+                self.unit = UnitReferenceHelper.get_updated_unit(self.unit)
             except UnitReferenceHelper.UnitNotFound:
                 self.unit = None
                 # scout lost, don't send another

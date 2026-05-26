@@ -181,7 +181,7 @@ class Resources(GeometryMixin):
         
         for resource_node in self.nodes:
             try:
-                resource_node.node = UnitReferenceHelper.get_updated_unit_reference(resource_node.node)
+                resource_node.node = UnitReferenceHelper.get_updated_unit(resource_node.node)
             except Exception as e:
                 logger.debug(f"Node {resource_node.node.tag} failed to update reference: {e}")
                 if not resource_node.node.is_mineral_field:

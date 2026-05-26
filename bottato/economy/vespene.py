@@ -23,7 +23,7 @@ class Vespene(Resources):
         for resource_node in self.nodes:
             for worker_tag in resource_node.worker_tags:
                 try:
-                    worker = UnitReferenceHelper.get_updated_unit_reference_by_tag(worker_tag)
+                    worker = UnitReferenceHelper.get_updated_unit_by_tag(worker_tag)
                 except UnitReferenceHelper.UnitNotFound:
                     continue
                 self.bot.client.debug_box2_out(worker, color=(128, 0, 128))

@@ -122,7 +122,7 @@ class Scout(Squad):
                         self.complete = True
                         return
             try:
-                self.unit = UnitReferenceHelper.get_updated_unit_reference(self.unit)
+                self.unit = UnitReferenceHelper.get_updated_unit(self.unit)
                 logger.debug(f"{self.name} scout {self.unit}")
             except UnitReferenceHelper.UnitNotFound:
                 self.unit = None

@@ -1,5 +1,5 @@
 from loguru import logger
-from typing import Dict, Iterable, List
+from typing import Dict, Iterable
 
 from sc2.bot_ai import BotAI
 from sc2.unit import Unit
@@ -27,15 +27,15 @@ class UnitReferenceHelper:
             UnitReferenceHelper.last_update_time = UnitReferenceHelper.bot.time
 
     @staticmethod
-    def get_updated_unit_reference(unit: Unit | None) -> Unit:
+    def get_updated_unit(unit: Unit | None) -> Unit:
         if unit is None:
             raise UnitReferenceHelper.UnitNotFound(
                 "unit is None"
             )
-        return UnitReferenceHelper.get_updated_unit_reference_by_tag(unit.tag)
+        return UnitReferenceHelper.get_updated_unit_by_tag(unit.tag)
 
     @staticmethod
-    def get_updated_unit_reference_by_tag(tag: int) -> Unit:
+    def get_updated_unit_by_tag(tag: int) -> Unit:
         try:
             if UnitReferenceHelper.last_update_time != UnitReferenceHelper.bot.time:
                 # for calls that happen between steps
@@ -47,21 +47,21 @@ class UnitReferenceHelper:
             )
 
     @staticmethod
-    def get_updated_unit_references(units: Units) -> Units:
+    def get_updated_units(units: Units) -> Units:
         _units = Units([], bot_object=UnitReferenceHelper.bot)
         for unit in units:
             try:
-                _units.append(UnitReferenceHelper.get_updated_unit_reference(unit))
+                _units.append(UnitReferenceHelper.get_updated_unit(unit))
             except UnitReferenceHelper.UnitNotFound:
                 logger.debug(f"Couldn't find unit {unit}!")
         return _units
 
     @staticmethod
-    def get_updated_unit_references_by_tags(tags: Iterable[int]) -> Units:
+    def get_updated_units_by_tag(tags: Iterable[int]) -> Units:
         _units = Units([], bot_object=UnitReferenceHelper.bot)
         for tag in tags:
             try:
-                _units.append(UnitReferenceHelper.get_updated_unit_reference_by_tag(tag))
+                _units.append(UnitReferenceHelper.get_updated_unit_by_tag(tag))
             except UnitReferenceHelper.UnitNotFound:
                 logger.debug(f"Couldn't find unit {tag}!")
         return _units

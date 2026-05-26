@@ -184,7 +184,7 @@ class Commander(GeometryMixin):
         self.tactics.update_references()
         self.tactics.enemy.update_references()
         await self.build_order.update_references()
-        self.stuck_units = UnitReferenceHelper.get_updated_unit_references(self.stuck_units)
+        self.stuck_units = UnitReferenceHelper.get_updated_units(self.stuck_units)
 
     def update_started_structure(self, unit: Unit):
         self.build_order.update_started_structure(unit)

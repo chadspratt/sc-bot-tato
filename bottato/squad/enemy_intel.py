@@ -52,7 +52,7 @@ class EnemyIntel(GeometryMixin):
         self.enemy_main_scouted = True
 
     async def update(self):
-        self.enemy_drop_transports = UnitReferenceHelper.get_updated_unit_references(self.enemy_drop_transports)
+        self.enemy_drop_transports = UnitReferenceHelper.get_updated_units(self.enemy_drop_transports)
         self.catalog_visible_units()
         self.update_proxy_buildings()
         await self.detect_enemy_builds()
@@ -319,7 +319,7 @@ class EnemyIntel(GeometryMixin):
         while i >= 0:
             if self.bot.is_visible(self.proxy_buildings[i].position):
                 try:
-                    self.proxy_buildings[i] = UnitReferenceHelper.get_updated_unit_reference(self.proxy_buildings[i])
+                    self.proxy_buildings[i] = UnitReferenceHelper.get_updated_unit(self.proxy_buildings[i])
                 except Exception as e:
                     LogHelper.add_log(f"proxy building no longer detected: {self.proxy_buildings[i]}")
                     self.proxy_buildings.remove(self.proxy_buildings[i])

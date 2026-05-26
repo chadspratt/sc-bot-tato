@@ -43,7 +43,7 @@ class Facility():
     async def update_references(self) -> None:
         logger.debug(f"updating reference for facility {self}")
         try:
-            updated_unit: Unit = UnitReferenceHelper.get_updated_unit_reference(self.unit)
+            updated_unit: Unit = UnitReferenceHelper.get_updated_unit(self.unit)
         except UnitReferenceHelper.UnitNotFound:
             raise UnitReferenceHelper.UnitNotFound
             # addon_type.remove(facility)
@@ -527,11 +527,11 @@ class Production():
                 logger.debug(f"checking facilities with no addon {self.facilities[facility_type][UnitTypeId.NOTAUNIT]}")
                 for facility in self.facilities[facility_type][UnitTypeId.NOTAUNIT]:
                     try:
-                        facility.unit = UnitReferenceHelper.get_updated_unit_reference(facility.unit)
+                        facility.unit = UnitReferenceHelper.get_updated_unit(facility.unit)
                     except UnitReferenceHelper.UnitNotFound:
                         continue
                     if facility.unit.add_on_tag:
-                        add_on = UnitReferenceHelper.get_updated_unit_reference_by_tag(facility.unit.add_on_tag)
+                        add_on = UnitReferenceHelper.get_updated_unit_by_tag(facility.unit.add_on_tag)
                         generic_type = add_on.type_id
                         if add_on.type_id not in (UnitTypeId.TECHLAB, UnitTypeId.REACTOR):
                             generic_type = list(UNIT_TECH_ALIAS[add_on.type_id])[0]

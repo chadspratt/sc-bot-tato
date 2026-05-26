@@ -32,7 +32,7 @@ class StuckRescue(Squad):
     def update_references(self):
         if self.transport:
             try:
-                self.transport = UnitReferenceHelper.get_updated_unit_reference(self.transport)
+                self.transport = UnitReferenceHelper.get_updated_unit(self.transport)
             except UnitReferenceHelper.UnitNotFound:
                 self.transport = None
                 self.is_loaded = False
@@ -43,7 +43,7 @@ class StuckRescue(Squad):
             tags_to_check = list(self.pending_unload)
             for tag in tags_to_check:
                 try:
-                    unit = UnitReferenceHelper.get_updated_unit_reference_by_tag(tag)
+                    unit = UnitReferenceHelper.get_updated_unit_by_tag(tag)
                     self.main_army.recruit(unit)
                     self.squads_by_unit_tag[unit.tag] = self.main_army
                     self.pending_unload.remove(tag)

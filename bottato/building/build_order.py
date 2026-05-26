@@ -936,7 +936,7 @@ class BuildOrder():
             if in_progress_step.is_unit_type(started_structure.type_id):
                 if in_progress_step.unit_in_charge and in_progress_step.unit_in_charge.type_id == UnitTypeId.SCV:
                     try:
-                        in_progress_step.unit_in_charge = UnitReferenceHelper.get_updated_unit_reference(in_progress_step.unit_in_charge)
+                        in_progress_step.unit_in_charge = UnitReferenceHelper.get_updated_unit(in_progress_step.unit_in_charge)
                     except UnitReferenceHelper.UnitNotFound:
                         continue
                     if not in_progress_step.unit_in_charge.is_constructing_scv:
@@ -962,7 +962,7 @@ class BuildOrder():
                 in_progress_step.completed_time = self.bot.time
                 if builder and builder.type_id == UnitTypeId.SCV:
                     try:
-                        builder = UnitReferenceHelper.get_updated_unit_reference(builder)
+                        builder = UnitReferenceHelper.get_updated_unit(builder)
                         if in_progress_step.is_unit_type(UnitTypeId.REFINERY):
                             self.workers.update_assigment(builder, WorkerJobType.VESPENE, completed_structure)
                         else:
