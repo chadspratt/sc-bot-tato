@@ -30,6 +30,16 @@ jobs:
     - name: Copy sc2 directory
       run: cp -r temp-python-sc2/sc2 .
 
+    - name: Checkout SC2MapAnalysis
+      uses: actions/checkout@v4
+      with:
+        sparse-checkout: MapAnalyzer
+        repository: chadspratt/SC2MapAnalysis
+        path: temp-sc2mapanalysis
+
+    - name: Copy MapAnalyzer directory
+      run: cp -r temp-sc2mapanalysis/MapAnalyzer .
+
     - name: Set up Python 3.12
       uses: actions/setup-python@v5
       with:
@@ -42,7 +52,7 @@ jobs:
       run: python cython_extensions/setup.py build_ext --inplace
 
     - name: Zip Files
-      run: zip -r bottato.zip sc2 bottato cython_extensions __init__.py ladderbots.json LICENSE README.md bot.py run.py
+      run: zip -r bottato.zip sc2 MapAnalyzer bottato cython_extensions __init__.py ladderbots.json LICENSE README.md bot.py run.py
     
     - name: Upload
       env:
