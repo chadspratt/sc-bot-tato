@@ -50,6 +50,7 @@ class BaseUnitMicro(GeometryMixin):
     repairers_by_target_prev_frame: Dict[int, List[int]] = {}
     depots_raised_for_tank_passage: set[int] = set()  # depot tags raised to let tanks pass
     custom_effects_to_avoid: List[CustomEffect] = []  # position, time, radius, duration
+    healing_shrines: Units | None = None
 
     damaging_effects = [
         EffectId.PSISTORMPERSISTENT,
@@ -648,6 +649,10 @@ class BaseUnitMicro(GeometryMixin):
                         ultimate_destination = unit
                     else:
                         ultimate_destination = closest_repairer
+            if unit.tag in self.harass_tags or unit.tag in self.scout_tags:
+                healing_shrines = self.bot.destructables(UnitTypeId.XELNAGAHEALINGSHRINE)
+                if healing_shrines and (not ultimate_destination or cy_distance_to(unit.position, ultimate_destination.position) > 20):
+                    ultimate_destination = cy_closest_to(unit.position, healing_shrines)
         else:
             medivacs = self.bot.units.of_type(UnitTypeId.MEDIVAC).filter(lambda m: m.energy > 5)
             if medivacs:
