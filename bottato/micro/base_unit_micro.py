@@ -432,6 +432,11 @@ class BaseUnitMicro(GeometryMixin):
     # utility behaviors - used by main actions
     ###########################################################################
     def _get_override_target_for_repair(self, unit: Unit, target: Point2) -> Point2:
+        if unit.health_percentage < 1.0:
+            healing_shrines = self.bot.destructables(UnitTypeId.XELNAGAHEALINGSHRINE)
+            for shrine in healing_shrines:
+                if cy_distance_to_squared(unit.position, shrine.position) < 100:
+                    return shrine.position
         if unit.tag in self.repairers_by_target_prev_frame:
             if unit.health_percentage > self.retreat_health and self.member_is_closer_than(unit, self.bot.enemy_units, 15):
                 # don't move to repairer if in combat and healthy
@@ -516,7 +521,7 @@ class BaseUnitMicro(GeometryMixin):
         if self.tactics.intel.enemy_race == Race.Zerg and not unit.is_flying:
             structures_to_avoid = targets.filter(lambda s: s.is_structure and s.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS)
             for structure in structures_to_avoid:
-                threat_distance = self.distance(unit, structure, self.tactics.enemy.predicted_positions) - structure.radius - unit.radius
+                threat_distance = cy_distance_to(unit.position, structure.position)
                 desired_distance = self._get_desired_attack_range(unit, structure)
                 if threat_distance < desired_distance:
                     threats_to_avoid.append(structure)
