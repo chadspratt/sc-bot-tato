@@ -20,6 +20,7 @@ from bottato.squad.enemy_intel import EnemyIntel
 from bottato.squad.formation import Formation
 from bottato.squad.squad import Squad
 from bottato.unit_reference_helper import UnitReferenceHelper
+from bottato.unit_types import UnitTypes
 
 
 class InitialScout(Squad, GeometryMixin):
@@ -100,6 +101,9 @@ class InitialScout(Squad, GeometryMixin):
                 return
             if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected and self.intel.enemy_race != Race.Zerg:
                 # stop early to proxy vs protoss and terran
+                self.completed = True
+            if self.bot.enemy_units.exclude_type(UnitTypes.WORKER_TYPES).amount > 1:
+                # stop if we see 2+ non-worker enemy units, likely not a proxy and worker will die if it sticks around
                 self.completed = True
             if BuildType.WORKER_RUSH in self.intel.enemy_builds_detected:
                 self.completed = True

@@ -50,7 +50,6 @@ class BaseUnitMicro(GeometryMixin):
     repairers_by_target_prev_frame: Dict[int, List[int]] = {}
     depots_raised_for_tank_passage: set[int] = set()  # depot tags raised to let tanks pass
     custom_effects_to_avoid: List[CustomEffect] = []  # position, time, radius, duration
-    healing_shrines: Units | None = None
 
     damaging_effects = [
         EffectId.PSISTORMPERSISTENT,

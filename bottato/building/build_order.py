@@ -624,7 +624,7 @@ class BuildOrder():
                 # don't queue another expansion if current one is still in air
                 # probably unsafe or it would have landed
                 return
-            if self.bot.enemy_structures.of_type(UnitTypes.TOWNHALL_TYPES).amount < 2 and self.bot.time < 360:
+            if self.bot.enemy_structures.of_type(UnitTypes.TOWNHALL_TYPES).amount < 2 and self.bot.time < 180:
                 # enemy has not expanded, hold off on taking a third
                 return
         if BuildType.RUSH in detected_enemy_builds and self.bot.time < 160:
