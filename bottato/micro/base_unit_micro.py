@@ -619,11 +619,13 @@ class BaseUnitMicro(GeometryMixin):
             
     @timed
     def _get_retreat_destination(self, unit: Unit, threats: Units | None = None) -> Point2 | Unit:
+        ultimate_destination: Point2 | Unit | None = None
+
         if threats is None:
             threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=2)
         else:
             threats = self.tactics.enemy.threats_to(unit, threats, attack_range_buffer=2)
-        ultimate_destination: Point2 | Unit | None = None
+
         healing_shrines = self.bot.destructables(UnitTypeId.XELNAGAHEALINGSHRINE)
         if healing_shrines:
             # if near a shrine, always prefer it
@@ -663,49 +665,17 @@ class BaseUnitMicro(GeometryMixin):
                 healers = self.bot.units.of_type(UnitTypeId.MEDIVAC).filter(lambda m: m.energy > 5) + healing_shrines
                 if healers:
                     ultimate_destination = cy_closest_to(unit.position, healers)
+
         if ultimate_destination is None:
             bunkers = self.bot.structures.of_type(UnitTypeId.BUNKER)
             if bunkers:
                 away_from_position = Point2(cy_center(threats)) if threats else self.bot.game_info.map_center
                 ultimate_destination = Point2(cy_towards(cy_closest_to(unit.position, bunkers).position, away_from_position, -4))
         
-        if not ultimate_destination:
+        if ultimate_destination is None:
             ultimate_destination = self.bot.game_info.player_start_location
 
         return self.tactics.map.get_influence_path_waypoint(unit, ultimate_destination.position)
-        
-        # if not unit.is_flying and not unit.type_id == UnitTypeId.REAPER:
-        #     retreat_path = self.tactics.map.get_path(unit.position, ultimate_destination.position)
-        #     if retreat_path:
-        #         for zone in retreat_path.zones:
-        #             ultimate_destination = zone.midpoint
-        #             if cy_distance_to(unit.position, ultimate_destination) > 10:
-        #                 break
-        
-        # threats = threats.filter(lambda t: self.position_is_between(t.position, unit.position, ultimate_destination.position))
-        # if not threats:
-        #     if isinstance(ultimate_destination, Unit):
-        #         return ultimate_destination
-        #     return self.tactics.map.get_pathable_position(ultimate_destination, unit)
-
-        # _, grouped_units = self.get_most_grouped_unit(threats, self.bot, 5.0)
-        # threat_center = Point2(cy_center(grouped_units))
-        # closest_threat_to_destination = cy_closest_to(ultimate_destination.position, grouped_units)
-        # if unit.position == threat_center or \
-        #     cy_distance_to(unit.position, ultimate_destination.position) < cy_distance_to(closest_threat_to_destination.position, ultimate_destination.position) - 2:
-        #     return self.tactics.map.get_pathable_position(ultimate_destination.position, unit)
-
-        # retreat_vector = GeometryMixin.get_vector_towards_biggest_gap(unit.position, [threat.position for threat in grouped_units])
-        # retreat_distance = 10 if unit.is_flying else 5
-        # retreat_position = Point2(cy_towards(unit.position, unit.position + retreat_vector, retreat_distance))
-        # if unit.is_flying:
-        #     retreat_position = self.tactics.map.clamp_position_to_map_bounds(retreat_position, unit.position, self.bot)
-        #     return self.tactics.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
-        # if self._position_is_pathable(unit, retreat_position):
-        #     return self.tactics.map.get_pathable_position(Point2(cy_towards(unit.position, retreat_position, 2)), unit)
-
-        # circle_around_position = self.get_circle_around_position(unit, closest_threat_to_destination.position, ultimate_destination.position)
-        # return circle_around_position
     
     def _position_is_pathable(self, unit: Unit, position: Point2) -> bool:
         if unit.is_flying and self.bot.in_map_bounds(position) or cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, position):
