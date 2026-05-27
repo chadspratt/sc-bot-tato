@@ -273,12 +273,18 @@ class MedivacDropSquad(HarassSquad):
         """Follow map edge towards nearest enemy base."""
         # If close enough to enemy, transition to attack/flank decision
         if cy_distance_to(medivac.position, self.enemy_corner) < 20:
-            if self._is_safe_to_unload(medivac):
-                self.state = DropState.ATTACKING
-                await self._do_attacking(medivac)
+            target = self._best_attack_target(medivac)
+            if target:
+                if self._is_safe_to_unload(medivac):
+                    self.state = DropState.ATTACKING
+                    await self._do_attacking(medivac)
+                else:
+                    self.state = DropState.FLANKING
+                    await self._do_flanking(medivac)
             else:
-                self.state = DropState.RETREATING
-                await self._do_retreating(medivac)
+                # reached enemy corner but no targets
+                self.state = DropState.DISBANDING
+                await self._do_disbanding(medivac)
             return
 
         # Check for visible enemies
