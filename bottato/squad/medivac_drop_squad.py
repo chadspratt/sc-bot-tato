@@ -230,13 +230,13 @@ class MedivacDropSquad(HarassSquad):
         elif self.state == DropState.FLYING_TO_EDGE:
             await self._do_flying_to_edge(medivac)
         elif self.state == DropState.FOLLOWING_EDGE:
-            await self._do_following_edge(medivac, intel)
+            await self._do_following_edge(medivac)
         elif self.state == DropState.ATTACKING:
             await self._do_attacking(medivac)
         elif self.state == DropState.RETREATING:
             await self._do_retreating(medivac)
         elif self.state == DropState.FLANKING:
-            await self._do_flanking(medivac, intel)
+            await self._do_flanking(medivac)
         elif self.state == DropState.DISBANDING:
             await self._do_disbanding(medivac)
 
@@ -247,11 +247,13 @@ class MedivacDropSquad(HarassSquad):
             self.initial_marine_count = self.MARINES_PER_DROP
             self.state = DropState.FLYING_TO_EDGE
             LogHelper.add_log("medivac drop loading complete")
+            await self._do_flying_to_edge(medivac)
             return
 
         if not self.marines:
             self.state = DropState.DISBANDING
             LogHelper.add_log("medivac drop disbanding, insufficient marines")
+            await self._do_disbanding(medivac)
             return
         
         await self.load_marines()
@@ -262,14 +264,20 @@ class MedivacDropSquad(HarassSquad):
         if cy_distance_to_squared(medivac.position, edge_point) < 9:  # within 3 range
             self.state = DropState.FOLLOWING_EDGE
             LogHelper.add_log("medivac drop reached edge")
+            await self._do_following_edge(medivac)
         else:
             await self.medivac_micro.harass(medivac, edge_point)
 
-    async def _do_following_edge(self, medivac: Unit, intel: EnemyIntel):
+    async def _do_following_edge(self, medivac: Unit):
         """Follow map edge towards nearest enemy base."""
         # If close enough to enemy, transition to attack/flank decision
         if cy_distance_to(medivac.position, self.enemy_corner) < 20:
-            await self._decide_action(medivac)
+            if self._is_safe_to_unload(medivac):
+                self.state = DropState.ATTACKING
+                await self._do_attacking(medivac)
+            else:
+                self.state = DropState.RETREATING
+                await self._do_retreating(medivac)
             return
 
         # Check for visible enemies
@@ -278,7 +286,12 @@ class MedivacDropSquad(HarassSquad):
                 and (not u.is_structure or u.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES)
         )
         if nearby:
-            await self._decide_action(medivac)
+            if self._is_safe_to_unload(medivac):
+                self.state = DropState.ATTACKING
+                await self._do_attacking(medivac)
+            else:
+                self.state = DropState.RETREATING
+                await self._do_retreating(medivac)
             return
 
         if self._is_on_edge(medivac.position):
@@ -288,27 +301,24 @@ class MedivacDropSquad(HarassSquad):
 
         await self.medivac_micro.harass(medivac, waypoint)
 
-    async def _decide_action(self, medivac: Unit):
-        """Decide attack vs retreat based on nearby enemy military supply."""
+    def _is_safe_to_unload(self, medivac: Unit):
         enemy_supply = self._nearby_enemy_military_supply(medivac.position, radius=15)
-        if enemy_supply < self.DROP_SUPPLY:
-            self.state = DropState.ATTACKING
-        else:
-            self.state = DropState.RETREATING
+        return enemy_supply < self.DROP_SUPPLY
 
     async def _do_attacking(self, medivac: Unit):
         """Move toward enemy and unload when in marine attack range."""
         target = self._best_attack_target(medivac)
         if not target:
             self.state = DropState.FOLLOWING_EDGE
+            await self._do_following_edge(medivac)
             return
 
         # Re-evaluate — did the enemy supply grow?
         enemy_supply = self._nearby_enemy_military_supply(medivac.position, radius=20)
         if enemy_supply >= self.DROP_SUPPLY:
             self.state = DropState.RETREATING
+            await self._do_retreating(medivac)
             return
-
 
         # Check if anti-air structure blocks direct access
         aa_structures = self.bot.enemy_structures.filter(
@@ -344,25 +354,30 @@ class MedivacDropSquad(HarassSquad):
         else:
             await self.medivac_micro.harass(medivac, Point2(cy_towards(target.position, medivac.position, self.MARINE_ATTACK_RANGE)))
 
-
     async def _do_retreating(self, medivac: Unit):
         """Load any unloaded marines, then start flanking."""
         if await self.load_marines():
             # All loaded or dead — start flanking
             self.state = DropState.FLANKING
+            await self._do_flanking(medivac)  # call without awaiting to set initial flank direction immediately
 
-    async def _do_flanking(self, medivac: Unit, intel: EnemyIntel):
+    async def _do_flanking(self, medivac: Unit):
         """Move clockwise or counter-clockwise around enemy to find better approach."""
         target = self._best_attack_target(medivac)
-        if not target:
-            self.state = DropState.FOLLOWING_EDGE
-            return
+        flank_pos = self.bot.start_location
+        if medivac.health_percentage > 0.6:
+            if not target:
+                self.state = DropState.FOLLOWING_EDGE
+                await self._do_following_edge(medivac)
+                return
 
-        flank_pos = self._get_flank_position(medivac, target.position)
-        if cy_distance_to_squared(medivac.position, flank_pos) < 9:
-            await self._decide_action(medivac)
-        else:
-            await self.medivac_micro.harass(medivac, flank_pos)
+            flank_pos = self._get_flank_position(medivac, target.position)
+            if cy_distance_to_squared(medivac.position, flank_pos) < 9:
+                if self._is_safe_to_unload(medivac):
+                    self.state = DropState.ATTACKING
+                    await self._do_attacking(medivac)
+                    return
+        await self.medivac_micro.harass(medivac, flank_pos)
 
     async def _do_disbanding(self, medivac: Unit):
         """Load remaining marines, fly toward base to be dissolved by Military."""

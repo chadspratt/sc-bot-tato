@@ -32,6 +32,7 @@ from bottato.log_helper import LogHelper
 from bottato.magic_numbers import MagicNumbers as MN
 from bottato.map.destructibles import BUILDING_RADIUS
 from bottato.map.map import Map
+from bottato.map_specifics import MapSpecifics
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import timed, timed_async
@@ -327,7 +328,7 @@ class SCVBuildStep(BuildStep):
                     # build it wherever and fly it there later
                     LogHelper.add_log(f"Too many attempts to build cc at {new_build_position}, finding generic placement")
                     new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
-                elif self.bot.game_info.map_name == 'Magannatha AIE':
+                elif MapSpecifics.base_location_might_be_blocked(self.bot):
                     # run it through find placement in case it's blocked by some weird map feature
                     new_build_position = await self.bot.find_placement(
                         unit_type_id,

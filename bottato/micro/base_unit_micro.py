@@ -24,6 +24,7 @@ from sc2.units import Units
 from bottato.enums import CustomEffectTargetArea, CustomEffectType, UnitMicroType
 from bottato.log_helper import LogHelper
 from bottato.magic_numbers import MagicNumbers as MN
+from bottato.map_specifics import MapSpecifics
 from bottato.micro.custom_effect import CustomEffect
 from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.tactics import Tactics
@@ -483,17 +484,12 @@ class BaseUnitMicro(GeometryMixin):
                 return BaseUnitMicro.flyer_healing_shrines
         
     async def get_pathable_healing_shrines(self, unit: Unit) -> Units:
-        pathable_shrines = Units([], bot_object=self.bot)
-        healing_shrines = self.bot.destructables(UnitTypeId.XELNAGAHEALINGSHRINE)
-        if not unit.is_flying:
-            # will need to update this if there air-only shrines are added
-            pathable_shrines = healing_shrines
-        else:
-            for shrine in healing_shrines:
-                distance = await self.bot.client.query_pathing(unit, shrine.position)
-                if distance is not None:
-                    pathable_shrines.append(shrine)
-        return pathable_shrines
+        if unit.is_flying:
+            if MapSpecifics.has_air_healing_shrines(self.bot):
+                return self.bot.destructables(UnitTypeId.XELNAGAHEALINGSHRINE)
+        elif MapSpecifics.has_ground_healing_shrines(self.bot):
+            return self.bot.destructables(UnitTypeId.XELNAGAHEALINGSHRINE)
+        return Units([], bot_object=self.bot)
     
     def add_repairer_for_unit(self, unit: Unit, repairer: Unit):
         BaseUnitMicro.repairers_by_target.setdefault(unit.tag, []).append(repairer.tag)
