@@ -67,8 +67,8 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         return UnitMicroType.NONE
 
-    @timed
-    def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
+    @timed_async
+    async def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.ATTACK
         # below retreat_health: do nothing
@@ -86,7 +86,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
         candidates = self.tactics.enemy.get_candidates(included_types={UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE, UnitTypeId.ZERGLING, UnitTypeId.ZEALOT, UnitTypeId.MARINE, UnitTypeId.REAPER})
         if candidates:
-            action = self._kite(unit, candidates, force_move=force_move)
+            action = await self._kite(unit, candidates, force_move=force_move)
             if action == UnitMicroType.RETREAT:
                 self.add_bad_harass_experience_location(unit, harass_location)
             return action
@@ -188,7 +188,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 unit.move(destination)
                 return UnitMicroType.RETREAT
             # if retreat_to_start:
-            retreat_position = self._get_retreat_destination(unit, threats)
+            retreat_position = await self._get_retreat_destination(unit, threats)
             unit.move(retreat_position)
             return UnitMicroType.RETREAT
 

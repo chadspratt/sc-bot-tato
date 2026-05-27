@@ -37,7 +37,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
 
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
-        if unit.tag in self.scout_tags:
+        if unit.tag in BaseUnitMicro.scout_tags:
             # scout mode, don't land
             return UnitMicroType.NONE
         nearby_range = 25 if unit.is_flying else 27
@@ -120,8 +120,8 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.ATTACK
         return UnitMicroType.NONE
 
-    @timed
-    def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
+    @timed_async
+    async def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         if force_move:
             return UnitMicroType.NONE
         if unit.tag in self.bot.unit_tags_received_action:
@@ -192,7 +192,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
             else:
                 threats = self.tactics.enemy.threats_to_friendly_unit(unit, 2)
                 threats.append(target)
-                return self._kite(unit, threats)
+                return await self._kite(unit, threats)
 
         candidates: Units | None = None
         if not unit.is_flying:
@@ -222,11 +222,11 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
         #     if closest_target.is_structure:
         #         unit.attack(closest_target)
         #         return UnitMicroType.ATTACK
-        return self._kite(unit, candidates)
+        return await self._kite(unit, candidates)
     
     # copied from banshee micro
-    @timed
-    def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
+    @timed_async
+    async def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
         # below harass_retreat_health: do nothing
         if unit.health_percentage <= self.harass_retreat_health:
             return UnitMicroType.NONE
@@ -265,7 +265,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
                         return UnitMicroType.MOVE
 
         if nearby_enemies:
-            return self._kite(unit, nearby_enemies)
+            return await self._kite(unit, nearby_enemies)
         if force_move:
             return UnitMicroType.NONE
         # if can_attack:
@@ -274,7 +274,7 @@ class VikingMicro(BaseUnitMicro, GeometryMixin):
         #     if nearby_enemy:
         #         self._attack(unit, nearby_enemy.first)
         #         return UnitMicroType.ATTACK
-        if unit.tag in self.harass_location_reached_tags:
+        if unit.tag in BaseUnitMicro.harass_location_reached_tags:
             nearest_workers = self.tactics.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
             if anti_air_structures:
                 nearest_workers = nearest_workers.filter(lambda u: not self.tactics.enemy.get_units_closer_than(u, anti_air_structures, 6).exists)

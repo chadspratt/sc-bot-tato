@@ -59,7 +59,7 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                         LogHelper.add_log(f"Unsieging {unit} to avoid liberator")
                         self.unsiege(unit)
                         return UnitMicroType.USE_ABILITY
-        for effect in self.custom_effects_to_avoid:
+        for effect in BaseUnitMicro.custom_effects_to_avoid:
             # don't block buildings
             if effect.type == CustomEffectType.BUILDING_FOOTPRINT:
                 effect_radius = effect.radius
@@ -238,12 +238,12 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
         if update_last_transform_time:
             self.last_transform_time[unit.tag] = self.bot.time
 
-    @timed
-    def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
+    @timed_async
+    async def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.type_id == UnitTypeId.SIEGETANK:
             if force_move:
                 return UnitMicroType.NONE
-            return super()._attack_something(unit, health_threshold, move_position, force_move=force_move)
+            return await super()._attack_something(unit, health_threshold, move_position, force_move=force_move)
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if not can_attack:
             return UnitMicroType.NONE

@@ -70,9 +70,9 @@ class MarauderMicro(BaseUnitMicro, GeometryMixin):
     # async def _retreat(self, unit: Unit, health_threshold: float) -> UnitMicroType:
     #     if unit.health_percentage < health_threshold:
     #         return self._retreat_to_medivac(unit)
-    #     elif unit.tag in self.healing_unit_tags:
+    #     elif unit.tag in BaseUnitMicro.healing_unit_tags:
     #         if unit.health_percentage < 0.9:
     #             return self._retreat_to_medivac(unit)
     #         else:
-    #             self.healing_unit_tags.remove(unit.tag)
+    #             BaseUnitMicro.healing_unit_tags.remove(unit.tag)
     #     return UnitMicroType.NONE

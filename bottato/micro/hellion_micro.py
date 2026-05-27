@@ -8,15 +8,15 @@ from sc2.units import Units
 
 from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.mixins import GeometryMixin, timed
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.unit_types import UnitTypes
 
 
 class HellionMicro(BaseUnitMicro, GeometryMixin):
     attack_health: float = 0.4
 
-    @timed
-    def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
+    @timed_async
+    async def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.NONE
 
@@ -39,7 +39,7 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
         can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
         if can_attack:
             # attack enemy in range
-            micro_taken = self._kite(unit, nearby_enemies, force_move=force_move)
+            micro_taken = await self._kite(unit, nearby_enemies, force_move=force_move)
             if micro_taken != UnitMicroType.NONE:
                 return micro_taken
         
@@ -55,10 +55,10 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
         if can_attack:
             # venture out to attack further enemy but don't chase too far
             if move_position is not None and move_position.manhattan_distance(unit.position) < 20:
-                micro_taken = self._kite(unit, nearby_enemies)
+                micro_taken = await self._kite(unit, nearby_enemies)
                 if micro_taken != UnitMicroType.NONE:
                     return micro_taken
         elif self.valid_targets:
-            return self._kite(unit, self.valid_targets)
+            return await self._kite(unit, self.valid_targets)
 
         return UnitMicroType.NONE

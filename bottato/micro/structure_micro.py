@@ -39,7 +39,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
     async def execute(self, army_ratio: float, stuck_units: Units, iteration: int):
         # logger.debug("adjust_supply_depots_for_enemies step")
         self.adjust_supply_depots_for_enemies()
-        self.target_autoturrets()
+        await self.target_autoturrets()
         await self.move_command_centers(iteration)
         await self.move_ramp_barracks(army_ratio)
         await self.move_proxy_barracks()
@@ -74,12 +74,12 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             else:
                 depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)
 
-    @timed
-    def target_autoturrets(self):
+    @timed_async
+    async def target_autoturrets(self):
         turret: Unit
         for turret in self.bot.structures(UnitTypeId.AUTOTURRET):
             logger.debug(f"turret {turret} attacking")
-            self._attack_something(turret, 0, move_position=turret.position)
+            await self._attack_something(turret, 0, move_position=turret.position)
 
     # @timed
     # should more structures fly away or is it better for them to stay and die to delay the enemy

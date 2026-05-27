@@ -264,5 +264,5 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
         if update_last_transform_time:
             self.last_transform_time[unit.tag] = self.bot.time
 
-    def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
+    async def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         return UnitMicroType.ATTACK if unit.type_id == UnitTypeId.WIDOWMINEBURROWED else UnitMicroType.NONE

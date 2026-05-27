@@ -150,8 +150,8 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         RavenMicro.interference_target_cooldowns[target.tag] = self.bot.time
         return self.fire_missile(unit, target, AbilityId.EFFECT_INTERFERENCEMATRIX)
 
-    @timed
-    def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
+    @timed_async
+    async def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         if force_move:
             return UnitMicroType.NONE
         # below retreat_health: do nothing

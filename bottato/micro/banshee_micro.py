@@ -41,8 +41,8 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.USE_ABILITY
         return UnitMicroType.NONE
     
-    @timed
-    def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
+    @timed_async
+    async def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         # below retreat_health: do nothing
         if unit.health_percentage <= self.retreat_health:
             return UnitMicroType.NONE
@@ -56,18 +56,18 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         attack_range_buffer = 0 if can_attack else 5
         target_candidates = self.get_target_candidates(unit)
         if target_candidates and can_attack:
-            return self._kite(unit, target_candidates)
+            return await self._kite(unit, target_candidates)
 
         if force_move:
             return UnitMicroType.NONE
         nearest_priority, nearest_priority_distance = self.tactics.enemy.get_closest_target(unit, included_types=UnitTypes.get_priority_target_types(unit))
         maximum_hunting_distance = 150
         if nearest_priority and nearest_priority_distance < maximum_hunting_distance:
-            return self._kite(unit, nearest_priority)
+            return await self._kite(unit, nearest_priority)
         if self.cloak_researched and self.bot.enemy_units((UnitTypeId.OBSERVER, UnitTypeId.OVERSEER, UnitTypeId.RAVEN)).amount == 0:
             nearest_enemy, enemy_distance = self.tactics.enemy.get_closest_target(unit, include_structures=False)
             if nearest_enemy and enemy_distance < 20 and can_attack:
-                return self._kite(unit, nearest_enemy)
+                return await self._kite(unit, nearest_enemy)
         return UnitMicroType.NONE
     
     def get_target_candidates(self, unit: Unit) -> Units:
@@ -86,8 +86,8 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         enemy_candidates.extend(incomplete_structures)
         return enemy_candidates
 
-    @timed
-    def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
+    @timed_async
+    async def _harass_attack_something(self, unit, health_threshold, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
         # below harass_retreat_health: do nothing
         if unit.health_percentage <= self.harass_retreat_health:
             return UnitMicroType.NONE
@@ -102,7 +102,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
             targets = self.tactics.enemy.in_attack_range(unit, enemy_candidates, 5)
         
         if targets:
-            return self._kite(unit, targets)
+            return await self._kite(unit, targets)
 
         if self.tactics.enemy.can_be_attacked(unit, self.tactics.enemy.get_recent_enemies()):
             threat_range_buffer = 3 if targets and can_attack and unit.health_percentage > self.harass_retreat_health else 5
@@ -123,11 +123,11 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if force_move:
             return UnitMicroType.NONE
 
-        if unit.tag in self.harass_location_reached_tags:
+        if unit.tag in BaseUnitMicro.harass_location_reached_tags:
             nearest_workers = self.tactics.enemy.get_closest_targets(unit, included_types=UnitTypes.WORKER_TYPES)
             if nearest_workers:
                 targets = nearest_workers.sorted(key=lambda t: t.health + t.shield)
-                self._kite(unit, targets)
+                await self._kite(unit, targets)
                 return UnitMicroType.ATTACK
         return UnitMicroType.NONE
 
@@ -164,7 +164,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         # below harass_retreat_health: always retreat
         # below harass_attack_health: retreat if threats
         if threats or is_below_retreat_health:
-            retreat_position = self._get_retreat_destination(unit, threats)
+            retreat_position = await self._get_retreat_destination(unit, threats)
             unit.move(retreat_position)
             return UnitMicroType.RETREAT
 

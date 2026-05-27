@@ -36,7 +36,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     # @timed_async
     # async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
         
-    def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
+    async def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
         threats = self.tactics.enemy.threats_to_friendly_unit(unit, 4)
         closest_threat = self.tactics.enemy.closest_unit_to_unit(unit, threats) if threats else None
         if closest_threat and unit.health_percentage < 0.8:
@@ -119,9 +119,9 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
 
         return UnitMicroType.USE_ABILITY if unit.tag in self.bot.unit_tags_received_action else UnitMicroType.NONE
 
-    def _harass_attack_something(self, unit: Unit, health_threshold: float, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
+    async def _harass_attack_something(self, unit: Unit, health_threshold: float, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
         self.harassing_medivacs[unit.tag] = self.bot.time
-        return super()._harass_attack_something(unit, health_threshold, harass_location, force_move)
+        return await super()._harass_attack_something(unit, health_threshold, harass_location, force_move)
     # @timed
     # def _attack_something(self, unit: Unit, health_threshold: float, force_move: bool = False, move_position: Point2 | None = None) -> UnitMicroType:
     #     # doesn't have an attack
