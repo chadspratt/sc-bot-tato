@@ -110,7 +110,7 @@ class BaseUnitMicro(GeometryMixin):
         if action_taken == UnitMicroType.NONE:
             action_taken = await self._use_ability(unit, target, force_move=force_move)
         if action_taken == UnitMicroType.NONE:
-            action_taken = self._move_to_repairer(unit)
+            action_taken = await self._move_to_repairer(unit)
         if action_taken == UnitMicroType.NONE:
             action_taken = await self._attack_something(unit, health_threshold=attack_health, move_position=target, force_move=force_move)
         if action_taken == UnitMicroType.NONE:
@@ -135,7 +135,7 @@ class BaseUnitMicro(GeometryMixin):
         if action_taken == UnitMicroType.NONE:
             action_taken = await self._use_ability(unit, target, force_move=force_move)
         if action_taken == UnitMicroType.NONE:
-            action_taken = self._move_to_repairer(unit)
+            action_taken = await self._move_to_repairer(unit)
         if action_taken == UnitMicroType.NONE:
             action_taken = await self._harass_attack_something(unit, health_threshold=attack_health, harass_location=target, force_move=force_move)
         if action_taken == UnitMicroType.NONE:
@@ -297,8 +297,8 @@ class BaseUnitMicro(GeometryMixin):
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
         return UnitMicroType.NONE
     
-    @timed
-    def _move_to_repairer(self, unit: Unit) -> UnitMicroType:
+    @timed_async
+    async def _move_to_repairer(self, unit: Unit) -> UnitMicroType:
         if unit.tag in BaseUnitMicro.repairers_by_target_prev_frame and unit.health_percentage < 1.0 and self.bot.minerals > 15:
             if unit.health_percentage > 0.8:
                 # check for targets nearby and don't waste time getting repaired if there are
@@ -306,14 +306,14 @@ class BaseUnitMicro(GeometryMixin):
                 if target:
                     return UnitMicroType.NONE
             repairer_tags = BaseUnitMicro.repairers_by_target_prev_frame[unit.tag]
-            repairers = self.bot.workers.filter(lambda w: w.tag in repairer_tags)
+            repairers = self.bot.workers.filter(lambda w: w.tag in repairer_tags) + await self.get_healing_shrines(unit)
             threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3, first_only=True)
             if threats:
                 repairers = repairers.further_than(5, unit)
             closest_repairer = cy_closest_to(unit.position, repairers) if repairers else None
             if closest_repairer and 1 < closest_repairer.distance_to_squared(unit) < 16:
                 unit.move(closest_repairer)
-            return UnitMicroType.MOVE
+                return UnitMicroType.MOVE
         return UnitMicroType.NONE
 
     @timed_async
@@ -717,7 +717,10 @@ class BaseUnitMicro(GeometryMixin):
         if ultimate_destination is None:
             ultimate_destination = self.bot.game_info.player_start_location
 
-        return (ultimate_destination, self.tactics.map.get_influence_path_waypoint(unit, ultimate_destination.position))
+        waypoint = ultimate_destination.position
+        if threats:
+            waypoint = self.tactics.map.get_influence_path_waypoint(unit, ultimate_destination.position)
+        return (ultimate_destination, waypoint)
     
     def _position_is_pathable(self, unit: Unit, position: Point2) -> bool:
         if unit.is_flying and self.bot.in_map_bounds(position) or cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, position):

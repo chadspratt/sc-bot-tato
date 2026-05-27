@@ -269,7 +269,7 @@ class SCVBuildStep(BuildStep):
                             flying_building_destinations: Dict[int, Point2]) -> Point2 | None:
         new_build_position = None
         if unit_type_id == UnitTypeId.COMMANDCENTER:
-            if BuildType.RUSH in detected_enemy_builds and self.bot.townhalls.amount < 2:
+            if BuildType.RUSH in detected_enemy_builds and BuildType.EARLY_EXPANSION not in detected_enemy_builds and self.bot.townhalls.amount < 2:
                 candidates = [self.map.natural_position, self.map.natural_position, self.map.natural_position]
                 start_terrain_height = self.bot.get_terrain_height(self.bot.start_location)
                 vector = (self.bot.start_location - self.map.natural_position).normalized

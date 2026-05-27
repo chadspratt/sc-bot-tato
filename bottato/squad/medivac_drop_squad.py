@@ -314,8 +314,7 @@ class MedivacDropSquad(HarassSquad):
             return
 
         # Re-evaluate — did the enemy supply grow?
-        enemy_supply = self._nearby_enemy_military_supply(medivac.position, radius=20)
-        if enemy_supply >= self.DROP_SUPPLY:
+        if not self._is_safe_to_unload(medivac):
             self.state = DropState.RETREATING
             await self._do_retreating(medivac)
             return
