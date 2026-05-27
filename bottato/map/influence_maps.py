@@ -58,7 +58,7 @@ class InfluenceMaps():
 
             air_range = UnitTypes.air_range(enemy)
             if air_range > 0 and enemy.is_ready:
-                self.add_cost((enemy.position[0], enemy.position[1]), air_range + 1.5, self.anti_air_grid)
+                self.add_cost((enemy.position[0], enemy.position[1]), air_range + 2, self.anti_air_grid)
 
             if enemy.is_detector:
                 self.add_cost((enemy.position[0], enemy.position[1]), enemy.sight_range + 1.5, self.detection_grid, 5)

@@ -9,6 +9,7 @@ from cython_extensions.geometry import (
     cy_distance_to_squared,
     cy_towards,
 )
+from cython_extensions.units_utils import cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -291,8 +292,8 @@ class MedivacDropSquad(HarassSquad):
                 self.state = DropState.ATTACKING
                 await self._do_attacking(medivac)
             else:
-                self.state = DropState.RETREATING
-                await self._do_retreating(medivac)
+                self.state = DropState.FLANKING
+                await self._do_flanking(medivac)
             return
 
         if self._is_on_edge(medivac.position):
@@ -363,15 +364,20 @@ class MedivacDropSquad(HarassSquad):
 
     async def _do_flanking(self, medivac: Unit):
         """Move clockwise or counter-clockwise around enemy to find better approach."""
+        nearby = self.bot.all_enemy_units.filter(
+            lambda u: cy_distance_to_squared(u.position, medivac.position) < 400  # 20^2
+                and (not u.is_structure or u.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES)
+        )
         target = self._best_attack_target(medivac)
         flank_pos = self.bot.start_location
         if medivac.health_percentage > 0.6:
-            if not target:
+            if not nearby:
                 self.state = DropState.FOLLOWING_EDGE
                 await self._do_following_edge(medivac)
                 return
 
-            flank_pos = self._get_flank_position(medivac, target.position)
+            closest_enemy = cy_closest_to(medivac.position, nearby)
+            flank_pos = self._get_flank_position(medivac, closest_enemy.position)
             if cy_distance_to_squared(medivac.position, flank_pos) < 9:
                 if self._is_safe_to_unload(medivac):
                     self.state = DropState.ATTACKING
