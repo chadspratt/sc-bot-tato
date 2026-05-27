@@ -245,7 +245,7 @@ class BuildOrder():
             self.remove_step_from_queue(UnitTypeId.REFINERY, self.static_queue, remove_all=True)
             self.remove_step_from_queue(UnitTypeId.REAPER, self.static_queue)
             self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue, position=0)
-            if self.get_in_progress_count(UnitTypeId.BARRACKS) == 0:
+            if self.get_in_progress_count(UnitTypeId.BARRACKS) + self.bot.structures(UnitTypeId.BARRACKS).amount < 2:
                 self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue, position=0)
             for step in self.started:
                 if isinstance(step, SCVBuildStep) and step.is_unit_type(UnitTypeId.REFINERY):

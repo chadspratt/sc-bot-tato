@@ -271,8 +271,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 closest_enemy = None
             else:
                 structure_in_range_distance = 10.5 if is_sieged else 10.8
-                in_range_distance_sq = (structure_in_range_distance + closest_enemy.radius) ** 2 if closest_enemy.is_structure else 169
-                enemy_is_in_range = closest_enemy_distance < in_range_distance_sq
+                in_range_distance = structure_in_range_distance + closest_enemy.radius if closest_enemy.is_structure else 13
+                enemy_is_in_range = closest_enemy_distance < in_range_distance
 
         if is_sieged:
             self.early_game_siege_step[unit.tag] = TankSiegeStep.SIEGED
