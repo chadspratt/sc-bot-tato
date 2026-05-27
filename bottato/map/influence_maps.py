@@ -1,4 +1,3 @@
-from itertools import chain
 from loguru import logger
 from typing import Dict, List, Optional, Tuple
 
@@ -8,12 +7,10 @@ from MapAnalyzer import MapData
 from sc2.bot_ai import BotAI
 from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
-from sc2.position import Point2, Point3
+from sc2.position import Point2
 from sc2.unit import Unit
-from scipy.spatial import distance
 
-from bottato.map.destructibles import BUILDINGS
-from bottato.map.utils import change_destructible_status_in_grid
+from bottato.map_specifics import MapSpecifics
 from bottato.unit_types import UnitTypes
 
 
@@ -70,6 +67,9 @@ class InfluenceMaps():
             if effect.id == EffectId.SCANNERSWEEP:
                 for position in effect.positions:
                     self.add_cost((position[0], position[1]), 14, self.detection_grid, 5)
+
+        for no_fly_zone_center, no_fly_zone_radius in MapSpecifics.no_fly_zones(self.bot):
+            self.add_cost((no_fly_zone_center[0], no_fly_zone_center[1]), no_fly_zone_radius, self.anti_air_grid, np.inf)
 
         # cap detection weights at 5x (detection is multiplied with other grid for cloaked units)
         self.detection_grid = np.minimum(self.detection_grid, 5)

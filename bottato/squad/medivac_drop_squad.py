@@ -286,7 +286,8 @@ class MedivacDropSquad(HarassSquad):
                 and (not u.is_structure or u.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES)
         )
         if nearby:
-            if self._is_safe_to_unload(medivac):
+            target = self._best_attack_target(medivac)
+            if target and self._is_safe_to_unload(medivac):
                 self.state = DropState.ATTACKING
                 await self._do_attacking(medivac)
             else:
