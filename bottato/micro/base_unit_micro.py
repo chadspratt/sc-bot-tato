@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # import math
 from loguru import logger
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from cython_extensions.general_utils import cy_in_pathing_grid_burny
 from cython_extensions.geometry import (
@@ -196,7 +196,8 @@ class BaseUnitMicro(GeometryMixin):
                 cy_closer_than(self.bot.enemy_units, 8, target.position), bot_object=self.bot
             )
             if threats_at_target:
-                unit.move(await self._get_retreat_destination(unit, threats_at_target))
+                _, retreat_position = await self._get_retreat_destination(unit, threats_at_target)
+                unit.move(retreat_position)
                 action_taken = UnitMicroType.RETREAT
         if action_taken == UnitMicroType.NONE:
             if not target.is_structure and cy_distance_to(unit.position, target.position) > unit.radius + target.radius + 0.5:
@@ -365,7 +366,6 @@ class BaseUnitMicro(GeometryMixin):
             return await self._kite(unit, self.valid_targets)
 
         return UnitMicroType.NONE
-    
     @timed_async
     async def _harass_attack_something(self, unit: Unit, health_threshold: float, harass_location: Point2, force_move: bool = False) -> UnitMicroType:
         return await self._attack_something(unit, health_threshold, harass_location, force_move)
@@ -408,11 +408,11 @@ class BaseUnitMicro(GeometryMixin):
         # below attack_health: retreat if threats
         # below retreat_health: always retreat
         if threats or is_below_retreat_health:
-            retreat_position = await self._get_retreat_destination(unit, threats)
+            ultimate_destination, retreat_position = await self._get_retreat_destination(unit, threats)
             if unit.is_constructing_scv:
                 unit(AbilityId.HALT)
-            elif isinstance(retreat_position, Unit) and retreat_position.type_id == UnitTypeId.SCV and unit.type_id == UnitTypeId.SCV and retreat_position.health_percentage < 1.0:
-                unit.repair(retreat_position)
+            elif isinstance(ultimate_destination, Unit) and ultimate_destination.type_id == UnitTypeId.SCV and unit.type_id == UnitTypeId.SCV and ultimate_destination.health_percentage < 1.0:
+                unit.repair(ultimate_destination)
             else:
                 unit.move(retreat_position)
             return UnitMicroType.RETREAT
@@ -462,13 +462,25 @@ class BaseUnitMicro(GeometryMixin):
                 BaseUnitMicro.healing_shrines = await self.get_pathable_healing_shrines(unit)
                 return BaseUnitMicro.healing_shrines
             else:
-                return UnitReferenceHelper.get_updated_units(BaseUnitMicro.healing_shrines)
+                num_shrines = len(BaseUnitMicro.healing_shrines)
+                if num_shrines > 0 and BaseUnitMicro.healing_shrines[0].age > 0:
+                    BaseUnitMicro.healing_shrines = UnitReferenceHelper.get_updated_units(BaseUnitMicro.healing_shrines)
+                    if len(BaseUnitMicro.healing_shrines) != num_shrines:
+                        # visibility change causes a tag to change so re-query
+                        BaseUnitMicro.healing_shrines = await self.get_pathable_healing_shrines(unit)
+                return BaseUnitMicro.healing_shrines
         else:
             if BaseUnitMicro.flyer_healing_shrines is None:
                 BaseUnitMicro.flyer_healing_shrines = await self.get_pathable_healing_shrines(unit)
                 return BaseUnitMicro.flyer_healing_shrines
             else:
-                return UnitReferenceHelper.get_updated_units(BaseUnitMicro.flyer_healing_shrines)
+                num_shrines = len(BaseUnitMicro.flyer_healing_shrines)
+                if num_shrines > 0 and BaseUnitMicro.flyer_healing_shrines[0].age > 0:
+                    BaseUnitMicro.flyer_healing_shrines = UnitReferenceHelper.get_updated_units(BaseUnitMicro.flyer_healing_shrines)
+                    if len(BaseUnitMicro.flyer_healing_shrines) != num_shrines:
+                        # visibility change causes a tag to change so re-query
+                        BaseUnitMicro.flyer_healing_shrines = await self.get_pathable_healing_shrines(unit)
+                return BaseUnitMicro.flyer_healing_shrines
         
     async def get_pathable_healing_shrines(self, unit: Unit) -> Units:
         pathable_shrines = Units([], bot_object=self.bot)
@@ -596,7 +608,8 @@ class BaseUnitMicro(GeometryMixin):
             return UnitMicroType.ATTACK
 
         if threats_to_avoid:
-            unit.move(await self._get_retreat_destination(unit, threats_to_avoid))
+            _, retreat_position = await self._get_retreat_destination(unit, threats_to_avoid)
+            unit.move(retreat_position)
             return UnitMicroType.RETREAT
         if workers_to_avoid:
             # stay at minimum distance from workers instead of max attack range
@@ -604,7 +617,8 @@ class BaseUnitMicro(GeometryMixin):
             desired_distance = self._get_desired_attack_range(unit, workers_to_avoid[0])
             target_position = Point2(cy_towards(worker_center, unit.position, desired_distance))
             if self._move_to_pathable_position(unit, target_position) == UnitMicroType.NONE:
-                unit.move(await self._get_retreat_destination(unit, workers_to_avoid))
+                _, retreat_position = await self._get_retreat_destination(unit, workers_to_avoid)
+                unit.move(retreat_position)
             return UnitMicroType.RETREAT
 
         # attack on cooldown, no threats
@@ -642,15 +656,15 @@ class BaseUnitMicro(GeometryMixin):
         else:
             unit.attack(target)
         return True
-    
+
     def _move_to_pathable_position(self, unit: Unit, position: Point2, queue: bool = False) -> UnitMicroType:
         if unit.is_flying and self.bot.in_map_bounds(position) or cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, position):
             unit.move(self.tactics.map.get_pathable_position(position, unit), queue=queue)
             return UnitMicroType.MOVE
         return UnitMicroType.NONE
-            
+
     @timed_async
-    async def _get_retreat_destination(self, unit: Unit, threats: Units | None = None) -> Point2 | Unit:
+    async def _get_retreat_destination(self, unit: Unit, threats: Units | None = None) -> Tuple[Point2 | Unit, Point2]:
         ultimate_destination: Point2 | Unit | None = None
 
         if threats is None:
@@ -707,7 +721,7 @@ class BaseUnitMicro(GeometryMixin):
         if ultimate_destination is None:
             ultimate_destination = self.bot.game_info.player_start_location
 
-        return self.tactics.map.get_influence_path_waypoint(unit, ultimate_destination.position)
+        return (ultimate_destination, self.tactics.map.get_influence_path_waypoint(unit, ultimate_destination.position))
     
     def _position_is_pathable(self, unit: Unit, position: Point2) -> bool:
         if unit.is_flying and self.bot.in_map_bounds(position) or cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, position):
@@ -722,7 +736,8 @@ class BaseUnitMicro(GeometryMixin):
             if unit.distance_to_squared(nearest_medivac) > 16:
                 unit.move(nearest_medivac)
             else:
-                unit.move(await self._get_retreat_destination(unit,self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=4)))
+                _, retreat_position = await self._get_retreat_destination(unit, Units([nearest_medivac], bot_object=self.bot))
+                unit.move(retreat_position)
             logger.debug(f"{unit} marine retreating to heal at {nearest_medivac} hp {unit.health_percentage}")
             BaseUnitMicro.healing_unit_tags.add(unit.tag)
         else:

@@ -164,7 +164,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         # below harass_retreat_health: always retreat
         # below harass_attack_health: retreat if threats
         if threats or is_below_retreat_health:
-            retreat_position = await self._get_retreat_destination(unit, threats)
+            _, retreat_position = await self._get_retreat_destination(unit, threats)
             unit.move(retreat_position)
             return UnitMicroType.RETREAT
 

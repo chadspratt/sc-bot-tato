@@ -25,10 +25,22 @@ class InfluenceMaps():
         self.map_name: str = bot.game_info.map_name
 
     def update_maps(self, damage_by_position: Dict[Point2, List[Tuple[float, float]]]):
-        self.ground_grid = self.map_data.get_pyastar_grid()
-        self.reaper_grid = self.map_data.get_climber_grid()
-        self.anti_air_grid = self.map_data.get_air_vs_ground_grid()
+        self.ground_grid = self.map_data.get_pyastar_grid(3)
+        self.reaper_grid = self.map_data.get_climber_grid(3)
+        self.anti_air_grid = self.map_data.get_air_vs_ground_grid(3, 1.5)
         self.detection_grid = self.map_data.get_clean_air_grid()
+
+        # subtract weight for speed zones
+        for destructable in self.bot.destructables:
+            position = (destructable.position[0], destructable.position[1])
+            if destructable.type_id == UnitTypeId.ACCELERATIONZONESMALL:
+                self.add_cost(position, 4, self.ground_grid, -1)
+                self.add_cost(position, 4, self.reaper_grid, -1)
+                self.add_cost(position, 4, self.anti_air_grid, -1)
+            elif destructable.type_id == UnitTypeId.ACCELERATIONZONELARGE:
+                self.add_cost(position, 6, self.ground_grid, -1)
+                self.add_cost(position, 6, self.reaper_grid, -1)
+                self.add_cost(position, 6, self.anti_air_grid, -1)
 
         cutoff_time = self.bot.time - 10
         for position, damage_list in damage_by_position.items():

@@ -188,7 +188,7 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
                 unit.move(destination)
                 return UnitMicroType.RETREAT
             # if retreat_to_start:
-            retreat_position = await self._get_retreat_destination(unit, threats)
+            _, retreat_position = await self._get_retreat_destination(unit, threats)
             unit.move(retreat_position)
             return UnitMicroType.RETREAT
 
