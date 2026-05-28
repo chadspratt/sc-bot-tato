@@ -370,25 +370,23 @@ class MedivacDropSquad(HarassSquad):
 
     async def _do_flanking(self, medivac: Unit):
         """Move clockwise or counter-clockwise around enemy to find better approach."""
+        target = self._best_attack_target(medivac)
+        if target and self._is_safe_to_unload(medivac):
+            self.state = DropState.ATTACKING
+            await self._do_attacking(medivac)
+            return
+
         nearby = self.bot.all_enemy_units.filter(
             lambda u: cy_distance_to_squared(u.position, medivac.position) < 400  # 20^2
                 and (not u.is_structure or u.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES)
         )
-        target = self._best_attack_target(medivac)
-        flank_pos = self.bot.start_location
-        if medivac.health_percentage > 0.6:
-            if not nearby:
-                self.state = DropState.FOLLOWING_EDGE
-                await self._do_following_edge(medivac)
-                return
-
-            closest_enemy = cy_closest_to(medivac.position, nearby)
-            flank_pos = self._get_flank_position(medivac, closest_enemy.position)
-            if cy_distance_to_squared(medivac.position, flank_pos) < 9:
-                if self._is_safe_to_unload(medivac):
-                    self.state = DropState.ATTACKING
-                    await self._do_attacking(medivac)
-                    return
+        if not nearby:
+            self.state = DropState.FOLLOWING_EDGE
+            await self._do_following_edge(medivac)
+            return
+        
+        closest_enemy = cy_closest_to(medivac.position, nearby)
+        flank_pos = self._get_flank_position(medivac, closest_enemy.position)
         await self.medivac_micro.harass(medivac, flank_pos)
 
     async def _do_disbanding(self, medivac: Unit):
