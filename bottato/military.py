@@ -184,12 +184,13 @@ class Military(GeometryMixin, DebugMixin):
             self.main_army.draw_debug_box()
             self.main_army.update_formation()
             if defend_with_main_army:
-                if self.main_army.units.amount < 10 or self.bot.townhalls.amount < 2:
+                army_count = self.main_army.units.amount
+                if army_count < 10 or self.bot.townhalls.amount < 2:
                     ramp_barracks = self.bot.structures(UnitTypeId.BARRACKS).filter(lambda b: cy_distance_to_squared(b.position, self.bot.main_base_ramp.top_center) < 25)
                     if ramp_barracks:
                         LogHelper.add_log(f"squad {self.main_army.name} staging behind ramp barracks")
                         behind_barracks_position = cy_towards(ramp_barracks.first.position, self.bot.main_base_ramp.top_center, -1)
-                        await self.main_army.move(Point2(behind_barracks_position))
+                        await self.main_army.move(Point2(behind_barracks_position), force_move=army_count < 5)
                         return
                 if self.bot.time > 420 or enemies_in_base_ratio >= 0.8:
                     LogHelper.add_log(f"squad {self.main_army.name} mounting defense")

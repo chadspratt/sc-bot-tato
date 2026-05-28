@@ -39,17 +39,6 @@ class InfluenceMaps():
                 self.add_cost(position, 6, self.reaper_grid, -1)
                 self.add_cost(position, 6, self.anti_air_grid, -1)
 
-        cutoff_time = self.bot.time - 10
-        for position, damage_list in damage_by_position.items():
-            total_damage = 0.0
-            for damage, time in damage_list:
-                if time < cutoff_time:
-                    continue
-                total_damage += damage
-            if total_damage > 0:
-                self.add_cost((position[0], position[1]), 1.5, self.ground_grid, total_damage*10)
-                self.add_cost((position[0], position[1]), 1.5, self.reaper_grid, total_damage*10)
-        
         for enemy in self.bot.all_enemy_units:
             ground_range = UnitTypes.ground_range(enemy)
             if ground_range > 0 and enemy.is_ready:

@@ -98,6 +98,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
 
     @timed_async
     async def move_command_centers(self, iteration: int):
+        gas_buildings = self.bot.structures(UnitTypeId.REFINERY).filter(lambda r: r.vespene_contents > 0)
         for cc in self.bot.structures((UnitTypeId.COMMANDCENTER, UnitTypeId.COMMANDCENTERFLYING, UnitTypeId.ORBITALCOMMAND, UnitTypeId.ORBITALCOMMANDFLYING)).ready:
             if cc.is_flying:
                 destination = self.building_destinations.get(cc.tag, None)
@@ -152,6 +153,13 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 else:
                     cc.move(destination)
             else:
+                is_mined_out = cc.type_id == UnitTypeId.ORBITALCOMMAND \
+                    and not self.member_is_closer_than(cc, self.bot.mineral_field, 15) \
+                    and not self.member_is_closer_than(cc, gas_buildings, 15)
+                if is_mined_out:
+                    cc(AbilityId.LIFT)
+                    LogHelper.write_log_to_db("cc move", f"{cc.position}")
+                    return
                 for expansion_location in self.bot.expansion_locations_list:
                     if cy_distance_to(cc.position, expansion_location) < 5:
                         break

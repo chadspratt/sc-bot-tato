@@ -304,6 +304,11 @@ class SCVBuildStep(BuildStep):
                         # already taken
                         continue
 
+                    has_minerals = self.member_is_closer_than(location.expansion_position, self.bot.mineral_field, 15)
+                    if not has_minerals:
+                        # mined out (and orbital relocated), don't count it as available
+                        continue
+
                     # check that position hasn't already been attempted too many times
                     if location.expansion_position not in self.attempted_expansion_positions:
                         self.attempted_expansion_positions[location.expansion_position] = 0

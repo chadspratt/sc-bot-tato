@@ -99,7 +99,8 @@ class Map(GeometryMixin):
     
     def get_next_expansion(self, selection: ExpansionSelection = ExpansionSelection.CLOSEST) -> Point2 | None:
         for location in self.expansion_orders[selection]:
-            if not self.member_is_closer_than(location.expansion_position, self.bot.townhalls, 5):
+            has_minerals = self.member_is_closer_than(location.expansion_position, self.bot.mineral_field, 15)
+            if has_minerals and not self.member_is_closer_than(location.expansion_position, self.bot.townhalls, 5):
                 return location.expansion_position
         return None
     
