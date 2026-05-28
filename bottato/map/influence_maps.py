@@ -24,7 +24,8 @@ class InfluenceMaps():
     def update_maps(self, damage_by_position: Dict[Point2, List[Tuple[float, float]]]):
         self.ground_grid = self.map_data.get_pyastar_grid(3)
         self.reaper_grid = self.map_data.get_climber_grid(3)
-        self.anti_air_grid = self.map_data.get_air_vs_ground_grid(3, 1.5)
+        # self.anti_air_grid = self.map_data.get_air_vs_ground_grid(3, 1.5)
+        self.anti_air_grid = self.map_data.get_clean_air_grid(3)
         self.detection_grid = self.map_data.get_clean_air_grid()
 
         # subtract weight for speed zones

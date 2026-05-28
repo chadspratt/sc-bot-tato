@@ -23,6 +23,7 @@ from bottato.economy.vespene import Vespene
 from bottato.enums import BuildType, UnitMicroType, WorkerJobType
 from bottato.log_helper import LogHelper
 from bottato.magic_numbers import MagicNumbers as MN
+from bottato.map_specifics import MapSpecifics
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import GeometryMixin, timed, timed_async
@@ -1324,26 +1325,47 @@ class Workers(GeometryMixin):
             if self.bot.minerals < needed_minerals + 25:
                 # repair less when trying to afford wall
                 worker_health_threshold = MN.WORKER_RUSH_REPAIR_WORKER_HEALTH_THRESHOLD
-        injured_units = self.bot.units.filter(lambda unit: unit.is_mechanical
-                                                and unit.type_id != UnitTypeId.MULE
-                                                and unit.health < unit.health_max
-                                                and (unit.type_id != UnitTypeId.SCV or unit.health < worker_health_threshold)
-                                                and (
-                                                    unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(unit) < MN.WORKER_REPAIR_DEFENSIVE_TANK_DISTANCE
-                                                or self.enemy.threats_to_repairer(unit, attack_range_buffer=0).amount == 0))
-        logger.debug(f"injured mechanical units {injured_units}")
+        has_ground_healing_shrine = MapSpecifics.has_ground_healing_shrines(self.bot)
+        has_air_healing_shrine = MapSpecifics.has_air_healing_shrines(self.bot)
+        for unit in self.bot.units:
+            if not unit.is_mechanical:
+                continue
+            if unit.health_percentage == 1.0:
+                continue
+            if unit.type_id == UnitTypeId.MULE:
+                continue
+            if unit.type_id == UnitTypeId.SCV and unit.health_percentage >= worker_health_threshold:
+                continue
+            if self.enemy.threats_to_repairer(unit, attack_range_buffer=0).amount > 0:
+                # threats nearby, skip unless it's a sieged tank defending a base
+                if unit.type_id != UnitTypeId.SIEGETANKSIEGED or not self.bot.townhalls or self.bot.townhalls.closest_distance_to(unit) >= 20:
+                    continue
+            # skip repairing distant units if they can just use a shrine
+            closest_worker = cy_closest_to(unit.position, self.bot.workers)
+            closest_worker_distance = cy_distance_to(closest_worker.position, unit.position)
+            if closest_worker_distance > 30:
+                if unit.is_flying and has_air_healing_shrine:
+                    continue
+                if not unit.is_flying and has_ground_healing_shrine:
+                    continue
+            injured_units.append(unit)
 
         # can only repair fully built structures
         if BuildType.WORKER_RUSH not in enemy_builds_detected or self.bot.time > 120:
-            injured_structures = self.bot.structures.filter(lambda unit: unit.type_id != UnitTypeId.AUTOTURRET
-                                                            and unit.build_progress == 1
-                                                            and unit.health < unit.health_max
-                                                            and ((self.bot.time < MN.WORKER_REPAIR_RAMP_WALL_TIME and unit.type_id in self.ramp_wall_structers)
-                                                                or unit.type_id in self.defensive_structures
-                                                                or len(self.enemy.threats_to_repairer(unit, attack_range_buffer=-unit.radius*1.5)) == 0))
-            logger.debug(f"injured structures {injured_structures}")
-            injured_units.extend(injured_structures)
+            for structure in self.bot.structures:
+                if structure.build_progress < 1:
+                    continue
+                if structure.health_percentage == 1.0:
+                    continue
+                if structure.type_id == UnitTypeId.AUTOTURRET:
+                    continue
+                if self.enemy.threats_to_repairer(structure, attack_range_buffer=structure.radius*1.5).amount > 0:
+                    if structure.type_id not in self.defensive_structures and \
+                        (structure.type_id not in self.ramp_wall_structers or self.bot.time > MN.WORKER_REPAIR_RAMP_WALL_TIME):
+                        continue
+                injured_units.append(structure)
         return injured_units
+
 
     def move_workers_to_minerals(self, number_to_move: int) -> int:
         return self.move_workers_between_resources(self.vespene, self.minerals, WorkerJobType.MINERALS, number_to_move)
