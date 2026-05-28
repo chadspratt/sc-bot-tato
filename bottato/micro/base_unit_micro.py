@@ -631,7 +631,9 @@ class BaseUnitMicro(GeometryMixin):
         unit_range = UnitTypes.range_vs_target(unit, target)
         target_range = UnitTypes.range_vs_target(target, unit)
  
-        if unit_range == 0 or target.type_id in UnitTypes.get_priority_avoidance_types(unit):
+        if target_range == 0:
+            desired_distance = 0
+        elif unit_range == 0 or target.type_id in UnitTypes.get_priority_avoidance_types(unit):
             desired_distance += target_range + 0.5
         elif target.type_id in UnitTypes.WORKER_TYPES:
             desired_distance += 3.0

@@ -1318,6 +1318,8 @@ class Workers(GeometryMixin):
     ])
     def units_needing_repair(self, enemy_builds_detected: Dict[BuildType, float]) -> Units:
         injured_units = Units([], self.bot)
+        if self.bot.workers.amount == 0:
+            return injured_units
         worker_health_threshold = 1.0
         if (BuildType.WORKER_RUSH in enemy_builds_detected and self.bot.time < 120):
             needed_minerals = 100 * (2 - self.bot.structures([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED]).amount)

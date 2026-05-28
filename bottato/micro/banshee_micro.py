@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from cython_extensions.geometry import cy_distance_to
 from cython_extensions.units_utils import cy_center
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -129,6 +130,10 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 targets = nearest_workers.sorted(key=lambda t: t.health + t.shield)
                 await self._kite(unit, targets)
                 return UnitMicroType.ATTACK
+            
+        if cy_distance_to(unit.position, harass_location) < 5:
+            targets = self.bot.enemy_structures.in_attack_range_of(unit, 5)
+            await self._kite(unit, targets)
         return UnitMicroType.NONE
 
     @timed_async

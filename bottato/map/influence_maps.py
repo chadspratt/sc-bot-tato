@@ -43,15 +43,16 @@ class InfluenceMaps():
         for enemy in self.bot.all_enemy_units:
             ground_range = UnitTypes.ground_range(enemy)
             if ground_range > 0 and enemy.is_ready:
-                self.add_cost((enemy.position[0], enemy.position[1]), ground_range + 1.5, self.ground_grid)
-                self.add_cost((enemy.position[0], enemy.position[1]), ground_range + 1.5, self.reaper_grid)
+                self.add_cost(enemy.position_tuple, ground_range + 1.5, self.ground_grid)
+                self.add_cost(enemy.position_tuple, ground_range + 1.5, self.reaper_grid)
 
             air_range = UnitTypes.air_range(enemy)
             if air_range > 0 and enemy.is_ready:
-                self.add_cost((enemy.position[0], enemy.position[1]), air_range + 2, self.anti_air_grid)
+                self.add_cost(enemy.position_tuple, air_range + 1, self.anti_air_grid, 1000)
+                self.add_cost(enemy.position_tuple, air_range + 2, self.anti_air_grid, 200)
 
             if enemy.is_detector:
-                self.add_cost((enemy.position[0], enemy.position[1]), enemy.sight_range + 1.5, self.detection_grid, 5)
+                self.add_cost(enemy.position_tuple, enemy.sight_range + 1.5, self.detection_grid, 5)
 
         for effect in self.bot.state.effects:
             if effect.id == EffectId.SCANNERSWEEP:
