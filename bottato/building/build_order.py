@@ -659,11 +659,10 @@ class BuildOrder():
         if self.bot.time < 15:
             # pause workers to save for first expansion
             return
-        if self.bot.workers.amount >= 15 and self.bot.structures(UnitTypeId.BARRACKS).amount == 0:
-            # hold off on workers until barracks started
-            return
-        if BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.time < 180 and self.bot.structures.of_type([UnitTypeId.SUPPLYDEPOT, UnitTypeId.BARRACKS]).amount < 3:
-            # hold off on workers during worker rush until wall is up
+        if self.bot.workers.amount >= 15 \
+                and self.bot.structures(UnitTypeId.BARRACKS).amount == 0 \
+                and BuildType.WORKER_RUSH not in detected_enemy_builds:
+            # hold off on workers until barracks started, unless getting worker rushed
             return
 
         available_townhalls = self.bot.townhalls.filter(lambda cc: cc.is_ready and (not cc.orders or cc.orders[0].progress > 0.85) and not cc.is_flying)
@@ -1021,7 +1020,6 @@ class BuildOrder():
                     remaining_resources = remaining_resources - pending.cost
         
         worker_rush_active = BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.time < 120
-        wall_is_built = self.bot.structures.of_type([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.BARRACKS]).amount >= 3
 
         while execution_index < len(build_queue):
             execution_index += 1
@@ -1039,14 +1037,17 @@ class BuildOrder():
                 continue
             if not isinstance(build_step, UpgradeBuildStep) and build_step.get_unit_type_id() in failed_types:
                 continue
-            if worker_rush_active and not wall_is_built:
-                # only allow building the wall until it's started
-                if build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT) and self.bot.structures(UnitTypeId.SUPPLYDEPOT).amount < 2:
-                    pass
-                elif build_step.is_unit_type(UnitTypeId.BARRACKS) and self.bot.structures(UnitTypeId.BARRACKS).amount < 1:
-                    pass
-                else:
-                    continue
+            if worker_rush_active:
+                if isinstance(build_step, StructureBuildStep):
+                    if not build_step.is_unit_type(UnitTypeId.SCV) or cy_distance_to(self.bot.townhalls.first.position, self.map.natural_position) > 1:
+                        # during worker rush, only build SCVs to hold off rush and only after repositioning to natural
+                        continue
+                if isinstance(build_step, SCVBuildStep):
+                    if not (build_step.is_unit_type(UnitTypeId.BARRACKS) and self.bot.structures(UnitTypeId.BARRACKS).amount == 0) \
+                            or not self.tactics.is_active(Tactic.RAMP_SECURED) \
+                            or cy_closer_than(self.bot.enemy_units, 5, self.bot.main_base_ramp.bottom_center):
+                        # during rush only build one barracks when ramp is secured and enemy is far enough away
+                        continue
             if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
                 build_response = BuildResponseCode.NO_SUPPLY
                 if not allow_skip:

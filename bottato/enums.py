@@ -84,6 +84,7 @@ class Tactic(enum.Enum):
     PROXY_BARRACKS = 1
     RUSH_DEFENSE = 2
     MEDIVAC_HARASS = 3
+    RAMP_SECURED = 4
 
 class ExpansionSelection(enum.Enum):
     CLOSEST = 0

@@ -189,8 +189,7 @@ class SCVBuildStep(BuildStep):
             and self.unit_type_id in (UnitTypeId.SUPPLYDEPOT, UnitTypeId.BARRACKS)
         )
 
-        high_priority = build_despite_enemies and self.unit_being_built is None
-        self.unit_in_charge = self.workers.get_builder(self.position, self.unit_in_charge, high_priority)
+        self.unit_in_charge = self.workers.get_builder(self.position, self.unit_in_charge)
         if self.unit_in_charge is None:
             return BuildResponseCode.NO_BUILDER
 
@@ -395,25 +394,34 @@ class SCVBuildStep(BuildStep):
                 new_build_position = await self.map.get_non_visible_position_in_main()
         elif unit_type_id == UnitTypeId.BARRACKS and BuildType.WORKER_RUSH in detected_enemy_builds \
                 and not self.bot.structures(UnitTypeId.BARRACKS):
+            barracks_position = (self.bot.main_base_ramp.bottom_center + self.map.natural_position) / 2
             # During worker rush: place first barracks near mineral line, in the
             # gap between the command center and the gas nearest to the ramp.
-            ramp_top = self.bot.main_base_ramp.top_center
-            resources = self.bot.vespene_geyser + self.bot.mineral_field
-            main_resources = cy_closer_than(
-                resources, MN.MINERAL_MAX_DISTANCE_FROM_BASE, self.bot.start_location
+            # ramp_top = self.bot.main_base_ramp.top_center
+            # resources = self.bot.vespene_geyser + self.bot.mineral_field
+            # main_resources = cy_closer_than(
+            #     resources, MN.MINERAL_MAX_DISTANCE_FROM_BASE, self.bot.start_location
+            # )
+            # if main_resources:
+            #     nearest_resource_to_ramp = cy_closest_to(ramp_top, main_resources)
+            #     candidates = self.get_triangle_point_c(self.bot.start_location, nearest_resource_to_ramp.position, 4.0, 3.0)
+            #     if candidates:
+            #         candidate = min(list(candidates), key=lambda p: cy_distance_to_squared(p, ramp_top))
+            #         new_build_position = await self.bot.find_placement(
+            #             unit_type_id,
+            #             near=candidate,
+            #             placement_step=1,
+            #             addon_place=True,
+            #             max_distance=6,
+            #         )
+            barracks_position = (self.bot.main_base_ramp.bottom_center + self.map.natural_position) / 2
+            new_build_position = await self.bot.find_placement(
+                unit_type_id,
+                near=barracks_position,
+                placement_step=1,
+                addon_place=True,
+                max_distance=6,
             )
-            if main_resources:
-                nearest_resource_to_ramp = cy_closest_to(ramp_top, main_resources)
-                candidates = self.get_triangle_point_c(self.bot.start_location, nearest_resource_to_ramp.position, 4.0, 3.0)
-                if candidates:
-                    candidate = min(list(candidates), key=lambda p: cy_distance_to_squared(p, ramp_top))
-                    new_build_position = await self.bot.find_placement(
-                        unit_type_id,
-                        near=candidate,
-                        placement_step=1,
-                        addon_place=True,
-                        max_distance=6,
-                    )
             if new_build_position is None:
                 new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
             LogHelper.add_log(f"Worker rush barracks position: {new_build_position}")

@@ -113,6 +113,7 @@ class GeometryMixin:
 
     @staticmethod
     def get_facing(start_position: Unit | Point2, end_position: Unit | Point2):
+        # return the facing angle in radians from start_position to end_position, where 0 is facing right and increases counterclockwise
         if isinstance(start_position, Unit):
             start_position = start_position.position
         if isinstance(end_position, Unit):

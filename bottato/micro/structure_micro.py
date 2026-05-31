@@ -11,7 +11,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.enemy import Enemy
-from bottato.enums import CustomEffectTargetArea, CustomEffectType, Tactic
+from bottato.enums import BuildType, CustomEffectTargetArea, CustomEffectType, Tactic
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -48,8 +48,15 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
 
     @timed
     def adjust_supply_depots_for_enemies(self):
-        # Raise depots when enemies are nearby
+        # Raise depots when enemies are nearby (unless holding bottom of ramp against a worker rush)
         distance_threshold = 8
+        if BuildType.WORKER_RUSH in self.tactics.intel.enemy_builds_detected:
+        # if self.tactics.is_active(Tactic.RAMP_SECURED):
+            # lower all depots during worker rush to not trap own units
+            for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:
+                depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)
+            return
+
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
             for enemy_unit in self.bot.enemy_units:
                 if enemy_unit.is_flying:
@@ -58,10 +65,11 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     depot(AbilityId.MORPH_SUPPLYDEPOT_RAISE)
                     # fake effect to tell units to get off the depot
                     BaseUnitMicro.custom_effects_to_avoid.append(CustomEffect(CustomEffectType.BUILDING_FOOTPRINT,
-                                                                              CustomEffectTargetArea.GROUND,
-                                                                              depot.position, depot.radius,
-                                                                              self.bot.time, 1))
+                                                                            CustomEffectTargetArea.GROUND,
+                                                                            depot.position, depot.radius,
+                                                                            self.bot.time, 1))
                     break
+
         # Lower depots when no enemies are nearby
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:
             if depot.tag in BaseUnitMicro.depots_raised_for_tank_passage:

@@ -27,6 +27,7 @@ class Tactics:
             Tactic.PROXY_BARRACKS: False,
             Tactic.RUSH_DEFENSE: False,
             Tactic.MEDIVAC_HARASS: False,
+            Tactic.RAMP_SECURED: False,
         }
 
         self.proxy_barracks: Unit | None = None
@@ -42,6 +43,11 @@ class Tactics:
             distant_barracks = self.bot.structures((UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING)).further_than(40, self.bot.start_location)
             if distant_barracks:
                 self.proxy_barracks = distant_barracks[0]
+
+    def set_active(self, tactic: Tactic, value: bool):
+        if value and not self.last_values[tactic]:
+            LogHelper.add_log(f"starting tactic {tactic}")
+        self.last_values[tactic] = value
 
     def is_active(self, tactic: Tactic) -> bool:
         new_value = False
@@ -64,6 +70,9 @@ class Tactics:
                 and BuildType.RUSH in self.intel.enemy_builds_detected
                 and BuildType.CANNON_RUSH not in self.intel.enemy_builds_detected
             )
+        else:
+            new_value = self.last_values[tactic]
+
         if not new_value and self.last_values[tactic]:
             LogHelper.add_log(f"ending tactic {tactic}")
 
