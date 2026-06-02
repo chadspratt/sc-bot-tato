@@ -155,25 +155,24 @@ class FormationSquad(Squad, GeometryMixin):
                 facing_position = destination + (destination - self.position)
         self.destination_facing = self.get_facing(destination, facing_position)
 
+        do_harass = self.units.amount < 5
+
         # 1/3 of total command execution time
         formation_positions = self.parent_formation.get_unit_destinations(self._destination, self.units, grouped_units, self.destination_facing)
 
         logger.debug(f"squad {self.name} moving from {self.position} to {self._destination} with {formation_positions.values()}")
         for unit in self.units:
             if unit.tag in formation_positions:
-                logger.debug(f"unit {unit} moving to {formation_positions[unit.tag]}")
                 if unit.tag in self.bot.unit_tags_received_action:
-                    logger.debug(f"unit {unit} already received an order {unit.orders}")
                     continue
                 if formation_positions[unit.tag] is None:
-                    logger.debug(f"unit {unit} has no formation position")
                     continue
                 # don't spam duplicate move commands
                 previous_position = self.executed_positions.get(unit.tag, None)
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
-                logger.debug(f"unit {unit} using micro {micro}")
+                micro_func = micro.harass if do_harass else micro.move
                 # 1/3 of total command execution time
-                if await micro.move(unit, formation_positions[unit.tag], force_move, previous_position=previous_position) == UnitMicroType.MOVE:
+                if await micro_func(unit, formation_positions[unit.tag], force_move, previous_position=previous_position) == UnitMicroType.MOVE:
                     self.executed_positions[unit.tag] = formation_positions[unit.tag]
                 elif unit.tag in self.executed_positions:
                     del self.executed_positions[unit.tag]

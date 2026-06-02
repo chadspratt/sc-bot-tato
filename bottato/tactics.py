@@ -28,6 +28,7 @@ class Tactics:
             Tactic.RUSH_DEFENSE: False,
             Tactic.MEDIVAC_HARASS: False,
             Tactic.RAMP_SECURED: False,
+            Tactic.WORKER_RUSH_DEFENCE: False,
         }
 
         self.proxy_barracks: Unit | None = None
@@ -69,6 +70,11 @@ class Tactics:
                 self.bot.time < 240
                 and BuildType.RUSH in self.intel.enemy_builds_detected
                 and BuildType.CANNON_RUSH not in self.intel.enemy_builds_detected
+            )
+        elif tactic == Tactic.WORKER_RUSH_DEFENCE:
+            new_value = (
+                self.bot.time < 150
+                and BuildType.WORKER_RUSH in self.intel.enemy_builds_detected
             )
         else:
             new_value = self.last_values[tactic]

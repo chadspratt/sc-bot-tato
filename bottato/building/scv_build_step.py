@@ -184,8 +184,7 @@ class SCVBuildStep(BuildStep):
                     return BuildResponseCode.NO_LOCATION
 
         build_despite_enemies = (
-            BuildType.WORKER_RUSH in detected_enemy_builds
-            and self.bot.time < 120
+            self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE)
             and self.unit_type_id in (UnitTypeId.SUPPLYDEPOT, UnitTypeId.BARRACKS)
         )
 
@@ -385,14 +384,14 @@ class SCVBuildStep(BuildStep):
                     )
                     break
         elif unit_type_id == UnitTypeId.SUPPLYDEPOT and self.bot.supply_cap < 45 and self.bot.enemy_race != Race.Terran:
-            if BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.structures.of_type(UnitTypeId.SUPPLYDEPOT).amount == 2:
+            if self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) and self.bot.structures.of_type(UnitTypeId.SUPPLYDEPOT).amount == 2:
                 # try to build near edge of high ground towards natural
                 new_build_position = self.bot.main_base_ramp.depot_in_middle
             elif not special_locations.is_blocked:
                 new_build_position = special_locations.find_placement(unit_type_id)
             if new_build_position is None:
                 new_build_position = await self.map.get_non_visible_position_in_main()
-        elif unit_type_id == UnitTypeId.BARRACKS and BuildType.WORKER_RUSH in detected_enemy_builds \
+        elif unit_type_id == UnitTypeId.BARRACKS and self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) \
                 and not self.bot.structures(UnitTypeId.BARRACKS):
             barracks_position = (self.bot.main_base_ramp.bottom_center + self.map.natural_position) / 2
             # During worker rush: place first barracks near mineral line, in the

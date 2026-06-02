@@ -661,7 +661,7 @@ class BuildOrder():
             return
         if self.bot.workers.amount >= 15 \
                 and self.bot.structures(UnitTypeId.BARRACKS).amount == 0 \
-                and BuildType.WORKER_RUSH not in detected_enemy_builds:
+                and not self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
             # hold off on workers until barracks started, unless getting worker rushed
             return
 
@@ -680,14 +680,17 @@ class BuildOrder():
                 self.add_to_build_queue([UnitTypeId.PLANETARYFORTRESS], queue=self.priority_queue, position=0)
                 return
 
-        worker_build_capacity: int = len(available_townhalls)
-        cc_queued_upgrade_count = self.get_queued_count([UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS],
-                                                        self.interrupted_queue + self.priority_queue)
-        worker_build_capacity -= cc_queued_upgrade_count
-        desired_worker_count = min(MN.MAX_WORKERS_GLOBAL, self.bot.townhalls.amount * MN.MAX_WORKERS_PER_BASE)
-        number_to_build = desired_worker_count - len(self.workers.assignments_by_worker)
-        if (worker_build_capacity > 0 and number_to_build > 0):
-            self.add_to_build_queue([UnitTypeId.SCV] * min(number_to_build, worker_build_capacity), queue=self.priority_queue, position=0)
+        if self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
+            self.add_to_build_queue([UnitTypeId.SCV], queue=self.priority_queue, position=0)
+        else:
+            worker_build_capacity: int = len(available_townhalls)
+            cc_queued_upgrade_count = self.get_queued_count([UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS],
+                                                            self.interrupted_queue + self.priority_queue)
+            worker_build_capacity -= cc_queued_upgrade_count
+            desired_worker_count = min(MN.MAX_WORKERS_GLOBAL, self.bot.townhalls.amount * MN.MAX_WORKERS_PER_BASE)
+            number_to_build = desired_worker_count - len(self.workers.assignments_by_worker)
+            if (worker_build_capacity > 0 and number_to_build > 0):
+                self.add_to_build_queue([UnitTypeId.SCV] * min(number_to_build, worker_build_capacity), queue=self.priority_queue, position=0)
 
     @timed
     def queue_refinery(self) -> None:
@@ -983,7 +986,9 @@ class BuildOrder():
                 break
 
     def cancel_damaged_structure(self, unit: Unit, total_damage_amount: float):
-        if unit.health_percentage > 0.05:
+        if unit.health_percentage > 0.05 \
+                and total_damage_amount < unit.health / 2 \
+                and not self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
             return
         for idx, build_step in enumerate(self.all_steps):
             if build_step.is_same_structure(unit):
@@ -1019,7 +1024,7 @@ class BuildOrder():
                     # if we have pending builds that haven't started yet, subtract their cost from available resources
                     remaining_resources = remaining_resources - pending.cost
         
-        worker_rush_active = BuildType.WORKER_RUSH in detected_enemy_builds and self.bot.time < 120
+        worker_rush_active = self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE)
 
         while execution_index < len(build_queue):
             execution_index += 1
@@ -1034,22 +1039,36 @@ class BuildOrder():
                 # already built
                 build_queue.pop(execution_index)
                 execution_index -= 1
+                LogHelper.add_log(f"Removed completed build step {build_step} from queue")
                 continue
             if not isinstance(build_step, UpgradeBuildStep) and build_step.get_unit_type_id() in failed_types:
+                LogHelper.add_log(f"skipping failed type {build_step.get_unit_type_id()}")
                 continue
             if worker_rush_active:
-                if isinstance(build_step, StructureBuildStep):
-                    if not build_step.is_unit_type(UnitTypeId.SCV) or cy_distance_to(self.bot.townhalls.first.position, self.map.natural_position) > 1:
-                        # during worker rush, only build SCVs to hold off rush and only after repositioning to natural
+                if isinstance(build_step, StructureBuildStep) and self.bot.enemy_units:
+                    closest_enemy = cy_closest_to(self.bot.townhalls.first.position, self.bot.enemy_units)
+                    closest_enemy_distance = cy_distance_to(self.bot.townhalls.first.position, closest_enemy.position)
+                    if closest_enemy_distance < 25 and cy_distance_to(self.bot.townhalls.first.position, self.map.natural_position) > 1:
+                        # during worker rush, don't build if enemies nearby unless repositioned to natural
+                        LogHelper.add_log(f"skipping {build_step} due to nearby worker rush")
                         continue
                 if isinstance(build_step, SCVBuildStep):
-                    if not (build_step.is_unit_type(UnitTypeId.BARRACKS) and self.bot.structures(UnitTypeId.BARRACKS).amount == 0) \
-                            or not self.tactics.is_active(Tactic.RAMP_SECURED) \
-                            or cy_closer_than(self.bot.enemy_units, 5, self.bot.main_base_ramp.bottom_center):
-                        # during rush only build one barracks when ramp is secured and enemy is far enough away
+                    # during rush only build one barracks when ramp is secured and enemy is far enough away
+                    if not self.tactics.is_active(Tactic.RAMP_SECURED):
+                        LogHelper.add_log(f"skipping {build_step} due to ramp not secured")
+                        continue
+                    if not build_step.is_unit_type(UnitTypeId.BARRACKS):
+                        LogHelper.add_log(f"skipping {build_step} due to not being a barracks")
+                        continue
+                    if not build_step.unit_being_built and self.bot.structures(UnitTypeId.BARRACKS).amount > 0:
+                        LogHelper.add_log(f"skipping {build_step} due to already having a barracks")
+                        continue
+                    if cy_closer_than(self.bot.enemy_units, 4, self.bot.main_base_ramp.bottom_center):
+                        LogHelper.add_log(f"skipping {build_step} due to enemies being too close")
                         continue
             if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
                 build_response = BuildResponseCode.NO_SUPPLY
+                LogHelper.add_log(f"skipping {build_step} due to no supply")
                 if not allow_skip:
                     remaining_resources.minerals = 0
                     break
@@ -1059,9 +1078,11 @@ class BuildOrder():
                     and not build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT) \
                     and not build_step.is_unit_production_facility() \
                     and not (isinstance(build_step, SCVBuildStep) and build_step.unit_being_built is not None):
+                LogHelper.add_log(f"skipping {build_step} due to only_build_units")
                 continue
             time_since_last_cancel = self.bot.time - build_step.last_cancel_time
             if time_since_last_cancel < 10:
+                LogHelper.add_log(f"skipping {build_step} due to recent cancel {time_since_last_cancel:.1f}s ago")
                 continue
             
             production_readiness = 1.0
@@ -1073,6 +1094,7 @@ class BuildOrder():
                     if not allow_skip:
                         remaining_resources.minerals = 0
                         break
+                    LogHelper.add_log(f"skipping {build_step} due to no facility")
                     continue
 
             if not build_step.tech_requirements_met():
@@ -1082,6 +1104,7 @@ class BuildOrder():
                     break
                 # skip if missing tech
                 failed_types.append(build_step.get_unit_type_id())
+                LogHelper.add_log(f"skipping {build_step} due to no tech")
                 continue
 
             percent_affordable = 1.0
@@ -1097,6 +1120,7 @@ class BuildOrder():
                     #     builder_type = self.production.add_on_type_lookup[build_step.builder_type][UnitTypeId.TECHLAB]
                     # skip ahead more aggressively to try to use any production capacity
                     remaining_resources = remaining_resources + added_cost
+                    LogHelper.add_log(f"skipping {build_step} due to insufficient resources")
                     continue
                 if remaining_resources.vespene < 0:
                     # don't reserve minerals for missing gas
@@ -1111,11 +1135,13 @@ class BuildOrder():
                         await build_step.position_worker(self.special_locations, detected_enemy_builds, self.floating_building_destinations)
                 if remaining_resources.minerals < 50:
                     break
+                LogHelper.add_log(f"skipping {build_step} due to insufficient resources")
                 continue
 
             if production_readiness != 1.0:
                 # reserve resources if production is almost ready
                 failed_types.append(build_step.get_unit_type_id())
+                LogHelper.add_log(f"skipping {build_step} due to no facility")
                 continue
 
             # XXX slightly slow
@@ -1130,8 +1156,8 @@ class BuildOrder():
                 # remaining_resources.minerals = 0
                 # break
             else:
-                if build_response != BuildResponseCode.NO_FACILITY:
-                    LogHelper.add_log(f"failed to start {build_step}: {build_response}")
+                # if build_response != BuildResponseCode.NO_FACILITY:
+                LogHelper.add_log(f"failed to start {build_step}: {build_response}")
                 if not allow_skip:
                     remaining_resources.minerals = 0
                     break

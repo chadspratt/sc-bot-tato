@@ -50,7 +50,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
     def adjust_supply_depots_for_enemies(self):
         # Raise depots when enemies are nearby (unless holding bottom of ramp against a worker rush)
         distance_threshold = 8
-        if BuildType.WORKER_RUSH in self.tactics.intel.enemy_builds_detected:
+        if self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
         # if self.tactics.is_active(Tactic.RAMP_SECURED):
             # lower all depots during worker rush to not trap own units
             for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:

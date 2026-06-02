@@ -280,6 +280,16 @@ class Enemy(GeometryMixin):
             if unit_tag in self.predicted_positions:
                 del self.predicted_positions[unit_tag]
 
+    def enemy_is_alive(self, unit_tag) -> bool:
+        try:
+            UnitReferenceHelper.get_updated_unit_by_tag(unit_tag)
+            return True
+        except UnitReferenceHelper.UnitNotFound:
+            for enemy_unit in self.enemies_out_of_view:
+                if enemy_unit.tag == unit_tag:
+                    return True
+        return False
+
     @timed
     def threats_to_friendly_unit(self, friendly_unit: Unit, attack_range_buffer=0, visible_only=False, first_only: bool = False) -> Units:
         enemies: Units

@@ -21,7 +21,12 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bottato.enums import CustomEffectTargetArea, CustomEffectType, UnitMicroType
+from bottato.enums import (
+    CustomEffectTargetArea,
+    CustomEffectType,
+    Tactic,
+    UnitMicroType,
+)
 from bottato.log_helper import LogHelper
 from bottato.magic_numbers import MagicNumbers as MN
 from bottato.map_specifics import MapSpecifics
@@ -377,6 +382,10 @@ class BaseUnitMicro(GeometryMixin):
         # below attack_health: retreat if threats
         # above attack_health: do nothing
         if unit.tag in self.bot.unit_tags_received_action:
+            return UnitMicroType.NONE
+        
+        if unit.type_id == UnitTypeId.SCV and self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
+            # workers will be hurt but they need to mine instead of retreating
             return UnitMicroType.NONE
         
         threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=4)
