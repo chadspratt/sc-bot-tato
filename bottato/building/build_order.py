@@ -1024,7 +1024,7 @@ class BuildOrder():
                     # if we have pending builds that haven't started yet, subtract their cost from available resources
                     remaining_resources = remaining_resources - pending.cost
         
-        worker_rush_active = self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE)
+        worker_rush_active = self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) and self.bot.enemy_units.amount > 0
 
         while execution_index < len(build_queue):
             execution_index += 1

@@ -680,7 +680,7 @@ class BaseUnitMicro(GeometryMixin):
             threats = self.tactics.enemy.threats_to(unit, threats, attack_range_buffer=2)
 
         healing_shrines = await self.get_healing_shrines(unit)
-        if healing_shrines:
+        if healing_shrines and unit.health_percentage < 1.0:
             # if near a shrine, always prefer it
             closest_shrine = cy_closest_to(unit.position, healing_shrines)
             if cy_distance_to_squared(unit.position, closest_shrine.position) < 400 \
@@ -688,7 +688,7 @@ class BaseUnitMicro(GeometryMixin):
                     or unit.tag in BaseUnitMicro.scout_tags:
                 ultimate_destination = closest_shrine
         
-        if ultimate_destination is None:
+        if ultimate_destination is None and unit.health_percentage < 1.0:
             if unit.is_mechanical:
                 # prefer repairers that are already assigned to this unit, unless threats are too close, then prefer repairers that aren't nearby
                 # will also prefer a shrine if it's closer

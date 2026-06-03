@@ -73,8 +73,8 @@ class Tactics:
             )
         elif tactic == Tactic.WORKER_RUSH_DEFENCE:
             new_value = (
-                self.bot.time < 150
-                and BuildType.WORKER_RUSH in self.intel.enemy_builds_detected
+                BuildType.WORKER_RUSH in self.intel.enemy_builds_detected
+                and (self.bot.time < 150 or self.bot.units.exclude_type(UnitTypeId.SCV).amount < 3)
             )
         else:
             new_value = self.last_values[tactic]

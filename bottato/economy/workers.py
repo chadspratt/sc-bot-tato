@@ -813,17 +813,22 @@ class Workers(GeometryMixin):
     ramp_is_secured: bool = False
     circle_positions: list[Point2] = []
     first_position_index: int = 0
+    furthest_from_ramp_index: int = 0
+    furthest_point_reached: bool = False
     worker_track_progress: Dict[int, int] = defaultdict(int)  # track which position in the circle each worker is at for kiting
     kiting_worker: Unit | None = None
     circle_increment: int = 1
     trapped_enemy_tags: set[int] = set()  # track which enemy workers we've successfully trapped at the ramp to focus fire on them
     escaped_enemy_tags: set[int] = set()  # track which enemy workers we've successfully trapped at the ramp to focus fire on them
     ramp_guards: Units | None = None
+    in_position_guard_tags: set[int] = set()  # track which workers are in position at the ramp to hold it
+    repair_targets: Dict[int, int] = {}
+
     async def cool_worker_rush_defense(self) -> None:
         """blow some minds. circle around the enemy workers and blockade the ramp to fight. lift the main base and fly it to the natural, retreat to natural, enemy will try to retreat down the ramp and die"""
         if not self.enemies_have_entered:
             for e in self.bot.enemy_units:
-                if cy_distance_to_squared(self.bot.main_base_ramp.top_center, e.position) < 9:
+                if cy_distance_to_squared(self.bot.main_base_ramp.top_center, e.position) < 9 or cy_distance_to_squared(self.bot.start_location, e.position) < 225:
                     self.enemies_have_entered = True
                     await LogHelper.add_chat(f"Worker rush defense: enemies have entered base")
                     break
@@ -850,7 +855,7 @@ class Workers(GeometryMixin):
                         main_base(AbilityId.LIFT)
 
             # circle workers around to cut off ramp 
-            if not self.ramp_is_secured:
+            if not self.ramp_is_secured and not self.enemy_exit_started:
                 await self.secure_ramp()
             else:
                 await self.fight_at_ramp()
@@ -859,13 +864,15 @@ class Workers(GeometryMixin):
         enemies_to_entrap = self.bot.enemy_units.closer_than(30, self.bot.start_location)
         ramp_guard_count = self.bot.workers.amount
         if enemies_to_entrap.amount <= 6:
-            ramp_guard_count = max(2, enemies_to_entrap.amount // 2)
+            # + 1 is for the kiting worker
+            ramp_guard_count = max(2, enemies_to_entrap.amount // 2) + 1
+        await LogHelper.add_chat(f"Securing ramp against worker rush, {enemies_to_entrap.amount} enemies to entrap, assigning {ramp_guard_count} workers to guard ramp")
         defenders_at_ramp = self.bot.workers.closer_than(4, self.bot.main_base_ramp.bottom_center)
         if self.kiting_worker:
             defenders_at_ramp = defenders_at_ramp.filter(lambda w: w != self.kiting_worker)
 
         self.trapped_enemy_tags = self.trapped_enemy_tags.union(self.bot.enemy_units.tags)
-        if defenders_at_ramp.amount >= ramp_guard_count - 1:
+        if defenders_at_ramp.amount >= max(1, ramp_guard_count - 2):
             self.ramp_is_secured = True
             # self.kiting_worker = None
             self.worker_track_progress.clear()
@@ -882,28 +889,8 @@ class Workers(GeometryMixin):
             if self.kiting_worker is None:
                 self.kiting_worker = self.bot.workers.closest_to(self.bot.main_base_ramp.top_center)
 
-            # generate circle positions around the main base, similar to scouting positions
-            # kiting worker will start by moving to the position nearest the ramp then move counter-clockwise
-            # other workers will move to the position that is directly away from the nearest enemy to them, then follow the circle
-            # when they reach the ramp they will go down it and wait at the bottom for the next stage
             if len(self.circle_positions) == 0:
-                radius = 13
-                base_to_ramp_angle_radians = self.get_facing(self.bot.start_location, self.bot.main_base_ramp.top_center)
-                angle_increments = 15
-                radian_increments = math.radians(angle_increments)
-                for angle_degrees in range(0, 360, angle_increments):
-                    angle_radians = math.radians(angle_degrees)
-                    if angle_radians >= base_to_ramp_angle_radians and angle_radians < base_to_ramp_angle_radians + radian_increments:
-                        self.first_position_index = len(self.circle_positions)
-                    x_offset = radius * math.cos(angle_radians)
-                    y_offset = radius * math.sin(angle_radians)
-                    waypoint = Point2((self.bot.start_location.x + x_offset, self.bot.start_location.y + y_offset))
-                    retries = 0
-                    while not cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, waypoint) and retries < 5:
-                        waypoint = Point2(cy_towards(waypoint, self.bot.start_location, 1))
-                        retries += 1
-                    if retries != 5:
-                        self.circle_positions.append(waypoint)
+                self.generate_circle_positions()
             
                 # circle clockwise if kiting worker is closer to the first clockwise position to start
                 other_direction_first_index = (self.first_position_index - 1) % len(self.circle_positions)
@@ -912,7 +899,10 @@ class Workers(GeometryMixin):
                     self.first_position_index = other_direction_first_index
                     self.circle_increment = -1
 
-            self.ramp_guards = self.bot.workers.sorted(lambda w: w.distance_to_squared(self.bot.start_location), reverse=True).take(ramp_guard_count)
+            self.ramp_guards = self.bot.workers.sorted(
+                    lambda w: w.distance_to_squared(self.bot.start_location), reverse=True
+                ).take(ramp_guard_count)
+            
             for worker in self.bot.workers:
                 assignment = self.assignments_by_worker[worker.tag]
                 closest_enemy = cy_closest_to(worker.position, self.bot.enemy_units) if self.bot.enemy_units else None
@@ -922,13 +912,22 @@ class Workers(GeometryMixin):
                     worker(AbilityId.HALT)
                 elif worker in self.ramp_guards and worker.tag in self.worker_track_progress:
                     current_index = self.worker_track_progress[worker.tag]
+                    if worker.tag not in self.in_position_guard_tags:
+                        if cy_distance_to_squared(worker.position, self.bot.main_base_ramp.bottom_center) < 4:
+                            await LogHelper.add_chat(f"guard {worker.tag} is securing the ramp")
+                            self.in_position_guard_tags.add(worker.tag)
+                            # set this to catch returing scouts that don't need to circle the main
+                            current_index = self.first_position_index
                     if current_index == self.first_position_index:
-                        if closest_enemy and cy_distance_to_squared(worker.position, closest_enemy.position) < 4:
+                        if worker.tag in self.in_position_guard_tags and closest_enemy and cy_distance_to_squared(worker.position, closest_enemy.position) < 4:
                             worker.attack(closest_enemy)
                         else:
                             worker.move(self.bot.main_base_ramp.bottom_center)
                     else:
                         if worker.tag == self.kiting_worker.tag:
+                            if current_index == self.furthest_from_ramp_index:
+                                await LogHelper.add_chat("kiting worker has reached the furthest point from the ramp")
+                                self.furthest_point_reached = True
                             if closest_enemy and cy_distance_to_squared(worker.position, closest_enemy.position) > 25:
                                 # move toward enemy to try to aggro them
                                 worker.move(closest_enemy.position)
@@ -954,16 +953,60 @@ class Workers(GeometryMixin):
                         LogHelper.add_log(f"Worker {worker.tag} kiting around to ramp starting from {worker.position}")
                     elif worker in self.ramp_guards:
                         if self.bot.enemy_units:
-                            position_to_avoid = self.bot.main_base_ramp.top_center
-                            away_from_enemy = max(self.circle_positions, key=lambda p: cy_distance_to_squared(p, position_to_avoid))
-                            LogHelper.add_log(f"Worker {worker.tag} circling around to ramp starting from {away_from_enemy}")
-                            current_index = self.circle_positions.index(away_from_enemy)
-                            self.worker_track_progress[worker.tag] = (current_index + self.circle_increment) % len(self.circle_positions)
+                            for guard in self.ramp_guards:
+                                if guard.tag in self.worker_track_progress and guard != self.kiting_worker:
+                                    self.worker_track_progress[worker.tag] = self.worker_track_progress[guard.tag]
+                                    break
+                            else:
+                                position_to_avoid = self.bot.main_base_ramp.top_center
+                                away_from_ramp = max(self.circle_positions, key=lambda p: cy_distance_to_squared(p, position_to_avoid))
+                                LogHelper.add_log(f"Worker {worker.tag} circling around to ramp starting from {away_from_ramp}")
+                                current_index = self.circle_positions.index(away_from_ramp)
+                                self.worker_track_progress[worker.tag] = (current_index + self.circle_increment * 2) % len(self.circle_positions)
                         else:
                             self.worker_track_progress[worker.tag] = self.first_position_index
                             worker.move(self.circle_positions[self.first_position_index])
+                    elif self.furthest_point_reached and closest_enemy:
+                        worker.attack(closest_enemy)
                     else:
                         assignment.on_attack_break = False
+
+    def generate_circle_positions(self):
+        # generate circle positions around the main base, similar to scouting positions
+        # kiting worker will start by moving to the position nearest the ramp then move counter-clockwise
+        # other workers will move to the position that is directly away from the nearest enemy to them, then follow the circle
+        # when they reach the ramp they will go down it and wait at the bottom for the next stage
+        radius = 13
+        base_to_ramp_angle_radians = self.get_facing(self.bot.start_location, self.bot.main_base_ramp.top_center)
+        angle_increments = 15
+        radian_increments = math.radians(angle_increments)
+        furthest_distance_from_ramp = 0
+        for angle_degrees in range(0, 360, angle_increments):
+            angle_radians = math.radians(angle_degrees)
+            if angle_radians >= base_to_ramp_angle_radians and angle_radians < base_to_ramp_angle_radians + radian_increments:
+                self.first_position_index = len(self.circle_positions)
+            x_offset = radius * math.cos(angle_radians)
+            y_offset = radius * math.sin(angle_radians)
+            waypoint = Point2((self.bot.start_location.x + x_offset, self.bot.start_location.y + y_offset))
+            retries = 0
+            while not cy_in_pathing_grid_burny(self.bot.game_info.pathing_grid.data_numpy, waypoint) and retries < 5:
+                waypoint = Point2(cy_towards(waypoint, self.bot.start_location, 1))
+                retries += 1
+            if retries != 5:
+                distance_from_ramp = cy_distance_to_squared(waypoint, self.bot.main_base_ramp.top_center)
+                if distance_from_ramp > furthest_distance_from_ramp:
+                    furthest_distance_from_ramp = distance_from_ramp
+                    self.furthest_from_ramp_index = len(self.circle_positions)
+
+                self.circle_positions.append(waypoint)
+    
+        # circle clockwise if kiting worker is closer to the first clockwise position to start
+        other_direction_first_index = (self.first_position_index - 1) % len(self.circle_positions)
+        if self.kiting_worker and \
+            cy_distance_to_squared(self.kiting_worker.position, self.circle_positions[self.first_position_index]) \
+            > cy_distance_to_squared(self.kiting_worker.position, self.circle_positions[other_direction_first_index]):
+            self.first_position_index = other_direction_first_index
+            self.circle_increment = -1
 
     enemy_exit_started: bool = False
     async def fight_at_ramp(self):
@@ -1017,23 +1060,33 @@ class Workers(GeometryMixin):
         if self.ramp_guards is None:
             self.ramp_guards = self.bot.workers.closer_than(4, self.bot.main_base_ramp.bottom_center)
 
-        enemy_health = sum([u.health + u.shield for u in enemies_outside_main])
+        enemy_health = 0
+        units_to_attack = self.bot.enemy_units if self.enemy_exit_started else enemies_outside_main
+        enemy_health = sum([u.health + u.shield for u in units_to_attack])
         # only use enough guards to kill enemies (don't chase a 6hp enemy with 13 workers)
         attackers_needed = int((enemy_health - 1) // 5 + 1)
         attackers = self.bot.workers
         if 0 < attackers_needed < self.bot.workers.amount:
             attackers = attackers.sorted(lambda w: w.health, reverse=True).take(attackers_needed)
 
+        if self.bot.minerals < MN.WORKER_REPAIR_MIN_MINERALS:
+            self.repair_targets.clear()
+
         for worker in self.bot.workers:
             assignment = self.assignments_by_worker[worker.tag]
             assignment.on_attack_break = True
-            enemies_in_range: Units = self.bot.enemy_units.in_attack_range_of(worker, 0.3).sorted(lambda unit: (unit.health + unit.shield))
+            enemies_in_range: Units = self.bot.enemy_units.in_attack_range_of(worker, 0.1).sorted(lambda unit: (unit.health + unit.shield))
 
-            other_injured = injured_workers.filter(lambda w: w.tag != worker.tag)
             if worker.weapon_cooldown >= 6:
                 # On cooldown: gather to phase away to make room for workers that are off cooldown and to avoid taking hits
                 worker.gather(natural_mineral_field)
             else:
+                if self.do_worker_repair(worker, 10, 20):
+                    continue
+                elif worker.health <= 10:
+                    assignment.on_attack_break = False
+                    continue
+
                 if self.enemy_exit_started:
                     # enemy is trying to escape ramp, now is the chance to kill them
                     if worker == self.kiting_worker:
@@ -1045,16 +1098,6 @@ class Workers(GeometryMixin):
                     elif enemies_in_range:
                         # attack anything in range if able
                         worker.attack(enemies_in_range.first)
-                    elif worker.health <= 10:
-                        closest_enemy = cy_closest_to(worker.position, self.bot.enemy_units)
-                        if cy_distance_to(closest_enemy.position, worker.position) < 2:
-                            worker.gather(natural_mineral_field)
-                        elif other_injured and self.bot.minerals >= MN.WORKER_REPAIR_MIN_MINERALS:
-                            # repair if not able to attack and injured
-                            closest_injured = injured_workers.closest_to(worker)
-                            worker.repair(closest_injured)
-                        else:
-                            assignment.on_attack_break = False
                     elif enemies_outside_main.amount > 0 and worker in attackers:
                         closest_enemy = cy_closest_to(worker.position, enemies_outside_main)
                         worker.attack(closest_enemy)
@@ -1068,7 +1111,7 @@ class Workers(GeometryMixin):
                         assignment.on_attack_break = False
                         if not repositioned_to_natural:
                             # reset back to main base and prepare to repeat
-                            await LogHelper.add_chat("enemies gone, resetting to secure ramp again if needed")
+                            await LogHelper.add_chat("enemies gone 2, resetting to secure ramp again if needed")
                             self.enemies_have_entered = False
                             self.ramp_is_secured = False
                 else:
@@ -1093,11 +1136,7 @@ class Workers(GeometryMixin):
                             if worker in closest_defenders:
                                 worker.attack(closest_enemy)
                                 continue
-                    if worker.health < 45 and other_injured:
-                        # repair if not able to attack and injured
-                        closest_injured = injured_workers.closest_to(worker)
-                        worker.repair(closest_injured)
-                    elif self.position_is_between(self.bot.main_base_ramp.bottom_center, worker.position, self.bot.main_base_ramp.top_center):
+                    if self.position_is_between(self.bot.main_base_ramp.bottom_center, worker.position, self.bot.main_base_ramp.top_center):
                         # no injured, just muster at bottom of ramp by alternating between patches
                         LogHelper.add_log(f"Worker at {worker.position} ({worker.health} HP) gathering at main")
                         worker.gather(main_mineral_field)
@@ -1688,11 +1727,9 @@ class Workers(GeometryMixin):
         # add more repairers
         if repairer_shortage > 0:
             # LogHelper.add_log(f"need {repairer_shortage} more repairers")
-            candidates: Units = Units([
-                    worker for worker in self.bot.workers
-                    if self.assignments_by_worker[worker.tag].job_type not in (WorkerJobType.BUILD, WorkerJobType.REPAIR)
-                    and worker.health_percentage > MN.WORKER_REPAIRER_HEALTH_PERCENT_THRESHOLD
-                ], bot_object=self.bot)
+            candidates = self.bot.workers.filter(lambda w: 
+                    self.assignments_by_worker[w.tag].job_type not in (WorkerJobType.BUILD, WorkerJobType.REPAIR)
+                    and w.health_percentage > MN.WORKER_REPAIRER_HEALTH_PERCENT_THRESHOLD)
             if len(injured_units) == 1:
                 candidates = candidates.filter(lambda unit: unit.tag not in injured_units.tags)
             for i in range(repairer_shortage):
@@ -1725,6 +1762,42 @@ class Workers(GeometryMixin):
                         if current_repairer_tag == repairer.tag:
                             if repair_target.type_id == UnitTypeId.SCV:
                                 self.workers_being_repaired.add(repair_target.tag)
+        
+        injured_workers = self.bot.workers.filter(lambda w: 
+                self.assignments_by_worker[w.tag].job_type not in (WorkerJobType.BUILD, WorkerJobType.REPAIR)
+                and w.health_percentage < 1.0)
+        for worker in injured_workers:
+            repair_target = self.do_worker_repair(worker, 20, 45)
+            if repair_target:
+                self.update_assigment(worker, WorkerJobType.REPAIR, repair_target)
+
+    def do_worker_repair(self, worker: Unit, start_health_threshold: int, stop_health_threshold: int) -> Unit | None:
+        if self.bot.minerals >= MN.WORKER_REPAIR_MIN_MINERALS:
+            if worker.health <= start_health_threshold and worker.tag not in self.repair_targets:
+                # initiate repairing. find next lowest and repair each other
+                other_injured = self.bot.workers.filter(lambda w: w.tag not in self.repair_targets and w.tag != worker.tag).sorted(lambda w: w.health)
+                if other_injured:
+                    repair_target = other_injured.first
+                    closest_injured = cy_closest_to(worker.position, other_injured)
+                    if cy_distance_to(worker.position, closest_injured.position) + 15 < cy_distance_to(worker.position, repair_target.position):
+                        repair_target = closest_injured
+                    worker.repair(repair_target)
+                    self.repair_targets[worker.tag] = repair_target.tag
+                    self.repair_targets[repair_target.tag] = worker.tag
+                    return repair_target
+            elif worker.tag in self.repair_targets:
+                # keep repairing until both workers have at least stop_health_threshold health
+                target_tag = self.repair_targets[worker.tag]
+                repair_target = self.bot.workers.find_by_tag(target_tag)
+                if repair_target:
+                    if worker.health < stop_health_threshold or repair_target.health < stop_health_threshold:
+                        worker.repair(repair_target)
+                        return repair_target
+                # healed or dead, remove assignments
+                del self.repair_targets[worker.tag]
+                del self.repair_targets[target_tag]
+        return None
+        
     
     async def assign_repairers_to_structure(self, injured_structure: Unit, number_of_repairers: int, candidates: Units) -> Units:
         repairers: Units = candidates.closest_n_units(injured_structure, number_of_repairers)
@@ -1772,9 +1845,7 @@ class Workers(GeometryMixin):
                 continue
             if unit.health_percentage == 1.0:
                 continue
-            if unit.type_id == UnitTypeId.MULE:
-                continue
-            if unit.type_id == UnitTypeId.SCV and unit.health_percentage >= worker_health_threshold:
+            if unit.type_id in {UnitTypeId.MULE, UnitTypeId.SCV}:
                 continue
             if self.enemy.threats_to_repairer(unit, attack_range_buffer=0).amount > 0:
                 # threats nearby, skip unless it's a sieged tank defending a base

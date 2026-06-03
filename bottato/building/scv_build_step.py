@@ -267,7 +267,11 @@ class SCVBuildStep(BuildStep):
                             flying_building_destinations: Dict[int, Point2]) -> Point2 | None:
         new_build_position = None
         if unit_type_id == UnitTypeId.COMMANDCENTER:
-            if BuildType.RUSH in detected_enemy_builds and BuildType.EARLY_EXPANSION not in detected_enemy_builds and self.bot.townhalls.amount < 2:
+            natural_is_in_place = len(cy_closer_than(self.bot.structures, 2, self.map.natural_position)) > 0
+            if BuildType.RUSH in detected_enemy_builds \
+                    and BuildType.EARLY_EXPANSION not in detected_enemy_builds \
+                    and not natural_is_in_place \
+                    and self.bot.townhalls.amount < 2:
                 candidates = [self.map.natural_position, self.map.natural_position, self.map.natural_position]
                 start_terrain_height = self.bot.get_terrain_height(self.bot.start_location)
                 vector = (self.bot.start_location - self.map.natural_position).normalized
@@ -342,15 +346,17 @@ class SCVBuildStep(BuildStep):
 
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2
+            natural_is_in_place = len(cy_closer_than(self.bot.structures, 2, self.map.natural_position)) > 0
             if BuildType.RUSH in detected_enemy_builds and self.bot.structures.of_type(UnitTypeId.BARRACKS) \
                     and not self.bot.structures.of_type(UnitTypeId.BUNKER) \
+                    and not natural_is_in_place \
                     and self.no_position_count == 0:
                 # try to build near edge of high ground towards natural
                 # high_ground_height = self.bot.get_terrain_height(self.bot.start_location)
                 candidates = await SpecialLocations.get_bunker_positions(self.bot)
                 # candidates = [(depot_position + ramp_barracks.position) / 2 for depot_position in self.bot.main_base_ramp.corner_depots]
                 candidate = min(candidates, key=lambda p: cy_distance_to_squared(self.bot.start_location, p))
-            elif self.bot.structures.of_type(UnitTypeId.BUNKER).amount < 2:
+            elif len(cy_closer_than(self.bot.structures.of_type(UnitTypeId.BUNKER), 15, self.map.natural_position)) == 0:
                 ramp_position: Point2 = self.bot.main_base_ramp.bottom_center
                 # enemy_start: Point2 = self.bot.enemy_start_locations[0]
                 ramp_to_natural_vector = (self.map.natural_position - ramp_position).normalized
@@ -360,7 +366,7 @@ class SCVBuildStep(BuildStep):
                 candidates.sort(key=lambda p: cy_distance_to_squared(p, self.bot.game_info.map_center))
                 candidate = candidates[0]
             else:
-                # find_placement only supports first 2 bunkers, 
+                # find_placement only supports first 2 bunkers, later bunkers are queued with a position already in mind
                 return None
             retry_count = 0
             while not new_build_position or cy_distance_to_squared(new_build_position, self.map.natural_position) < 16:
@@ -391,39 +397,39 @@ class SCVBuildStep(BuildStep):
                 new_build_position = special_locations.find_placement(unit_type_id)
             if new_build_position is None:
                 new_build_position = await self.map.get_non_visible_position_in_main()
-        elif unit_type_id == UnitTypeId.BARRACKS and self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) \
-                and not self.bot.structures(UnitTypeId.BARRACKS):
-            barracks_position = (self.bot.main_base_ramp.bottom_center + self.map.natural_position) / 2
-            # During worker rush: place first barracks near mineral line, in the
-            # gap between the command center and the gas nearest to the ramp.
-            # ramp_top = self.bot.main_base_ramp.top_center
-            # resources = self.bot.vespene_geyser + self.bot.mineral_field
-            # main_resources = cy_closer_than(
-            #     resources, MN.MINERAL_MAX_DISTANCE_FROM_BASE, self.bot.start_location
-            # )
-            # if main_resources:
-            #     nearest_resource_to_ramp = cy_closest_to(ramp_top, main_resources)
-            #     candidates = self.get_triangle_point_c(self.bot.start_location, nearest_resource_to_ramp.position, 4.0, 3.0)
-            #     if candidates:
-            #         candidate = min(list(candidates), key=lambda p: cy_distance_to_squared(p, ramp_top))
-            #         new_build_position = await self.bot.find_placement(
-            #             unit_type_id,
-            #             near=candidate,
-            #             placement_step=1,
-            #             addon_place=True,
-            #             max_distance=6,
-            #         )
-            barracks_position = (self.bot.main_base_ramp.bottom_center + self.map.natural_position) / 2
-            new_build_position = await self.bot.find_placement(
-                unit_type_id,
-                near=barracks_position,
-                placement_step=1,
-                addon_place=True,
-                max_distance=6,
-            )
-            if new_build_position is None:
-                new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
-            LogHelper.add_log(f"Worker rush barracks position: {new_build_position}")
+        # elif unit_type_id == UnitTypeId.BARRACKS and self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) \
+        #         and not self.bot.structures(UnitTypeId.BARRACKS):
+        #     barracks_position = (self.bot.main_base_ramp.bottom_center + self.map.natural_position) / 2
+        #     # During worker rush: place first barracks near mineral line, in the
+        #     # gap between the command center and the gas nearest to the ramp.
+        #     # ramp_top = self.bot.main_base_ramp.top_center
+        #     # resources = self.bot.vespene_geyser + self.bot.mineral_field
+        #     # main_resources = cy_closer_than(
+        #     #     resources, MN.MINERAL_MAX_DISTANCE_FROM_BASE, self.bot.start_location
+        #     # )
+        #     # if main_resources:
+        #     #     nearest_resource_to_ramp = cy_closest_to(ramp_top, main_resources)
+        #     #     candidates = self.get_triangle_point_c(self.bot.start_location, nearest_resource_to_ramp.position, 4.0, 3.0)
+        #     #     if candidates:
+        #     #         candidate = min(list(candidates), key=lambda p: cy_distance_to_squared(p, ramp_top))
+        #     #         new_build_position = await self.bot.find_placement(
+        #     #             unit_type_id,
+        #     #             near=candidate,
+        #     #             placement_step=1,
+        #     #             addon_place=True,
+        #     #             max_distance=6,
+        #     #         )
+        #     barracks_position = (self.bot.main_base_ramp.bottom_center + self.map.natural_position) / 2
+        #     new_build_position = await self.bot.find_placement(
+        #         unit_type_id,
+        #         near=barracks_position,
+        #         placement_step=1,
+        #         addon_place=True,
+        #         max_distance=6,
+        #     )
+        #     if new_build_position is None:
+        #         new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
+        #     LogHelper.add_log(f"Worker rush barracks position: {new_build_position}")
         elif unit_type_id == UnitTypeId.BARRACKS and self.tactics.is_active(Tactic.PROXY_BARRACKS) and self.bot.structures(UnitTypeId.BARRACKS).amount < 2 and self.bot.time < 180:
             proxy_base_index = 2
             if detected_enemy_builds[BuildType.EARLY_EXPANSION] < 50:

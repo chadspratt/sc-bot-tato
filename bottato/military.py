@@ -133,6 +133,9 @@ class Military(GeometryMixin, DebugMixin):
         if not self.enemies_in_base and proxy_buildings:
             # if proxy buildings detected, mount offense even if army is small
             mount_offense = True
+        elif BuildType.WORKER_RUSH in self.intel.enemy_builds_detected and not self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
+            # launch a counterattack, probably needs more nuance to not continue suiciding if attack fails
+            mount_offense = True
         elif mount_offense: # previously 600
             military_scouts = self.bot.units([UnitTypeId.REAPER, UnitTypeId.VIKINGFIGHTER])
             reaper_is_alive = military_scouts.of_type(UnitTypeId.REAPER).exists
