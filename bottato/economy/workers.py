@@ -942,12 +942,17 @@ class Workers(GeometryMixin):
                     # assign initial starting positions for circling around
                     if worker.tag == self.kiting_worker.tag:
                         current_index = (self.first_position_index + self.circle_increment) % len(self.circle_positions)
+                        initial_index = current_index
                         first_position = self.circle_positions[current_index]
                         worker_distance = cy_distance_to(worker.position, first_position)
                         # find first position that is away from enemies
                         while cy_closer_than(self.bot.enemy_units, worker_distance, first_position):
                             current_index = (current_index + self.circle_increment) % len(self.circle_positions)
                             first_position = self.circle_positions[current_index]
+                            worker_distance = cy_distance_to(worker.position, first_position)
+                            if current_index == initial_index:
+                                # all positions are too close to enemies, just pick the first one
+                                break
                         worker.move(first_position)
                         self.worker_track_progress[worker.tag] = current_index
                         LogHelper.add_log(f"Worker {worker.tag} kiting around to ramp starting from {worker.position}")
