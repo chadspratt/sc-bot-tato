@@ -133,7 +133,8 @@ class Military(GeometryMixin, DebugMixin):
         if not self.enemies_in_base and proxy_buildings:
             # if proxy buildings detected, mount offense even if army is small
             mount_offense = True
-        elif BuildType.WORKER_RUSH in self.intel.enemy_builds_detected and not self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
+        elif self.tactics.is_active(Tactic.WORKER_RUSH_COUNTER_ATTACK):
+            await LogHelper.add_chat("counterattacking worker rush")
             # launch a counterattack, probably needs more nuance to not continue suiciding if attack fails
             mount_offense = True
         elif mount_offense: # previously 600
@@ -486,6 +487,9 @@ class Military(GeometryMixin, DebugMixin):
 
     @timed_async
     async def manage_special_squads(self):
+        if self.tactics.is_active(Tactic.WORKER_RUSH_COUNTER_ATTACK):
+            # don't distract from counterattack with special squads
+            return
         for squad_type in HUNTING_SQUAD_TYPES.get(self.intel.enemy_race, []):
             if self.bot.time < squad_type.start_time:
                 continue
@@ -500,15 +504,23 @@ class Military(GeometryMixin, DebugMixin):
                 self.transfer_all(hunter_squad, self.main_army)
                 continue
 
-            for unit_type, count in squad_type.unit_composition.items():
+            units_to_transfer = []
+            for unit_type, desired_count in squad_type.unit_composition.items():
                 current_count = hunter_squad.units.of_type(unit_type).amount
-                if current_count < count:
+                if current_count < desired_count:
                     available_units = self.main_army.units.of_type(unit_type)
                     for unit in available_units:
-                        if current_count >= count:
+                        if current_count >= desired_count:
                             break
-                        self.transfer(unit, self.main_army, hunter_squad)
+                        units_to_transfer.append(unit)
                         current_count += 1
+                    else:
+                        # don't partially form squads
+                        units_to_transfer.clear()
+                        break
+            
+            for unit in units_to_transfer:
+                self.transfer(unit, self.main_army, hunter_squad)
             if hunter_squad.units:
                 await hunter_squad.hunt(squad_type.target_types)
 

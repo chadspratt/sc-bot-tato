@@ -986,17 +986,20 @@ class BuildOrder():
                 break
 
     def cancel_damaged_structure(self, unit: Unit, total_damage_amount: float):
-        if unit.health_percentage > 0.05 \
-                and total_damage_amount < unit.health / 2 \
-                and not self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
-            return
-        for idx, build_step in enumerate(self.all_steps):
-            if build_step.is_same_structure(unit):
-                build_step.cancel_construction()
-                if build_step.is_unit_type(UnitTypeId.COMMANDCENTER) \
-                        and len(self.bot.townhalls.ready) == 1:
-                    self.intel.add_detected_build(BuildType.RUSH)
-                break
+        do_cancel = unit.health_percentage <= 0.05 or total_damage_amount >= unit.health / 2
+        if not do_cancel and self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
+            wall_structure_types = {UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.BARRACKS}
+            wall_structures = self.bot.structures(wall_structure_types).closer_than(4, self.bot.main_base_ramp.top_center)
+            do_cancel = wall_structures.amount < 3 or unit not in wall_structures
+
+        if do_cancel:
+            for idx, build_step in enumerate(self.all_steps):
+                if build_step.is_same_structure(unit):
+                    build_step.cancel_construction()
+                    if build_step.is_unit_type(UnitTypeId.COMMANDCENTER) \
+                            and len(self.bot.townhalls.ready) == 1:
+                        self.intel.add_detected_build(BuildType.RUSH)
+                    break
 
     async def execute_pending_builds(self, only_build_units: bool, detected_enemy_builds: Dict[BuildType, float], remaining_resources: Cost | None = None) -> Cost:
         allow_skip = self.bot.time > self.time_to_deviate_from_build_order
@@ -1045,8 +1048,9 @@ class BuildOrder():
                 LogHelper.add_log(f"skipping failed type {build_step.get_unit_type_id()}")
                 continue
             if worker_rush_active:
-                if isinstance(build_step, StructureBuildStep) and self.bot.enemy_units:
-                    closest_enemy = cy_closest_to(self.bot.townhalls.first.position, self.bot.enemy_units)
+                enemy_threats = self.bot.enemy_units.filter(lambda e: e.type_id in UnitTypes.WORKER_TYPES or e.type_id not in UnitTypes.NON_THREATS)
+                if isinstance(build_step, StructureBuildStep) and enemy_threats and self.bot.townhalls:
+                    closest_enemy = cy_closest_to(self.bot.townhalls.first.position, enemy_threats)
                     closest_enemy_distance = cy_distance_to(self.bot.townhalls.first.position, closest_enemy.position)
                     if closest_enemy_distance < 25 and cy_distance_to(self.bot.townhalls.first.position, self.map.natural_position) > 1:
                         # during worker rush, don't build if enemies nearby unless repositioned to natural
@@ -1054,18 +1058,25 @@ class BuildOrder():
                         continue
                 if isinstance(build_step, SCVBuildStep):
                     # during rush only build one barracks when ramp is secured and enemy is far enough away
+                    have_depot = self.bot.structures((UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED)).amount > 0
+                    have_barracks = self.bot.structures((UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING)).amount > 0
+                    build_started = build_step.unit_being_built is not None
                     if not self.tactics.is_active(Tactic.RAMP_SECURED):
                         LogHelper.add_log(f"skipping {build_step} due to ramp not secured")
                         continue
-                    if not build_step.is_unit_type(UnitTypeId.BARRACKS):
-                        LogHelper.add_log(f"skipping {build_step} due to not being a barracks")
-                        continue
-                    if not build_step.unit_being_built and self.bot.structures(UnitTypeId.BARRACKS).amount > 0:
-                        LogHelper.add_log(f"skipping {build_step} due to already having a barracks")
-                        continue
-                    if cy_closer_than(self.bot.enemy_units, 4, self.bot.main_base_ramp.bottom_center):
-                        LogHelper.add_log(f"skipping {build_step} due to enemies being too close")
-                        continue
+                    if not build_started:
+                        if not have_depot and not build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT):
+                            LogHelper.add_log(f"skipping {build_step} due to not being a supply depot")
+                            continue
+                        if have_depot and not have_barracks and not build_step.is_unit_type(UnitTypeId.BARRACKS):
+                            LogHelper.add_log(f"skipping {build_step} due to not being a barracks")
+                            continue
+                        if have_depot and have_barracks and self.bot.units.exclude_type(UnitTypeId.SCV).amount < 3 and self.bot.minerals < 100:
+                            LogHelper.add_log(f"skipping {build_step} due to save minerals for units")
+                            continue
+                        if cy_closer_than(enemy_threats, 4, self.bot.main_base_ramp.bottom_center):
+                            LogHelper.add_log(f"skipping {build_step} due to enemies being too close")
+                            continue
             if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
                 build_response = BuildResponseCode.NO_SUPPLY
                 LogHelper.add_log(f"skipping {build_step} due to no supply")

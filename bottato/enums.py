@@ -86,6 +86,7 @@ class Tactic(enum.Enum):
     MEDIVAC_HARASS = 3
     RAMP_SECURED = 4
     WORKER_RUSH_DEFENCE = 5
+    WORKER_RUSH_COUNTER_ATTACK = 6
 
 class ExpansionSelection(enum.Enum):
     CLOSEST = 0

@@ -581,10 +581,11 @@ class SCVBuildStep(BuildStep):
         interrupted = False
         if self.unit_in_charge is None or self.position is None:
             interrupted = True
-            LogHelper.add_log(f"{self} interrupted due to no worker {self.unit_in_charge} or position {self.position}")
+            LogHelper.add_log(f"{self} interrupted due to no worker ({self.unit_in_charge}) or position ({self.position})")
         else:
             if self.unit_in_charge.tag in self.workers.assignments_by_worker \
-                    and self.workers.assignments_by_worker[self.unit_in_charge.tag].on_attack_break:
+                    and self.workers.assignments_by_worker[self.unit_in_charge.tag].on_attack_break \
+                    and not self.unit_in_charge.is_constructing_scv:
                 self.set_interrupted()
                 return True
             if self.start_time == 0.0 or self.bot.time - self.start_time < 0.5:
