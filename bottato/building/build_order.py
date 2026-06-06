@@ -1049,14 +1049,19 @@ class BuildOrder():
                 continue
             if worker_rush_active:
                 enemy_threats = self.bot.enemy_units.filter(lambda e: e.type_id in UnitTypes.WORKER_TYPES or e.type_id not in UnitTypes.NON_THREATS)
-                if isinstance(build_step, StructureBuildStep) and enemy_threats and self.bot.townhalls:
+                wall_is_built = self.tactics.is_active(Tactic.WALL_IS_BUILT)
+                if isinstance(build_step, StructureBuildStep) \
+                        and build_step.unit_type_id in (UnitTypeId.SCV, UnitTypeId.ORBITALCOMMAND) \
+                        and enemy_threats \
+                        and self.bot.townhalls \
+                        and not wall_is_built:
+                    # during worker rush, don't build if enemies nearby unless repositioned to natural
                     closest_enemy = cy_closest_to(self.bot.townhalls.first.position, enemy_threats)
                     closest_enemy_distance = cy_distance_to(self.bot.townhalls.first.position, closest_enemy.position)
                     if closest_enemy_distance < 25 and cy_distance_to(self.bot.townhalls.first.position, self.map.natural_position) > 1:
-                        # during worker rush, don't build if enemies nearby unless repositioned to natural
                         LogHelper.add_log(f"skipping {build_step} due to nearby worker rush")
                         continue
-                if isinstance(build_step, SCVBuildStep):
+                if isinstance(build_step, SCVBuildStep) and not (wall_is_built and build_step.unit_being_built is not None):
                     # during rush only build one barracks when ramp is secured and enemy is far enough away
                     have_depot = self.bot.structures((UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED)).amount > 0
                     have_barracks = self.bot.structures((UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING)).amount > 0

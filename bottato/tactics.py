@@ -1,4 +1,6 @@
 
+from typing import Dict
+
 from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
@@ -22,7 +24,7 @@ class Tactics:
 
         self.army_mode = ArmyMode.STAGING
 
-        self.last_values: dict[Tactic, bool] = {
+        self.last_values: Dict[Tactic, bool] = {
             Tactic.BANSHEE_HARASS: False,
             Tactic.PROXY_BARRACKS: False,
             Tactic.RUSH_DEFENSE: False,
@@ -30,6 +32,17 @@ class Tactics:
             Tactic.RAMP_SECURED: False,
             Tactic.WORKER_RUSH_DEFENCE: False,
             Tactic.WORKER_RUSH_COUNTER_ATTACK: False,
+            Tactic.WALL_IS_BUILT: False,
+        }
+        self.last_updates: Dict[Tactic, int] = {
+                Tactic.BANSHEE_HARASS: 0,
+                Tactic.PROXY_BARRACKS: 0,
+                Tactic.RUSH_DEFENSE: 0,
+                Tactic.MEDIVAC_HARASS: 0,
+                Tactic.RAMP_SECURED: 0,
+                Tactic.WORKER_RUSH_DEFENCE: 0,
+                Tactic.WORKER_RUSH_COUNTER_ATTACK: 0,
+                Tactic.WALL_IS_BUILT: 0,
         }
 
         self.proxy_barracks: Unit | None = None
@@ -53,7 +66,10 @@ class Tactics:
 
     def is_active(self, tactic: Tactic) -> bool:
         new_value = False
-        if tactic == Tactic.BANSHEE_HARASS:
+
+        if self.last_updates[tactic] == self.bot.state.game_loop:
+            new_value = self.last_values[tactic]
+        elif tactic == Tactic.BANSHEE_HARASS:
             new_value = self.bot.time > 120 and self.bot.structures(UnitTypeId.STARPORT).ready.exists 
         elif tactic == Tactic.PROXY_BARRACKS:
             if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected and self.intel.enemy_race != Race.Zerg:
@@ -81,6 +97,15 @@ class Tactics:
             new_value = (
                 BuildType.WORKER_RUSH in self.intel.enemy_builds_detected
                 and not self.is_active(Tactic.WORKER_RUSH_DEFENCE)
+                and self.bot.time > 100
+            )
+        elif tactic == Tactic.WALL_IS_BUILT:
+            new_value = (
+                self.bot.structures(
+                    (UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.BARRACKS)
+                ).closer_than(
+                    4, self.bot.main_base_ramp.top_center
+                ).amount >= 3
             )
         else:
             new_value = self.last_values[tactic]
@@ -89,6 +114,8 @@ class Tactics:
             LogHelper.add_log(f"ending tactic {tactic}")
 
         self.last_values[tactic] = new_value
+        self.last_updates[tactic] = self.bot.state.game_loop
+
         return new_value
 
     # units that hard-counter early marines in small numbers

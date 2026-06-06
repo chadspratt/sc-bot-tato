@@ -21,6 +21,7 @@ from bottato.map.map import Map
 from bottato.mixins import GeometryMixin
 from bottato.squad.scouting_location import ScoutingLocation
 from bottato.unit_reference_helper import UnitReferenceHelper
+from bottato.unit_types import UnitTypes
 
 
 class EnemyIntel(GeometryMixin):
@@ -248,7 +249,8 @@ class EnemyIntel(GeometryMixin):
             if lots_of_gateways or no_expansion:
                 self.add_detected_build(BuildType.RUSH)
             
-            if self.bot.time < 180 and len(self.bot.enemy_units) > 0 and len(cy_closer_than(self.bot.enemy_units, 30, self.bot.start_location)) > 5:
+            enemy_military = self.bot.enemy_units.exclude_type(UnitTypes.WORKER_TYPES)
+            if self.bot.time < 180 and len(enemy_military) > 0 and len(cy_closer_than(enemy_military, 30, self.bot.start_location)) > 5:
                 await LogHelper.add_chat("early army detected near base")
                 self.add_detected_build(BuildType.RUSH)
 

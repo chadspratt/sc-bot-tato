@@ -587,6 +587,7 @@ class SCVBuildStep(BuildStep):
                     and self.workers.assignments_by_worker[self.unit_in_charge.tag].on_attack_break \
                     and not self.unit_in_charge.is_constructing_scv:
                 self.set_interrupted()
+                LogHelper.add_log(f"{self} interrupted due to worker being reassigned to attack")
                 return True
             if self.start_time == 0.0 or self.bot.time - self.start_time < 0.5:
                 return False
@@ -599,11 +600,16 @@ class SCVBuildStep(BuildStep):
             if not self.check_idle:
                 return False
             flee_enemies = True
+
             if self.unit_being_built and (self.unit_being_built.build_progress > 0.6 and 
                     self.unit_type_id in self.unit_types_to_finish_despite_enemies
-                    or self.bot.time < 120):
+                    or self.bot.time < 120 and self.tactics.is_active(Tactic.WALL_IS_BUILT)):
+                danger_distance = self.unit_being_built.radius + 0.5
                 flee_enemies = False
-            if flee_enemies:
+                if cy_closer_than(self.bot.enemy_units, danger_distance, self.unit_in_charge.position):
+                    LogHelper.add_log(f"{self} interrupted due to wanting to stay inside wall")
+                    interrupted = True
+            else:
                 micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.unit_in_charge)
                 if await micro._retreat(self.unit_in_charge, 0.8) == UnitMicroType.RETREAT:
                     interrupted = True
@@ -613,22 +619,30 @@ class SCVBuildStep(BuildStep):
                 if self.unit_being_built and self.unit_being_built in self.bot.structures_without_construction_SCVs:
                     self.unit_in_charge.smart(self.unit_being_built)
                 else:
-                    if self.unit_type_id == UnitTypeId.REFINERY and self.geysir:
-                        if self.bot.gas_buildings and self.bot.gas_buildings.closest_distance_to(self.geysir) > 1:
-                            self.unit_in_charge(
-                                self.bot.game_data.units[self.unit_type_id.value].creation_ability.id, # type: ignore
-                                target=self.geysir,
-                                queue=False,
-                                subtract_cost=False,
-                                can_afford_check=False,
-                            )
+                    for worker in self.bot.workers:
+                        # fix worker assignments if a different worker is building this
+                        if worker.is_constructing_scv and worker.orders and self.unit_being_built and worker.orders[0].target == self.unit_being_built.tag:
+                            self.workers.update_assigment(worker, WorkerJobType.BUILD, self.unit_being_built)
+                            self.workers.set_as_idle(self.unit_in_charge)
+                            self.unit_in_charge = worker
+                            break
+                    else:
+                        if self.unit_type_id == UnitTypeId.REFINERY and self.geysir:
+                            if self.bot.gas_buildings and self.bot.gas_buildings.closest_distance_to(self.geysir) > 1:
+                                self.unit_in_charge(
+                                    self.bot.game_data.units[self.unit_type_id.value].creation_ability.id, # type: ignore
+                                    target=self.geysir,
+                                    queue=False,
+                                    subtract_cost=False,
+                                    can_afford_check=False,
+                                )
+                            else:
+                                interrupted = True
+                                LogHelper.add_log(f"{self} interrupted due to unit not constructing")
                         else:
+                            # position might not be buildable, can't trust can_place_single
                             interrupted = True
                             LogHelper.add_log(f"{self} interrupted due to unit not constructing")
-                    else:
-                        # position might not be buildable, can't trust can_place_single
-                        interrupted = True
-                        LogHelper.add_log(f"{self} interrupted due to unit not constructing")
             if not interrupted:
                 if self.unit_being_built is None:
                     if self.unit_in_charge.is_constructing_scv:
@@ -679,11 +693,10 @@ class SCVBuildStep(BuildStep):
         return interrupted
     
     def set_interrupted(self):
-        if self.unit_type_id != UnitTypeId.BUNKER:
+        if self.unit_type_id != UnitTypeId.BUNKER and self.unit_being_built is None:
             self.position = None
-        self.geysir = None
+            self.geysir = None
         self.worker_in_position_time = None
-        # self.unit_being_built = None
         if self.unit_in_charge:
             self.workers.set_as_idle(self.unit_in_charge)
         self.unit_in_charge = None

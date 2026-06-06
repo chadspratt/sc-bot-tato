@@ -89,7 +89,7 @@ class BotTato(BotAI):
                 unit = self.all_own_units.by_tag(action_error.unit_tag)
                 LogHelper.add_log(f"Action error: unit={unit}, " +
                                 f"ability={action_error.exact_id}, error={ActionErrorCode(action_error.result)}")
-                if action_error.result == ActionErrorCode.CantBuildOnThat.value:
+                if action_error.result in (ActionErrorCode.CantBuildOnThat.value, ActionErrorCode.CouldntReachTarget.value):
                     self.commander.build_order.mark_position_invalid_by_worker_tag(action_error.unit_tag)
                 elif action_error.result == ActionErrorCode.CantBuildLocationInvalid.value:
                     self.commander.tactics.enemy.mark_position_as_needing_detection(unit.position)

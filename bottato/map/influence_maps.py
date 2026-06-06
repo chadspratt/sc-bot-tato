@@ -3,6 +3,7 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 from cython_extensions.geometry import cy_distance_to
+from cython_extensions.units_utils import cy_closest_to
 from MapAnalyzer import MapData
 from sc2.bot_ai import BotAI
 from sc2.ids.effect_id import EffectId
@@ -10,6 +11,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
+from bottato.log_helper import LogHelper
 from bottato.map_specifics import MapSpecifics
 from bottato.unit_types import UnitTypes
 
@@ -27,6 +29,7 @@ class InfluenceMaps():
         # self.anti_air_grid = self.map_data.get_air_vs_ground_grid(3, 1.5)
         self.anti_air_grid = self.map_data.get_clean_air_grid(3)
         self.detection_grid = self.map_data.get_clean_air_grid()
+        self.last_visible_grid = self.map_data.get_clean_air_grid()
 
         # subtract weight for speed zones
         for destructable in self.bot.destructables:
@@ -64,6 +67,24 @@ class InfluenceMaps():
 
         # cap detection weights at 5x (detection is multiplied with other grid for cloaked units)
         self.detection_grid = np.minimum(self.detection_grid, 5)
+
+        for unit in self.bot.units:
+            # set all current visible positions to infinity
+            self.add_cost(unit.position_tuple, unit.sight_range, self.last_visible_grid, np.inf)
+        # change the infinities to 0 and decay all the rest to show the age of it last being visible
+        self.last_visible_grid = np.where(self.last_visible_grid == np.inf, 0, self.last_visible_grid + 1)
+
+    def get_unscouted_position_near(self, position: Point2, radius: float, age_limit: int) -> Optional[Point2]:
+        """Get a random position within radius of the given position that hasn't been scouted in the last age_limit seconds."""
+        unscouted_positions = self.find_lowest_cost_points(position, radius, grid=self.last_visible_grid)
+        if not unscouted_positions:
+            return None
+        long_unseen_positions = [pos for pos in unscouted_positions if self.last_visible_grid[pos[0], pos[1]] >= age_limit] # type: ignore
+        LogHelper.add_log(f"Found {len(unscouted_positions)} unscouted positions within {radius} of {position}, " +
+                           f"{len(long_unseen_positions)} of which are older than {age_limit}")
+        if not long_unseen_positions:
+            return None
+        return min(long_unseen_positions, key=lambda pos: pos.distance_to(position))
 
     def get_zone_grid(self, include_destructables: bool = True) -> np.ndarray:
         """Grid for zone/topology computation — terrain + destructibles, no player structures.

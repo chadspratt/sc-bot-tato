@@ -52,6 +52,7 @@ class LogHelper:
         if message not in LogHelper.chat_messages:
             await LogHelper.bot.client.chat_send(message, False)
             LogHelper.chat_messages.append(message)
+        if message not in LogHelper.new_messages:
             LogHelper.new_messages.append(message)
 
     @staticmethod
