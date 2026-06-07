@@ -1759,7 +1759,7 @@ class Workers(GeometryMixin):
                         needed_repairers = max(needed_repairers, min(MN.WORKER_REPAIR_PER_INJURED_MAX,
                                                                      len(injured_units)))
         
-        unassigned_repairers = self.bot.workers.filter(lambda w: w.tag not in assigned_repairers.tags)
+        unassigned_repairers = self.bot.workers.filter(lambda w: w.tag not in assigned_repairers.tags and self.assignments_by_worker[w.tag].job_type == WorkerJobType.REPAIR)
         if not self.tactics.is_active(Tactic.WALL_IS_BUILT) or self.bot.time > 150:
             unassigned_repairers = self.availiable_workers_on_job(WorkerJobType.REPAIR).filter(
             lambda u: u.tag not in assigned_repairers.tags)
