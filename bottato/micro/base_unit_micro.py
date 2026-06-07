@@ -830,7 +830,7 @@ class BaseUnitMicro(GeometryMixin):
         #     return destination
         # threat_to_unit_vector = (unit.position - threat_position).normalized
         # unit_to_destination_vector = (destination - unit.position).normalized
-        # if self.vectors_go_same_direction(threat_to_unit_vector, unit_to_destination_vector):
+        # if GeometryMixin.vectors_go_same_direction(threat_to_unit_vector, unit_to_destination_vector):
         #     # on same side, go directly to destination
         #     return destination
         # tangent_vector1 = Point2((-threat_to_unit_vector.y, threat_to_unit_vector.x)) * unit.movement_speed

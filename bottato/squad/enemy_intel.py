@@ -164,7 +164,7 @@ class EnemyIntel(GeometryMixin):
             self.add_detected_build(BuildType.RUSH)
 
         num_workers_for_rush = 3 if self.enemy_race == Race.Protoss else 2
-        if BuildType.WORKER_RUSH not in self.enemy_builds_detected and self.bot.time < 60:
+        if BuildType.WORKER_RUSH not in self.enemy_builds_detected and self.bot.time < 70:
             rushing_enemy_workers = self.bot.enemy_units.filter(
                 lambda u: cy_distance_to(u.position, self.bot.start_location) - 15 < cy_distance_to(u.position, self.bot.enemy_start_locations[0]))
             if rushing_enemy_workers.amount >= num_workers_for_rush:

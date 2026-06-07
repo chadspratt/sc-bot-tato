@@ -260,7 +260,7 @@ class ParentFormation(GeometryMixin):
                     continue
                 to_army_vector = self.front_center - vector_start
                 to_next_waypoint_vector = waypoint - vector_start
-                if self.vectors_go_same_direction(to_army_vector, to_next_waypoint_vector):
+                if GeometryMixin.vectors_go_same_direction(to_army_vector, to_next_waypoint_vector):
                     break
                 # if path heads away from army, skip it
                 path_start_index += 1

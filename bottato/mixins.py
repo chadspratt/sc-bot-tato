@@ -281,9 +281,23 @@ class GeometryMixin:
         point_to_destination_distance = cy_distance_to_squared(point_to_check, destination)
         return point_distance < destination_distance and point_to_destination_distance < destination_distance 
     
-    def vectors_go_same_direction(self, vec1: Point2, vec2: Point2) -> bool:
+    @staticmethod
+    def vectors_go_same_direction(vec1: Point2, vec2: Point2) -> bool:
         dot_product = vec1.x * vec2.x + vec1.y * vec2.y
         return dot_product > 0
+    
+    @staticmethod
+    def get_safest_target(unit: Unit, targets: Units, position_to_avoid: Point2) -> Unit:
+        safest_target = targets[0]
+        biggest_margin = 0
+        for target in targets:
+            avoid_distance = cy_distance_to(target.position, position_to_avoid)
+            unit_distance = cy_distance_to(unit.position, position_to_avoid)
+            margin = avoid_distance - unit_distance
+            if margin > biggest_margin:
+                safest_target = target
+                biggest_margin = margin
+        return safest_target
 
 
 class DebugMixin:

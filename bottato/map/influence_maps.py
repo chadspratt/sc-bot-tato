@@ -76,7 +76,7 @@ class InfluenceMaps():
 
     def get_unscouted_position_near(self, position: Point2, radius: float, age_limit: int) -> Optional[Point2]:
         """Get a random position within radius of the given position that hasn't been scouted in the last age_limit seconds."""
-        unscouted_positions = self.find_lowest_cost_points(position, radius, grid=self.last_visible_grid)
+        unscouted_positions = self.find_highest_cost_points(position, radius, grid=self.last_visible_grid)
         if not unscouted_positions:
             return None
         long_unseen_positions = [pos for pos in unscouted_positions if self.last_visible_grid[pos[0], pos[1]] >= age_limit] # type: ignore
@@ -111,6 +111,8 @@ class InfluenceMaps():
 
     def find_lowest_cost_points(self, from_pos: Point2, radius: float, grid: np.ndarray) -> Optional[List[Point2]]:
         return self.map_data.pather.find_lowest_cost_points(from_pos, radius, grid)
+    def find_highest_cost_points(self, from_pos: Point2, radius: float, grid: np.ndarray) -> Optional[List[Point2]]:
+        return self.map_data.pather.find_highest_cost_points(from_pos, radius, grid)
 
     def closest_towards_point(
             self, points: List[Point2], target: Point2 | tuple

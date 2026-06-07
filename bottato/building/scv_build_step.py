@@ -463,7 +463,12 @@ class SCVBuildStep(BuildStep):
         new_build_position: Point2 | None = None
         if unit_type_id == UnitTypeId.REFINERYRICH:
             unit_type_id = UnitTypeId.REFINERY
-        if not special_locations.is_blocked:
+        if (
+                not self.tactics.is_active(Tactic.WALL_IS_BUILT)
+                and unit_type_id in (UnitTypeId.SUPPLYDEPOT, UnitTypeId.BARRACKS)
+                and len(cy_closer_than(self.bot.townhalls.exclude_type(UnitTypeId.COMMANDCENTERFLYING), 2, self.bot.start_location)) > 0
+                and not special_locations.is_blocked
+            ):
             new_build_position = special_locations.find_placement(unit_type_id)
         addon_place = unit_type_id in (
             UnitTypeId.BARRACKS,

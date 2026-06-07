@@ -990,7 +990,7 @@ class BuildOrder():
         if not do_cancel and self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
             wall_structure_types = {UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.BARRACKS}
             wall_structures = self.bot.structures(wall_structure_types).closer_than(4, self.bot.main_base_ramp.top_center)
-            do_cancel = wall_structures.amount < 3 or unit not in wall_structures
+            do_cancel = wall_structures.ready.amount == 0
 
         if do_cancel:
             for idx, build_step in enumerate(self.all_steps):
