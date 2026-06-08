@@ -683,6 +683,9 @@ class Enemy(GeometryMixin):
     burrowing_unit_types = {
         UnitTypeId.LURKERMP,
         UnitTypeId.WIDOWMINE,
+        UnitTypeId.ROACH,
+        UnitTypeId.ZERGLING,
+        UnitTypeId.INFESTOR,
     }
     positions_needing_detection: Dict[Point2, float] = {}
     def things_needing_detection(self, near_position: Point2 | None = None) -> List[Unit | Point2]:
