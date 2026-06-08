@@ -102,10 +102,10 @@ class InitialScout(Squad, GeometryMixin):
             if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected and self.intel.enemy_race != Race.Zerg:
                 # stop early to proxy vs protoss and terran
                 self.completed = True
-            if self.bot.enemy_units.exclude_type(UnitTypes.WORKER_TYPES).amount > 1:
+            elif self.bot.enemy_units.exclude_type(UnitTypes.NON_THREATS).amount > 1:
                 # stop if we see 2+ non-worker enemy units, likely not a proxy and worker will die if it sticks around
                 self.completed = True
-            if BuildType.WORKER_RUSH in self.intel.enemy_builds_detected:
+            elif BuildType.WORKER_RUSH in self.intel.enemy_builds_detected:
                 self.completed = True
 
             if self.completed:

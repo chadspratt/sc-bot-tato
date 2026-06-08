@@ -113,7 +113,7 @@ class Resources(GeometryMixin):
         if candidates:
             node = cy_closest_to(worker.position, candidates)
             closest_enemy = cy_closest_to(worker.position, self.bot.all_enemy_units) if self.bot.all_enemy_units else None
-            if closest_enemy and cy_distance_to_squared(worker.position, closest_enemy.position) < 121:
+            if closest_enemy and cy_distance_to_squared(worker.position, closest_enemy.position) < 121 and cy_distance_to_squared(worker.position, node.position) < 900:
                 while self.position_is_between(closest_enemy.position, worker.position, node.position):
                     # if enemy is between worker and node, blacklist this node for 5 seconds and pick next closest
                     self.danger_blacklist[(worker.tag, node.tag)] = self.bot.time
