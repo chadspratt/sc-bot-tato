@@ -147,6 +147,7 @@ class Resources(GeometryMixin):
             else:
                 return False
         else:
+            self.remove_worker(worker)
             if resource_node.needed_workers() > 0:
                 resource_node.worker_tags.add(worker.tag)
             else:
@@ -167,6 +168,9 @@ class Resources(GeometryMixin):
         for resource_node in self.nodes:
             if tag in resource_node.worker_tags:
                 resource_node.worker_tags.remove(tag)
+                return True
+            if tag == resource_node.mule_tag:
+                resource_node.mule_tag = None
                 return True
         return False
     

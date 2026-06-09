@@ -130,11 +130,6 @@ class Workers(GeometryMixin):
                         assignment.unit(AbilityId.HALT)
                         assignment.job_type = WorkerJobType.IDLE
 
-                # if assignment.job_type != WorkerJobType.VESPENE:
-                #     self.vespene.remove_worker_by_tag(assignment.unit.tag)
-                # if assignment.job_type != WorkerJobType.MINERALS:
-                #     self.minerals.remove_worker_by_tag(assignment.unit.tag)
-
             self.assignments_by_job[assignment.job_type].append(assignment)
             self.bot.client.debug_text_3d(f"{assignment.job_type.name}\n{assignment.unit.tag}",
                                           assignment.unit.position3d + Point3((0, 0, 1)), size=8, color=(255, 255, 255))
@@ -1687,6 +1682,30 @@ class Workers(GeometryMixin):
     async def redistribute_workers(self, remaining_resources: Cost, enemy_builds_detected: Dict[BuildType, float]) -> int:
         await self.update_repairers(enemy_builds_detected)
         await self.distribute_idle()
+
+        # fix mineral assignments to match workers to closest minerals so they won't cross paths needlessly
+        harvesters = self.assignments_by_job[WorkerJobType.MINERALS] + self.assignments_by_job[WorkerJobType.VESPENE]
+        transferring_assignments = [h for h in harvesters if h.unit_available and h.target and cy_distance_to_squared(h.unit.position, h.target.position) > 100]
+        for transfer in transferring_assignments:
+            for other_transfer in transferring_assignments:
+                if transfer == other_transfer:
+                    continue
+                if transfer.target and other_transfer.target and transfer.target.tag != other_transfer.target.tag:
+                    # check if either worker is closer to the other's target than their own, if so swap
+                    primary_distance = cy_distance_to_squared(transfer.unit.position, transfer.target.position)
+                    secondary_distance = cy_distance_to_squared(transfer.unit.position, other_transfer.target.position)
+                    other_primary_distance = cy_distance_to_squared(other_transfer.unit.position, other_transfer.target.position)
+                    other_secondary_distance = cy_distance_to_squared(other_transfer.unit.position, transfer.target.position)
+                    if primary_distance > secondary_distance and other_primary_distance > other_secondary_distance:
+                        if transfer.job_type != other_transfer.job_type:
+                            # if they are on different jobs, swap those
+                            old_job = transfer.job_type
+                            self.update_job(transfer.unit, other_transfer.job_type)
+                            self.update_job(other_transfer.unit, old_job)
+                        # swap with other_transfer
+                        old_target = transfer.target
+                        self.update_target(transfer.unit, other_transfer.target)
+                        self.update_target(other_transfer.unit, old_target)
 
         remaining_cooldown = MN.WORKER_REDISTRIBUTE_COOLDOWN - (self.bot.time - self.last_worker_stop)
         if remaining_cooldown > 0:
