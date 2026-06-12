@@ -35,14 +35,14 @@ class Tactics:
             Tactic.WALL_IS_BUILT: False,
         }
         self.last_updates: Dict[Tactic, int] = {
-                Tactic.BANSHEE_HARASS: 0,
-                Tactic.PROXY_BARRACKS: 0,
-                Tactic.RUSH_DEFENSE: 0,
-                Tactic.MEDIVAC_HARASS: 0,
-                Tactic.RAMP_SECURED: 0,
-                Tactic.WORKER_RUSH_DEFENCE: 0,
-                Tactic.WORKER_RUSH_COUNTER_ATTACK: 0,
-                Tactic.WALL_IS_BUILT: 0,
+            Tactic.BANSHEE_HARASS: 0,
+            Tactic.PROXY_BARRACKS: 0,
+            Tactic.RUSH_DEFENSE: 0,
+            Tactic.MEDIVAC_HARASS: 0,
+            Tactic.RAMP_SECURED: 0,
+            Tactic.WORKER_RUSH_DEFENCE: 0,
+            Tactic.WORKER_RUSH_COUNTER_ATTACK: 0,
+            Tactic.WALL_IS_BUILT: 0,
         }
 
         self.proxy_barracks: Unit | None = None

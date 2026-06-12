@@ -293,7 +293,7 @@ class BuildOrder():
             # undo banshee harass if enemy rush detected. might still be good vs zerg
             if self.enemy.enemy_race != Race.Zerg:
                 self.move_between_queues(UnitTypeId.STARPORT, self.priority_queue, self.static_queue, position=2)
-                self.substitute_steps_in_queue(UnitTypeId.STARPORTTECHLAB, [UnitTypeId.VIKINGFIGHTER], self.static_queue)
+                self.substitute_steps_in_queue(UnitTypeId.STARPORTTECHLAB, [UnitTypeId.STARPORTREACTOR], self.static_queue)
                 self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue, remove_all=True)
                 self.remove_step_from_queue(UpgradeId.BANSHEECLOAK, self.static_queue, remove_all=True)
             if BuildType.PROXY not in detected_enemy_builds:

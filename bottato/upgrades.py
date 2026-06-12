@@ -61,7 +61,7 @@ class Upgrades:
         # ==fusion core==
         UpgradeId.BATTLECRUISERENABLESPECIALIZATIONS: [UnitTypeId.BATTLECRUISER],
         UpgradeId.LIBERATORAGRANGEUPGRADE: [UnitTypeId.LIBERATOR],
-        UpgradeId.MEDIVACINCREASESPEEDBOOST: [UnitTypeId.MEDIVAC],
+        UpgradeId.MEDIVACCADUCEUSREACTOR: [UnitTypeId.MEDIVAC],
         # ==ghost academy==
         UpgradeId.PERSONALCLOAKING: [UnitTypeId.GHOST],
     }
