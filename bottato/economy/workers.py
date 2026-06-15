@@ -107,6 +107,9 @@ class Workers(GeometryMixin):
                 # clean up worker assignments, not handled perfectly by update_completed_structure
                 if not assignment.unit.is_constructing_scv:
                     assignment.job_type = WorkerJobType.IDLE
+                if assignment.build_type == UnitTypeId.REFINERY and assignment.target is None:
+                    # not sure how the target got lost but now assignment needs to be reset
+                    assignment.job_type = WorkerJobType.IDLE
 
             self.assignments_by_job[assignment.job_type].append(assignment)
             self.bot.client.debug_text_3d(f"{assignment.job_type.name}\n{assignment.unit.tag}",
@@ -1721,6 +1724,9 @@ class Workers(GeometryMixin):
             unprocessed_assignments = set()
             for assignment in self.assignments_by_job[job_type]:
                 if not assignment.unit_available or assignment.unit.type_id == UnitTypeId.MULE:
+                    continue
+                if assignment.unit not in unprocessed_workers:
+                    LogHelper.add_log(f"skipping {assignment.unit} for job {assignment.job_type} because it's already been reassigned")
                     continue
                 if job_type == WorkerJobType.SCOUT \
                         or assignment.target_position is None \
