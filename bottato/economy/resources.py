@@ -11,6 +11,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
+from bottato.economy.worker_assignment import WorkerAssignment
 from bottato.mixins import GeometryMixin, timed
 from bottato.unit_reference_helper import UnitReferenceHelper
 
@@ -33,6 +34,13 @@ class ResourceNode():
         if not self.node.is_mineral_field and self.node.vespene_contents == 0:
             return 0
         return self.max_workers - len(self.worker_tags)
+    
+    def remove_extra_workers(self) -> Set[int]:
+        removed_workers = set()
+        while self.needed_workers() < 0 and self.worker_tags:
+            removed_worker_tag = self.worker_tags.pop()
+            removed_workers.add(removed_worker_tag)
+        return removed_workers
 
 class Resources(GeometryMixin):
     
@@ -139,7 +147,6 @@ class Resources(GeometryMixin):
         if node.tag not in self.nodes_by_tag:
             self.add_node(node)
         
-        # Check capacity before adding worker (except for mules)
         resource_node = self.nodes_by_tag[node.tag]
         if worker.type_id == UnitTypeId.MULE:
             if resource_node.mule_tag is None:
@@ -148,10 +155,7 @@ class Resources(GeometryMixin):
                 return False
         else:
             self.remove_worker(worker)
-            if resource_node.needed_workers() > 0:
-                resource_node.worker_tags.add(worker.tag)
-            else:
-                return False
+            resource_node.worker_tags.add(worker.tag)
 
         return True
     
@@ -180,7 +184,7 @@ class Resources(GeometryMixin):
             node.worker_tags = node.worker_tags.intersection(active_worker_tags)
 
     @timed
-    def update_references(self):
+    def update_references(self, assignments_by_worker: Dict[int, WorkerAssignment]):
         nodes_to_remove = []
         
         for resource_node in self.nodes:
@@ -191,6 +195,7 @@ class Resources(GeometryMixin):
                 if not resource_node.node.is_mineral_field:
                     nodes_to_remove.append(resource_node)
                 else:
+                    # check if id changed due to visibility using position
                     for mf in self.bot.mineral_field:
                         if mf.position == resource_node.node.position:
                             resource_node.node = mf
@@ -204,6 +209,13 @@ class Resources(GeometryMixin):
             if not resource_node.node.is_mineral_field and resource_node.node.vespene_contents == 0:
                 logger.debug(f"Node {resource_node.node.tag} is depleted")
                 nodes_to_remove.append(resource_node)
+                continue
+
+            for worker_tag in list(resource_node.worker_tags):
+                assignment = assignments_by_worker.get(worker_tag, None)
+                if assignment is None or assignment.target_position != resource_node.node.position:
+                    logger.debug(f"Worker {worker_tag} is no longer assigned to node {resource_node.node.tag}")
+                    resource_node.worker_tags.remove(worker_tag)
         
         # Remove all stale/depleted nodes after iteration
         for resource_node in nodes_to_remove:
@@ -229,13 +241,8 @@ class Resources(GeometryMixin):
     def get_workers_from_overcapacity(self) -> Units:
         workers = Units([], self.bot)
         for resource_node in self.nodes:
-            while resource_node.needed_workers() < 0:
-                if not resource_node.worker_tags:
-                    break
-                worker_tag = resource_node.worker_tags.pop()
-                try:
-                    workers.append(self.bot.workers.by_tag(worker_tag))
-                except KeyError:
-                    # not sure why stale tags appear, but ignore them
-                    continue
+            # should maybe check is_gathering and prefer not
+            extra_worker_tags = resource_node.remove_extra_workers()
+            if extra_worker_tags:
+                workers.extend(UnitReferenceHelper.get_updated_units_by_tag(extra_worker_tags))
         return workers

@@ -179,7 +179,7 @@ class Commander(GeometryMixin):
 
     @timed_async
     async def update_references(self):
-        self.my_workers.update_references(self.build_order.get_assigned_worker_tags())
+        self.my_workers.update_references()
         self.military.update_references()
         self.tactics.update_references()
         self.tactics.enemy.update_references()
@@ -253,6 +253,7 @@ class Commander(GeometryMixin):
         self.tactics.enemy.record_death(unit_tag)
         self.military.record_death(unit_tag)
         self.my_workers.record_death(unit_tag)
+        self.scouting.record_death(unit_tag)
 
     def add_upgrade(self, upgrade: UpgradeId):
         logger.debug(f"upgrade completed {upgrade}")

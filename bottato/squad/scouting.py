@@ -26,9 +26,9 @@ class Scouting(Squad, DebugMixin):
         self.military = military
         self.initial_scan_done: bool = False
 
-        self.friendly_territory = Scout("friendly territory", self.bot, self.enemy)
-        self.enemy_territory = Scout("enemy territory", self.bot, self.enemy)
-        self.initial_scout = InitialScout(self.bot, self.map, self.enemy, self.intel)
+        self.friendly_territory = Scout("friendly territory", self.bot, self.enemy, self.workers)
+        self.enemy_territory = Scout("enemy territory", self.bot, self.enemy, self.workers)
+        self.initial_scout = InitialScout(self.bot, tactics, self.workers)
         self.newest_enemy_base = self.bot.enemy_start_locations[0]
 
     def init_scouting_routes(self):
@@ -53,12 +53,12 @@ class Scouting(Squad, DebugMixin):
     @timed_async
     async def scout(self, new_damage_taken: dict[int, float]):
         # Update scout unit references
-        self.initial_scout.update_scout(self.workers)
+        self.initial_scout.update_scout()
         
         do_friendly_scout = BuildType.PROXY in self.intel.enemy_builds_detected or self.bot.time > 120 and BuildType.RUSH not in self.intel.enemy_builds_detected
         friendly_scout_type = ScoutType.ANY if do_friendly_scout else ScoutType.NONE
-        self.friendly_territory.update_scout(self.military, self.workers, friendly_scout_type)
-        self.enemy_territory.update_scout(self.military, self.workers, ScoutType.VIKING)
+        self.friendly_territory.update_scout(self.military, friendly_scout_type)
+        self.enemy_territory.update_scout(self.military, ScoutType.VIKING)
 
         self.update_visibility()
 
@@ -100,3 +100,10 @@ class Scouting(Squad, DebugMixin):
                             orbital(AbilityId.SCANNERSWEEP_SCAN, self.bot.enemy_start_locations[0])
                             self.initial_scan_done = True
                             break
+    
+    def record_death(self, unit_tag: int):
+        if self.friendly_territory.unit and self.friendly_territory.unit.tag == unit_tag:
+            self.friendly_territory.unit = None
+        if self.enemy_territory.unit and self.enemy_territory.unit.tag == unit_tag:
+            self.enemy_territory.unit = None
+        self.initial_scout.record_death(unit_tag)

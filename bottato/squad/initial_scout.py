@@ -6,29 +6,26 @@ from cython_extensions.geometry import cy_distance_to, cy_towards
 from cython_extensions.units_utils import cy_closer_than
 from sc2.bot_ai import BotAI
 from sc2.data import Race, race_townhalls
-from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
 from bottato.economy.workers import Workers
-from bottato.enemy import Enemy
 from bottato.enums import BuildType
-from bottato.map.map import Map
 from bottato.mixins import GeometryMixin
-from bottato.squad.enemy_intel import EnemyIntel
-from bottato.squad.formation import Formation
 from bottato.squad.squad import Squad
-from bottato.unit_reference_helper import UnitReferenceHelper
+from bottato.tactics import Tactics
 from bottato.unit_types import UnitTypes
 
 
 class InitialScout(Squad, GeometryMixin):
-    def __init__(self, bot: BotAI, map: Map, enemy: Enemy, intel: EnemyIntel):
+    def __init__(self, bot: BotAI, tactics: Tactics, workers: Workers):
         super().__init__(bot=bot, name="initial_scout")
-        self.map = map
-        self.enemy = enemy
-        self.intel = intel
+        self.tactics = tactics
+        self.map = tactics.map
+        self.enemy = tactics.enemy
+        self.intel = tactics.intel
+        self.workers = workers
 
         self.unit: Unit | None = None
         self.completed: bool = False
@@ -83,22 +80,19 @@ class InitialScout(Squad, GeometryMixin):
         
         logger.debug(f"Generated {len(self.waypoints)} scouting waypoints for enemy main base")
 
-    def update_scout(self, workers: Workers):
+    def update_scout(self):
         if self.bot.time < self.start_time:
             # too early to scout
             return
-        # if self.intel.enemy_builds_detected:
-        #     self.completed = True
-        #     self.intel.mark_initial_scout_complete()
-            
-        if self.unit:
-            try:
-                self.unit = UnitReferenceHelper.get_updated_unit(self.unit)
-            except UnitReferenceHelper.UnitNotFound:
+        if self.completed:
+            self.intel.mark_initial_scout_complete()
+            if self.unit:
+                self.workers.set_as_idle(self.unit)
                 self.unit = None
-                # scout lost, don't send another
-                self.completed = True
-                return
+            return
+            
+        self.unit = self.workers.get_scout(self.scouting_position())
+        if self.unit:
             if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected and self.intel.enemy_race != Race.Zerg:
                 # stop early to proxy vs protoss and terran
                 self.completed = True
@@ -108,24 +102,25 @@ class InitialScout(Squad, GeometryMixin):
             elif BuildType.WORKER_RUSH in self.intel.enemy_builds_detected:
                 self.completed = True
 
-            if self.completed:
-                workers.set_as_idle(self.unit)
-                self.intel.mark_initial_scout_complete()
-                self.unit = None
-                return
-                
-        if not self.unit and not self.completed:
-            # Get the first waypoint as initial target
-            target = self.waypoints[0] if self.waypoints else self.map.enemy_natural_position
-            self.unit = workers.get_scout(target)
 
         if self.intel.enemy_race == Race.Zerg:
             self.initial_scout_complete_time = 100
+
+    def record_death(self, unit_tag: int):
+        if self.unit and self.unit.tag == unit_tag:
+            # scout lost, don't send another
+            self.unit = None
+            self.completed = True
+
+    def scouting_position(self) -> Point2:
+        if self.do_natural_check:
+            return self.map.enemy_natural_position
+        elif self.waypoints:
+            return self.waypoints[0]
+        else:
+            return self.bot.enemy_start_locations[0]
     
     async def move_scout(self):
-        # if self.bot.time > self.initial_scout_complete_time + 20:
-        #     self.completed = True
-        #     self.intel.mark_initial_scout_complete()
         if not self.unit or self.completed:
             return
         
@@ -179,7 +174,6 @@ class InitialScout(Squad, GeometryMixin):
         #     self.bot.client.debug_box2_out(self.convert_point2_to_3(waypoint))
             
         # Move to current waypoint
-        if self.do_natural_check:
-            self.unit.move(self.map.enemy_natural_position)
-        elif self.waypoints:
-            self.unit.move(self.waypoints[0])
+        scouting_position = self.scouting_position()
+        self.workers.update_target_position(self.unit, scouting_position)
+        self.unit.move(scouting_position)

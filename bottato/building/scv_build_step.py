@@ -69,11 +69,10 @@ class SCVBuildStep(BuildStep):
 
     def update_references(self):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
-        if self.unit_in_charge:
-            try:
-                self.unit_in_charge = UnitReferenceHelper.get_updated_unit(self.unit_in_charge)
-            except UnitReferenceHelper.UnitNotFound:
-                self.unit_in_charge = None
+        if self.position:
+            self.unit_in_charge = self.workers.get_builder(self.position, self.unit_type_id, self.geysir)
+        else:
+            self.unit_in_charge = None
         if self.geysir:
             try:
                 self.geysir = UnitReferenceHelper.get_updated_unit(self.geysir)
@@ -123,7 +122,12 @@ class SCVBuildStep(BuildStep):
     
     def set_unit_being_built(self, unit: Unit):
         self.unit_being_built = unit
-        self.position = unit.position
+        self.set_position(unit.position)
+
+    def set_position(self, position: Point2 | None):
+        self.position = position
+        if self.unit_in_charge:
+            self.workers.update_target_position(self.unit_in_charge, self.position)
     
     def is_same_structure(self, structure: Unit) -> bool:
         if self.unit_being_built and self.unit_being_built.tag == structure.tag:
@@ -168,27 +172,31 @@ class SCVBuildStep(BuildStep):
                 self.start_time = self.bot.time
         else:
             if self.unit_type_id == UnitTypeId.REFINERY:
-                # Vespene targets unit to build instead of position
-                self.geysir: Unit | None = self.get_geysir()
                 if self.geysir is None:
-                    return BuildResponseCode.NO_FACILITY
-                self.position = self.geysir.position
+                    # Vespene targets unit to build instead of position
+                    self.geysir: Unit | None = self.get_geysir()
+                    if self.geysir is None:
+                        return BuildResponseCode.NO_LOCATION
+                    self.position = self.geysir.position
             else:
                 # try to reset position to highground if it was set to low before rush was detected
                 # if self.unit_type_id == UnitTypeId.BUNKER and BuildType.RUSH in detected_enemy_builds and self.unit_being_built is None:
                 #     self.position = None
                 if self.position is None or (self.start_time != 0 and self.bot.time - self.start_time > 3 and self.bot.minerals >= self.cost.minerals and self.bot.vespene >= self.cost.vespene):
                     self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds, floating_building_destinations)
-                if self.position is None:
-                    self.no_position_count += 1
-                    return BuildResponseCode.NO_LOCATION
+
+        if self.position is None:
+            self.no_position_count += 1
+            return BuildResponseCode.NO_LOCATION
+                
+        self.set_position(self.position)
 
         build_despite_enemies = (
             self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE)
             and self.unit_type_id in (UnitTypeId.SUPPLYDEPOT, UnitTypeId.BARRACKS)
         )
 
-        self.unit_in_charge = self.workers.get_builder(self.position, self.unit_in_charge)
+        self.unit_in_charge = self.workers.get_builder(self.position, self.unit_type_id, self.geysir)
         if self.unit_in_charge is None:
             return BuildResponseCode.NO_BUILDER
 
@@ -232,9 +240,6 @@ class SCVBuildStep(BuildStep):
             self.start_time = self.bot.time
             return BuildResponseCode.SUCCESS
         return BuildResponseCode.FAILED
-    
-    def set_position(self, x, y):
-        self.position = Point2((x, y))
 
     async def position_worker(self,
                               special_locations: SpecialLocations,
@@ -249,13 +254,13 @@ class SCVBuildStep(BuildStep):
                     self.geysir: Unit | None = self.get_geysir()
                     if self.geysir is None:
                         return
-                    self.position = self.geysir.position
+                    self.set_position(self.geysir.position)
                 else:
                     self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds, flying_building_destinations)
-            if self.position is not None:
+            if self.position:
                 if self.unit_in_charge is None:
-                    self.unit_in_charge = self.workers.get_builder(self.position)
-                if self.unit_in_charge is not None:
+                    self.unit_in_charge = self.workers.get_builder(self.position, self.unit_type_id, self.geysir)
+                if self.unit_in_charge:
                     unit_micro = MicroFactory.get_unit_micro(self.unit_in_charge)
                     await unit_micro.scout(self.unit_in_charge, self.position)
     
@@ -567,7 +572,8 @@ class SCVBuildStep(BuildStep):
                 vespene_geysirs = vespene_geysirs.filter(
                     lambda geysir: self.bot.gas_buildings.closest_distance_to(geysir) > 1)
             if vespene_geysirs:
-                closest = cy_closest_to(self.bot.start_location, vespene_geysirs)
+                nearby_position = self.unit_in_charge.position if self.unit_in_charge else self.bot.start_location
+                closest = cy_closest_to(nearby_position, vespene_geysirs)
                 self.claimed_geysers[closest.tag] = self.bot.time
                 return closest
         return None
@@ -665,7 +671,7 @@ class SCVBuildStep(BuildStep):
                                     construction = cy_closer_than(in_progress_structures, 1, order_target)
                                     if construction and construction[0].type_id == self.unit_type_id:
                                         self.unit_being_built = construction[0]
-                                        self.position = construction[0].position
+                                        self.set_position(construction[0].position)
                                         return False
                     if cy_distance_to_squared(self.unit_in_charge.position, self.position) < 9 and \
                             self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
@@ -698,12 +704,12 @@ class SCVBuildStep(BuildStep):
         return interrupted
     
     def set_interrupted(self):
-        if self.unit_type_id != UnitTypeId.BUNKER and self.unit_being_built is None:
-            self.position = None
-            self.geysir = None
-        self.worker_in_position_time = None
         if self.unit_in_charge:
             self.workers.set_as_idle(self.unit_in_charge)
+        if self.unit_type_id != UnitTypeId.BUNKER and self.unit_being_built is None:
+            self.set_position(None)
+            self.geysir = None
+        self.worker_in_position_time = None
         self.unit_in_charge = None
         self.start_time = 0.0
 
@@ -715,10 +721,10 @@ class SCVBuildStep(BuildStep):
             self.unit_being_built(AbilityId.CANCEL_BUILDINPROGRESS)
         self.last_cancel_time = self.bot.time
         self.unit_being_built = None
-        if self.unit_in_charge and self.unit_in_charge.type_id == UnitTypeId.SCV:
+        if self.unit_in_charge:
             self.workers.update_assigment(self.unit_in_charge, WorkerJobType.IDLE, None)
             self.unit_in_charge = None
-        self.position = None
+        self.set_position(None)
         self.geysir = None
         self.worker_in_position_time = None
         self.is_in_progress = False

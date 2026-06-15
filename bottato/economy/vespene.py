@@ -1,9 +1,11 @@
 from loguru import logger
+from typing import Dict
 
 from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 
 from bottato.economy.resources import Resources
+from bottato.economy.worker_assignment import WorkerAssignment
 from bottato.mixins import timed
 from bottato.unit_reference_helper import UnitReferenceHelper
 
@@ -14,8 +16,8 @@ class Vespene(Resources):
         self.max_workers_per_node = 3
 
     @timed
-    def update_references(self):
-        super().update_references()
+    def update_references(self, assignments_by_worker: Dict[int, WorkerAssignment]):
+        super().update_references(assignments_by_worker)
         missing_refineries = self.bot.structures.filter(lambda u: u.type_id == UnitTypeId.REFINERY and u.is_ready and u.vespene_contents > 0 and u.tag not in self.nodes_by_tag).tags
         for refinery_tag in missing_refineries:
             refinery = self.bot.structures.by_tag(refinery_tag)

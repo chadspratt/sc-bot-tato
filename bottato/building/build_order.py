@@ -361,7 +361,7 @@ class BuildOrder():
                     to_queue.append(step)
                 if isinstance(step, SCVBuildStep) and step.unit_type_id == UnitTypeId.BUNKER:
                     # clear position in case low-ground needs to move to high-ground location
-                    step.position = None
+                    step.set_position(None)
                 return True
         return False
     
@@ -908,7 +908,7 @@ class BuildOrder():
                 LogHelper.add_log(f"Queuing bunker at {placement_position} to protect main army")
                 for bunker_step in new_steps:
                     if isinstance(bunker_step, SCVBuildStep) and bunker_step.unit_type_id == UnitTypeId.BUNKER:
-                        bunker_step.position = placement_position
+                        bunker_step.set_position(placement_position)
 
     def update_completed_unit(self, completed_unit: Unit) -> None:
         for idx, in_progress_step in enumerate(self.started):
@@ -1207,11 +1207,6 @@ class BuildOrder():
     def get_blueprints(self) -> List[BuildStep]:
         return [step for step in self.started if step.has_position_reserved()]
     
-    def get_assigned_worker_tags(self) -> List[int]:
-        return [
-            step.unit_in_charge.tag for step in self.all_steps
-            if UnitTypeId.SCV in step.builder_type and step.unit_in_charge is not None
-        ]
     
     def percent_affordable(self, remaining_resources: Cost, requested_cost: Cost) -> float:
         mineral_percent = 1.0

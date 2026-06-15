@@ -1,6 +1,6 @@
 import math
 from loguru import logger
-from typing import List
+from typing import Dict, List
 
 from cython_extensions.geometry import cy_distance_to_squared, cy_towards
 from cython_extensions.units_utils import cy_closer_than
@@ -15,6 +15,7 @@ from bottato.economy.resources import (
     ResourceNode,
     Resources,
 )
+from bottato.economy.worker_assignment import WorkerAssignment
 from bottato.map.map import Map
 from bottato.mixins import GeometryMixin, timed
 from bottato.unit_reference_helper import UnitReferenceHelper
@@ -42,8 +43,8 @@ class Minerals(Resources, GeometryMixin):
         # self.mining_positions: dict[int, Point2] = {}
 
     @timed
-    def update_references(self):
-        super().update_references()
+    def update_references(self, assignments_by_worker: Dict[int, WorkerAssignment]):
+        super().update_references(assignments_by_worker)
                     
         self.add_mineral_fields_for_townhalls()
         for node in self.nodes:

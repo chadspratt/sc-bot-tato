@@ -21,7 +21,7 @@ from bottato.unit_reference_helper import UnitReferenceHelper
 
 
 class Scout(Squad):
-    def __init__(self, name, bot: BotAI, enemy: Enemy):
+    def __init__(self, name, bot: BotAI, enemy: Enemy, workers: Workers):
         self.name: str = name
         self.bot: BotAI = bot
         self.enemy: Enemy = enemy
@@ -31,6 +31,7 @@ class Scout(Squad):
         self.closest_distance_to_next_location = 9999
         self.time_of_closest_distance = 9999
         self.complete = False
+        self.workers = workers
         super().__init__(bot=bot, name="scout")
 
     def __repr__(self):
@@ -96,14 +97,10 @@ class Scout(Squad):
     def needs(self, unit: Unit) -> bool:
         return unit.type_id in (UnitTypeId.SCV, UnitTypeId.MARINE, UnitTypeId.REAPER)
 
-    def update_scout(self, military: Military, workers: Workers, scout_type: ScoutType = ScoutType.NONE):
+    def update_scout(self, military: Military, scout_type: ScoutType = ScoutType.NONE):
         """Update unit reference for this scout"""
-        if self.unit and self.unit.type_id == UnitTypeId.SCV:
-            if self.unit.tag in workers.assignments_by_worker:
-                assignment = workers.assignments_by_worker[self.unit.tag]
-                if assignment.job_type != WorkerJobType.SCOUT:
-                    # worker reassigned, release scout
-                    self.unit = None
+        current_scouting_position = self.scouting_locations[self.scouting_locations_index].scouting_position
+
         if self.unit and self.unit.type_id == UnitTypeId.VIKINGFIGHTER:
             if military.enemies_in_base.filter(lambda u: u.is_flying):
                 # viking needed to defend base, release scout
@@ -117,16 +114,19 @@ class Scout(Squad):
                 else:
                     # all locations have been seen, release scout
                     if self.unit.type_id == UnitTypeId.SCV:
-                        workers.set_as_idle(self.unit)
+                        self.workers.set_as_idle(self.unit)
                         self.unit = None
                         self.complete = True
                         return
-            try:
-                self.unit = UnitReferenceHelper.get_updated_unit(self.unit)
-                logger.debug(f"{self.name} scout {self.unit}")
-            except UnitReferenceHelper.UnitNotFound:
-                self.unit = None
-                pass
+            if self.unit.type_id == UnitTypeId.SCV:
+                self.unit = self.workers.get_scout(current_scouting_position)
+            else:
+                try:
+                    self.unit = UnitReferenceHelper.get_updated_unit(self.unit)
+                    logger.debug(f"{self.name} scout {self.unit}")
+                except UnitReferenceHelper.UnitNotFound:
+                    self.unit = None
+                    pass
         elif self.bot.time < 500 and scout_type == ScoutType.VIKING:
             if military.enemies_in_base.filter(lambda u: u.is_flying):
                 # viking needed to defend base
@@ -138,7 +138,7 @@ class Scout(Squad):
                     self.unit = unit
                     break
         elif scout_type == ScoutType.ANY and not self.complete:
-            self.unit = workers.get_scout(self.bot.game_info.map_center)
+            self.unit = self.workers.get_scout(current_scouting_position)
         elif self.bot.is_visible(self.bot.enemy_start_locations[0]) and \
                 not cy_closer_than(self.bot.enemy_structures, 10, self.bot.enemy_start_locations[0]):
             # start territory scouting if enemy main is empty
@@ -150,7 +150,7 @@ class Scout(Squad):
             else:
                 # no marines or reapers, use a worker
                 if self.bot.workers:
-                    self.unit = workers.get_scout(self.bot.game_info.map_center)
+                    self.unit = self.workers.get_scout(current_scouting_position)
                 else:
                     # unlikely, but fallback to any unit
                     for unit in military.main_army.units:
@@ -177,7 +177,7 @@ class Scout(Squad):
             self.closest_distance_to_next_location = distance_to_next_location
             self.time_of_closest_distance = self.bot.time
         # mark location as visited if can't get closer for 5 seconds
-        if self.closest_distance_to_next_location < 30 and self.bot.time - self.time_of_closest_distance > 5:
+        if self.closest_distance_to_next_location < 5 or self.closest_distance_to_next_location < 30 and self.bot.time - self.time_of_closest_distance > 5:
             assignment.last_seen = self.bot.time
             assignment.last_visited = self.bot.time
 
@@ -204,5 +204,6 @@ class Scout(Squad):
             self.closest_distance_to_next_location = 9999
         self.scouting_locations_index = next_index
         LogHelper.add_log(f"scout {self.unit} new assignment: {assignment}")
+        self.workers.update_target_position(self.unit, assignment.scouting_position)
 
         await micro.scout(self.unit, assignment.scouting_position)
