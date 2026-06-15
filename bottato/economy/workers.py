@@ -1129,7 +1129,7 @@ class Workers(GeometryMixin):
             assignment.on_attack_break = True
             enemies_in_range: Units = self.bot.enemy_units.in_attack_range_of(worker, 0.1).sorted(lambda unit: (unit.health + unit.shield))
 
-            if worker.weapon_cooldown >= 6:
+            if worker.weapon_cooldown >= 6 and self.bot.enemy_units:
                 closest_enemy = cy_closest_to(worker.position, self.bot.enemy_units)
                 retreat_target = self.natural_mineral_field
                 if self.mineral_walk_targets:
