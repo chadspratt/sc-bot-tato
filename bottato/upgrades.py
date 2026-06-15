@@ -128,6 +128,7 @@ class Upgrades:
         UpgradeId.TERRANVEHICLEWEAPONSLEVEL1: 1,
         UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1: 1,
         UpgradeId.PERSONALCLOAKING: 2,
+        UpgradeId.MEDIVACCADUCEUSREACTOR: 2,
     }
 
     prereqs: dict[UpgradeId, UpgradeId] = {

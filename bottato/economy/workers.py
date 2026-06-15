@@ -105,7 +105,7 @@ class Workers(GeometryMixin):
             
             if assignment.job_type == WorkerJobType.BUILD:
                 # clean up worker assignments, not handled perfectly by update_completed_structure
-                if not assignment.unit.is_constructing_scv:
+                if assignment.build_type and self.bot.can_afford(assignment.build_type) and not assignment.unit.is_constructing_scv:
                     assignment.job_type = WorkerJobType.IDLE
                 if assignment.build_type == UnitTypeId.REFINERY and assignment.target is None:
                     # not sure how the target got lost but now assignment needs to be reset
@@ -246,6 +246,10 @@ class Workers(GeometryMixin):
         # do some further processing here or the orders
         # but in general if worker has 2 orders it is speedmining
         if len_orders == 2:
+            return True
+        
+        if worker.is_constructing_scv:
+            worker(AbilityId.HALT)
             return True
 
         if (worker.is_returning or worker.is_carrying_resource) and len_orders < 2:
@@ -1484,8 +1488,10 @@ class Workers(GeometryMixin):
         assignment.last_reassign_time = self.bot.time
         logger.debug(f"worker {worker} changing from {assignment.target} to {new_target}")
 
-        if worker.is_constructing_scv and assignment.job_type != WorkerJobType.BUILD:
+        if worker.is_constructing_scv and assignment.job_type != WorkerJobType.BUILD and worker.orders and worker.orders[0].progress != 0.0:
             worker(AbilityId.HALT)
+        # elif len(worker.orders) > 1:
+        #     worker(AbilityId.STOP)
         elif new_target:
             if assignment.job_type == WorkerJobType.REPAIR:
                 pass
@@ -1511,7 +1517,11 @@ class Workers(GeometryMixin):
                     return False
             elif assignment.job_type == WorkerJobType.BUILD:
                 if new_target.is_vespene_geyser and not new_target.is_mine:
-                    worker.build_gas(new_target)
+                    if build_type and self.bot.can_afford(build_type):
+                        worker.build_gas(new_target)
+                    else:
+                        # preposition builder
+                        worker.move(new_target.position)
                 else:
                     # resume building
                     worker.smart(new_target)            
@@ -1544,8 +1554,15 @@ class Workers(GeometryMixin):
                 else:
                     worker.smart(new_target)
             elif assignment.job_type == WorkerJobType.BUILD:
+                if build_type == UnitTypeId.REFINERY:
+                    # must have a geyser target
+                    return False
                 if build_type and new_target_position:
-                    worker.build(build_type, new_target_position)
+                    if self.bot.can_afford(build_type):
+                        worker.build(build_type, new_target_position)
+                    else:
+                        # preposition builder
+                        worker.move(new_target_position)
         if assignment.target != new_target:
             assignment.initial_gather_complete = False
         assignment.target = new_target
@@ -1575,7 +1592,7 @@ class Workers(GeometryMixin):
     def get_builder(self,
                     building_position: Point2,
                     build_type: UnitTypeId | None = None,
-                    geysir: Unit | None = None) -> Unit | None:
+                    target_unit: Unit | None = None) -> Unit | None:
         builder = None
 
         # search for current builder by position
@@ -1601,7 +1618,7 @@ class Workers(GeometryMixin):
 
         if builder is not None:
             logger.debug(f"found builder {builder}")
-            self.update_assigment(builder, WorkerJobType.BUILD, geysir, building_position, build_type)
+            self.update_assigment(builder, WorkerJobType.BUILD, target_unit, building_position, build_type)
 
         return builder
 
@@ -1756,19 +1773,29 @@ class Workers(GeometryMixin):
             for assignment, worker, distance_sq in sorted_assignments:
                 if (worker not in unprocessed_workers
                         or assignment.unit not in unprocessed_workers
-                        or assignment.job_type != job_type):
+                        or assignment.job_type != job_type
+                        or assignment.target == worker):
+                    continue
+
+                current_assignment = self.assignments_by_worker[worker.tag]
+                if assignment.unit == worker or assignment.target == current_assignment.target:
+                    # already assigned to closest
+                    unprocessed_workers.remove(worker)
+                    continue
+
+                path_distance = self.map.get_distance_by_path(worker.position, assignment.target_position) # type: ignore
+                if path_distance > 15 and path_distance > (distance_sq ** 0.5) * 2:
+                    # straight line distance is unreliably short, don't choose this worker for this assignment
                     continue
 
                 unprocessed_workers.remove(worker)
-                current_assignment = self.assignments_by_worker[worker.tag]
-                if assignment.unit != worker and assignment.target != current_assignment.target:
-                    # swap assignments between assignment.unit and worker
-                    new_target = assignment.target
-                    new_target_position = assignment.target_position
-                    new_build_type = assignment.build_type
-                    LogHelper.add_log(f"swapping {current_assignment} and {assignment}")
-                    self.update_assigment(assignment.unit, current_assignment.job_type, current_assignment.target, current_assignment.target_position, current_assignment.build_type)
-                    self.update_assigment(worker, job_type, new_target, new_target_position, new_build_type)
+                # swap assignments between assignment.unit and worker
+                new_target = assignment.target
+                new_target_position = assignment.target_position
+                new_build_type = assignment.build_type
+                LogHelper.add_log(f"swapping {current_assignment} and {assignment}")
+                self.update_assigment(assignment.unit, current_assignment.job_type, current_assignment.target, current_assignment.target_position, current_assignment.build_type)
+                self.update_assigment(worker, job_type, new_target, new_target_position, new_build_type)
 
         remaining_cooldown = MN.WORKER_REDISTRIBUTE_COOLDOWN - (self.bot.time - self.last_worker_stop)
         if remaining_cooldown > 0:

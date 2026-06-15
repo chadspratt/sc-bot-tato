@@ -420,6 +420,7 @@ class Military(GeometryMixin, DebugMixin):
                 self.transfer(reapers[0], self.main_army, self.reaper_harass)
 
         if not self.anti_banshee_units:
+            # keep stale units once we detect them so we don't lose the flag to not harass
             self.anti_banshee_units = self.bot.enemy_units((UnitTypeId.VIKINGFIGHTER, UnitTypeId.PHOENIX, UnitTypeId.MUTALISK))
         anti_air_in_base = enemies_in_base.filter(lambda u: UnitTypes.can_attack_air(u))
         if self.anti_banshee_units or len(enemies_in_base) >= 3 and anti_air_in_base.amount <= 2:

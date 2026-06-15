@@ -69,8 +69,9 @@ class SCVBuildStep(BuildStep):
 
     def update_references(self):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
-        if self.position:
-            self.unit_in_charge = self.workers.get_builder(self.position, self.unit_type_id, self.geysir)
+        target_unit = self.unit_being_built if self.unit_being_built else self.geysir
+        if self.position and (self.unit_type_id != UnitTypeId.REFINERY or target_unit):
+            self.unit_in_charge = self.workers.get_builder(self.position, self.unit_type_id, target_unit)
         else:
             self.unit_in_charge = None
         if self.geysir:
@@ -260,7 +261,7 @@ class SCVBuildStep(BuildStep):
             if self.position:
                 if self.unit_in_charge is None:
                     self.unit_in_charge = self.workers.get_builder(self.position, self.unit_type_id, self.geysir)
-                if self.unit_in_charge:
+                if self.unit_in_charge and not self.unit_in_charge.is_constructing_scv:
                     unit_micro = MicroFactory.get_unit_micro(self.unit_in_charge)
                     await unit_micro.scout(self.unit_in_charge, self.position)
     

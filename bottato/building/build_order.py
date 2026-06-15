@@ -95,6 +95,9 @@ class BuildOrder():
     async def execute(self, floating_building_destinations: Dict[int, Point2]) -> Cost:
         self.floating_building_destinations = floating_building_destinations
         detected_enemy_builds = self.intel.enemy_builds_detected
+        # if self.enemy.get_army().amount >= 5:
+        #     # switch to dynamic build order once we see the initial enemy army composition
+        #     self.static_queue.clear()
         self.enact_build_changes(detected_enemy_builds)
         if self.bot.time < 360 and (self.bot.enemy_units.filter(lambda u: u.type_id in (
                 UnitTypeId.TEMPEST, UnitTypeId.BATTLECRUISER, UnitTypeId.CARRIER,
@@ -788,7 +791,7 @@ class BuildOrder():
 
     upgrade_building_types = {
         UnitTypeId.ARMORY,
-        # UnitTypeId.FUSIONCORE,
+        UnitTypeId.FUSIONCORE,
         UnitTypeId.ENGINEERINGBAY,
         UnitTypeId.BARRACKSTECHLAB,
         UnitTypeId.FACTORYTECHLAB,
@@ -802,7 +805,7 @@ class BuildOrder():
         UnitTypeId.FACTORYTECHLAB: 2,
         UnitTypeId.STARPORTTECHLAB: 2,
         # UnitTypeId.GHOSTACADEMY: 1,
-        # UnitTypeId.FUSIONCORE: 1,
+        UnitTypeId.FUSIONCORE: 1,
     }
 
     @timed
@@ -1149,6 +1152,8 @@ class BuildOrder():
                         ) or (percent_affordable >= 0.75
                             and self.bot.tech_requirement_progress(build_step.unit_type_id) == 1.0):
                         await build_step.position_worker(self.special_locations, detected_enemy_builds, self.floating_building_destinations)
+                        # add to started since the worker controller should start it once there are enough resources
+                        self.started.append(build_queue.pop(execution_index))
                 if remaining_resources.minerals < 50:
                     break
                 LogHelper.add_log(f"skipping {build_step} due to insufficient resources")
