@@ -261,6 +261,12 @@ class Military(GeometryMixin, DebugMixin):
 
         defense_squad_count = 0
 
+        stay_in_base = self.bot.time < 300 and self.bot.units((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED)).amount == 0
+        if stay_in_base:
+            # until we get a tank, don't engage ground enemies outside the main until they reach the ramp
+            main_base_height = self.bot.get_terrain_height(self.bot.start_location)
+            self.enemies_in_base = self.enemies_in_base.filter(lambda e: e.is_flying or abs(self.bot.get_terrain_height(e) - main_base_height) < 1 and cy_distance_to_squared(e.position, self.bot.main_base_ramp.top_center) < 9)
+
         # assign squads to counter enemies that are alone or in small groups
         for enemy in self.enemies_in_base:
             if BuildType.RUSH in detected_enemy_builds and len(self.main_army.units) < 10:
@@ -297,7 +303,6 @@ class Military(GeometryMixin, DebugMixin):
                     break
             else:
                 # a full composition was assigned
-
                 for e in enemy_group:
                     countered_enemies[e.tag] = defense_squad
                 await defense_squad.move(self.enemy.predicted_positions[enemy.tag])

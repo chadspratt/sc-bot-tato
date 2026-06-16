@@ -2060,16 +2060,18 @@ class Workers(GeometryMixin):
         # can only repair fully built structures
         if self.tactics.is_active(Tactic.WALL_IS_BUILT) or not self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
             for structure in self.bot.structures:
-                if structure.build_progress < 1:
+                if structure.build_progress != 1.0:
                     continue
                 if structure.health_percentage == 1.0:
                     continue
                 if structure.type_id == UnitTypeId.AUTOTURRET:
                     continue
-                if self.enemy.threats_to_repairer(structure, attack_range_buffer=structure.radius*1.5).amount > 0:
-                    if structure.type_id not in self.defensive_structures and \
-                        (structure.type_id not in self.ramp_wall_structers or self.bot.time > MN.WORKER_REPAIR_RAMP_WALL_TIME):
-                        continue
+                is_ramp_wall_structure = structure.type_id in self.ramp_wall_structers
+                if is_ramp_wall_structure and self.bot.time <= MN.WORKER_REPAIR_RAMP_WALL_TIME \
+                    or structure.type_id in self.defensive_structures:
+                    pass
+                elif self.enemy.threats_to_repairer(structure, attack_range_buffer=structure.radius*1.5).amount > 0:
+                    continue
                 injured_units.append(structure)
         return injured_units
 
