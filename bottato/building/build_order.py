@@ -629,7 +629,7 @@ class BuildOrder():
             if self.bot.enemy_structures.of_type(UnitTypes.TOWNHALL_TYPES).amount < 2 and self.bot.time < 180:
                 # enemy has not expanded, hold off on taking a third
                 return
-            if BuildType.RUSH in detected_enemy_builds and self.bot.supply_used < 45 and self.bot.time < 360:
+            if BuildType.RUSH in detected_enemy_builds and self.bot.supply_used < 60 and self.bot.time < 360:
                 # prioritize transition to army out of early rush response
                 return
         if BuildType.RUSH in detected_enemy_builds and self.bot.time < 160:

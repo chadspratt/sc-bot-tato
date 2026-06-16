@@ -512,15 +512,17 @@ class BaseUnitMicro(GeometryMixin):
                 return False
         return force_move
 
+    previous_targets: Dict[int, int] = {}
     @timed
     def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0, require_in_range_target: bool = False) -> Unit | None:
         valid_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack_target(unit, u) and u.type_id not in UnitTypes.NON_TARGETS)
         if require_in_range_target:
             bonus_distance = 0
-            unit_height = self.bot.get_terrain_height(unit.position)
-            valid_targets = valid_targets.filter(
-                lambda u: self.bot.get_terrain_height(u.position) <= unit_height or self.bot.is_visible(u)
-            )
+            if not unit.is_flying:
+                unit_height = self.bot.get_terrain_height(unit.position)
+                valid_targets = valid_targets.filter(
+                    lambda u: self.bot.get_terrain_height(u.position) <= unit_height or self.bot.is_visible(u)
+                )
         if not valid_targets:
             return None
 
@@ -528,6 +530,13 @@ class BaseUnitMicro(GeometryMixin):
         non_gas_buildings = valid_targets.exclude_type(UnitTypes.GAS_STRUCTURE_TYPES)
         if len(non_gas_buildings) > 0:
             valid_targets = non_gas_buildings
+
+        previous_target = None
+        try:
+            previous_target = UnitReferenceHelper.get_updated_unit_by_tag(self.previous_targets[unit.tag]) if unit.tag in self.previous_targets else None
+        except UnitReferenceHelper.UnitNotFound:
+            pass
+        previous_still_in_range = previous_target and previous_target in valid_targets and self.tactics.enemy.in_attack_range(unit, Units([previous_target], bot_object=self.bot), bonus_distance)
 
         closest_target = cy_closest_to(unit.position, valid_targets)
         closest_distance = max(cy_distance_to(unit.position, closest_target.position), UnitTypes.range(unit))
@@ -537,26 +546,36 @@ class BaseUnitMicro(GeometryMixin):
 
         priority_targets = almost_closest_enemies.filter(lambda u: u.type_id in UnitTypes.get_priority_target_types(unit))
         if priority_targets:
+            if previous_target in priority_targets and previous_still_in_range:
+                return previous_target
             in_range = self.tactics.enemy.in_attack_range(unit, priority_targets, bonus_distance, first_only=True)
             if in_range:
+                self.previous_targets[unit.tag] = in_range.first.tag
                 return in_range.first
 
         # for non-priority targets, only look 1 distance beyond closest enemy
         almost_closest_enemies = Units(cy_closer_than(almost_closest_enemies, closest_distance + 1, unit.position), bot_object=self.bot)
         offensive_targets = almost_closest_enemies.filter(lambda u: UnitTypes.can_attack(u))
         if offensive_targets:
+            if previous_target in offensive_targets and previous_still_in_range:
+                return previous_target
             threat_in_range = self.tactics.enemy.threat_in_attack_range(unit, offensive_targets, bonus_distance, first_only=True)
             if threat_in_range:
+                self.previous_targets[unit.tag] = threat_in_range.first.tag
                 return threat_in_range.first
             in_range = self.tactics.enemy.in_attack_range(unit, offensive_targets, bonus_distance, first_only=True)
             if in_range:
+                self.previous_targets[unit.tag] = in_range.first.tag
                 return in_range.first
 
         # targets that can't attack you
         passive_targets = almost_closest_enemies.filter(lambda u: not UnitTypes.can_attack(u))
         if passive_targets:
+            if previous_target in passive_targets and previous_still_in_range:
+                return previous_target
             in_range = self.tactics.enemy.in_attack_range(unit, passive_targets, bonus_distance, first_only=True)
             if in_range:
+                self.previous_targets[unit.tag] = in_range.first.tag
                 return in_range.first
 
         # nothing in range, attack closest

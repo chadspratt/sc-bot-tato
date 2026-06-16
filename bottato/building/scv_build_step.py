@@ -1,6 +1,6 @@
 import math
 from loguru import logger
-from typing import Dict, Set
+from typing import Dict, List, Set
 
 from cython_extensions.geometry import cy_distance_to, cy_distance_to_squared
 from cython_extensions.type_checking.wrappers import cy_towards
@@ -36,6 +36,7 @@ from bottato.map_specifics import MapSpecifics
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import timed, timed_async
+from bottato.squad.scouting_location import ScoutingLocation
 from bottato.tactics import Tactics
 from bottato.tech_tree import TECH_TREE
 from bottato.unit_reference_helper import UnitReferenceHelper
@@ -303,7 +304,7 @@ class SCVBuildStep(BuildStep):
             else:
                 # modified from bot_ai get_next_expansion
                 sorted_expansions = self.map.expansion_orders[ExpansionSelection.CLOSEST]
-                available_expansions = []
+                available_expansions: List[Point2] = []
                 for location in sorted_expansions:
                     def is_near_to_expansion(t: Unit):
                         return cy_distance_to(t.position, location.expansion_position) < self.bot.EXPANSION_GAP_THRESHOLD
@@ -337,18 +338,49 @@ class SCVBuildStep(BuildStep):
                     return None
                 new_build_position = available_expansions[next_expansion_index]
 
-                if self.attempted_expansion_positions[new_build_position] > 3:
-                    # build it wherever and fly it there later
-                    LogHelper.add_log(f"Too many attempts to build cc at {new_build_position}, finding generic placement")
+                # build at nearest occupied expansion
+                nearest_occupied_expansion = cy_closest_to(new_build_position, self.bot.townhalls) if self.bot.townhalls else None
+                if nearest_occupied_expansion is None:
                     new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
-                elif MapSpecifics.base_location_might_be_blocked(self.bot):
-                    # run it through find placement in case it's blocked by some weird map feature
+                else:
+                    nearest_occupied_position = nearest_occupied_expansion.position
+                    # check along three vectors, one directly toward new_build_position and two that are angled away from it
+                    candidates = [nearest_occupied_position, nearest_occupied_position, nearest_occupied_position]
+                    perpendicular_offsets = [0, 0.5, -0.5]
+                    offset_index = 0
+
+                    vector = (new_build_position - nearest_occupied_position).normalized
+                    perpendicular_vector = Point2((-vector.y, vector.x))
+
+                    candidate = candidates[0]
+                    start_terrain_height = self.bot.get_terrain_height(nearest_occupied_position)
+                    while abs(self.bot.get_terrain_height(candidate) - start_terrain_height) <= 0.1:
+                        candidate = candidates[offset_index] + vector + perpendicular_vector * perpendicular_offsets[offset_index]
+                        candidates[offset_index] = candidate
+                        offset_index = (offset_index + 1) % 3
+                    # back up so it won't select a spot on other side of gap
+                    candidate = Point2(cy_towards(candidate, nearest_occupied_position, distance=2))
                     new_build_position = await self.bot.find_placement(
                         unit_type_id,
-                        near=new_build_position,
-                        max_distance=4,
-                        placement_step=2,
+                        near=candidate,
+                        max_distance=5,
+                        placement_step=1,
                     )
+                    if new_build_position is None:
+                        LogHelper.add_log(f"Could not find CC placement near natural high ground at {candidate}, trying generic placement")
+                        new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
+                # if self.attempted_expansion_positions[new_build_position] > 3:
+                #     # build it wherever and fly it there later
+                #     LogHelper.add_log(f"Too many attempts to build cc at {new_build_position}, finding generic placement")
+                #     new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
+                # elif MapSpecifics.base_location_might_be_blocked(self.bot):
+                #     # run it through find placement in case it's blocked by some weird map feature
+                #     new_build_position = await self.bot.find_placement(
+                #         unit_type_id,
+                #         near=new_build_position,
+                #         max_distance=4,
+                #         placement_step=2,
+                #     )
 
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2

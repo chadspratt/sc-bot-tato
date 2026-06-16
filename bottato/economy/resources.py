@@ -113,6 +113,12 @@ class Resources(GeometryMixin):
                     and node.needed_workers() > 0
                     and self.danger_blacklist.get((worker.tag, node.node.tag), 0) <= max(0, self.bot.time - 5)
                 ]
+            if not nodes_needing_workers:
+                nodes_needing_workers = [
+                    node for node in self.nodes
+                    if not node.is_long_distance
+                    and self.danger_blacklist.get((worker.tag, node.node.tag), 0) <= max(0, self.bot.time - 5)
+                ]
             
             if nodes_needing_workers:
                 most_needed = max(node.needed_workers() for node in nodes_needing_workers)
