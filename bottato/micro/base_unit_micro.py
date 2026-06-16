@@ -729,8 +729,15 @@ class BaseUnitMicro(GeometryMixin):
             ultimate_destination = self.bot.game_info.player_start_location
 
         waypoint = ultimate_destination.position
-        if threats:
+        if self.is_surrounded(unit, threats):
             waypoint = self.tactics.map.get_influence_path_waypoint(unit, ultimate_destination.position)
+        elif threats:
+            # run directly away from nearest if not surrounded
+            closest_threat = cy_closest_to(unit.position, threats)
+            waypoint = Point2(cy_towards(unit.position, closest_threat.position, -3))
+            if not self._position_is_pathable(unit, waypoint):
+                waypoint = self.tactics.map.get_influence_path_waypoint(unit, ultimate_destination.position)
+            # waypoint = self.tactics.map.get_pathable_position(away_from_closest, unit)
         return (ultimate_destination, waypoint)
     
     def _position_is_pathable(self, unit: Unit, position: Point2) -> bool:

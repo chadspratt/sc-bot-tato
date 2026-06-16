@@ -47,7 +47,7 @@ class InfluenceMaps():
             ground_range = UnitTypes.ground_range(enemy)
             if ground_range > 0 and enemy.is_ready:
                 self.add_cost(enemy.position_tuple, ground_range + 1.5, self.ground_grid)
-                self.add_cost(enemy.position_tuple, ground_range + 1.5, self.reaper_grid)
+                self.add_cost(enemy.position_tuple, ground_range + 1, self.reaper_grid, 1000)
 
             air_range = UnitTypes.air_range(enemy)
             if air_range > 0 and enemy.is_ready:

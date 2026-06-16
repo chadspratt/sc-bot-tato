@@ -282,6 +282,18 @@ class GeometryMixin:
         return point_distance < destination_distance and point_to_destination_distance < destination_distance 
     
     @staticmethod
+    def is_surrounded(unit: Unit, threats: Units) -> bool:
+        if not threats:
+            return False
+        threat_center = threats.center
+        threat_center_vector = threat_center - unit.position
+        for threat in threats:
+            threat_vector = threat.position - unit.position
+            if not GeometryMixin.vectors_go_same_direction(threat_vector, threat_center_vector):
+                return True
+        return False
+    
+    @staticmethod
     def vectors_go_same_direction(vec1: Point2, vec2: Point2) -> bool:
         dot_product = vec1.x * vec2.x + vec1.y * vec2.y
         return dot_product > 0
