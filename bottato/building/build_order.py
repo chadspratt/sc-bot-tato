@@ -114,7 +114,7 @@ class BuildOrder():
         self.queue_command_center(self.intel.army_ratio, detected_enemy_builds)
         self.queue_upgrade()
         self.queue_marines(detected_enemy_builds, self.intel.army_ratio)
-        if len(self.static_queue) < 5 or self.bot.time > 300:
+        if len(self.static_queue) < 10 or self.bot.time > 240:
             self.queue_turret(self.intel)
             await self.queue_bunker(self.intel.main_army_staging_location)
 
@@ -137,7 +137,6 @@ class BuildOrder():
                 self.queue_production(only_build_units = False)
             self.queue_medivacs()
 
-        if len(self.static_queue) < 5 or self.bot.time > 300:
             self.queue_refinery()
 
 
