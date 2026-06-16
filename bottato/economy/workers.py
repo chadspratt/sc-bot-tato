@@ -1747,12 +1747,13 @@ class Workers(GeometryMixin):
                     continue
                 if job_type == WorkerJobType.SCOUT \
                         or assignment.target_position is None \
-                        or 0 < self.bot.time - assignment.last_reassign_time < 0.3:
+                        or 0 < self.bot.time - assignment.last_reassign_time < 0.3 \
+                        or self.bot.time - assignment.last_swap_time < 5:
                     # skip scouts, missing positions, and recently reassigned
                     unprocessed_workers.remove(assignment.unit)
                     continue
-                if assignment.job_type in (WorkerJobType.MINERALS, WorkerJobType.VESPENE):
-                    # skip if worker is inside a gas building or near target minerals
+                if assignment.job_type in (WorkerJobType.MINERALS, WorkerJobType.VESPENE, WorkerJobType.REPAIR):
+                    # skip if worker is near target
                     current_distance_sq = cy_distance_to_squared(assignment.unit.position, assignment.target_position)
                     if current_distance_sq < 100:
                         unprocessed_workers.remove(assignment.unit)
@@ -1796,6 +1797,7 @@ class Workers(GeometryMixin):
                 LogHelper.add_log(f"swapping {current_assignment} and {assignment}")
                 self.update_assigment(assignment.unit, current_assignment.job_type, current_assignment.target, current_assignment.target_position, current_assignment.build_type)
                 self.update_assigment(worker, job_type, new_target, new_target_position, new_build_type)
+                assignment.last_swap_time = self.bot.time
 
         remaining_cooldown = MN.WORKER_REDISTRIBUTE_COOLDOWN - (self.bot.time - self.last_worker_stop)
         if remaining_cooldown > 0:

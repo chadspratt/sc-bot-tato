@@ -20,6 +20,7 @@ class WorkerAssignment():
         self.is_returning = False
         self.on_attack_break = False
         self.last_reassign_time: float = 0.0
+        self.last_swap_time: float = 0.0
         self.build_type: UnitTypeId | None = None
 
     def __repr__(self) -> str:

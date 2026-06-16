@@ -175,18 +175,23 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     cc(AbilityId.LIFT)
                     return
                 if cc.health_percentage < 0.8 and self.bot.enemy_units:
-                    nearby_enemies = self.enemy.threats_to_friendly_unit(cc, attack_range_buffer=2)
-                    if nearby_enemies:
-                        threats = nearby_enemies.filter(lambda enemy: UnitTypes.can_attack_ground(enemy))
-                        if threats:
-                            self.building_destinations[cc.tag] = cc.position
-                            # queuing orders always breaks, so alternate cancels until orders are empty then lift
-                            if len(cc.orders) > 0 and cc.orders[0].ability.id == AbilityId.COMMANDCENTERTRAIN_SCV:
-                                cc(AbilityId.CANCEL_LAST)
-                            elif len(cc.orders) > 0 and cc.orders[0].ability.id == AbilityId.UPGRADETOORBITAL_ORBITALCOMMAND:
-                                cc(AbilityId.CANCEL)
-                            else:
-                                cc(AbilityId.LIFT)
+                    LogHelper.add_log(f"Health low on {cc}, checking for nearby threats before landing")
+                    threats = self.enemy.threats_to_friendly_unit(cc, attack_range_buffer=2)
+                    if threats:
+                        # threats = nearby_enemies.filter(lambda enemy: UnitTypes.can_attack_ground(enemy))
+                        # if threats:
+                        LogHelper.add_log(f"Lifting {cc} due to nearby threats {threats}")
+                        self.building_destinations[cc.tag] = cc.position
+                        # queuing orders always breaks, so alternate cancels until orders are empty then lift
+                        if len(cc.orders) > 0 and cc.orders[0].ability.id == AbilityId.COMMANDCENTERTRAIN_SCV:
+                            LogHelper.add_log(f"Cancelling queued SCV train to lift {cc}")
+                            cc(AbilityId.CANCEL_LAST)
+                        elif len(cc.orders) > 0 and cc.orders[0].ability.id == AbilityId.UPGRADETOORBITAL_ORBITALCOMMAND:
+                            LogHelper.add_log(f"Cancelling queued upgrade to lift {cc}")
+                            cc(AbilityId.CANCEL)
+                        else:
+                            LogHelper.add_log(f"Lifting {cc} to move to safety")
+                            cc(AbilityId.LIFT)
 
     @timed_async
     async def move_ramp_barracks(self, army_ratio: float):
