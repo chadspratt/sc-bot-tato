@@ -78,9 +78,9 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                         and s.is_visible
                         and (s.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES or s.health + s.shield < 50)
             )
-        excluded_types = set()
+        excluded_types = set([UnitTypeId.EGG, UnitTypeId.LARVA, UnitTypeId.MULE])
         if self.tactics.enemy.can_be_attacked(unit, self.tactics.enemy.get_recent_enemies()):
-            excluded_types = UnitTypes.get_priority_avoidance_types(unit)
+            excluded_types = excluded_types.union(UnitTypes.get_priority_avoidance_types(unit))
         enemy_candidates = self.tactics.enemy.get_candidates(include_structures=False,
                                                              include_out_of_view=False,
                                                              excluded_types=excluded_types)

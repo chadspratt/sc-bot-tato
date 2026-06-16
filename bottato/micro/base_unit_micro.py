@@ -514,7 +514,7 @@ class BaseUnitMicro(GeometryMixin):
 
     @timed
     def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0, require_in_range_target: bool = False) -> Unit | None:
-        valid_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack_target(unit, u))
+        valid_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack_target(unit, u) and u.type_id not in UnitTypes.NON_TARGETS)
         if require_in_range_target:
             bonus_distance = 0
             unit_height = self.bot.get_terrain_height(unit.position)

@@ -181,11 +181,10 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                         if threats:
                             self.building_destinations[cc.tag] = cc.position
                             # queuing orders always breaks, so alternate cancels until orders are empty then lift
-                            if len(cc.orders) > 0 and cc.orders[0].ability.id != AbilityId.LIFT:
-                                if iteration % 2:
-                                    cc(AbilityId.CANCEL_LAST)
-                                else:
-                                    cc(AbilityId.CANCEL)
+                            if len(cc.orders) > 0 and cc.orders[0].ability.id == AbilityId.COMMANDCENTERTRAIN_SCV:
+                                cc(AbilityId.CANCEL_LAST)
+                            elif len(cc.orders) > 0 and cc.orders[0].ability.id == AbilityId.UPGRADETOORBITAL_ORBITALCOMMAND:
+                                cc(AbilityId.CANCEL)
                             else:
                                 cc(AbilityId.LIFT)
 
@@ -338,7 +337,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 break
         else:
             return
-        need_detection = self.enemy.things_needing_detection()
+        need_detection = self.enemy.things_needing_detection(include_visible=False)
 
         if not need_detection:
             return

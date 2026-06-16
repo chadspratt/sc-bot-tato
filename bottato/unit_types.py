@@ -364,6 +364,13 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.MULE,
     }
 
+    NON_TARGETS = {
+        UnitTypeId.LARVA,
+        UnitTypeId.EGG,
+        UnitTypeId.MULE,
+        UnitTypeId.ADEPTPHASESHIFT,
+    }
+
     NON_THREATS = {
         UnitTypeId.LARVA,
         UnitTypeId.EGG,

@@ -11,14 +11,13 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.economy.resources import (
-    WORKERS_PER_LONG_DISTANCE_NODE,
     ResourceNode,
     Resources,
 )
 from bottato.economy.worker_assignment import WorkerAssignment
+from bottato.magic_numbers import MagicNumbers as MN
 from bottato.map.map import Map
 from bottato.mixins import GeometryMixin, timed
-from bottato.unit_reference_helper import UnitReferenceHelper
 
 
 class Minerals(Resources, GeometryMixin):
@@ -50,7 +49,7 @@ class Minerals(Resources, GeometryMixin):
         for node in self.nodes:
             # display number of workers assigned to each node
             self.bot.client.debug_text_3d(
-                f"{len(node.worker_tags)}/{node.max_workers if not node.is_long_distance else WORKERS_PER_LONG_DISTANCE_NODE}\n{node.node.tag}",
+                f"{len(node.worker_tags)}/{node.max_workers if not node.is_long_distance else MN.WORKERS_PER_LONG_DISTANCE_NODE}\n{node.node.tag}",
                 node.node.position3d, size=8, color=(255, 255, 255))
 
     def record_non_worker_death(self, unit_tag: int):
@@ -110,7 +109,7 @@ class Minerals(Resources, GeometryMixin):
 
     async def add_long_distance_minerals(self, idle_worker_count: int) -> int:
         added = 0
-        nodes_to_add = math.ceil(idle_worker_count / WORKERS_PER_LONG_DISTANCE_NODE)
+        nodes_to_add = math.ceil(idle_worker_count / MN.WORKERS_PER_LONG_DISTANCE_NODE)
         if self.bot.townhalls:
             candidates = self.bot.mineral_field.filter(lambda mf: mf.tag not in self.nodes_by_tag)
             # prefer minerals at next expansion
