@@ -72,8 +72,9 @@ class CounterUnits():
             UnitTypeId.MARAUDER: 0.5,
             # UnitTypeId.MARINE: 1.5,
             UnitTypeId.WIDOWMINE: 0.1,
-            UnitTypeId.SIEGETANK: 0.3,
-            UnitTypeId.VIKING: -0.25,
+            UnitTypeId.SIEGETANK: 0.2,
+            UnitTypeId.CYCLONE: 0.2,
+            UnitTypeId.VIKINGFIGHTER: -0.25,
             UnitTypeId.BANSHEE: -0.25
         },
         UnitTypeId.STARGATE: {
