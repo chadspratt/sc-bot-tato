@@ -590,12 +590,13 @@ class BaseUnitMicro(GeometryMixin):
 
         # keep distance from zerg structures that spawn broodlings on death
         if self.tactics.intel.enemy_race == Race.Zerg and not unit.is_flying:
-            structures_to_avoid = targets.filter(lambda s: s.is_structure and s.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS)
-            for structure in structures_to_avoid:
-                threat_distance = cy_distance_to(unit.position, structure.position)
-                desired_distance = self._get_desired_attack_range(unit, structure)
+            for target in targets:
+                if not target.is_structure:
+                    continue
+                threat_distance = cy_distance_to(unit.position, target.position)
+                desired_distance = self._get_desired_attack_range(unit, target)
                 if threat_distance < desired_distance:
-                    threats_to_avoid.append(structure)
+                    threats_to_avoid.append(target)
 
         threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3)
         for threat in threats:
@@ -659,7 +660,9 @@ class BaseUnitMicro(GeometryMixin):
         unit_range = UnitTypes.range_vs_target(unit, target)
         target_range = UnitTypes.range_vs_target(target, unit)
  
-        if target_range == 0:
+        if self.is_structure_to_avoid(unit, target):
+            desired_distance += 3.0
+        elif target_range == 0:
             desired_distance = 0
         elif unit_range == 0 or target.type_id in UnitTypes.get_priority_avoidance_types(unit):
             desired_distance += target_range + 0.5
@@ -672,6 +675,12 @@ class BaseUnitMicro(GeometryMixin):
             desired_distance += min(unit_range - 0.1, max(unit_range - 1.0, target_range + 0.5))
 
         return desired_distance
+    
+    def is_structure_to_avoid(self, unit: Unit, target: Unit) -> bool:
+        return (not unit.is_flying
+                and target.is_structure
+                and target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS
+                and target.health < 60)
     
     def _attack(self, unit: Unit, target: Unit) -> bool:
         if target.type_id == UnitTypeId.INTERCEPTOR:

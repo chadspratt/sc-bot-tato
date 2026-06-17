@@ -186,7 +186,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                         if len(cc.orders) > 0 and cc.orders[0].ability.id == AbilityId.COMMANDCENTERTRAIN_SCV:
                             LogHelper.add_log(f"Cancelling queued SCV train to lift {cc}")
                             cc(AbilityId.CANCEL_LAST)
-                        elif len(cc.orders) > 0 and cc.orders[0].ability.id == AbilityId.UPGRADETOORBITAL_ORBITALCOMMAND:
+                        elif len(cc.orders) > 0 and cc.orders[0].ability.id in (AbilityId.UPGRADETOORBITAL_ORBITALCOMMAND,
+                                                                                AbilityId.UPGRADETOPLANETARYFORTRESS_PLANETARYFORTRESS):
                             LogHelper.add_log(f"Cancelling queued upgrade to lift {cc}")
                             cc(AbilityId.CANCEL)
                         else:
