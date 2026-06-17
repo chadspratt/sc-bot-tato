@@ -72,7 +72,13 @@ class SCVBuildStep(BuildStep):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
         target_unit = self.unit_being_built if self.unit_being_built else self.geysir
         if self.position and (self.unit_type_id != UnitTypeId.REFINERY or target_unit):
-            self.unit_in_charge = self.workers.get_builder(self.position, self.unit_type_id, target_unit)
+            for assignment in self.workers.assignments_by_job[WorkerJobType.BUILD]:
+                if assignment.target_position == self.position and assignment.unit_available and not assignment.on_attack_break:
+                    self.unit_in_charge = assignment.unit
+                    break
+            else:
+                self.unit_in_charge = None
+            # self.unit_in_charge = self.workers.get_builder(self.position, self.unit_type_id, target_unit)
         else:
             self.unit_in_charge = None
         if self.geysir:
@@ -81,8 +87,11 @@ class SCVBuildStep(BuildStep):
             except UnitReferenceHelper.UnitNotFound:
                 self.geysir = None
         if self.unit_being_built:
+            previous_build_progress = self.unit_being_built.build_progress
             try:
                 self.unit_being_built = UnitReferenceHelper.get_updated_unit(self.unit_being_built)
+                if self.unit_being_built.build_progress != previous_build_progress and self.start_time == 0.0:
+                    self.start_time = self.bot.time
             except UnitReferenceHelper.UnitNotFound:
                 self.unit_being_built = None
 
@@ -659,13 +668,13 @@ class SCVBuildStep(BuildStep):
                     interrupted = True
                     LogHelper.add_log(f"{self} interrupted due to retreating worker {self.unit_in_charge}")
 
-            if not interrupted and not self.unit_in_charge.is_constructing_scv:
-                if self.unit_being_built and self.unit_being_built in self.bot.structures_without_construction_SCVs:
+            if not interrupted and not self.unit_in_charge.is_constructing_scv and self.unit_being_built:
+                if self.unit_being_built in self.bot.structures_without_construction_SCVs:
                     self.unit_in_charge.smart(self.unit_being_built)
                 else:
                     for worker in self.bot.workers:
                         # fix worker assignments if a different worker is building this
-                        if worker.is_constructing_scv and worker.orders and self.unit_being_built and worker.orders[0].target == self.unit_being_built.tag:
+                        if worker.is_constructing_scv and worker.orders and worker.orders[0].target == self.unit_being_built.tag:
                             self.workers.update_assigment(worker, WorkerJobType.BUILD, self.unit_being_built)
                             self.workers.set_as_idle(self.unit_in_charge)
                             self.unit_in_charge = worker
