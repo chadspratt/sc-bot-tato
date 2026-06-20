@@ -120,8 +120,8 @@ class Military(GeometryMixin, DebugMixin):
         
         self.intel.army_ratio = self.calculate_army_ratio()
         enemies_in_base_ratio = self.calculate_army_ratio(self.enemies_in_base)
-        avg_enemy_age = self.enemy.get_average_enemy_age()
-        required_ratio_for_offense = 1.2 + avg_enemy_age * 0.01
+        self.intel.avg_enemy_age = self.enemy.get_average_enemy_age()
+        required_ratio_for_offense = 1.2 + self.intel.avg_enemy_age * 0.01
 
         ignore_ratio_threshold = min(185, 160 + self.aborted_attack_count * 5)
         army_is_big_enough = self.intel.army_ratio > required_ratio_for_offense \
@@ -165,7 +165,7 @@ class Military(GeometryMixin, DebugMixin):
         else:
             self.tactics.army_mode = ArmyMode.STAGING
     
-        self.status_message = f"m{self.bot.minerals}, g{self.bot.vespene}, s{self.bot.supply_used}/{self.bot.supply_cap}, army ratio {self.intel.army_ratio:.2f}, avg enemy age {avg_enemy_age:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
+        self.status_message = f"m{self.bot.minerals}, g{self.bot.vespene}, s{self.bot.supply_used}/{self.bot.supply_cap}, army ratio {self.intel.army_ratio:.2f}, avg enemy age {self.intel.avg_enemy_age:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
 
         bunkers = Units([b.structure for b in self.bunkers if b.structure], self.bot)

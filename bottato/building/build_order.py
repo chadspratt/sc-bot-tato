@@ -111,7 +111,7 @@ class BuildOrder():
         self.queue_townhall_work(detected_enemy_builds)
         self.queue_supply()
 
-        self.queue_command_center(self.intel.army_ratio, detected_enemy_builds)
+        self.queue_command_center(self.intel, detected_enemy_builds)
         self.queue_upgrade()
         self.queue_marines(detected_enemy_builds, self.intel.army_ratio)
         if len(self.static_queue) < 10 or self.bot.time > 240:
@@ -622,7 +622,7 @@ class BuildOrder():
         return count
 
     @timed
-    def queue_command_center(self, army_ratio: float, detected_enemy_builds) -> None:
+    def queue_command_center(self, intel: EnemyIntel, detected_enemy_builds) -> None:
         if self.bot.time < 100:
             return
         if self.bot.townhalls.amount == 2:
@@ -636,7 +636,7 @@ class BuildOrder():
             if BuildType.RUSH in detected_enemy_builds and self.bot.supply_used < 60 and self.bot.time < 360:
                 # prioritize transition to army out of early rush response
                 return
-            if army_ratio < 1.0 and self.bot.time < 480:
+            if (intel.army_ratio < 1.0 or intel.avg_enemy_age > 60) and self.bot.time < 480:
                 return
         if BuildType.RUSH in detected_enemy_builds and self.bot.time < 160:
             # don't expand too early during rush
@@ -654,14 +654,14 @@ class BuildOrder():
                                      len(self.workers.assignments_by_job[WorkerJobType.MINERALS]) + len(self.bot.townhalls) * 4)
         surplus_worker_count = projected_worker_count - projected_worker_capacity
         needed_cc_count = math.ceil(surplus_worker_count / 16)
-        if army_ratio < 0.65 and self.bot.townhalls.amount >= 2 and self.bot.minerals <= 500:
+        if intel.army_ratio < 0.65 and self.bot.townhalls.amount >= 2 and self.bot.minerals <= 500:
             # delay expansion if army low and already have 2 bases, unless sitting on enough minerals
             needed_cc_count -= 1
         
         if needed_cc_count > cc_count:
             # expand if running out of room for workers at current bases
             self.add_to_build_queue([UnitTypeId.COMMANDCENTER] * (needed_cc_count - cc_count), queue=self.priority_queue)
-        # elif len(self.bot.townhalls) == 1 and cc_count == 0 and self.bot.time > 160 and army_ratio > 1.0:
+        # elif len(self.bot.townhalls) == 1 and cc_count == 0 and self.bot.time > 160 and intel.army_ratio > 1.0:
         #     self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.priority_queue)
         #     self.add_to_build_queue([UnitTypeId.COMMANDCENTER], queue=self.priority_queue, position=0)
 

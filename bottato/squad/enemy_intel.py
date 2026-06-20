@@ -40,6 +40,7 @@ class EnemyIntel(GeometryMixin):
         self.enemy_drop_transports: Units = Units([], self.bot)
         self.enemy_drop_locations: List[Tuple[Point2, float]] = []
         self.army_ratio: float = 1.0
+        self.avg_enemy_age: float = 0.0
         self.main_army_staging_location: Point2 = self.bot.start_location
 
         self.scouting_locations: List[ScoutingLocation] = list()
