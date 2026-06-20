@@ -944,7 +944,7 @@ class Workers(GeometryMixin):
                                 if worker.tag in self.kiters_near_enemy_tags and cy_distance_to(worker.position, self.bot.main_base_ramp.top_center) > 10:
                                     await LogHelper.add_chat("kiting has started")
                                     self.kiting_started = True
-                                if closest_enemy and cy_distance_to_squared(worker.position, closest_enemy.position) > 20:
+                                if closest_enemy and cy_distance_to_squared(worker.position, closest_enemy.position) > 14:
                                     # move toward enemy to try to aggro them
                                     worker.move(closest_enemy.position)
                                     continue
@@ -2043,17 +2043,14 @@ class Workers(GeometryMixin):
                 continue
             if unit.type_id in {UnitTypeId.MULE, UnitTypeId.SCV}:
                 continue
-            if self.enemy.threats_to_repairer(unit, attack_range_buffer=0).amount > 0:
-                # threats nearby, skip unless it's a sieged tank defending a base
-                if unit.type_id != UnitTypeId.SIEGETANKSIEGED or not self.bot.townhalls or self.bot.townhalls.closest_distance_to(unit) >= 20:
-                    continue
+            is_sieged_tank_defending_base = unit.type_id == UnitTypeId.SIEGETANKSIEGED and self.bot.townhalls and self.bot.townhalls.closest_distance_to(unit) < 20
+            if not is_sieged_tank_defending_base and self.enemy.threats_to_repairer(unit, attack_range_buffer=0).amount > 0:
+                continue
             # skip repairing distant units if they can just use a shrine
-            closest_worker = cy_closest_to(unit.position, self.bot.workers)
-            closest_worker_distance = cy_distance_to(closest_worker.position, unit.position)
-            if closest_worker_distance > 30:
-                if unit.is_flying and has_air_healing_shrine:
-                    continue
-                if not unit.is_flying and has_ground_healing_shrine:
+            if unit.is_flying and has_air_healing_shrine or not unit.is_flying and has_ground_healing_shrine:
+                closest_worker = cy_closest_to(unit.position, self.bot.workers)
+                closest_worker_distance = cy_distance_to_squared(closest_worker.position, unit.position)
+                if closest_worker_distance > 625:  # 25^2
                     continue
             injured_units.append(unit)
 

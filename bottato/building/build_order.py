@@ -425,7 +425,10 @@ class BuildOrder():
                         unit_types.remove(build_step.unit_type_id)
                         if not unit_types:
                             break
-                elif isinstance(build_step, UpgradeBuildStep):
+                        
+            # check that upgrades are unique among all queues
+            for build_step in self.all_steps:
+                if isinstance(build_step, UpgradeBuildStep):
                     if build_step.upgrade_id in unit_types:
                         unit_types.remove(build_step.upgrade_id)
                         if not unit_types:

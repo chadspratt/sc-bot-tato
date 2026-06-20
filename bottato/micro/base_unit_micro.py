@@ -304,6 +304,14 @@ class BaseUnitMicro(GeometryMixin):
     
     @timed_async
     async def _move_to_repairer(self, unit: Unit) -> UnitMicroType:
+        if unit.health_percentage < 1.0 and (unit.weapon_cooldown == 0.0 or unit.weapon_cooldown > self.time_in_frames_to_attack):
+            healing_shrines = await self.get_healing_shrines(unit)
+            if healing_shrines:
+                closest_shrine = cy_closest_to(unit.position, healing_shrines)
+                if closest_shrine and cy_distance_to_squared(unit.position, closest_shrine.position) < 25:  # 5^2
+                    # stay in shrine until fully healed
+                    unit.move(closest_shrine.position)
+                    return UnitMicroType.MOVE
         if unit.tag in BaseUnitMicro.repairers_by_target_prev_frame and unit.health_percentage < 1.0 and self.bot.minerals > 15:
             if unit.health_percentage > 0.8:
                 # check for targets nearby and don't waste time getting repaired if there are
@@ -467,6 +475,7 @@ class BaseUnitMicro(GeometryMixin):
         return target
     
     async def get_healing_shrines(self, unit: Unit) -> Units:
+        # cached version of get_pathable_healing_shrines
         if not unit.is_flying:
             if BaseUnitMicro.healing_shrines is None:
                 BaseUnitMicro.healing_shrines = await self.get_pathable_healing_shrines(unit)
