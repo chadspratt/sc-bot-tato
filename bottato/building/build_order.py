@@ -435,7 +435,8 @@ class BuildOrder():
                             break
         steps_to_add: List[BuildStep] = [self.create_build_step(unit_type) for unit_type in unit_types]
         if steps_to_add:
-            # LogHelper.add_log(f"Adding to build queue: {', '.join([step.friendly_name for step in steps_to_add])}")
+            if len(steps_to_add) < 5:
+                LogHelper.add_log(f"Adding to build queue: {', '.join([step.friendly_name for step in steps_to_add])}")
             if position is not None:
                 steps_to_add = queue[:position] + steps_to_add + queue[position:]
                 queue.clear()
@@ -634,6 +635,8 @@ class BuildOrder():
                 return
             if BuildType.RUSH in detected_enemy_builds and self.bot.supply_used < 60 and self.bot.time < 360:
                 # prioritize transition to army out of early rush response
+                return
+            if army_ratio < 1.0 and self.bot.time < 480:
                 return
         if BuildType.RUSH in detected_enemy_builds and self.bot.time < 160:
             # don't expand too early during rush
