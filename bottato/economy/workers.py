@@ -1199,7 +1199,8 @@ class Workers(GeometryMixin):
         self.kiter_near_enemy_time = 0.0
         self.kiting_started = False
         self.trapped_enemy_tags.clear()
-        self.ramp_guards = None
+        if self.ramp_guards:
+            self.ramp_guards.clear()
         self.in_position_guard_tags.clear()
         self.enemy_exit_started = False
 

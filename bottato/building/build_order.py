@@ -419,7 +419,7 @@ class BuildOrder():
         unit_types = all_prereqs + unit_types
         
         if remove_duplicates:
-            for build_step in queue:
+            for build_step in self.started + self.interrupted_queue + queue:
                 if isinstance(build_step, StructureBuildStep) or isinstance(build_step, SCVBuildStep):
                     if build_step.unit_type_id in unit_types:
                         unit_types.remove(build_step.unit_type_id)
