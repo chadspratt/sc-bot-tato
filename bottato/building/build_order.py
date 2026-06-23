@@ -733,7 +733,7 @@ class BuildOrder():
         defending_rush = self.tactics.is_active(Tactic.RUSH_DEFENSE)
         if self.tactics.is_active(Tactic.PROXY_BARRACKS):
             # if enemy expands early, prioritize marines to punish
-            self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue, position=0)
+            self.add_to_build_queue([UnitTypeId.MARINE] * 2, queue=self.priority_queue, position=0)
             return
         if defending_rush:
             marine_count = self.bot.units.of_type(UnitTypeId.MARINE).amount + self.get_in_progress_count(UnitTypeId.MARINE)

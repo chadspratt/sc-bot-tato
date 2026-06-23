@@ -199,6 +199,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
                 if self.bot.get_terrain_height(closer_position) < tank_height:
                     # be reluctant to leave high ground
                     unsiege_range += 5
+            if self.tactics.army_mode == ArmyMode.DEFENDING:
+                unsiege_range += 4
             if closest_enemy_distance > unsiege_range and closest_structure_distance > self.sight_range - 1:
                 self.unsiege(unit)
                 return UnitMicroType.USE_ABILITY
