@@ -735,13 +735,13 @@ class BuildOrder():
             if only_build_units and not build_step.is_unit():
                 continue
 
-            if build_step.is_unit():
-                production_items.append((build_step.get_unit_type_id(), build_step.cost))
-
             remaining_resources.minerals -= build_step.cost.minerals
             remaining_resources.vespene -= build_step.cost.vespene
             if remaining_resources.minerals < 0 or remaining_resources.vespene < 0:
                 break
+
+            if build_step.is_unit():
+                production_items.append((build_step.get_unit_type_id(), build_step.cost))
 
         extra_production: List[UnitTypeId] = self.production.additional_needed_production(production_items, remaining_resources)
         # only add if not already in progress
