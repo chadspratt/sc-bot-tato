@@ -1,6 +1,7 @@
 from typing import Dict, List
 
 from sc2.constants import TERRAN_TECH_REQUIREMENT
+
 # from sc2.dicts.unit_trained_from import UNIT_TRAINED_FROM
 from sc2.ids.unit_typeid import UnitTypeId
 
@@ -17,7 +18,8 @@ TECH_TREE[UnitTypeId.BANSHEE] = [UnitTypeId.STARPORTTECHLAB]
 TECH_TREE[UnitTypeId.SIEGETANK] = [UnitTypeId.FACTORYTECHLAB]
 TECH_TREE[UnitTypeId.THOR] = [UnitTypeId.ARMORY, UnitTypeId.FACTORYTECHLAB]
 TECH_TREE[UnitTypeId.MARAUDER] = [UnitTypeId.BARRACKSTECHLAB]
-TECH_TREE[UnitTypeId.GHOST] = [UnitTypeId.GHOSTACADEMY, UnitTypeId.BARRACKSTECHLAB]
+# armory and ebay aren't actually required but want them prioritized over ghost academy
+TECH_TREE[UnitTypeId.GHOST] = [UnitTypeId.ARMORY, UnitTypeId.ENGINEERINGBAY, UnitTypeId.GHOSTACADEMY, UnitTypeId.BARRACKSTECHLAB]
 TECH_TREE[UnitTypeId.FACTORYTECHLAB] = [UnitTypeId.FACTORY]
 TECH_TREE[UnitTypeId.STARPORTTECHLAB] = [UnitTypeId.STARPORT]
 TECH_TREE[UnitTypeId.REAPER] = [UnitTypeId.BARRACKS]

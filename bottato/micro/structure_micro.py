@@ -291,6 +291,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             self.building_destinations[structure.tag] = destination
         distance = destination.manhattan_distance(structure.position)
         if distance > 1:
+            self.building_in_position_times[structure.tag] = None
             if structure.is_flying:
                 # structure.move(destination)
                 await self.scout(structure, destination)
@@ -299,7 +300,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     # clear the landing zone
                     BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
                                                     CustomEffectTargetArea.GROUND,
-                                                    structure.position, structure.radius,
+                                                    destination, structure.radius,
                                                     self.bot.time, 0.5)
             else:
                 if len(structure.orders) > 0 and structure.orders[0].ability.id == AbilityId.COMMANDCENTERTRAIN_SCV:
@@ -316,7 +317,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             if structure.is_flying:
                 BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
                                                 CustomEffectTargetArea.GROUND,
-                                                structure.position, structure.radius,
+                                                destination, structure.radius,
                                                 self.bot.time, 0.5)
                 in_position_time = self.building_in_position_times.get(structure.tag)
                 if in_position_time is None:
@@ -327,7 +328,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     new_destination = self.building_destinations[structure.tag] = await self.bot.find_placement(type_id, destination, placement_step=1, addon_place=True)
                     self.building_in_position_times[structure.tag] = None
                     if new_destination:
-                        await self.move(structure, destination, force_move=True)
+                        await self.move(structure, new_destination, force_move=True)
                 else:
                     structure(AbilityId.LAND, destination)
             else:

@@ -114,6 +114,9 @@ class Map(GeometryMixin):
     def get_influence_path(self, unit: Unit, ultimate_destination: Point2) -> List[Point2]:
         return self.influence_maps.get_path(unit, ultimate_destination)
     
+    def get_influence_path_distance(self, unit: Unit, ultimate_destination: Point2) -> float:
+        return self.influence_maps.get_path_distance(unit.position, ultimate_destination, self.influence_maps.ground_grid)
+    
     def get_influence_path_waypoint(self, unit: Unit, ultimate_destination: Point2) -> Point2:
         path = self.get_influence_path(unit, ultimate_destination)
         return path[2] if len(path) > 2 else ultimate_destination
@@ -442,10 +445,11 @@ class Map(GeometryMixin):
         return closest_position
     
     def get_distance_by_path(self, start: Point2, end: Point2) -> float:
-        path = self.get_path(start, end)
-        if path.length < 9999:
-            return path.length
-        return cy_distance_to(start, end)
+        return self.influence_maps.get_path_distance(start, end, self.influence_maps.ground_grid)
+        # path = self.get_path(start, end)
+        # if path.length < 9999:
+        #     return path.length
+        # return cy_distance_to(start, end)
     
     def get_distances_by_path(self, start: Point2, positions: List[Point2]) -> Dict[Point2, float]:
         distances_by_position: Dict[Point2, float] = {}

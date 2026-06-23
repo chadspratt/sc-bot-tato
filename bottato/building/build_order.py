@@ -443,7 +443,8 @@ class BuildOrder():
         steps_to_add: List[BuildStep] = [self.create_build_step(unit_type) for unit_type in unit_types]
         if steps_to_add:
             if len(steps_to_add) < 5:
-                LogHelper.add_log(f"Adding to build queue: {', '.join([step.friendly_name for step in steps_to_add])}")
+                sorted_steps = sorted([step.friendly_name for step in steps_to_add])
+                LogHelper.add_log(f"Adding to build queue: {', '.join(sorted_steps)}")
             if position is not None:
                 steps_to_add = queue[:position] + steps_to_add + queue[position:]
                 queue.clear()
@@ -547,67 +548,48 @@ class BuildOrder():
         simulated_time = self.bot.time
         minerals_per_second = self.bot.state.score.collection_rate_minerals / 60
         vespene_per_second = self.bot.state.score.collection_rate_vespene / 60
-        all_started = self.started + [s for s in self.interrupted_queue if isinstance(s, SCVBuildStep) and s.unit_being_built]
-        all_unstarted = [s for s in self.interrupted_queue if not (isinstance(s, SCVBuildStep) and s.unit_being_built)] + self.priority_queue + self.static_queue + self.build_queue
-        # for step in self.all_steps:
-        for step in all_started:
-            # already paid for, just track projected time for new supply to be available
-            if isinstance(step, SCVBuildStep) and step.get_unit_type_id() in {UnitTypeId.SUPPLYDEPOT, UnitTypeId.COMMANDCENTER}:
-                if step.get_unit_type_id() == UnitTypeId.SUPPLYDEPOT:
-                    available_supply += 8
-                elif step.unit_being_built and step.unit_being_built.build_progress > 0.7:
-                    available_supply += 15
-        for step in all_unstarted:
-            available_resources -= step.cost
-            # can't afford this step, calculate when we will be able to
-            time_until_affordable = 0
-            if available_resources.minerals < 0:
-                if minerals_per_second <= 0:
-                    break
-                time_until_affordable = -available_resources.minerals / minerals_per_second
-            if available_resources.vespene < 0:
-                if vespene_per_second <= 0:
-                    break
-                time_until_affordable = max(time_until_affordable, -available_resources.vespene / vespene_per_second)
-            if time_until_affordable > 0:
-                simulated_time += time_until_affordable
-                available_resources.minerals += math.ceil(minerals_per_second * time_until_affordable)
-                available_resources.vespene += math.ceil(vespene_per_second * time_until_affordable)
-                if simulated_time > queue_if_no_supply_before_time:
-                    # plenty of time to build a depot before supply runs out, so don't queue one yet
-                    return
+        
+        # exclude started units and upgrades because they're already paid for
+        started = [s for s in self.started if isinstance(s, SCVBuildStep)]
+        all_steps = started + self.interrupted_queue + self.priority_queue + self.static_queue + self.build_queue
+        additional_depot_count = 0
+        for step in all_steps:
+            if not (isinstance(step, SCVBuildStep) and step.unit_being_built):
+                available_resources -= step.cost
+                # calculate when step can be paid for if there is a shortage of minerals or gas
+                time_until_affordable = 0
+                if available_resources.minerals < 0:
+                    if minerals_per_second <= 0:
+                        break
+                    time_until_affordable = -available_resources.minerals / minerals_per_second
+                if available_resources.vespene < 0:
+                    if vespene_per_second <= 0:
+                        break
+                    time_until_affordable = max(time_until_affordable, -available_resources.vespene / vespene_per_second)
+                if time_until_affordable > 0:
+                    simulated_time += time_until_affordable
+                    available_resources.minerals += math.ceil(minerals_per_second * time_until_affordable)
+                    available_resources.vespene += math.ceil(vespene_per_second * time_until_affordable)
+                    if simulated_time > queue_if_no_supply_before_time:
+                        # far enough in the future that we don't need to queue a depot now for this step
+                        break
 
-            if step.get_unit_type_id() in {UnitTypeId.SUPPLYDEPOT, UnitTypeId.COMMANDCENTER}:
-                supply_amount = 8 if step.get_unit_type_id() == UnitTypeId.SUPPLYDEPOT else 15
-                available_supply += supply_amount
+            if isinstance(step, SCVBuildStep):
+                if step.unit_being_built:
+                    if step.is_unit_type(UnitTypeId.SUPPLYDEPOT):
+                        additional_depot_count += 1
+                        available_supply += 8 # * step.unit_being_built.build_progress
+                    elif step.is_unit_type(UnitTypeId.COMMANDCENTER) and step.unit_being_built.build_progress > 0.7:
+                        available_supply += 15
                 # additional_supply.append((simulated_time + depot_build_time, supply_amount))
-            else:
+            elif isinstance(step, StructureBuildStep):
                 available_supply -= step.supply_cost
-                if available_supply <= 0:
-                    # will run out of supply here, check if we need to build a depot immediately
-                    # if simulated_time <= queue_if_no_supply_before_time:
-                    self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT], queue=self.priority_queue, position=0)
-                    return
-
-        # in_static_queue = self.get_queued_count(UnitTypeId.SUPPLYDEPOT, queue=self.static_queue) > 0
-        # if 0 < self.bot.supply_cap < 200 and not in_static_queue:
-        #     in_progress_count = self.get_in_progress_count(UnitTypeId.SUPPLYDEPOT)
-        #     in_progress_ccs = self.bot.townhalls.filter(lambda cc: not cc.is_ready)
-        #     for cc in in_progress_ccs:
-        #         # a complete cc is worth 2 depots so multiply progress by 2
-        #         in_progress_count += (cc.build_progress + 0.15) * 2
-        #     in_progress_count = math.floor(in_progress_count)
-            
-        #     supply_percent_remaining = self.bot.supply_left / self.bot.supply_cap
-        #     if self.bot.supply_left < 10 or supply_percent_remaining <= 0.2:
-        #         needed_count = 1
-        #         # queue another if supply is very low
-        #         if (self.bot.supply_left < 2 or supply_percent_remaining <= 0.1):
-        #             needed_count += 1
-        #         if (self.bot.supply_left == 0):
-        #             needed_count += 1
-        #         if in_progress_count < needed_count:
-        #             self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT] * (needed_count - in_progress_count), queue=self.priority_queue)
+        if available_supply < 0:
+            additional_depot_count += math.ceil(-available_supply / 8)
+            # will run out of supply here, check if we need to build a depot immediately
+            # if simulated_time <= queue_if_no_supply_before_time:
+            self.add_to_build_queue([UnitTypeId.SUPPLYDEPOT] * additional_depot_count, queue=self.priority_queue, position=0)
+            return
 
     def get_in_progress_count(self, unit_type: UnitTypeId | UpgradeId) -> int:
         count = 0
@@ -1161,8 +1143,8 @@ class BuildOrder():
                     LogHelper.add_log(f"skipping {build_step} due to insufficient resources")
                     continue
                 if remaining_resources.vespene < 0:
-                    # don't reserve minerals for missing gas
-                    remaining_resources.minerals -= remaining_resources.vespene
+                    # don't reserve minerals for steps that are short on gas
+                    remaining_resources.minerals += build_step.cost.minerals
                 build_response = BuildResponseCode.NO_RESOURCES
                 if isinstance(build_step, SCVBuildStep):
                     if (build_step.is_unit_type(UnitTypeId.BARRACKS)
