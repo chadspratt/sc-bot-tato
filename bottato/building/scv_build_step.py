@@ -581,11 +581,13 @@ class SCVBuildStep(BuildStep):
                     # accept defeat, is ok to do it sometimes
                     new_build_position = None
             if new_build_position:
+                new_build_radius = BUILDING_RADIUS[unit_type_id]
                 for tag, destination in flying_building_destinations.items():
                     flying_building = self.bot.structures.find_by_tag(tag)
                     if not flying_building:
                         continue
-                    if min(abs(new_build_position.x - destination.x), abs(new_build_position.y - destination.y)) < BUILDING_RADIUS[flying_building.type_id]:
+                    flying_building_radius = BUILDING_RADIUS[flying_building.type_id]
+                    if min(abs(new_build_position.x - destination.x), abs(new_build_position.y - destination.y)) < new_build_radius + flying_building_radius:
                         new_build_position = None
                         break
             if new_build_position is None:
