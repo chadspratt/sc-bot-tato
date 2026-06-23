@@ -334,14 +334,16 @@ class Production():
         # XXX add hardcoded answers for sets with more than one entry
         return list(self.get_builder_type(unit_type_id))[0]
 
-    def get_build_capacity(self, builder_type: UnitTypeId, tech_lab_required: bool = False) -> int:
+    def get_build_capacity(self, builder_type: UnitTypeId, tech_lab_required: bool = False, tech_lab_excluded: bool = False) -> int:
         capacity = 0
         if tech_lab_required:
             for facility in self.facilities[builder_type][UnitTypeId.TECHLAB]:
                 capacity += facility.get_available_capacity()
         else:
-            for addon_type in self.facilities[builder_type].values():
-                for facility in addon_type:
+            for addon_type, addon_facilities in self.facilities[builder_type].items():
+                if tech_lab_excluded and addon_type == UnitTypeId.TECHLAB:
+                    continue
+                for facility in addon_facilities:
                     capacity += facility.get_available_capacity()
         return capacity
     

@@ -113,7 +113,8 @@ class BuildOrder():
 
         self.queue_command_center(self.intel, detected_enemy_builds)
         self.queue_upgrade()
-        self.queue_marines(detected_enemy_builds, self.intel.army_ratio)
+        self.only_build_units = self.bot.supply_left > 6 and 0.0 < self.intel.army_ratio < 0.6
+        self.queue_marines(detected_enemy_builds, self.intel.army_ratio, self.only_build_units)
         if len(self.static_queue) < 10 or self.bot.time > 240:
             self.queue_turret(self.intel)
             await self.queue_bunker(self.intel.main_army_staging_location)
@@ -128,7 +129,6 @@ class BuildOrder():
             self.add_to_build_queue(priority_military_queue, queue=self.build_queue)
             self.add_to_build_queue(military_queue, queue=self.build_queue)
 
-            self.only_build_units = self.bot.supply_left > 6 and 0.0 < self.intel.army_ratio < 0.6
             if self.only_build_units:
                 capacity_available = self.production.can_build_any(military_queue)
                 if not capacity_available:
@@ -749,7 +749,7 @@ class BuildOrder():
         self.add_to_build_queue(extra_production, position=0, queue=self.static_queue) # type: ignore
 
     @timed
-    def queue_marines(self, detected_enemy_builds: Dict[BuildType, float], army_ratio: float) -> None:
+    def queue_marines(self, detected_enemy_builds: Dict[BuildType, float], army_ratio: float, only_build_units: bool) -> None:
         defending_rush = self.tactics.is_active(Tactic.RUSH_DEFENSE)
         if self.tactics.is_active(Tactic.PROXY_BARRACKS):
             # if enemy expands early, prioritize marines to punish
@@ -775,6 +775,12 @@ class BuildOrder():
                 self.add_to_build_queue([UnitTypeId.MARINE] * idle_capacity, queue=self.static_queue)
             elif self.get_in_progress_count(UnitTypeId.BARRACKS) + self.get_in_progress_count(UnitTypeId.BARRACKSREACTOR) < 3:
                 self.add_to_build_queue([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSREACTOR], queue=self.static_queue)
+        elif only_build_units and self.bot.minerals > 200 and self.bot.supply_left > 5:
+            idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS, tech_lab_excluded=True)
+            priority_queue_count = self.get_queued_count(UnitTypeId.MARINE, self.priority_queue)
+            if idle_capacity > 0 and priority_queue_count == 0:
+                self.add_to_build_queue([UnitTypeId.MARINE] * idle_capacity, queue=self.static_queue)
+
 
     @timed
     def queue_medivacs(self) -> None:
