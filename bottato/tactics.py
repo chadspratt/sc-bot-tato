@@ -79,9 +79,8 @@ class Tactics:
                         new_value = True
                     elif self.last_values[tactic] and self.proxy_barracks:
                         # keep it going if it's working
-                        new_value = self.bot.enemy_units([UnitTypeId.HELLION]).amount == 0 \
-                            and (self.bot.time < 240 and self.intel.army_ratio > 1.1
-                                 or self.intel.army_ratio > 3)
+                        required_ratio = 1.1 if self.bot.time < 240 else 3
+                        new_value = self.intel.army_ratio >= required_ratio
         elif tactic == Tactic.RUSH_DEFENSE:
             new_value = (
                 self.bot.time < 240
@@ -121,7 +120,7 @@ class Tactics:
     # units that hard-counter early marines in small numbers
     MARINE_COUNTER_TYPES = {
         UnitTypeId.STALKER,
-        UnitTypeId.MARAUDER, UnitTypeId.SIEGETANK, UnitTypeId.CYCLONE,
+        UnitTypeId.MARAUDER, UnitTypeId.SIEGETANK, UnitTypeId.CYCLONE, UnitTypeId.HELLION,
         UnitTypeId.ROACH, UnitTypeId.HYDRALISK,
     }
 

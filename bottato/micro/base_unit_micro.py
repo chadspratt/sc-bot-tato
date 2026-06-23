@@ -636,7 +636,7 @@ class BaseUnitMicro(GeometryMixin):
         targets.sort(key=lambda t: t.health + t.shield)
         bonus_distance = 0.0 if can_attack else 3.0
         target: Unit | None = self._get_attack_target(unit, targets, bonus_distance, require_in_range_target=can_attack)
-        should_retreat = threats_to_avoid or workers_to_avoid
+        should_retreat = threats_to_avoid.amount > 0 or workers_to_avoid.amount > 0
         if target is None and can_attack and not should_retreat:
             target = self._get_attack_target(unit, targets, 7.0)
 
@@ -696,9 +696,10 @@ class BaseUnitMicro(GeometryMixin):
         # avoid low health zerg structures that spawn broodlings
         return (not unit.is_flying
                 and target.is_structure
+                and target.is_visible
                 and target.race == Race.Zerg
                 and target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS
-                and target.health < 150)
+                and target.health < 800)
     
     def _attack(self, unit: Unit, target: Unit) -> bool:
         if target.type_id == UnitTypeId.INTERCEPTOR:

@@ -343,18 +343,16 @@ class BuildOrder():
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], queue=self.static_queue)
             self.add_to_build_queue([UnitTypeId.BANSHEE], queue=self.static_queue, remove_duplicates=False)
         elif change == BuildOrderChange.PROXY_BARRACKS:
-            if self.intel.enemy_race == Race.Zerg:
-                # don't try this vs zerg, too likely to get swarmed by lings
-                return
-            self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue, position=0)
-            if self.bot.structures(UnitTypeId.BARRACKS).amount == 0:
-                # move second if first hasn't started yet
+            if self.tactics.is_active(Tactic.PROXY_BARRACKS):
                 self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue, position=0)
-            # will have a lot of injured marines
-            self.add_to_build_queue([UnitTypeId.MEDIVAC], queue=self.priority_queue)
-            self.remove_step_from_queue(UnitTypeId.REAPER, self.static_queue)
-            self.remove_step_from_queue(UnitTypeId.REAPER, self.priority_queue)
-            self.remove_step_from_queue(UnitTypeId.BUNKER, self.priority_queue, remove_all=True)
+                if self.bot.structures(UnitTypeId.BARRACKS).amount == 0:
+                    # move second if first hasn't started yet
+                    self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue, position=0)
+                # will have a lot of injured marines
+                self.add_to_build_queue([UnitTypeId.MEDIVAC], queue=self.priority_queue)
+                self.remove_step_from_queue(UnitTypeId.REAPER, self.static_queue)
+                self.remove_step_from_queue(UnitTypeId.REAPER, self.priority_queue)
+                self.remove_step_from_queue(UnitTypeId.BUNKER, self.priority_queue, remove_all=True)
         elif change == BuildOrderChange.ZERG_NO_RUSH:
             # no zergling rush incoming, replace widowmine with siege tank
             self.remove_step_from_queue(UnitTypeId.FACTORYTECHLAB, self.static_queue)

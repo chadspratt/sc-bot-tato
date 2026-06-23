@@ -190,10 +190,8 @@ class SCVBuildStep(BuildStep):
                         return BuildResponseCode.NO_LOCATION
                     self.position = self.geysir.position
             else:
-                # try to reset position to highground if it was set to low before rush was detected
-                # if self.unit_type_id == UnitTypeId.BUNKER and BuildType.RUSH in detected_enemy_builds and self.unit_being_built is None:
-                #     self.position = None
-                if self.position is None or (self.start_time != 0 and self.bot.time - self.start_time > 3 and self.bot.minerals >= self.cost.minerals and self.bot.vespene >= self.cost.vespene):
+                find_new_position = self.position is None or self.is_proxy_barracks() or self.build_not_starting()
+                if find_new_position:
                     self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds, floating_building_destinations)
 
         if self.position is None:
@@ -349,9 +347,7 @@ class SCVBuildStep(BuildStep):
 
                 # build at nearest occupied expansion
                 nearest_occupied_expansion = cy_closest_to(new_build_position, self.bot.townhalls) if self.bot.townhalls else None
-                if nearest_occupied_expansion is None:
-                    new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
-                else:
+                if nearest_occupied_expansion:
                     nearest_occupied_position = nearest_occupied_expansion.position
                     # check along three vectors, one directly toward new_build_position and two that are angled away from it
                     candidates = [nearest_occupied_position, nearest_occupied_position, nearest_occupied_position]
@@ -361,14 +357,25 @@ class SCVBuildStep(BuildStep):
                     vector = (new_build_position - nearest_occupied_position).normalized
                     perpendicular_vector = Point2((-vector.y, vector.x))
 
-                    candidate = candidates[0]
+                    closest_candidate = candidates[0]
+                    closest_distance = cy_distance_to_squared(closest_candidate, new_build_position)
                     start_terrain_height = self.bot.get_terrain_height(nearest_occupied_position)
-                    while abs(self.bot.get_terrain_height(candidate) - start_terrain_height) <= 0.1:
-                        candidate = candidates[offset_index] + vector + perpendicular_vector * perpendicular_offsets[offset_index]
-                        candidates[offset_index] = candidate
-                        offset_index = (offset_index + 1) % 3
+                    unchecked_remain = True
+                    while unchecked_remain:
+                        unchecked_remain = False
+                        for i in range(3):
+                            candidate = candidates[i]
+                            distance = cy_distance_to_squared(candidate, new_build_position)
+                            if distance < closest_distance:
+                                closest_candidate = candidate
+                                closest_distance = distance
+                            if abs(self.bot.get_terrain_height(candidate) - start_terrain_height) <= 0.1:
+                                unchecked_remain = True
+                                candidate = candidates[i] + vector + perpendicular_vector * perpendicular_offsets[i]
+                                candidates[i] = candidate
+
                     # back up so it won't select a spot on other side of gap
-                    candidate = Point2(cy_towards(candidate, nearest_occupied_position, distance=2))
+                    candidate = Point2(cy_towards(closest_candidate, nearest_occupied_position, distance=2))
                     new_build_position = await self.bot.find_placement(
                         unit_type_id,
                         near=candidate,
@@ -378,6 +385,8 @@ class SCVBuildStep(BuildStep):
                     if new_build_position is None:
                         LogHelper.add_log(f"Could not find CC placement near natural high ground at {candidate}, trying generic placement")
                         new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
+                        if new_build_position is None:
+                            new_build_position = available_expansions[next_expansion_index]
                 # if self.attempted_expansion_positions[new_build_position] > 3:
                 #     # build it wherever and fly it there later
                 #     LogHelper.add_log(f"Too many attempts to build cc at {new_build_position}, finding generic placement")
@@ -477,7 +486,7 @@ class SCVBuildStep(BuildStep):
         #     if new_build_position is None:
         #         new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
         #     LogHelper.add_log(f"Worker rush barracks position: {new_build_position}")
-        elif unit_type_id == UnitTypeId.BARRACKS and self.tactics.is_active(Tactic.PROXY_BARRACKS) and self.bot.structures(UnitTypeId.BARRACKS).amount < 2 and self.bot.time < 180:
+        elif self.is_proxy_barracks():
             proxy_base_index = 2
             if detected_enemy_builds[BuildType.EARLY_EXPANSION] < 50:
                 # very fast expansion, they might go for a fast third and discover the proxy so use 4th instead
@@ -504,6 +513,15 @@ class SCVBuildStep(BuildStep):
                             self.attempted_expansion_positions[build_pos] += 1
                             break
         return new_build_position
+    
+    def is_proxy_barracks(self) -> bool:
+        return self.unit_type_id == UnitTypeId.BARRACKS \
+            and self.tactics.is_active(Tactic.PROXY_BARRACKS) \
+            and self.bot.structures(UnitTypeId.BARRACKS).amount < 2 \
+            and self.bot.time < 180
+    
+    def build_not_starting(self) -> bool:
+        return self.start_time != 0 and self.bot.time - self.start_time > 3 and self.bot.minerals >= self.cost.minerals + 10 and self.bot.vespene >= self.cost.vespene + 10
     
     async def find_generic_placement(self, unit_type_id: UnitTypeId, special_locations: SpecialLocations, flying_building_destinations: Dict[int, Point2]) -> Point2 | None:
         logger.debug(f"finding placement for {unit_type_id}")
@@ -532,8 +550,8 @@ class SCVBuildStep(BuildStep):
             UnitTypeId.FUSIONCORE,
             UnitTypeId.ARMORY,
         )
-        go_away_from_map_center = unit_type_id in UnitTypes.TECH_STRUCTURE_TYPES
-        distance_towards_map_center = -10 if go_away_from_map_center else 8
+        build_away_from_map_center = unit_type_id in UnitTypes.TECH_STRUCTURE_TYPES
+        distance_towards_map_center = -10 if build_away_from_map_center else 8
         map_center = self.bot.game_info.map_center
         max_distance = 20
         retry_count = 0
@@ -594,6 +612,7 @@ class SCVBuildStep(BuildStep):
                 max_distance += 1
                 retry_count += 1
                 if retry_count > 25:
+                    LogHelper.add_log(f"Could not find placement for {unit_type_id} after {retry_count} retries, giving up")
                     # give up
                     break
         return new_build_position
