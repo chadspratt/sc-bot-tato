@@ -42,8 +42,8 @@ class MedivacDropSquad(HarassSquad):
     """Medivac drop harass: sneaks marines into enemy base via map edge."""
 
     MARINES_PER_DROP = 8
-    # 8 marines x1 supply + 1 medivac x2 supply = 10
-    DROP_SUPPLY = 10
+    # 8 marines x1 supply
+    DROP_SUPPLY = 8
     MARINE_ATTACK_RANGE = 5.0
 
     def __init__(self, bot: BotAI, name: str, tactics: Tactics):
@@ -155,7 +155,19 @@ class MedivacDropSquad(HarassSquad):
     def _nearby_enemy_military_supply(self, pos: Point2, radius: float = 15.0) -> float:
         total = 0.0
         for unit in self.bot.enemy_units:
-            if unit.distance_to(pos) < radius and not UnitTypes.is_worker(unit.type_id):
+            if unit.distance_to(pos) < radius and not UnitTypes.is_worker(unit):
+                unit_info = UnitTypes.get_unit_info(unit.type_id)
+                total += unit_info["supply"]
+        # don't drop on a pf
+        for structure in self.bot.enemy_structures.of_type(UnitTypeId.PLANETARYFORTRESS):
+            if structure.distance_to(pos) < radius:
+                total += 15  # planetary fortress supply
+        return total
+
+    def _nearby_friendly_military_supply(self, pos: Point2, radius: float = 15.0) -> float:
+        total = 0.0
+        for unit in self.bot.units:
+            if unit.distance_to(pos) < radius and not UnitTypes.is_worker(unit):
                 unit_info = UnitTypes.get_unit_info(unit.type_id)
                 total += unit_info["supply"]
         # don't drop on a pf
@@ -310,8 +322,9 @@ class MedivacDropSquad(HarassSquad):
         await self.medivac_micro.harass(medivac, waypoint)
 
     def _is_safe_to_unload(self, medivac: Unit):
+        nearby_friendly_supply = self._nearby_friendly_military_supply(medivac.position, radius=15)
         enemy_supply = self._nearby_enemy_military_supply(medivac.position, radius=15)
-        return enemy_supply < self.DROP_SUPPLY
+        return enemy_supply < self.DROP_SUPPLY + nearby_friendly_supply
 
     async def _do_attacking(self, medivac: Unit):
         """Move toward enemy and unload when in marine attack range."""
@@ -379,6 +392,7 @@ class MedivacDropSquad(HarassSquad):
         nearby = self.bot.all_enemy_units.filter(
             lambda u: cy_distance_to_squared(u.position, medivac.position) < 400  # 20^2
                 and (not u.is_structure or u.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES)
+                and not UnitTypes.is_worker(u)
         )
         if not nearby:
             self.state = DropState.FOLLOWING_EDGE

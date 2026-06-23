@@ -166,7 +166,7 @@ class Workers(GeometryMixin):
                 lambda mf: self.closest_distance_squared(mf, self.bot.enemy_units) > MN.MULE_MIN_ENEMY_DISTANCE_SQ)
             if mineral_fields:
                 fullest_mineral_field: Unit = max(mineral_fields, key=lambda x: x.mineral_contents)
-                nearest_townhall: Unit = cy_closest_to(fullest_mineral_field.position, self.bot.townhalls)
+                nearest_townhall: Unit = cy_closest_to(fullest_mineral_field.position, self.bot.townhalls.ready)
                 orbital(AbilityId.CALLDOWNMULE_CALLDOWNMULE,
                         target=Point2(cy_towards(fullest_mineral_field.position, nearest_townhall.position, 1)),
                         queue=True)
@@ -205,7 +205,7 @@ class Workers(GeometryMixin):
 
     def sharpy_speed_mine(self, assignment: WorkerAssignment) -> None:
         worker = assignment.unit
-        townhall = cy_closest_to(worker.position, self.bot.townhalls)
+        townhall = cy_closest_to(worker.position, self.bot.townhalls.ready)
 
         if worker.is_returning and len(worker.orders) == 1:
             return_target: Point2 = townhall.position
@@ -320,7 +320,7 @@ class Workers(GeometryMixin):
             if len(worker.orders) == 1:
                 if assignment.dropoff_target is None:
                     # might be none ready if converting first cc to orbital
-                    dropoff_candidates: Units = self.bot.townhalls.ready or self.bot.townhalls
+                    dropoff_candidates: Units = self.bot.townhalls.ready
                     if dropoff_candidates:
                         assignment.dropoff_target = cy_closest_to(worker.position, dropoff_candidates)
                         min_distance = assignment.dropoff_target.radius + worker.radius
@@ -483,7 +483,7 @@ class Workers(GeometryMixin):
         if len(nearby_enemy_structures) > 0 or targetable_enemies(UnitTypes.WORKER_TYPES).amount <= 3:
             LogHelper.add_log(f"Defending base against {len(targetable_enemies)} nearby enemies")
             # — base / ramp defense —
-            for townhall in self.bot.townhalls:
+            for townhall in self.bot.townhalls.ready:
                 defender_tags.update(
                     self._select_position_defenders(
                         townhall, 18, assigned_defender_counts,
@@ -621,8 +621,8 @@ class Workers(GeometryMixin):
         for fighter in fighters:
             if fighter.is_carrying_resource:
                 # deliver resources before fighting so mineral walking will work
-                if self.bot.townhalls:
-                    fighter.smart(cy_closest_to(fighter.position, self.bot.townhalls))
+                if self.bot.townhalls.ready:
+                    fighter.smart(cy_closest_to(fighter.position, self.bot.townhalls.ready))
                 continue
             assignment = self.assignments_by_worker[fighter.tag]
             if assignment.job_type == WorkerJobType.BUILD:
@@ -1364,8 +1364,8 @@ class Workers(GeometryMixin):
         mineral = self._get_mineral_near_base()
         if mineral is not None:
             worker.gather(mineral)
-        elif self.bot.townhalls:
-            worker.move(cy_closest_to(worker.position, self.bot.townhalls).position)
+        elif self.bot.townhalls.ready:
+            worker.move(cy_closest_to(worker.position, self.bot.townhalls.ready).position)
         else:
             worker.move(self.bot.start_location)
 
@@ -1433,9 +1433,9 @@ class Workers(GeometryMixin):
             if assignment.on_attack_break and worker.tag not in defender_tags:
                 assignment.on_attack_break = False
                 if assignment.target:
-                    if assignment.unit.is_carrying_resource and self.bot.townhalls:
+                    if assignment.unit.is_carrying_resource and self.bot.townhalls.ready:
                         assignment.unit.smart(
-                            cy_closest_to(assignment.unit.position, self.bot.townhalls)
+                            cy_closest_to(assignment.unit.position, self.bot.townhalls.ready)
                         )
                     else:
                         assignment.unit.smart(assignment.target)
@@ -1499,8 +1499,8 @@ class Workers(GeometryMixin):
             elif assignment.job_type == WorkerJobType.VESPENE:
                 if self.vespene.add_worker_to_node(worker, new_target):
                     assignment.gather_position = new_target.position
-                    if worker.is_carrying_resource and self.bot.townhalls:
-                        worker.smart(cy_closest_to(worker.position, self.bot.townhalls))
+                    if worker.is_carrying_resource and self.bot.townhalls.ready:
+                        worker.smart(cy_closest_to(worker.position, self.bot.townhalls.ready))
                     else:
                         worker.smart(new_target)
                 else:
@@ -1510,8 +1510,8 @@ class Workers(GeometryMixin):
                     assignment.gather_position = self.minerals.nodes_by_tag[new_target.tag].mining_position
                     assignment.dropoff_target = None
                     assignment.dropoff_position = None
-                    if worker.is_carrying_resource and self.bot.townhalls:
-                        worker.smart(cy_closest_to(worker.position, self.bot.townhalls))
+                    if worker.is_carrying_resource and self.bot.townhalls.ready:
+                        worker.smart(cy_closest_to(worker.position, self.bot.townhalls.ready))
                     else:
                         worker.gather(new_target)
                 else:
@@ -1540,8 +1540,8 @@ class Workers(GeometryMixin):
                 assignment.gather_position = self.minerals.nodes_by_tag[new_target.tag].mining_position
                 assignment.dropoff_target = None
                 assignment.dropoff_position = None
-                if worker.is_carrying_resource and self.bot.townhalls:
-                    worker.smart(cy_closest_to(worker.position, self.bot.townhalls))
+                if worker.is_carrying_resource and self.bot.townhalls.ready:
+                    worker.smart(cy_closest_to(worker.position, self.bot.townhalls.ready))
                 else:
                     worker.smart(new_target)
             elif assignment.job_type == WorkerJobType.VESPENE:
@@ -1550,8 +1550,8 @@ class Workers(GeometryMixin):
                     # No capacity available, keep worker idle
                     logger.warning(f"No vespene capacity for worker {worker}, keeping idle")
                     return False
-                if worker.is_carrying_resource and self.bot.townhalls:
-                    worker.smart(cy_closest_to(worker.position, self.bot.townhalls))
+                if worker.is_carrying_resource and self.bot.townhalls.ready:
+                    worker.smart(cy_closest_to(worker.position, self.bot.townhalls.ready))
                 else:
                     worker.smart(new_target)
             elif assignment.job_type == WorkerJobType.BUILD:

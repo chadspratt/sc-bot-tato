@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from loguru import logger
+from typing import Dict
 
 from cython_extensions.geometry import (
     cy_distance_to,
@@ -86,7 +87,7 @@ class Commander(GeometryMixin):
         await self.scout() # fast
 
         # XXX slow, 17% of command time
-        remaining_resources: Cost = await self.build_order.execute(self.structure_micro.destinations)
+        remaining_resources: Cost = await self.build_order.execute(self.structure_micro.get_building_destinations())
 
 
         self.add_custom_effects_to_avoid()
@@ -150,6 +151,7 @@ class Commander(GeometryMixin):
     async def detect_stuck_units(self, iteration: int):
         if self.tactics.intel.main_army_staging_location and cy_distance_to_squared(self.tactics.intel.main_army_staging_location, self.bot.start_location) < 225:
             # if staging location is too close to start location, don't check for stuck units because they're probably already near start
+            self.stuck_units.clear()
             return
         if iteration % 3 == 0:
             self.stuck_units.clear()

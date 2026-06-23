@@ -184,15 +184,22 @@ class BuildOrder():
                 self.priority_queue.append(step)
         for structure in self.bot.structures_without_construction_SCVs:
             if structure.health_percentage > 0.05:
+                first_blank_match: BuildStep | None = None
                 for step in self.all_steps:
                     if not isinstance(step, SCVBuildStep):
                         continue
                     if step.is_same_structure(structure):
                         break
+                    if step.unit_type_id == structure.type_id and step.position is None:
+                        first_blank_match = step
                 else:
-                    # the build step got lost, re-add it
-                    build_step = self.create_build_step(structure.type_id, structure)
-                    self.interrupted_queue.insert(0, build_step)
+                    if first_blank_match:
+                        first_blank_match.set_position(structure.position)
+                        first_blank_match.unit_being_built = structure
+                    else:
+                        # the build step got lost, re-add it
+                        build_step = self.create_build_step(structure.type_id, structure)
+                        self.interrupted_queue.insert(0, build_step)
 
     def enact_build_changes(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
         if self.bot.time < self.time_to_deviate_from_build_order:
@@ -720,25 +727,23 @@ class BuildOrder():
         if not self.bot.structures(UnitTypeId.STARPORT):
             return
         # add more barracks/factories/starports to handle backlog of pending affordable units
-        production_items: List[UnitTypeId] = []
-        available_resources: Cost = Cost(self.bot.minerals, self.bot.vespene)
+        production_items: List[Tuple[UnitTypeId, Cost]] = []
+        remaining_resources: Cost = Cost(self.bot.minerals, self.bot.vespene)
 
         # find first shortage
         for build_step in self.priority_queue + self.static_queue + self.build_queue:
-            if only_build_units:
-                if not build_step.is_unit():
-                    continue
-            elif not build_step.is_unit() or build_step.get_unit_type_id() == UnitTypeId.SCV:
-                # subtract cost of items that aren't limited by barracks/factory/starport capacity
-                available_resources.minerals -= build_step.cost.minerals
-                available_resources.vespene -= build_step.cost.vespene
-                if available_resources.minerals < 0 or available_resources.vespene < 0:
-                    break
-            else:
-                # accumulate production items. will only be relevant if there are still available_resources
-                production_items.append(build_step.get_unit_type_id())
+            if only_build_units and not build_step.is_unit():
+                continue
 
-        extra_production: List[UnitTypeId] = self.production.additional_needed_production(production_items, available_resources)
+            if build_step.is_unit():
+                production_items.append((build_step.get_unit_type_id(), build_step.cost))
+
+            remaining_resources.minerals -= build_step.cost.minerals
+            remaining_resources.vespene -= build_step.cost.vespene
+            if remaining_resources.minerals < 0 or remaining_resources.vespene < 0:
+                break
+
+        extra_production: List[UnitTypeId] = self.production.additional_needed_production(production_items, remaining_resources)
         # only add if not already in progress
         extra_production = self.remove_in_progress_from_list(extra_production) # type: ignore
         self.add_to_build_queue(extra_production, position=0, queue=self.static_queue) # type: ignore

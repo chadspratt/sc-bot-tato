@@ -1,8 +1,12 @@
 from loguru import logger
 from typing import Dict
 
-from cython_extensions.geometry import cy_distance_to, cy_towards
-from cython_extensions.units_utils import cy_center, cy_closer_than
+from cython_extensions.geometry import (
+    cy_distance_to,
+    cy_distance_to_squared,
+    cy_towards,
+)
+from cython_extensions.units_utils import cy_center, cy_closer_than, cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -33,18 +37,22 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         self.building_in_position_times: Dict[int, float | None] = {}
         self.last_scan_time: float = 0
         self.last_lift_for_unstuck: Dict[int, float] = {}
-        self.destinations: Dict[int, Point2] = {}
+
 
     @timed_async
     async def execute(self, army_ratio: float, stuck_units: Units, iteration: int):
         # logger.debug("adjust_supply_depots_for_enemies step")
         self.adjust_supply_depots_for_enemies()
-        await self.target_autoturrets()
+        await self.attack_with_structures()
         await self.move_command_centers(iteration)
         await self.move_ramp_barracks(army_ratio)
         await self.move_proxy_barracks()
         self.scan()
         await self.untrap_stuck_units(stuck_units)
+        await self.move_production_facilities()
+
+    def get_building_destinations(self) -> Dict[int, Point2]:
+        return {tag: dest for tag, dest in self.building_destinations.items() if dest is not None}
 
     @timed
     def adjust_supply_depots_for_enemies(self):
@@ -83,9 +91,9 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)
 
     @timed_async
-    async def target_autoturrets(self):
-        turret: Unit
-        for turret in self.bot.structures(UnitTypeId.AUTOTURRET):
+    async def attack_with_structures(self):
+        turrets = self.bot.structures({UnitTypeId.AUTOTURRET, UnitTypeId.BUNKER, UnitTypeId.PLANETARYFORTRESS}).ready
+        for turret in turrets:
             logger.debug(f"turret {turret} attacking")
             await self._attack_something(turret, 0, move_position=turret.position)
 
@@ -194,6 +202,40 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                             LogHelper.add_log(f"Lifting {cc} to move to safety")
                             cc(AbilityId.LIFT)
 
+    async def move_production_facilities(self):
+        flying_facilities = self.bot.structures((UnitTypeId.BARRACKSFLYING, UnitTypeId.FACTORYFLYING, UnitTypeId.STARPORTFLYING))
+        landed_facilties = self.bot.structures((UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT)).ready
+        no_addon_facilities = landed_facilties.filter(lambda f: not f.has_add_on)
+        unclaimed_addons = self.bot.structures((UnitTypeId.REACTOR, UnitTypeId.TECHLAB))
+        for unclaimed_addon in unclaimed_addons:
+            if flying_facilities:
+                nearest_facility = cy_closest_to(unclaimed_addon.add_on_land_position, flying_facilities)
+                distance = cy_distance_to_squared(nearest_facility.position, unclaimed_addon.add_on_land_position)
+                if distance < 400:
+                    self.building_destinations[nearest_facility.tag] = unclaimed_addon.add_on_land_position
+                    await self.move_structure(nearest_facility)
+                    flying_facilities.remove(nearest_facility)
+            elif no_addon_facilities:
+                nearest_facility = cy_closest_to(unclaimed_addon.add_on_land_position, no_addon_facilities)
+                distance = cy_distance_to_squared(nearest_facility.position, unclaimed_addon.add_on_land_position)
+                if distance < 400:
+                    self.building_destinations[nearest_facility.tag] = unclaimed_addon.add_on_land_position
+                    await self.move_structure(nearest_facility)
+                    no_addon_facilities.remove(nearest_facility)
+            else:
+                break
+        for facility in flying_facilities:
+            await self.move_structure(facility)
+
+        for facility in landed_facilties:
+            if facility.health_percentage < 0.8 and self.bot.enemy_units:
+                if len(facility.orders) > 0 and facility.orders[0].progress > 0.7:
+                    continue  # don't lift if building is almost done
+                LogHelper.add_log(f"Health low on {facility}, checking for nearby threats before moving")
+                threats = self.enemy.threats_to_friendly_unit(facility, attack_range_buffer=2)
+                if threats:
+                    await self.move_structure(facility)            
+
     @timed_async
     async def move_ramp_barracks(self, army_ratio: float):
         if self.bot.structures(UnitTypeId.BARRACKSREACTOR):
@@ -204,6 +246,10 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         if len(barracks) == 0:
             return
         ramp_barracks = barracks[0]
+
+        if ramp_barracks.tag in self.last_lift_for_unstuck:
+            # barracks was lifted to free units, handled elsewhere
+            return
 
         desired_position = self.building_destinations.get(ramp_barracks.tag)
         if desired_position is None:
@@ -234,6 +280,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     self.tactics.proxy_barracks = None
 
     async def move_structure(self, structure: Unit) -> bool:
+        if structure.tag in self.bot.unit_tags_received_action:
+            return False
         destination = self.building_destinations.get(structure.tag)
         if destination is None:
             destination = await self.get_unit_placement(structure)
@@ -245,13 +293,31 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         if distance > 1:
             if structure.is_flying:
                 # structure.move(destination)
-                await self.move(structure, destination, force_move=True)
+                await self.scout(structure, destination)
                 LogHelper.add_log(f"moving {structure.type_id} to {destination}")
+                if distance < 5:
+                    # clear the landing zone
+                    BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
+                                                    CustomEffectTargetArea.GROUND,
+                                                    structure.position, structure.radius,
+                                                    self.bot.time, 0.5)
             else:
-                structure(AbilityId.LIFT)
-                LogHelper.add_log(f"lifting {structure.type_id} to move to {destination}")
+                if len(structure.orders) > 0 and structure.orders[0].ability.id == AbilityId.COMMANDCENTERTRAIN_SCV:
+                    LogHelper.add_log(f"Cancelling unit training to lift {structure}")
+                    structure(AbilityId.CANCEL_LAST)
+                elif len(structure.orders) > 0 and structure.orders[0].ability.id in (AbilityId.UPGRADETOORBITAL_ORBITALCOMMAND,
+                                                                        AbilityId.UPGRADETOPLANETARYFORTRESS_PLANETARYFORTRESS):
+                    LogHelper.add_log(f"Cancelling structure upgrade to lift {structure}")
+                    structure(AbilityId.CANCEL)
+                else:
+                    LogHelper.add_log(f"Lifting {structure} to move to safety")
+                    structure(AbilityId.LIFT)
         else:
             if structure.is_flying:
+                BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
+                                                CustomEffectTargetArea.GROUND,
+                                                structure.position, structure.radius,
+                                                self.bot.time, 0.5)
                 in_position_time = self.building_in_position_times.get(structure.tag)
                 if in_position_time is None:
                     self.building_in_position_times[structure.tag] = self.bot.time
@@ -263,10 +329,6 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     if new_destination:
                         await self.move(structure, destination, force_move=True)
                 else:
-                    BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
-                                                    CustomEffectTargetArea.GROUND,
-                                                    structure.position, structure.radius,
-                                                    self.bot.time, 0.5)
                     structure(AbilityId.LAND, destination)
             else:
                 # landed in position
@@ -298,21 +360,26 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             UnitTypeId.STARPORTFLYING
         ]).ready
         
+        raised_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready
         for structure in liftable_structures:
             if structure.tag in self.last_lift_for_unstuck:
                 time_since_last_lift = self.bot.time - self.last_lift_for_unstuck[structure.tag]
                 if time_since_last_lift < 2:
                     continue  # recently lifted, skip
                 if structure.is_flying:
-                    structure(AbilityId.LAND, self.destinations[structure.tag])
+                    await self.move_structure(structure)
+                    # structure(AbilityId.LAND, self.building_destinations[structure.tag])
                 else:
                     del self.last_lift_for_unstuck[structure.tag]
-                    if structure.tag in self.destinations:
-                        del self.destinations[structure.tag]
+                    if structure.tag in self.building_destinations:
+                        del self.building_destinations[structure.tag]
             # Check if any stuck unit is touching this structure
             if not structure.is_flying:
                 # Don't lift if currently building something
                 if structure.orders:
+                    continue
+                if cy_closer_than(raised_depots, 3, structure.position):
+                    # Don't lift if a raised depot is nearby, as it indicates enemies are nearby
                     continue
                 for stuck_unit in stuck_units:
                     # Unit is touching if distance is less than sum of radii
@@ -321,14 +388,14 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                         LogHelper.write_log_to_db("debug", f"Lifting {structure} to untrap unit")
                         self.last_lift_for_unstuck[structure.tag] = self.bot.time
                         if structure.has_add_on:
-                            self.destinations[structure.tag] = structure.position
+                            self.building_destinations[structure.tag] = structure.position
                         else:
                             unit_type = structure.unit_alias if structure.unit_alias else structure.type_id
                             new_position = await self.bot.find_placement(unit_type, structure.position, placement_step=1, addon_place=True)
                             if new_position:
-                                self.destinations[structure.tag] = new_position
+                                self.building_destinations[structure.tag] = new_position
                             else:
-                                self.destinations[structure.tag] = structure.position
+                                self.building_destinations[structure.tag] = structure.position
                         structure(AbilityId.LIFT)
                         break
 

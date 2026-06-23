@@ -165,7 +165,10 @@ class BaseUnitMicro(GeometryMixin):
                 action_taken = await self._attack_something(unit, health_threshold=1.0, move_position=scouting_location)
         if action_taken == UnitMicroType.NONE:
             logger.debug(f"scout {unit} moving to updated assignment {scouting_location}")
-            unit.move(self.tactics.map.get_pathable_position(scouting_location, unit))
+            position = scouting_location
+            if not unit.is_structure:
+                position = self.tactics.map.get_pathable_position(scouting_location, unit)
+            unit.move(position)
             action_taken = UnitMicroType.MOVE
         return action_taken
 
@@ -334,6 +337,9 @@ class BaseUnitMicro(GeometryMixin):
         # attack best target in range or move towards best target if none in range
         if unit.tag in self.bot.unit_tags_received_action:
             return UnitMicroType.ATTACK
+        
+        if not UnitTypes.can_attack(unit):
+            return UnitMicroType.NONE
 
         # below retreat_health: do nothing
         if unit.health_percentage < self.retreat_health:
@@ -597,34 +603,35 @@ class BaseUnitMicro(GeometryMixin):
         workers_to_avoid = Units([], bot_object=self.bot)
         can_attack = unit.weapon_cooldown < self.time_in_frames_to_attack
 
-        # keep distance from zerg structures that spawn broodlings on death
-        if self.tactics.intel.enemy_race == Race.Zerg and not unit.is_flying:
-            for target in targets:
-                if not target.is_structure:
-                    continue
-                threat_distance = cy_distance_to(unit.position, target.position)
-                desired_distance = self._get_desired_attack_range(unit, target)
-                if threat_distance < desired_distance:
-                    threats_to_avoid.append(target)
+        if unit.movement_speed > 0:
+            # keep distance from zerg structures that spawn broodlings on death
+            if self.tactics.intel.enemy_race == Race.Zerg and not unit.is_flying:
+                for target in targets:
+                    if not target.is_structure:
+                        continue
+                    threat_distance = cy_distance_to(unit.position, target.position)
+                    desired_distance = self._get_desired_attack_range(unit, target)
+                    if threat_distance < desired_distance:
+                        threats_to_avoid.append(target)
 
-        threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3)
-        for threat in threats:
-            attack_range = UnitTypes.range_vs_target(unit, threat)
-            threat_range = UnitTypes.range_vs_target(threat, unit)
-            threat_distance = self.distance(unit, threat, self.tactics.enemy.predicted_positions)
+            threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3)
+            for threat in threats:
+                attack_range = UnitTypes.range_vs_target(unit, threat)
+                threat_range = UnitTypes.range_vs_target(threat, unit)
+                threat_distance = self.distance(unit, threat, self.tactics.enemy.predicted_positions)
 
-            # secure kills on units that are one-hit from death
-            if can_attack and threat_distance <= attack_range and threat.health + threat.shield <= unit.calculate_damage_vs_target(threat)[0]:
-                unit.attack(threat)
-                return UnitMicroType.ATTACK
+                # secure kills on units that are one-hit from death
+                if can_attack and threat_distance <= attack_range and threat.health + threat.shield <= unit.calculate_damage_vs_target(threat)[0]:
+                    unit.attack(threat)
+                    return UnitMicroType.ATTACK
 
-            if threat_range > 0:
-                desired_distance = self._get_desired_attack_range(unit, threat)
-                if threat_distance < desired_distance:
-                    if threat.type_id in UnitTypes.WORKER_TYPES:
-                        workers_to_avoid.append(threat)
-                    else:
-                        threats_to_avoid.append(threat)
+                if threat_range > 0:
+                    desired_distance = self._get_desired_attack_range(unit, threat)
+                    if threat_distance < desired_distance:
+                        if threat.type_id in UnitTypes.WORKER_TYPES:
+                            workers_to_avoid.append(threat)
+                        else:
+                            threats_to_avoid.append(threat)
 
         targets.sort(key=lambda t: t.health + t.shield)
         bonus_distance = 0.0 if can_attack else 3.0
@@ -686,10 +693,12 @@ class BaseUnitMicro(GeometryMixin):
         return desired_distance
     
     def is_structure_to_avoid(self, unit: Unit, target: Unit) -> bool:
+        # avoid low health zerg structures that spawn broodlings
         return (not unit.is_flying
                 and target.is_structure
+                and target.race == Race.Zerg
                 and target.type_id not in UnitTypes.ZERG_STRUCTURES_THAT_DONT_SPAWN_BROODLINGS
-                and target.health < 60)
+                and target.health < 150)
     
     def _attack(self, unit: Unit, target: Unit) -> bool:
         if target.type_id == UnitTypeId.INTERCEPTOR:
@@ -800,6 +809,8 @@ class BaseUnitMicro(GeometryMixin):
 
     @timed
     def _retreat_to_better_unit(self, unit: Unit, can_attack: bool) -> bool:
+        if unit.movement_speed == 0:
+            return False
         # retreat toward a unit that is better able to deal with whatever is threatening this unit.
         if not self.tactics.enemy.can_be_attacked(unit, self.tactics.enemy.get_recent_enemies()):
             return False

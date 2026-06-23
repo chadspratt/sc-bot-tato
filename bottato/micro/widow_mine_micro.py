@@ -10,12 +10,14 @@ from cython_extensions.geometry import (
 )
 from cython_extensions.units_utils import cy_closest_to
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
-from bottato.enums import UnitMicroType
+from bottato.enums import CustomEffectType, UnitMicroType
+from bottato.log_helper import LogHelper
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin, timed
 from bottato.unit_reference_helper import UnitReferenceHelper
@@ -40,6 +42,38 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
     last_special_position_update_time: float = 0.0
     health_on_burrow: Dict[int, float] = {}
 
+    EFFECTS_TO_UNSIEGE_FOR = {
+        EffectId.LIBERATORTARGETMORPHDELAYPERSISTENT,
+        EffectId.LIBERATORTARGETMORPHPERSISTENT,
+        EffectId.RAVAGERCORROSIVEBILECP
+    }
+    @timed
+    def _avoid_effects(self, unit: Unit, force_move: bool) -> UnitMicroType:
+        if unit.type_id != UnitTypeId.WIDOWMINEBURROWED:
+            return super()._avoid_effects(unit, force_move)
+        for effect in self.bot.state.effects:
+            # avoid liberators
+            if effect.id in self.EFFECTS_TO_UNSIEGE_FOR:
+                effect_radius = self.fixed_radius.get(effect.id, effect.radius)
+                safe_distance = (effect_radius + unit.radius + 1.5) ** 2
+                for position in effect.positions:
+                    if unit.position._distance_squared(position) < safe_distance:
+                        LogHelper.add_log(f"Unsieging {unit} to avoid liberator")
+                        self.unburrow(unit)
+                        return UnitMicroType.USE_ABILITY
+        for effect in BaseUnitMicro.custom_effects_to_avoid:
+            # don't block buildings
+            if effect.type == CustomEffectType.BUILDING_FOOTPRINT:
+                effect_radius = effect.radius
+                safe_distance = (effect_radius + unit.radius + 1.5) ** 2
+                if unit.distance_to_squared(effect.position) < safe_distance:
+                    targets = self.tactics.enemy.get_target_closer_than(unit, max_distance=11)
+                    if not targets:
+                        LogHelper.add_log(f"Unsieging {unit} to avoid building footprint")
+                        self.unburrow(unit)
+                        return UnitMicroType.USE_ABILITY
+        return UnitMicroType.NONE
+    
     @timed
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.is_transforming:

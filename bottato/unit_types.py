@@ -428,11 +428,11 @@ class UnitTypes(GeometryMixin):
     }
 
     @staticmethod
-    def is_worker(unit_type_id: UnitTypeId) -> bool:
+    def is_worker(unit: Unit) -> bool:
         """
         Check if a unit type ID is a worker.
         """
-        common_id = UNIT_UNIT_ALIAS.get(unit_type_id, unit_type_id)
+        common_id = UNIT_UNIT_ALIAS.get(unit.type_id, unit.type_id)
         return common_id in UnitTypes.WORKER_TYPES
 
     @staticmethod

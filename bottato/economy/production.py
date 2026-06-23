@@ -1,5 +1,5 @@
 from loguru import logger
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 
 from cython_extensions.geometry import cy_distance_to
 from cython_extensions.units_utils import cy_closer_than, cy_closest_to
@@ -89,9 +89,7 @@ class Facility():
                 UnitTypeId.STARPORTTECHLAB,
                 UnitTypeId.STARPORTREACTOR
             ))
-            if not closest_candidates:
-                self.addon_blocked = False
-            else:
+            if closest_candidates:
                 closest_structure_to_addon = cy_closest_to(updated_unit.add_on_position, closest_candidates)
                 self.addon_blocked = closest_structure_to_addon.radius > cy_distance_to(closest_structure_to_addon.position, updated_unit.add_on_position)
                 # not (await self.bot.can_place_single(UnitTypeId.SUPPLYDEPOT, updated_unit.add_on_position))
@@ -100,18 +98,18 @@ class Facility():
         is_ramp_barracks = updated_unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING) \
                     and self.bot.main_base_ramp.barracks_in_middle \
                     and cy_distance_to(updated_unit.position, self.bot.main_base_ramp.barracks_in_middle) < 3
-        if self.was_lifted_to_unblock_addon:
-            if not is_flying:
-                self.was_lifted_to_unblock_addon = False
-            if not is_ramp_barracks:
-                if self.new_position is None:
-                    unit_type = updated_unit.unit_alias if updated_unit.unit_alias else updated_unit.type_id
-                    self.new_position = await self.bot.find_placement(unit_type, updated_unit.position, placement_step=1, addon_place=True)
-                if self.new_position and updated_unit.position != self.new_position:
-                    updated_unit.move(self.new_position)
-                else:
-                    updated_unit(AbilityId.LAND, self.new_position)
-                    self.new_position = None
+        # if self.was_lifted_to_unblock_addon:
+        #     if not is_flying:
+        #         self.was_lifted_to_unblock_addon = False
+        #     if not is_ramp_barracks:
+        #         if self.new_position is None:
+        #             unit_type = updated_unit.unit_alias if updated_unit.unit_alias else updated_unit.type_id
+        #             self.new_position = await self.bot.find_placement(unit_type, updated_unit.position, placement_step=1, addon_place=True)
+        #         if self.new_position and updated_unit.position != self.new_position:
+        #             updated_unit.move(self.new_position)
+        #         else:
+        #             updated_unit(AbilityId.LAND, self.new_position)
+        #             self.new_position = None
 
         if self.addon_blocked and not is_ramp_barracks:
             logger.debug(f"addon blocked for {updated_unit}")
@@ -426,7 +424,7 @@ class Production():
         return max_readiness
 
     @timed
-    def additional_needed_production(self, unit_types: List[UnitTypeId], available_resources: Cost) -> List[UnitTypeId]:
+    def additional_needed_production(self, unit_types: List[Tuple[UnitTypeId, Cost]], remaining_resources: Cost) -> List[UnitTypeId]:
         production_capacity = {
             UnitTypeId.BARRACKS: {
                 "tech": 0,
@@ -450,10 +448,20 @@ class Production():
                 production_capacity[builder_type]["normal"] += facility.get_available_capacity()
 
         no_capacity_types: Dict[str, List[UnitTypeId]] = {"tech": [], "normal": []}
-        for unit_type in unit_types:
-            if available_resources.minerals < 0 or available_resources.vespene < 0:
+        i = 0
+        while i < len(unit_types):
+            unit_type, _ = unit_types[i]
+        # for unit_type in unit_types:
+            while (remaining_resources.minerals < 0 or remaining_resources.vespene < 0) and \
+                    i + 1 < len(unit_types):
+                # add cost of end of list items back to remaining
+                _, last_type_cost = unit_types.pop()
+                remaining_resources += last_type_cost
                 logger.debug("not enough resources to build additional tech lab")
                 break
+            i += 1
+            if unit_type in self.add_on_types:
+                continue
             builder_type = self.get_cheapest_builder_type(unit_type)
             if builder_type not in production_capacity.keys():
                 continue
@@ -464,7 +472,7 @@ class Production():
                 no_capacity_types[addon_type].append(unit_type)
             else:
                 production_capacity[builder_type][addon_type] -= 1
-                available_resources = self.subtract_costs(available_resources, [unit_type])
+                remaining_resources = self.subtract_costs(remaining_resources, [unit_type])
 
         upgraded_facility_tags = {
             UnitTypeId.BARRACKS: [],
@@ -473,7 +481,7 @@ class Production():
         }
         no_addon_facility_types: Set[UnitTypeId] = set()
         additional_production: List[UnitTypeId] = []
-        while available_resources.minerals > 0 and available_resources.vespene > 0 and (len(no_capacity_types["tech"]) > 0 or len(no_capacity_types["normal"]) > 0):
+        while remaining_resources.minerals > 0 and remaining_resources.vespene > 0 and (len(no_capacity_types["tech"]) > 0 or len(no_capacity_types["normal"]) > 0):
             prioritize_tech = len(no_capacity_types["tech"]) * 2 > len(no_capacity_types["normal"])
             next_unit_type: UnitTypeId = no_capacity_types["tech"].pop(0) if prioritize_tech else no_capacity_types["normal"].pop(0)
             builder_type = self.get_cheapest_builder_type(next_unit_type)
@@ -490,18 +498,18 @@ class Production():
             if no_addon_facility or builder_type in no_addon_facility_types:
                 if prioritize_tech:
                     additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.TECHLAB])
-                    available_resources = self.subtract_costs(available_resources, [UnitTypeId.TECHLAB])
+                    remaining_resources = self.subtract_costs(remaining_resources, [UnitTypeId.TECHLAB])
                 else:
                     additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.REACTOR])
-                    available_resources = self.subtract_costs(available_resources, [UnitTypeId.REACTOR])
+                    remaining_resources = self.subtract_costs(remaining_resources, [UnitTypeId.REACTOR])
                 if no_addon_facility is None:
                     no_addon_facility_types.remove(builder_type)
             else:
                 additional_production.append(builder_type)
-                available_resources = self.subtract_costs(available_resources, [builder_type])
+                remaining_resources = self.subtract_costs(remaining_resources, [builder_type])
                 if prioritize_tech:
                     additional_production.append(self.add_on_type_lookup[builder_type][UnitTypeId.TECHLAB])
-                    available_resources = self.subtract_costs(available_resources, [UnitTypeId.TECHLAB])
+                    remaining_resources = self.subtract_costs(remaining_resources, [UnitTypeId.TECHLAB])
                 else:
                     no_addon_facility_types.add(builder_type)
 
