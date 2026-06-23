@@ -339,7 +339,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
 
     async def get_unit_placement(self, unit: Unit, near: Point2 | None = None) -> Point2 | None:
         if near is None:
-            near = self.map.natural_position.towards(self.bot.game_info.map_center, 8)
+            near = unit.position.towards(self.bot.game_info.map_center, 6)
         if unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING):
             return await self.bot.find_placement(UnitTypeId.BARRACKS, near, placement_step=1, addon_place=True)
         elif unit.type_id in (UnitTypeId.FACTORY, UnitTypeId.FACTORYFLYING):
