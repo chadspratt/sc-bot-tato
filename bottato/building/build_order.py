@@ -782,6 +782,16 @@ class BuildOrder():
         for unit_type in build_list:
             if unit_type not in in_progress_counts:
                 in_progress_counts[unit_type] = self.get_in_progress_count(unit_type)
+                # count addons being built as the base structure still being in progress, so don't queue another one
+                if unit_type == UnitTypeId.BARRACKS:
+                    in_progress_counts[unit_type] += self.get_in_progress_count(UnitTypeId.BARRACKSTECHLAB) + \
+                        self.get_in_progress_count(UnitTypeId.BARRACKSREACTOR)
+                elif unit_type == UnitTypeId.FACTORY:
+                    in_progress_counts[unit_type] += self.get_in_progress_count(UnitTypeId.FACTORYTECHLAB) + \
+                        self.get_in_progress_count(UnitTypeId.FACTORYREACTOR)
+                elif unit_type == UnitTypeId.STARPORT:
+                    in_progress_counts[unit_type] += self.get_in_progress_count(UnitTypeId.STARPORTTECHLAB) + \
+                        self.get_in_progress_count(UnitTypeId.STARPORTREACTOR)
             if in_progress_counts[unit_type] > 0:
                 in_progress_counts[unit_type] -= 1
             else:
