@@ -265,7 +265,8 @@ class SCVBuildStep(BuildStep):
                         return
                     self.set_position(self.geysir.position)
                 else:
-                    self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds, flying_building_destinations)
+                    new_position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds, flying_building_destinations)
+                    self.set_position(new_position)
             if self.position:
                 if self.unit_in_charge is None:
                     self.unit_in_charge = self.workers.get_builder(self.position, self.unit_type_id, self.geysir)
@@ -279,126 +280,85 @@ class SCVBuildStep(BuildStep):
                             special_locations: SpecialLocations,
                             detected_enemy_builds: Dict[BuildType, float],
                             flying_building_destinations: Dict[int, Point2]) -> Point2 | None:
-        new_build_position = None
+        new_build_position: Point2 | None = None
         if unit_type_id == UnitTypeId.COMMANDCENTER:
             natural_is_in_place = len(cy_closer_than(self.bot.structures, 2, self.map.natural_position)) > 0
-            if BuildType.RUSH in detected_enemy_builds \
-                    and BuildType.EARLY_EXPANSION not in detected_enemy_builds \
-                    and not natural_is_in_place \
-                    and self.bot.townhalls.amount < 2:
-                candidates = [self.map.natural_position, self.map.natural_position, self.map.natural_position]
-                start_terrain_height = self.bot.get_terrain_height(self.bot.start_location)
-                vector = (self.bot.start_location - self.map.natural_position).normalized
-                perpendicular_vector = Point2((-vector.y, vector.x))
+            # modified from bot_ai get_next_expansion
+            sorted_expansions = self.map.expansion_orders[ExpansionSelection.CLOSEST]
+            available_expansions: List[Point2] = []
+            for location in sorted_expansions:
+                def is_near_to_expansion(t: Unit):
+                    return cy_distance_to(t.position, location.expansion_position) < self.bot.EXPANSION_GAP_THRESHOLD
+
+                if any(map(is_near_to_expansion, self.bot.townhalls)):
+                    # already taken
+                    continue
+
+                has_minerals = self.member_is_closer_than(location.expansion_position, self.bot.mineral_field, 15)
+                if not has_minerals:
+                    # mined out (and orbital relocated), don't count it as available
+                    continue
+
+                # check that position hasn't already been attempted too many times
+                if location.expansion_position not in self.attempted_expansion_positions:
+                    self.attempted_expansion_positions[location.expansion_position] = 0
+
+                available_expansions.append(location.expansion_position)
+
+            if not available_expansions:
+                LogHelper.add_log("No valid expansions found. attempted_expansion_positions: {self.attempted_expansion_positions}")
+                self.attempted_expansion_positions.clear()
+                return None
+
+            LogHelper.add_log(f"Expansions to check: {available_expansions}")
+            used_expansion_count = len(self.bot.expansion_locations_list) - len(available_expansions)
+            # skip past spots that are reserved for a cc that is out of position (flying)
+            next_expansion_index = self.bot.townhalls.amount - used_expansion_count
+            if next_expansion_index >= len(available_expansions):
+                # already have enough CCs for every base
+                return None
+            new_build_position = available_expansions[next_expansion_index]
+
+            # build at nearest occupied expansion
+            nearest_occupied_expansion = cy_closest_to(new_build_position, self.bot.townhalls) if self.bot.townhalls else None
+            if nearest_occupied_expansion and new_build_position:
+                nearest_occupied_position = nearest_occupied_expansion.position
+                # check along three vectors, one directly toward new_build_position and two that are angled away from it
+                candidates = [nearest_occupied_position, nearest_occupied_position, nearest_occupied_position]
                 perpendicular_offsets = [0, 0.5, -0.5]
-                candidate = candidates[0]
-                offset_index = 0
-                while self.bot.get_terrain_height(candidate) < start_terrain_height:
-                    candidate = candidates[offset_index] + vector + perpendicular_vector * perpendicular_offsets[offset_index]
-                    candidates[offset_index] = candidate
-                    offset_index = (offset_index + 1) % 3
-                # go a few more so it won't select a nearby low ground spot
-                candidate = Point2(cy_towards(candidate, self.bot.start_location, distance=2))
-                new_build_position = await self.bot.find_placement(
-                    unit_type_id,
-                    near=candidate,
-                    max_distance=5,
-                    placement_step=1,
-                )
-                if new_build_position is None:
-                    LogHelper.add_log(f"Could not find CC placement near natural high ground at {candidate}, trying generic placement")
-                    new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
-            else:
-                # modified from bot_ai get_next_expansion
-                sorted_expansions = self.map.expansion_orders[ExpansionSelection.CLOSEST]
-                available_expansions: List[Point2] = []
-                for location in sorted_expansions:
-                    def is_near_to_expansion(t: Unit):
-                        return cy_distance_to(t.position, location.expansion_position) < self.bot.EXPANSION_GAP_THRESHOLD
 
-                    if any(map(is_near_to_expansion, self.bot.townhalls)):
-                        # already taken
-                        continue
+                vector = (new_build_position - nearest_occupied_position).normalized
+                perpendicular_vector = Point2((-vector.y, vector.x))
 
-                    has_minerals = self.member_is_closer_than(location.expansion_position, self.bot.mineral_field, 15)
-                    if not has_minerals:
-                        # mined out (and orbital relocated), don't count it as available
-                        continue
+                start_terrain_height = self.bot.get_terrain_height(nearest_occupied_position)
+                unchecked_remain = True
+                while unchecked_remain:
+                    unchecked_remain = False
+                    for i in range(3):
+                        candidate = candidates[i]
+                        if abs(self.bot.get_terrain_height(candidate) - start_terrain_height) <= 0.1:
+                            unchecked_remain = True
+                            candidate = candidates[i] + vector + perpendicular_vector * perpendicular_offsets[i]
+                            candidates[i] = candidate
+                sorted_candidates = sorted(candidates, key=lambda p: cy_distance_to_squared(p, new_build_position)) # type: ignore
 
-                    # check that position hasn't already been attempted too many times
-                    if location.expansion_position not in self.attempted_expansion_positions:
-                        self.attempted_expansion_positions[location.expansion_position] = 0
-
-                    available_expansions.append(location.expansion_position)
-
-                if not available_expansions:
-                    LogHelper.add_log("No valid expansions found. attempted_expansion_positions: {self.attempted_expansion_positions}")
-                    self.attempted_expansion_positions.clear()
-                    return None
-
-                LogHelper.add_log(f"Expansions to check: {available_expansions}")
-                used_expansion_count = len(self.bot.expansion_locations_list) - len(available_expansions)
-                # skip past spots that are reserved for a cc that is out of position (flying)
-                next_expansion_index = self.bot.townhalls.amount - used_expansion_count
-                if next_expansion_index >= len(available_expansions):
-                    # already have enough CCs for every base
-                    return None
-                new_build_position = available_expansions[next_expansion_index]
-
-                # build at nearest occupied expansion
-                nearest_occupied_expansion = cy_closest_to(new_build_position, self.bot.townhalls) if self.bot.townhalls else None
-                if nearest_occupied_expansion:
-                    nearest_occupied_position = nearest_occupied_expansion.position
-                    # check along three vectors, one directly toward new_build_position and two that are angled away from it
-                    candidates = [nearest_occupied_position, nearest_occupied_position, nearest_occupied_position]
-                    perpendicular_offsets = [0, 0.5, -0.5]
-                    offset_index = 0
-
-                    vector = (new_build_position - nearest_occupied_position).normalized
-                    perpendicular_vector = Point2((-vector.y, vector.x))
-
-                    closest_candidate = candidates[0]
-                    closest_distance = cy_distance_to_squared(closest_candidate, new_build_position)
-                    start_terrain_height = self.bot.get_terrain_height(nearest_occupied_position)
-                    unchecked_remain = True
-                    while unchecked_remain:
-                        unchecked_remain = False
-                        for i in range(3):
-                            candidate = candidates[i]
-                            distance = cy_distance_to_squared(candidate, new_build_position)
-                            if distance < closest_distance:
-                                closest_candidate = candidate
-                                closest_distance = distance
-                            if abs(self.bot.get_terrain_height(candidate) - start_terrain_height) <= 0.1:
-                                unchecked_remain = True
-                                candidate = candidates[i] + vector + perpendicular_vector * perpendicular_offsets[i]
-                                candidates[i] = candidate
-
+                for candidate in sorted_candidates:
                     # back up so it won't select a spot on other side of gap
-                    candidate = Point2(cy_towards(closest_candidate, nearest_occupied_position, distance=2))
-                    new_build_position = await self.bot.find_placement(
+                    candidate = Point2(cy_towards(candidate, nearest_occupied_position, distance=2))
+                    building_placement = await self.bot.find_placement(
                         unit_type_id,
                         near=candidate,
                         max_distance=5,
                         placement_step=1,
                     )
-                    if new_build_position is None:
-                        LogHelper.add_log(f"Could not find CC placement near natural high ground at {candidate}, trying generic placement")
-                        new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
-                        if new_build_position is None:
-                            new_build_position = available_expansions[next_expansion_index]
-                # if self.attempted_expansion_positions[new_build_position] > 3:
-                #     # build it wherever and fly it there later
-                #     LogHelper.add_log(f"Too many attempts to build cc at {new_build_position}, finding generic placement")
-                #     new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
-                # elif MapSpecifics.base_location_might_be_blocked(self.bot):
-                #     # run it through find placement in case it's blocked by some weird map feature
-                #     new_build_position = await self.bot.find_placement(
-                #         unit_type_id,
-                #         near=new_build_position,
-                #         max_distance=4,
-                #         placement_step=2,
-                #     )
+                    if building_placement:
+                        new_build_position = building_placement
+                        break
+                else:
+                    LogHelper.add_log(f"Could not find CC placement near existing base at {new_build_position}, trying generic placement")
+                    building_placement = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
+                    if building_placement:
+                        new_build_position = building_placement
 
         elif unit_type_id == UnitTypeId.BUNKER:
             candidate: Point2
@@ -453,39 +413,6 @@ class SCVBuildStep(BuildStep):
                 new_build_position = special_locations.find_placement(unit_type_id)
             if new_build_position is None:
                 new_build_position = await self.map.get_non_visible_position_in_main()
-        # elif unit_type_id == UnitTypeId.BARRACKS and self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) \
-        #         and not self.bot.structures(UnitTypeId.BARRACKS):
-        #     barracks_position = (self.bot.main_base_ramp.bottom_center + self.map.natural_position) / 2
-        #     # During worker rush: place first barracks near mineral line, in the
-        #     # gap between the command center and the gas nearest to the ramp.
-        #     # ramp_top = self.bot.main_base_ramp.top_center
-        #     # resources = self.bot.vespene_geyser + self.bot.mineral_field
-        #     # main_resources = cy_closer_than(
-        #     #     resources, MN.MINERAL_MAX_DISTANCE_FROM_BASE, self.bot.start_location
-        #     # )
-        #     # if main_resources:
-        #     #     nearest_resource_to_ramp = cy_closest_to(ramp_top, main_resources)
-        #     #     candidates = self.get_triangle_point_c(self.bot.start_location, nearest_resource_to_ramp.position, 4.0, 3.0)
-        #     #     if candidates:
-        #     #         candidate = min(list(candidates), key=lambda p: cy_distance_to_squared(p, ramp_top))
-        #     #         new_build_position = await self.bot.find_placement(
-        #     #             unit_type_id,
-        #     #             near=candidate,
-        #     #             placement_step=1,
-        #     #             addon_place=True,
-        #     #             max_distance=6,
-        #     #         )
-        #     barracks_position = (self.bot.main_base_ramp.bottom_center + self.map.natural_position) / 2
-        #     new_build_position = await self.bot.find_placement(
-        #         unit_type_id,
-        #         near=barracks_position,
-        #         placement_step=1,
-        #         addon_place=True,
-        #         max_distance=6,
-        #     )
-        #     if new_build_position is None:
-        #         new_build_position = await self.find_generic_placement(unit_type_id, special_locations, flying_building_destinations)
-        #     LogHelper.add_log(f"Worker rush barracks position: {new_build_position}")
         elif self.is_proxy_barracks():
             proxy_base_index = 2
             if detected_enemy_builds[BuildType.EARLY_EXPANSION] < 50:
@@ -506,12 +433,6 @@ class SCVBuildStep(BuildStep):
             if unit_type_id == UnitTypeId.COMMANDCENTER and BuildType.RUSH not in detected_enemy_builds:
                 if new_build_position in self.attempted_expansion_positions:
                     self.attempted_expansion_positions[new_build_position] += 1
-                else:
-                    # build position isn't at the exact expansion location, may have been blocked
-                    for build_pos in list(self.attempted_expansion_positions.keys()):
-                        if cy_distance_to(new_build_position, build_pos) < 10:
-                            self.attempted_expansion_positions[build_pos] += 1
-                            break
         return new_build_position
     
     def is_proxy_barracks(self) -> bool:
@@ -557,25 +478,18 @@ class SCVBuildStep(BuildStep):
         retry_count = 0
         while new_build_position is None:
             try:
-                if self.bot.townhalls:
-                    preferred_townhalls = self.bot.townhalls
-                    if prefer_earlier_bases and retry_count < 2:
-                        ready_townhalls = self.bot.townhalls.ready
-                        if len(ready_townhalls) == 1:
-                            preferred_townhalls = ready_townhalls
-                        elif ready_townhalls:
-                            non_flying_townhalls = ready_townhalls.filter(lambda th: not th.is_flying)
-                            if len(non_flying_townhalls) == 1:
-                                preferred_townhalls = non_flying_townhalls
-                            elif non_flying_townhalls:
-                                closest_townhall_to_enemy: Unit = self.map.get_closest_unit_by_path(non_flying_townhalls, self.bot.enemy_start_locations[0])
-                                preferred_townhalls = non_flying_townhalls.filter(lambda th: th.tag != closest_townhall_to_enemy.tag)
-                            else:
-                                preferred_townhalls = ready_townhalls
-                    for townhall in preferred_townhalls:
+                townhalls = self.bot.townhalls.filter(lambda th: th.is_ready and not th.is_flying)
+                if townhalls:
+                    expansion_positions = self.map.expansion_orders[ExpansionSelection.CLOSEST]
+
+                    occupied_expansions = [ep.expansion_position for ep in expansion_positions if any(cy_closer_than(townhalls, 2, ep.expansion_position))]
+                    if prefer_earlier_bases and retry_count < 2 and len(occupied_expansions) > 1:
+                        occupied_expansions = occupied_expansions[:-1]
+                        
+                    for expansion_position in occupied_expansions:
                         new_build_position = await self.bot.find_placement(
                             unit_type_id,
-                            near=townhall.position.towards_with_random_angle(map_center, distance=distance_towards_map_center, max_difference=1.6),
+                            near=expansion_position.towards_with_random_angle(map_center, distance=distance_towards_map_center, max_difference=1.6),
                             placement_step=2,
                             addon_place=addon_place,
                             max_distance=max_distance,

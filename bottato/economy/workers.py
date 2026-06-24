@@ -105,8 +105,10 @@ class Workers(GeometryMixin):
             
             if assignment.job_type == WorkerJobType.BUILD:
                 # clean up worker assignments, not handled perfectly by update_completed_structure
-                if assignment.build_type and self.bot.can_afford(assignment.build_type) and not assignment.unit.is_constructing_scv:
-                    assignment.job_type = WorkerJobType.IDLE
+                if assignment.build_type:
+                    build_cost = self.bot.calculate_cost(assignment.build_type)
+                    if self.bot.minerals > build_cost.minerals + 10 and self.bot.vespene > build_cost.vespene + 10 and not assignment.unit.is_constructing_scv:
+                        assignment.job_type = WorkerJobType.IDLE
                 if assignment.build_type == UnitTypeId.REFINERY and assignment.target is None:
                     # not sure how the target got lost but now assignment needs to be reset
                     assignment.job_type = WorkerJobType.IDLE
@@ -1673,7 +1675,7 @@ class Workers(GeometryMixin):
             assigment: WorkerAssignment = self.assignments_by_worker[worker.tag]
             if assigment.unit.type_id == UnitTypeId.MULE:
                 continue
-            elif assigment.job_type == WorkerJobType.BUILD and (not assigment.target or not assigment.target.is_ready):
+            elif assigment.job_type == WorkerJobType.BUILD and not (assigment.target and assigment.target.is_ready):
                 if worker.tag not in self.builder_idle_time:
                     self.builder_idle_time[worker.tag] = self.bot.time
                     continue
@@ -1681,13 +1683,16 @@ class Workers(GeometryMixin):
                     # wait before determining worker is idle
                     continue
                 else:
+                    LogHelper.add_log(f"builder {worker.tag} has been idle for {self.bot.time - self.builder_idle_time[worker.tag]:.2f}s, reassigning to idle")
                     del self.builder_idle_time[worker.tag]
             elif assigment.job_type == WorkerJobType.IDLE:
                 continue
             self.set_as_idle(worker)
         for worker in self.minerals.get_workers_from_depleted() + self.vespene.get_workers_from_depleted():
+            LogHelper.add_log(f"gatherer {worker.tag} removed from depleted, reassigning to idle")
             self.set_as_idle(worker)
         for worker in self.minerals.get_workers_from_overcapacity() + self.vespene.get_workers_from_overcapacity():
+            LogHelper.add_log(f"gatherer {worker.tag} removed from overcapacity, reassigning to idle")
             self.set_as_idle(worker)
 
         idle_workers: Units = self.availiable_workers_on_job(WorkerJobType.IDLE)
@@ -1780,7 +1785,7 @@ class Workers(GeometryMixin):
                     continue
 
                 current_assignment = self.assignments_by_worker[worker.tag]
-                if assignment.unit == worker or assignment.target == current_assignment.target:
+                if assignment.unit == worker:
                     # already assigned to closest
                     unprocessed_workers.remove(worker)
                     continue

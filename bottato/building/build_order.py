@@ -1161,8 +1161,8 @@ class BuildOrder():
                         ) or (percent_affordable >= 0.75
                             and self.bot.tech_requirement_progress(build_step.unit_type_id) == 1.0):
                         await build_step.position_worker(self.special_locations, detected_enemy_builds, self.floating_building_destinations)
-                        # add to started since the worker controller should start it once there are enough resources
-                        self.started.append(build_queue.pop(execution_index))
+                        # # add to started since the worker controller should start it once there are enough resources
+                        # self.started.append(build_queue.pop(execution_index))
                 if remaining_resources.minerals < 50:
                     break
                 LogHelper.add_log(f"skipping {build_step} due to insufficient resources")
