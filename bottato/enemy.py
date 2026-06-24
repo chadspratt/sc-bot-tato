@@ -703,7 +703,7 @@ class Enemy(GeometryMixin):
         sieged_tanks = self.bot.units(UnitTypeId.SIEGETANKSIEGED)
         tanks_with_no_targets = sieged_tanks.filter(lambda tank: self.in_friendly_attack_range(tank).amount == 0)
         units_needing_detection = self.enemies_in_view.filter(lambda unit: unit.is_cloaked or unit.is_burrowed or (include_visible and unit.type_id in self.burrowing_unit_types)) + \
-               self.enemies_out_of_view.filter(lambda unit: unit.is_burrowed or (include_visible and unit.type_id in self.burrowing_unit_types) or cy_closer_than(tanks_with_no_targets, 14, unit.position))
+               self.enemies_out_of_view.filter(lambda unit: unit.is_burrowed or (include_visible and unit.type_id in self.burrowing_unit_types) or (not unit.is_flying and cy_closer_than(tanks_with_no_targets, 14, unit.position)))
         need_detection.extend(units_needing_detection)
         # prioritize creep tumors: near friendly structures is first priority, then near friendly units, then just the closest ones to near_position
         near_structures = [nd for nd in need_detection

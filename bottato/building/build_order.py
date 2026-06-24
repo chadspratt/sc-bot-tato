@@ -1040,6 +1040,7 @@ class BuildOrder():
                     remaining_resources = remaining_resources - pending.cost
         
         worker_rush_active = self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) and self.bot.enemy_units.amount > 0
+        building_was_skipped = False
 
         while execution_index < len(build_queue):
             execution_index += 1
@@ -1102,12 +1103,13 @@ class BuildOrder():
                     break
                 continue
             if only_build_units and not worker_rush_active and not build_step.is_unit() \
-                    and not build_step.is_unit_type(UnitTypeId.COMMANDCENTER) \
-                    and not build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT) \
-                    and not build_step.is_unit_production_facility() \
                     and not (isinstance(build_step, SCVBuildStep) and build_step.unit_being_built is not None):
-                LogHelper.add_log(f"skipping {build_step} due to only_build_units")
-                continue
+                if building_was_skipped or not (
+                        build_step.is_unit_type(UnitTypeId.COMMANDCENTER)
+                        or build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT)
+                        or build_step.is_unit_production_facility()):
+                    LogHelper.add_log(f"skipping {build_step} due to only_build_units")
+                    continue
             time_since_last_cancel = self.bot.time - build_step.last_cancel_time
             if time_since_last_cancel < 10:
                 LogHelper.add_log(f"skipping {build_step} due to recent cancel {time_since_last_cancel:.1f}s ago")
@@ -1147,6 +1149,8 @@ class BuildOrder():
                     # if build_step.get_unit_type_id() in self.production.needs_tech_lab:
                     #     builder_type = self.production.add_on_type_lookup[build_step.builder_type][UnitTypeId.TECHLAB]
                     # skip ahead more aggressively to try to use any production capacity
+                    if isinstance(build_step, SCVBuildStep):
+                        building_was_skipped = True
                     remaining_resources = remaining_resources + added_cost
                     LogHelper.add_log(f"skipping {build_step} due to insufficient resources")
                     continue
