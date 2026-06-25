@@ -728,12 +728,15 @@ class SCVBuildStep(BuildStep):
 
     def cancel_construction(self):
         logger.debug(f"canceling build of {self.unit_being_built}")
-        if self.unit_being_built:
-            if self.unit_being_built.age != 0:
+        if self.unit_being_built and self.unit_being_built.age != 0:
+            try:
                 self.unit_being_built = UnitReferenceHelper.get_updated_unit(self.unit_being_built)
+            except UnitReferenceHelper.UnitNotFound:
+                self.unit_being_built = None
+        if self.unit_being_built:
             self.unit_being_built(AbilityId.CANCEL_BUILDINPROGRESS)
+            self.unit_being_built = None
         self.last_cancel_time = self.bot.time
-        self.unit_being_built = None
         if self.unit_in_charge:
             self.workers.update_assigment(self.unit_in_charge, WorkerJobType.IDLE, None)
             self.unit_in_charge = None

@@ -3,7 +3,12 @@ from __future__ import annotations
 from loguru import logger
 from typing import Dict, List, Set, Tuple
 
-from cython_extensions.geometry import cy_angle_to, cy_distance_to, cy_towards
+from cython_extensions.geometry import (
+    cy_angle_to,
+    cy_distance_to,
+    cy_distance_to_squared,
+    cy_towards,
+)
 from cython_extensions.units_utils import cy_closest_to
 from sc2.data import Race
 from sc2.ids.ability_id import AbilityId
@@ -17,6 +22,7 @@ from bottato.enums import CustomEffectTargetArea, CustomEffectType, UnitMicroTyp
 from bottato.log_helper import LogHelper
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin, timed_async
+from bottato.unit_types import UnitTypes
 
 
 class RavenMicro(BaseUnitMicro, GeometryMixin):
@@ -25,6 +31,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     ideal_enemy_distance = turret_drop_range + turret_attack_range - 1
     turret_energy_cost = 50
     missile_energy_cost = 75
+    interference_researched = False
     interference_matrix_energy_cost = 75
     interference_matrix_range = 9
     ability_health = 0.6
@@ -35,11 +42,11 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     last_armor_missile_time: float = 0
     interference_target_cooldowns: Dict[int, float] = {}
 
-    excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED,
-                      UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.DRONE, UnitTypeId.PROBE,
-                      UnitTypeId.OVERLORD, UnitTypeId.OVERSEER,
-                      UnitTypeId.EGG, UnitTypeId.LARVA,
-                      UnitTypeId.ZERGLING, UnitTypeId.BROODLING]
+    armor_missile_excluded_types = [UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORBURROWED,
+                                    UnitTypeId.SCV, UnitTypeId.MULE, UnitTypeId.DRONE, UnitTypeId.PROBE,
+                                    UnitTypeId.OVERLORD, UnitTypeId.OVERSEER, UnitTypeId.OVERLORDTRANSPORT,
+                                    UnitTypeId.EGG, UnitTypeId.LARVA,
+                                    UnitTypeId.ZERGLING, UnitTypeId.BROODLING, UnitTypeId.ZEALOT]
 
     interference_matrix_targets = [
         UnitTypeId.BATTLECRUISER,
@@ -55,6 +62,8 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
                         
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
+        if not self.interference_researched:
+            self.interference_researched = len(self.interference_patched_ids.intersection(self.bot.state.upgrades)) > 0
         if unit.tag in self.last_missile_launch:
             enemy_unit, last_time, energy_before_launch, launch_detected, ability = self.last_missile_launch[unit.tag]
             if self.bot.time - last_time < 11 and unit.energy < energy_before_launch and not launch_detected:
@@ -68,17 +77,16 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
             # not enough energy for cheapest spell
             return UnitMicroType.NONE
         
-        military_units = self.bot.units.filter(lambda u: u.type_id not in self.excluded_types)
-        nearby_friendly_units = military_units.filter(lambda u: u.type_id not in self.excluded_types and u.distance_to_squared(unit) < 100)
+        military_units = self.bot.units.filter(lambda u: u.type_id not in UnitTypes.WORKER_TYPES)
+        nearby_friendly_units = military_units.filter(lambda u: u.tag != unit.tag and cy_distance_to_squared(u.position, unit.position) < 100)
         army_is_nearby = nearby_friendly_units.amount > 5
         if military_units.amount > 15 and not army_is_nearby and unit.energy < 180 and unit.health_percentage >= 0.4:
             # save energy for supporting army
             return UnitMicroType.NONE
 
-        if (unit.energy >= self.interference_matrix_energy_cost
+        if self.interference_researched and (unit.energy >= self.interference_matrix_energy_cost
                 and army_is_nearby
-                and self.bot.enemy_race != Race.Zerg
-                and self.interference_patched_ids.intersection(self.bot.state.upgrades)):
+                and self.bot.enemy_race != Race.Zerg):
             valid_targets = self.bot.enemy_units.filter(
                 lambda enemy: enemy.type_id in self.interference_matrix_targets
                 and not enemy.has_buff(BuffId.RAVENSCRAMBLERMISSILE)
@@ -91,8 +99,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         
         if unit.energy >= self.missile_energy_cost and army_is_nearby:
             nearby_enemies = self.bot.enemy_units.filter(
-                lambda enemy: enemy.type_id not in self.excluded_types
-                and enemy.type_id != UnitTypeId.ZEALOT # zealots are likely to charge in and cause friendly fire
+                lambda enemy: enemy.type_id not in self.armor_missile_excluded_types
                 and not enemy.has_buff(BuffId.RAVENSHREDDERMISSILEARMORREDUCTION)
                 and enemy.distance_to_squared(unit) < 225)
             if nearby_enemies:

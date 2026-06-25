@@ -21,7 +21,7 @@ class HuntingSquadType():
 HUNTING_SQUAD_TYPES: Dict[Race, List[HuntingSquadType]] = {
     Race.Zerg: [
         HuntingSquadType({UnitTypeId.VIKINGFIGHTER: 1},
-                        {UnitTypeId.OVERLORD, UnitTypeId.OVERSEER}, 180),
+                        {UnitTypeId.OVERLORD, UnitTypeId.OVERLORDTRANSPORT, UnitTypeId.OVERSEER}, 180),
         HuntingSquadType({UnitTypeId.RAVEN: 1, UnitTypeId.MARINE: 3},
                         {UnitTypeId.CREEPTUMORBURROWED, UnitTypeId.CREEPTUMOR, UnitTypeId.CREEPTUMORQUEEN}, 300,
                         squad_class=CreepClearingSquad),

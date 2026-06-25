@@ -236,7 +236,7 @@ class Military(GeometryMixin, DebugMixin):
         
         enemy_units = self.bot.enemy_units
         if self.main_army.units.amount < 3:
-            enemy_units = enemy_units.exclude_type([UnitTypeId.OVERLORD])
+            enemy_units = enemy_units.exclude_type(UnitTypes.NON_THREATS)
 
         enemies_in_base.extend(enemy_units.filter(lambda unit: self.closest_distance_squared(unit, base_structures) < 625))
         enemies_in_base.extend(enemy_units.filter(lambda unit: self.intel.main_army_staging_location._distance_squared(unit.position) < 625))
@@ -282,7 +282,7 @@ class Military(GeometryMixin, DebugMixin):
             enemy_group = [e for e in self.enemies_in_base
                             if e.tag not in countered_enemies
                             and (enemy.tag == e.tag or self.distance(enemy, e, self.enemy.predicted_positions) < 8)]
-            overlords_excluded = [e for e in enemy_group if e.type_id not in (UnitTypeId.OVERLORD, UnitTypeId.OVERSEER)]
+            nonthreats_excluded = [e for e in enemy_group if e.type_id not in UnitTypes.NON_THREATS]
 
             defense_squad = FormationSquad(self.bot, self.enemy, self.map, name=f"defense{defense_squad_count}")
             defense_squad_count += 1
@@ -297,7 +297,7 @@ class Military(GeometryMixin, DebugMixin):
                 else:
                     # a full composition was not assigned, disband the squad and defend with main army
                     self.transfer_all(defense_squad, self.main_army)
-                    if len(overlords_excluded) > 0:
+                    if len(nonthreats_excluded) > 0:
                         # respond to overlords but don't dedicate entire army
                         defend_with_main_army = True
                     break

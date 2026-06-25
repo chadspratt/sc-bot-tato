@@ -446,6 +446,7 @@ class Enemy(GeometryMixin):
         UnitTypeId.DRONE,
         UnitTypeId.PROBE,
         UnitTypeId.OVERLORD,
+        UnitTypeId.OVERLORDTRANSPORT,
         UnitTypeId.OVERSEER,
         UnitTypeId.OBSERVER,
         UnitTypeId.LARVA,

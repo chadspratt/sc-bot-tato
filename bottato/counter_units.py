@@ -192,6 +192,9 @@ class CounterUnits():
         UnitTypeId.OVERLORD: {
             UnitTypeId.VIKINGFIGHTER: 0.1
         },
+        UnitTypeId.OVERLORDTRANSPORT: {
+            UnitTypeId.VIKINGFIGHTER: 0.1
+        },
         UnitTypeId.OVERSEER: {
             UnitTypeId.VIKINGFIGHTER: 0.1
         },
