@@ -300,10 +300,7 @@ class MedivacDropSquad(HarassSquad):
             return
 
         # Check for visible enemies
-        nearby = self.bot.all_enemy_units.filter(
-            lambda u: cy_distance_to_squared(u.position, medivac.position) < 400  # 20^2
-                and (not u.is_structure or u.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES)
-        )
+        nearby = self.get_nearby_enemies(medivac.position)
         if nearby:
             target = self._best_attack_target(medivac)
             if target and self._is_safe_to_unload(medivac):
@@ -320,6 +317,13 @@ class MedivacDropSquad(HarassSquad):
             waypoint = self._nearest_edge_point(medivac.position)
 
         await self.medivac_micro.harass(medivac, waypoint)
+
+    def get_nearby_enemies(self, position: Point2):
+        return self.bot.all_enemy_units.filter(
+            lambda u: cy_distance_to_squared(u.position, position) < 400
+                and (not u.is_structure or u.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES)
+                and not UnitTypes.is_worker(u)
+        )
 
     def _is_safe_to_unload(self, medivac: Unit):
         nearby_friendly_supply = self._nearby_friendly_military_supply(medivac.position, radius=15)
@@ -389,11 +393,7 @@ class MedivacDropSquad(HarassSquad):
             await self._do_attacking(medivac)
             return
 
-        nearby = self.bot.all_enemy_units.filter(
-            lambda u: cy_distance_to_squared(u.position, medivac.position) < 400  # 20^2
-                and (not u.is_structure or u.type_id in UnitTypes.ANTI_AIR_STRUCTURE_TYPES)
-                and not UnitTypes.is_worker(u)
-        )
+        nearby = self.get_nearby_enemies(medivac.position)
         if not nearby:
             self.state = DropState.FOLLOWING_EDGE
             await self._do_following_edge(medivac)
