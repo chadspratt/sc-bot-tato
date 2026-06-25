@@ -59,6 +59,7 @@ class Workers(GeometryMixin):
         self.aged_mules: Units = Units([], bot)
         self.worker_micro: BaseUnitMicro = MicroFactory.get_unit_micro(self.bot.workers.first)
         self.units_to_attack: Set[Unit] = set()
+        self.completed_construction_worker_tags: Dict[int, float] = {}
 
     @timed
     def update_references(self):
@@ -104,11 +105,11 @@ class Workers(GeometryMixin):
                     assignment.job_type = WorkerJobType.IDLE
             
             if assignment.job_type == WorkerJobType.BUILD:
-                # clean up worker assignments, not handled perfectly by update_completed_structure
-                if assignment.build_type:
-                    build_cost = self.bot.calculate_cost(assignment.build_type)
-                    if self.bot.minerals > build_cost.minerals + 10 and self.bot.vespene > build_cost.vespene + 10 and not assignment.unit.is_constructing_scv:
-                        assignment.job_type = WorkerJobType.IDLE
+                # # clean up worker assignments, not handled perfectly by update_completed_structure
+                # if assignment.build_type:
+                #     build_cost = self.bot.calculate_cost(assignment.build_type)
+                #     if self.bot.minerals > build_cost.minerals + 10 and (build_cost.vespene == 0 or self.bot.vespene > build_cost.vespene + 10) and not assignment.unit.is_constructing_scv:
+                #         assignment.job_type = WorkerJobType.IDLE
                 if assignment.build_type == UnitTypeId.REFINERY and assignment.target is None:
                     # not sure how the target got lost but now assignment needs to be reset
                     assignment.job_type = WorkerJobType.IDLE
@@ -1491,10 +1492,14 @@ class Workers(GeometryMixin):
         assignment.last_reassign_time = self.bot.time
         logger.debug(f"worker {worker} changing from {assignment.target} to {new_target}")
 
-        if worker.is_constructing_scv and assignment.job_type != WorkerJobType.BUILD and worker.orders and worker.orders[0].progress != 0.0:
-            worker(AbilityId.HALT)
-        # elif len(worker.orders) > 1:
-        #     worker(AbilityId.STOP)
+        if worker.is_constructing_scv and worker.orders and (
+                assignment.job_type != WorkerJobType.BUILD
+                or assignment.build_type != build_type
+                or assignment.target_position != new_target_position): 
+            if worker.orders[0].progress == 0.0:
+                worker(AbilityId.STOP)
+            else:
+                worker(AbilityId.HALT)
         elif new_target:
             if assignment.job_type == WorkerJobType.REPAIR:
                 pass
@@ -1655,13 +1660,19 @@ class Workers(GeometryMixin):
                 and assignment.unit.type_id != UnitTypeId.MULE
                 and not (assignment.job_type in (WorkerJobType.MINERALS, WorkerJobType.VESPENE) and assignment.unit.is_carrying_resource)
                 and not assignment.on_attack_break
-                and not assignment.unit.is_constructing_scv
+                and (not assignment.unit.is_constructing_scv or self.completed_construction_worker_tags.get(assignment.unit.tag, 0) + 5 > self.bot.time)
         ],
             bot_object=self.bot)
 
     def set_as_idle(self, worker: Unit):
         if worker.is_constructing_scv:
             worker(AbilityId.HALT)
+        if worker.tag in self.assignments_by_worker:
+            self.update_assigment(worker, WorkerJobType.IDLE, None)
+
+    def set_construction_complete(self, worker: Unit):
+        if worker.is_constructing_scv:
+            self.completed_construction_worker_tags[worker.tag] = self.bot.time
         if worker.tag in self.assignments_by_worker:
             self.update_assigment(worker, WorkerJobType.IDLE, None)
 

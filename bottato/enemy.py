@@ -684,7 +684,7 @@ class Enemy(GeometryMixin):
         UnitTypeId.LURKERMP,
         UnitTypeId.WIDOWMINE,
         UnitTypeId.ROACH,
-        UnitTypeId.ZERGLING,
+        # UnitTypeId.ZERGLING,
         UnitTypeId.INFESTOR,
     }
     positions_needing_detection: Dict[Point2, float] = {}

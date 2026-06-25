@@ -9,6 +9,7 @@ from sc2.unit import Unit
 
 from bottato.micro.banshee_micro import BansheeMicro
 from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.micro.cyclone_micro import CycloneMicro
 from bottato.micro.ghost_micro import GhostMicro
 from bottato.micro.hellion_micro import HellionMicro
 from bottato.micro.marauder_micro import MarauderMicro
@@ -28,6 +29,7 @@ micro_instances: Dict[UnitTypeId, BaseUnitMicro] = {}
 micro_lookup = {
     UnitTypeId.COMMANDCENTER: StructureMicro,
     UnitTypeId.BANSHEE: BansheeMicro,
+    UnitTypeId.CYCLONE: CycloneMicro,
     UnitTypeId.GHOST: GhostMicro,
     UnitTypeId.HELLION: HellionMicro,
     UnitTypeId.MARAUDER: MarauderMicro,

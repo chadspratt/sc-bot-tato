@@ -17,6 +17,7 @@ from bottato.enums import BuildResponseCode, BuildType
 from bottato.map.map import Map
 from bottato.mixins import timed
 from bottato.tactics import Tactics
+from bottato.tech_tree import TECH_TREE
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.upgrades import RESEARCH_ABILITIES
 
@@ -63,17 +64,17 @@ class UpgradeBuildStep(BuildStep):
         return True
 
     def get_readiness_to_build(self) -> float:
-        max_readiness: float = 0.0
+        facility_readiness: float = 0.0
         research_facilities = self.bot.structures(self.builder_type)
         for facility in research_facilities:
             if facility.is_ready:
                 if facility.is_idle:
                     return 1.0
                 elif facility.orders:
-                    max_readiness = max(max_readiness, facility.orders[0].progress)
+                    facility_readiness = max(facility_readiness, facility.orders[0].progress)
             else:
-                max_readiness = max(max_readiness, facility.build_progress)
-        return max_readiness
+                facility_readiness = max(facility_readiness, facility.build_progress)
+        return facility_readiness
     
     async def execute(self, special_locations: SpecialLocations,
                       detected_enemy_builds: Dict[BuildType, float],

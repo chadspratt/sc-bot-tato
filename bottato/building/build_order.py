@@ -726,7 +726,8 @@ class BuildOrder():
         extra_production: List[UnitTypeId] = self.production.additional_needed_production(production_items, remaining_resources)
         # only add if not already in progress
         extra_production = self.remove_in_progress_from_list(extra_production) # type: ignore
-        self.add_to_build_queue(extra_production, position=0, queue=self.static_queue) # type: ignore
+        if extra_production:
+            self.add_to_build_queue(extra_production, position=0, queue=self.static_queue) # type: ignore
 
     @timed
     def queue_marines(self, detected_enemy_builds: Dict[BuildType, float], army_ratio: float, only_build_units: bool) -> None:
@@ -823,9 +824,10 @@ class BuildOrder():
             next_upgrade = self.upgrades.next_upgrade(facility_type, self.changes_enacted)
             if next_upgrade is None or self.upgrade_is_in_progress(next_upgrade):
                 continue
+            start_upgrade_time = 300 if self.bot.townhalls.amount > 2 else 360
             if self.bot.structures(facility_type).ready.idle:
                 self.add_to_build_queue([next_upgrade], queue=self.static_queue)
-            elif self.bot.townhalls.amount > 2 and self.bot.time > 300 and self.get_in_progress_count(facility_type) == 0:
+            elif self.bot.time > start_upgrade_time and self.get_in_progress_count(facility_type) == 0:
                 facilities = self.bot.structures(facility_type)
                 if not facilities or self.bot.minerals > 500 and self.bot.vespene > 250 \
                         and len(facilities) < self.max_facilities.get(facility_type, 1):
@@ -980,7 +982,7 @@ class BuildOrder():
                         if in_progress_step.is_unit_type(UnitTypeId.REFINERY):
                             self.workers.update_assigment(builder, WorkerJobType.VESPENE, completed_structure)
                         else:
-                            self.workers.set_as_idle(builder)
+                            self.workers.set_construction_complete(builder)
                     except UnitReferenceHelper.UnitNotFound:
                         pass
                 self.move_to_complete(self.started.pop(idx))
@@ -1027,7 +1029,6 @@ class BuildOrder():
     @timed_async
     async def build_from_queue(self, build_queue: List[BuildStep], only_build_units: bool, detected_enemy_builds: Dict[BuildType, float],
                                allow_skip: bool = True, remaining_resources: Cost | None = None) -> Cost:
-        build_response = BuildResponseCode.QUEUE_EMPTY
         execution_index = -1
         failed_types: List[UnitTypeId] = []
         if remaining_resources is None:
@@ -1050,20 +1051,23 @@ class BuildOrder():
                 build_step = build_queue[execution_index]
             except IndexError:
                 break
+            is_scv_build = isinstance(build_step, SCVBuildStep)
+            is_facility_build = isinstance(build_step, StructureBuildStep)
+            is_upgrade_build = isinstance(build_step, UpgradeBuildStep)
             # skip steps for various reasons
-            if isinstance(build_step, SCVBuildStep) and build_step.unit_being_built and build_step.unit_being_built.build_progress == 1.0:
+            if is_scv_build and build_step.unit_being_built and build_step.unit_being_built.build_progress == 1.0:
                 # already built
                 build_queue.pop(execution_index)
                 execution_index -= 1
                 LogHelper.add_log(f"Removed completed build step {build_step} from queue")
                 continue
-            if not isinstance(build_step, UpgradeBuildStep) and build_step.get_unit_type_id() in failed_types:
+            if not is_upgrade_build and build_step.get_unit_type_id() in failed_types:
                 LogHelper.add_log(f"skipping failed type {build_step.get_unit_type_id()}")
                 continue
             if worker_rush_active:
                 enemy_threats = self.bot.enemy_units.filter(lambda e: e.type_id in UnitTypes.WORKER_TYPES or e.type_id not in UnitTypes.NON_THREATS)
                 wall_is_built = self.tactics.is_active(Tactic.WALL_IS_BUILT)
-                if isinstance(build_step, StructureBuildStep) \
+                if is_facility_build \
                         and build_step.unit_type_id in (UnitTypeId.SCV, UnitTypeId.ORBITALCOMMAND) \
                         and enemy_threats \
                         and self.bot.townhalls \
@@ -1074,7 +1078,7 @@ class BuildOrder():
                     if closest_enemy_distance < 25 and cy_distance_to(self.bot.townhalls.first.position, self.map.natural_position) > 1:
                         LogHelper.add_log(f"skipping {build_step} due to nearby worker rush")
                         continue
-                if isinstance(build_step, SCVBuildStep) and not (wall_is_built and build_step.unit_being_built is not None):
+                if is_scv_build and not (wall_is_built and build_step.unit_being_built is not None):
                     # during rush only build one barracks when ramp is secured and enemy is far enough away
                     have_depot = self.bot.structures((UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED)).amount > 0
                     have_barracks = self.bot.structures((UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING)).amount > 0
@@ -1096,14 +1100,13 @@ class BuildOrder():
                             LogHelper.add_log(f"skipping {build_step} due to enemies being too close")
                             continue
             if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
-                build_response = BuildResponseCode.NO_SUPPLY
                 LogHelper.add_log(f"skipping {build_step} due to no supply")
                 if not allow_skip:
                     remaining_resources.minerals = 0
                     break
                 continue
             if only_build_units and not worker_rush_active and not build_step.is_unit() \
-                    and not (isinstance(build_step, SCVBuildStep) and build_step.unit_being_built is not None):
+                    and not (is_scv_build and build_step.unit_being_built is not None):
                 if building_was_skipped or not (
                         build_step.is_unit_type(UnitTypeId.COMMANDCENTER)
                         or build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT)
@@ -1115,41 +1118,38 @@ class BuildOrder():
                 LogHelper.add_log(f"skipping {build_step} due to recent cancel {time_since_last_cancel:.1f}s ago")
                 continue
             
-            production_readiness = 1.0
-            if isinstance(build_step, StructureBuildStep) or isinstance(build_step, UpgradeBuildStep):
-                production_readiness = build_step.get_readiness_to_build()
-                if production_readiness < 0.8:
+            production_readiness = build_step.get_readiness_to_build()
+            if production_readiness < 0.8:
+                if is_facility_build or is_upgrade_build:
                     # don't reserve resources if production not close to ready
-                    build_response = BuildResponseCode.NO_FACILITY
                     if not allow_skip:
                         remaining_resources.minerals = 0
                         break
                     LogHelper.add_log(f"skipping {build_step} due to no facility")
                     continue
-
-            if not build_step.tech_requirements_met():
-                build_response = BuildResponseCode.NO_TECH
-                if not allow_skip:
-                    remaining_resources.minerals = 0
-                    break
-                # skip if missing tech
-                failed_types.append(build_step.get_unit_type_id())
-                LogHelper.add_log(f"skipping {build_step} due to no tech")
-                continue
+                else:
+                    # scv build step
+                    if not allow_skip:
+                        remaining_resources.minerals = 0
+                        break
+                    # skip if missing tech
+                    failed_types.append(build_step.get_unit_type_id())
+                    LogHelper.add_log(f"skipping {build_step} due to no tech")
+                    continue
 
             percent_affordable = 1.0
             added_cost: Cost = Cost(0, 0)
-            if not isinstance(build_step, SCVBuildStep) or build_step.unit_being_built is None:
+            if not is_scv_build or build_step.unit_being_built is None:
                 percent_affordable = self.percent_affordable(remaining_resources, build_step.cost)
                 added_cost = build_step.cost
                 remaining_resources = remaining_resources - added_cost
-            if percent_affordable < 1.0:
+            if percent_affordable < 1.0 or production_readiness < 1.0:
                 if only_build_units:
                     # builder_type = build_step.builder_type
                     # if build_step.get_unit_type_id() in self.production.needs_tech_lab:
                     #     builder_type = self.production.add_on_type_lookup[build_step.builder_type][UnitTypeId.TECHLAB]
                     # skip ahead more aggressively to try to use any production capacity
-                    if isinstance(build_step, SCVBuildStep):
+                    if is_scv_build:
                         building_was_skipped = True
                     remaining_resources = remaining_resources + added_cost
                     LogHelper.add_log(f"skipping {build_step} due to insufficient resources")
@@ -1157,13 +1157,11 @@ class BuildOrder():
                 if remaining_resources.vespene < 0:
                     # don't reserve minerals for steps that are short on gas
                     remaining_resources.minerals += build_step.cost.minerals
-                build_response = BuildResponseCode.NO_RESOURCES
-                if isinstance(build_step, SCVBuildStep):
-                    if (build_step.is_unit_type(UnitTypeId.BARRACKS)
+                if is_scv_build:
+                    is_proxy_barracks = (build_step.is_unit_type(UnitTypeId.BARRACKS)
                             and self.tactics.is_active(Tactic.PROXY_BARRACKS)
-                            and self.bot.time < 200
-                        ) or (percent_affordable >= 0.75
-                            and self.bot.tech_requirement_progress(build_step.unit_type_id) == 1.0):
+                            and self.bot.time < 200)
+                    if is_proxy_barracks or (percent_affordable >= 0.75 and production_readiness == 1.0):
                         await build_step.position_worker(self.special_locations, detected_enemy_builds, self.floating_building_destinations)
                         # # add to started since the worker controller should start it once there are enough resources
                         # self.started.append(build_queue.pop(execution_index))

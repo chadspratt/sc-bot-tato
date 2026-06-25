@@ -90,7 +90,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                     self.units_to_pick_up.remove(passenger)
                     return UnitMicroType.USE_ABILITY
         is_harassing = self.bot.time - self.harassing_medivacs.get(unit.tag, 0) < 5
-        if not is_harassing and unit.cargo_used > 0 and unit.distance_to_squared(move_position) < 100 and self.closest_distance_squared(unit, self.bot.enemy_units) > 100:
+        if not is_harassing and unit.cargo_used > 0 and unit.distance_to_squared(move_position) < 100 and self.closest_distance_squared(unit, self.bot.enemy_units) > 25:
             unit(AbilityId.UNLOADALLAT, unit)
             return UnitMicroType.USE_ABILITY
         if not self.heal_available(unit):

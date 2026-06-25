@@ -8,6 +8,7 @@ from sc2.ids.unit_typeid import UnitTypeId
 BUILDINGS = {
     "2x2": {
         UnitTypeId.SUPPLYDEPOT,
+        UnitTypeId.SUPPLYDEPOTLOWERED,
         UnitTypeId.PYLON,
         UnitTypeId.DARKSHRINE,
         UnitTypeId.PHOTONCANNON,

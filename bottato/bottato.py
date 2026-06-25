@@ -92,7 +92,11 @@ class BotTato(BotAI):
                 if action_error.result in (ActionErrorCode.CantBuildOnThat.value, ActionErrorCode.CouldntReachTarget.value):
                     self.commander.build_order.mark_position_invalid_by_worker_tag(action_error.unit_tag)
                 elif action_error.result == ActionErrorCode.CantBuildLocationInvalid.value:
-                    self.commander.tactics.enemy.mark_position_as_needing_detection(unit.position)
+                    assignment = self.commander.my_workers.assignments_by_worker[unit.tag]
+                    if assignment.target_position:
+                        nearby_buildings = self.structures.closer_than(0.1, assignment.target_position)
+                        if not nearby_buildings:
+                            self.commander.tactics.enemy.mark_position_as_needing_detection(assignment.target_position)
             except Exception as e:
                 LogHelper.add_log(f"Error processing action error: {e}")
         # XXX very slow

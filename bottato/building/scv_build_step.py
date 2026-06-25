@@ -1,6 +1,5 @@
-import math
 from loguru import logger
-from typing import Dict, List, Set
+from typing import Dict, List
 
 from cython_extensions.geometry import cy_distance_to, cy_distance_to_squared
 from cython_extensions.type_checking.wrappers import cy_towards
@@ -31,12 +30,9 @@ from bottato.enums import (
 from bottato.log_helper import LogHelper
 from bottato.magic_numbers import MagicNumbers as MN
 from bottato.map.destructibles import BUILDING_RADIUS
-from bottato.map.map import Map
-from bottato.map_specifics import MapSpecifics
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
-from bottato.mixins import timed, timed_async
-from bottato.squad.scouting_location import ScoutingLocation
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.tactics import Tactics
 from bottato.tech_tree import TECH_TREE
 from bottato.unit_reference_helper import UnitReferenceHelper
@@ -71,6 +67,7 @@ class SCVBuildStep(BuildStep):
     def update_references(self):
         logger.debug(f"unit in charge: {self.unit_in_charge}")
         target_unit = self.unit_being_built if self.unit_being_built else self.geysir
+        # update unit_in_charge which may have been swapped by the worker manager
         if self.position and (self.unit_type_id != UnitTypeId.REFINERY or target_unit):
             for assignment in self.workers.assignments_by_job[WorkerJobType.BUILD]:
                 if assignment.target_position == self.position and assignment.unit_available and not assignment.on_attack_break:
@@ -165,6 +162,14 @@ class SCVBuildStep(BuildStep):
                 if self.bot.structure_type_build_progress(requirement) < 0.8:
                     return False
         return True
+    
+    def get_readiness_to_build(self) -> float:
+        if self.unit_type_id in TECH_TREE:
+            readiness = 1.0
+            for requirement in TECH_TREE[self.unit_type_id]:
+                readiness = min(readiness, self.bot.structure_type_build_progress(requirement))
+            return readiness
+        return 1.0
 
     async def execute(self, special_locations: SpecialLocations, detected_enemy_builds: Dict[BuildType, float], floating_building_destinations: Dict[int, Point2]) -> BuildResponseCode:
         response = await self.execute_scv_build(special_locations, detected_enemy_builds, floating_building_destinations)
@@ -257,8 +262,11 @@ class SCVBuildStep(BuildStep):
             and self.bot.time < 180
     
     def build_not_starting(self) -> bool:
-        return self.start_time != 0 and self.bot.time - self.start_time > 3 and self.bot.minerals >= self.cost.minerals + 10 and self.bot.vespene >= self.cost.vespene + 10
+        return self.start_time != 0 and self.bot.time - self.start_time > 3 and self.has_been_affordable()
 
+    def has_been_affordable(self) -> bool:
+        return self.bot.minerals >= self.cost.minerals + 10 and (self.cost.vespene == 0 or self.bot.vespene >= self.cost.vespene + 10)
+    
     @timed_async
     async def position_worker(self,
                               special_locations: SpecialLocations,
@@ -424,7 +432,8 @@ class SCVBuildStep(BuildStep):
             # find_placement only supports first 2 bunkers, later bunkers are queued with a position already in mind
             return None
         retry_count = 0
-        while not new_build_position or cy_distance_to_squared(new_build_position, self.map.natural_position) < 16:
+        # depot grid radius + cc radius: 1 + 2.5 = 3.5
+        while not new_build_position or GeometryMixin.grid_distance(new_build_position, self.map.natural_position) <= 3.5:
             if retry_count > 5:
                 new_build_position = None
                 break
@@ -549,7 +558,8 @@ class SCVBuildStep(BuildStep):
                     if not flying_building:
                         continue
                     flying_building_radius = BUILDING_RADIUS[flying_building.type_id]
-                    if min(abs(new_build_position.x - destination.x), abs(new_build_position.y - destination.y)) < new_build_radius + flying_building_radius:
+                    grid_distance = GeometryMixin.grid_distance(new_build_position, destination)
+                    if grid_distance <= new_build_radius + flying_building_radius:
                         new_build_position = None
                         break
             if new_build_position is None:
@@ -609,16 +619,8 @@ class SCVBuildStep(BuildStep):
                 return True
             if self.start_time == 0.0 or self.bot.time - self.start_time < 0.5:
                 return False
-            self.check_idle: bool = (
-                self.check_idle
-                or (
-                    self.unit_in_charge.is_active and not self.unit_in_charge.is_gathering
-                )
-            )
-            if not self.check_idle:
-                return False
-            flee_enemies = True
 
+            flee_enemies = True
             if self.unit_being_built and (self.unit_being_built.build_progress > 0.6 and 
                     self.unit_type_id in self.unit_types_to_finish_despite_enemies
                     or self.bot.time < 120 and self.tactics.is_active(Tactic.WALL_IS_BUILT) and cy_distance_to_squared(self.unit_being_built.position, self.bot.main_base_ramp.top_center) < 25):
@@ -681,11 +683,14 @@ class SCVBuildStep(BuildStep):
                                         self.unit_being_built = construction[0]
                                         self.set_position(construction[0].position)
                                         return False
-                    if cy_distance_to_squared(self.unit_in_charge.position, self.position) < 9 and \
+                    elif self.has_been_affordable():
+                        interrupted = True
+                        LogHelper.add_log(f"{self} interrupted due to unit not constructing and no unit_being_built")
+                    elif cy_distance_to_squared(self.unit_in_charge.position, self.position) < 9 and \
                             self.worker_in_position_time is None and self.bot.can_afford(self.unit_type_id):
                         self.worker_in_position_time = self.bot.time
                     elif self.worker_in_position_time is not None and self.bot.time - self.worker_in_position_time > 5 and \
-                            self.cost.minerals <= self.bot.minerals and self.cost.vespene <= self.bot.vespene:
+                            self.has_been_affordable():
                         # position may be blocked
                         interrupted = True
                         LogHelper.add_log(f"{self} interrupted due to unit waiting too long")

@@ -16,8 +16,7 @@ from sc2.unit import Unit
 from bottato.enums import CustomEffectTargetArea, CustomEffectType, UnitMicroType
 from bottato.log_helper import LogHelper
 from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.mixins import GeometryMixin, timed, timed_async
-from bottato.unit_types import UnitTypes
+from bottato.mixins import GeometryMixin, timed_async
 
 
 class RavenMicro(BaseUnitMicro, GeometryMixin):
@@ -158,41 +157,36 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         if unit.health_percentage < self.retreat_health:
             return UnitMicroType.NONE
         # stay safe
-        threats = self.bot.enemy_units.filter(lambda enemy: UnitTypes.can_attack_air(enemy)) \
-            + self.bot.enemy_structures.filter(lambda enemy: UnitTypes.can_attack_air(enemy))
+        threats = self.tactics.enemy.threats_to_friendly_unit(unit, 2, visible_only=True)
         if threats:
             # below attack_health: if threats, do nothing
-            if unit.health_percentage < health_threshold:
-                return UnitMicroType.NONE
-            nearest_threat = cy_closest_to(unit.position, threats)
-            if nearest_threat.distance_to_squared(unit) < unit.sight_range ** 2:
-                is_near_destination = move_position is not None and move_position._distance_squared(unit.position) < 9
-                buffer = -1 if is_near_destination else 2
-                target_position = Point2(cy_towards(nearest_threat.position, unit.position, unit.sight_range + buffer))
-                unit.move(self.tactics.map.get_pathable_position(target_position, unit))
-                return UnitMicroType.MOVE
+            return UnitMicroType.NONE
         # provide detection
-        need_detection: List[Unit | Point2] = self.tactics.enemy.things_needing_detection(move_position)
+        need_detection: List[Unit | Point2] = self.tactics.enemy.things_needing_detection(move_position, include_visible=True)
         for enemy in need_detection:
             if isinstance(enemy, Unit) and enemy.age == 0:
                 self.missing_hidden_units.discard(enemy.tag)
         need_detection = [enemy for enemy in need_detection if not isinstance(enemy, Unit) or enemy.tag not in self.missing_hidden_units]
         if need_detection:
             closest_detection_target = min(need_detection, key=lambda enemy: cy_distance_to(unit.position, enemy.position))
-            closest_distance = self.distance(closest_detection_target, unit)
+            closest_target_position = closest_detection_target.position
+            if isinstance(closest_detection_target, Unit) and closest_detection_target.age > 0:
+                closest_target_position = self.tactics.enemy.get_predicted_position(closest_detection_target, 0.0)
+            closest_distance = self.distance(closest_target_position, unit)
             desired_distance = unit.sight_range - 1
-            if closest_distance < 30 and closest_distance > unit.sight_range:
-                target_position = Point2(cy_towards(closest_detection_target.position, unit.position, desired_distance))
+            if closest_distance < 30:
+                if closest_distance > unit.sight_range:
+                    target_position = Point2(cy_towards(closest_target_position, unit.position, desired_distance))
 
-                unit.move(self.tactics.map.get_pathable_position(target_position, unit))
-                return UnitMicroType.MOVE
-            elif self.bot.is_visible(closest_detection_target.position):
-                if isinstance(closest_detection_target, Unit) and closest_detection_target.age > 0:
-                    self.missing_hidden_units.add(closest_detection_target.tag)
-                # circle around closest_detection_target
-                target_to_unit = unit.position - closest_detection_target.position
-                target_to_unit_angle = cy_angle_to(closest_detection_target.position, unit.position)
-                target_to_unit_angle += 0.2
-                target_to_unit = self.apply_rotation(target_to_unit_angle, target_to_unit)
-                unit.move(self.tactics.map.get_pathable_position(unit.position + target_to_unit, unit))
+                    unit.move(self.tactics.map.get_pathable_position(target_position, unit))
+                    return UnitMicroType.MOVE
+                elif self.bot.is_visible(closest_target_position):
+                    if isinstance(closest_detection_target, Unit) and closest_detection_target.age > 0:
+                        self.missing_hidden_units.add(closest_detection_target.tag)
+                    # circle around closest_detection_target
+                    target_to_unit = unit.position - closest_target_position
+                    # target_to_unit_angle = cy_angle_to(closest_target_position, unit.position)
+                    # target_to_unit_angle += 0.2
+                    target_to_unit = self.apply_rotation(0.2, target_to_unit)
+                    unit.move(self.tactics.map.get_pathable_position(unit.position + target_to_unit, unit))
         return UnitMicroType.NONE

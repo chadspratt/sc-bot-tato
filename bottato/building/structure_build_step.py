@@ -123,7 +123,14 @@ class StructureBuildStep(BuildStep):
         return True
     
     def get_readiness_to_build(self) -> float:
-        return self.production.get_readiness_to_build(self.unit_type_id)
+        production_readiness = self.production.get_readiness_to_build(self.unit_type_id)
+        
+        if self.unit_type_id in TECH_TREE:
+            tech_readiness = 1.0
+            for requirement in TECH_TREE[self.unit_type_id]:
+                tech_readiness = min(tech_readiness, self.bot.structure_type_build_progress(requirement))
+            return min(production_readiness, tech_readiness)
+        return production_readiness
 
     @timed_async
     async def execute_facility_build(self) -> BuildResponseCode:
@@ -209,7 +216,7 @@ class StructureBuildStep(BuildStep):
         if elapsed_time < 0.5:
             return False
 
-        if self.unit_in_charge.is_idle and elapsed_time < 1:
+        if self.unit_in_charge.is_idle and elapsed_time > 1:
             # if more time elapsed then it probably finished
             self.production.remove_type_from_facilty_queue(self.unit_in_charge, self.unit_type_id)
             self.is_in_progress = False

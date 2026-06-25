@@ -17,7 +17,8 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from bottato.log_helper import LogHelper
-from bottato.mixins import timed, timed_async
+from bottato.map.destructibles import BUILDING_RADIUS
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.tactics import Tactics
 from bottato.tech_tree import TECH_TREE
 from bottato.unit_reference_helper import UnitReferenceHelper
@@ -80,36 +81,29 @@ class Facility():
                 self.was_lifted_to_unblock_addon = True
                 self.was_told_to_lift_to_unblock_addon = False
             self.addon_blocked = False
-        elif self.add_on_type == UnitTypeId.NOTAUNIT and not self.addon_blocked and not self.unit.has_add_on:
-            closest_candidates = self.bot.structures.filter(lambda s: s.tag != updated_unit.tag and s.type_id not in (
+        elif self.add_on_type == UnitTypeId.NOTAUNIT and not self.unit.has_add_on:
+            closest_candidates = self.bot.structures.filter(lambda s: s.tag != updated_unit.tag and not s.is_flying and s.type_id not in (
                 UnitTypeId.BARRACKSTECHLAB,
                 UnitTypeId.BARRACKSREACTOR,
                 UnitTypeId.FACTORYTECHLAB,
                 UnitTypeId.FACTORYREACTOR,
                 UnitTypeId.STARPORTTECHLAB,
-                UnitTypeId.STARPORTREACTOR
+                UnitTypeId.STARPORTREACTOR,
+                UnitTypeId.AUTOTURRET
             ))
-            if closest_candidates:
-                closest_structure_to_addon = cy_closest_to(updated_unit.add_on_position, closest_candidates)
-                self.addon_blocked = closest_structure_to_addon.radius > cy_distance_to(closest_structure_to_addon.position, updated_unit.add_on_position)
-                # not (await self.bot.can_place_single(UnitTypeId.SUPPLYDEPOT, updated_unit.add_on_position))
+            for candidate in closest_candidates:
+                # closest_structure_to_addon = cy_closest_to(updated_unit.add_on_position, closest_candidates)
+                grid_distance = GeometryMixin.grid_distance(updated_unit.add_on_position, candidate)
+                building_radius = BUILDING_RADIUS[candidate.type_id]
+                if building_radius >= grid_distance:
+                    logger.debug(f"addon blocked for {updated_unit} by {candidate}")
+                    self.addon_blocked = True
+                    break
 
         # blocking main base ramp, don't move
         is_ramp_barracks = updated_unit.type_id in (UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING) \
-                    and self.bot.main_base_ramp.barracks_in_middle \
-                    and cy_distance_to(updated_unit.position, self.bot.main_base_ramp.barracks_in_middle) < 3
-        # if self.was_lifted_to_unblock_addon:
-        #     if not is_flying:
-        #         self.was_lifted_to_unblock_addon = False
-        #     if not is_ramp_barracks:
-        #         if self.new_position is None:
-        #             unit_type = updated_unit.unit_alias if updated_unit.unit_alias else updated_unit.type_id
-        #             self.new_position = await self.bot.find_placement(unit_type, updated_unit.position, placement_step=1, addon_place=True)
-        #         if self.new_position and updated_unit.position != self.new_position:
-        #             updated_unit.move(self.new_position)
-        #         else:
-        #             updated_unit(AbilityId.LAND, self.new_position)
-        #             self.new_position = None
+            and self.bot.main_base_ramp.barracks_in_middle \
+            and cy_distance_to(updated_unit.position, self.bot.main_base_ramp.barracks_in_middle) < 3
 
         if self.addon_blocked and not is_ramp_barracks:
             logger.debug(f"addon blocked for {updated_unit}")

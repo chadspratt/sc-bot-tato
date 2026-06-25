@@ -1,9 +1,8 @@
 from typing import Any, Dict, List, Set, Tuple
 
-from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
-from sc2.ids.effect_id import EffectId
+from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
@@ -576,6 +575,8 @@ class UnitTypes(GeometryMixin):
         """
         if attacker.type_id == UnitTypeId.HIGHTEMPLAR and target.energy > 10:
             return 10 # feedback
+        if attacker.type_id == UnitTypeId.CYCLONE and BuffId.LOCKON in target.buffs:
+            return 11 # technically 15 but risk losing vision
         if target.is_cloaked and attacker.is_detector:
             return attacker.sight_range # treat detection as a weapon to be avoided
         if target.is_flying:

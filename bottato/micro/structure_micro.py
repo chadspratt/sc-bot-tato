@@ -169,6 +169,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 else:
                     cc.move(destination)
             else:
+                if cc.tag in self.building_destinations:
+                    del self.building_destinations[cc.tag]
                 is_mined_out = cc.type_id == UnitTypeId.ORBITALCOMMAND \
                     and not self.member_is_closer_than(cc, self.bot.mineral_field, 15) \
                     and not self.member_is_closer_than(cc, gas_buildings, 15)
@@ -225,7 +227,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             else:
                 break
         for facility in flying_facilities:
-            await self.move_structure(facility)
+            if facility.is_flying:
+                await self.move_structure(facility)
 
         for facility in landed_facilties:
             if facility.health_percentage < 0.8 and self.bot.enemy_units:
@@ -235,6 +238,9 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 threats = self.enemy.threats_to_friendly_unit(facility, attack_range_buffer=2)
                 if threats:
                     await self.move_structure(facility)            
+            else:
+                if facility.tag in self.building_destinations:
+                    del self.building_destinations[facility.tag]
 
     @timed_async
     async def move_ramp_barracks(self, army_ratio: float):

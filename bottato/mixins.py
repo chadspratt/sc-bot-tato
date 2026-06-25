@@ -192,6 +192,15 @@ class GeometryMixin:
         if isinstance(unit1, Unit) and isinstance(unit2, Unit):
             return unit1.distance_to_squared(unit2)
         return cy_distance_to_squared(unit1.position, unit2.position)
+    
+    @staticmethod
+    def grid_distance(unit1: Unit | Point2, unit2: Unit | Point2) -> float:
+        # useful for checking if building footprints will overlap
+        if isinstance(unit1, Unit):
+            unit1 = unit1.position
+        if isinstance(unit2, Unit):
+            unit2 = unit2.position
+        return max(abs(unit1.x - unit2.x), abs(unit1.y - unit2.y))
 
     # @staticmethod
     # def closest_distance(unit1: Unit, units: Units) -> float:
