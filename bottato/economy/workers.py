@@ -1436,13 +1436,13 @@ class Workers(GeometryMixin):
             if assignment.on_attack_break and worker.tag not in defender_tags:
                 assignment.on_attack_break = False
                 self.update_target(worker, assignment.target, assignment.target_position, assignment.build_type)
-                if assignment.target:
-                    if assignment.unit.is_carrying_resource and self.bot.townhalls.ready:
-                        assignment.unit.smart(
-                            cy_closest_to(assignment.unit.position, self.bot.townhalls.ready)
-                        )
-                    else:
-                        assignment.unit.smart(assignment.target)
+                # if assignment.target:
+                #     if assignment.unit.is_carrying_resource and self.bot.townhalls.ready:
+                #         assignment.unit.smart(
+                #             cy_closest_to(assignment.unit.position, self.bot.townhalls.ready)
+                #         )
+                #     else:
+                #         assignment.unit.smart(assignment.target)
 
     def filter_enemies_outside_wall(self, enemies: Units) -> Units:
         raised_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOT)
