@@ -426,12 +426,14 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         enemies_to_scan = Units([], self.bot)
         air_attackers = None
         ground_attackers = None
+        # identify all candidates that don't have a raven nearby and have attackers in position
         for enemy in need_detection:
             attackers = None
-            # don't scan if raven nearby
-            if self.enemy.get_units_closer_than(enemy, ravens, 20).exists:
+            # check for nearby raven
+            if self.enemy.get_units_closer_than(enemy, ravens, 15).exists:
                 continue
-            # only scan enemies if attackers nearby to make use of scan
+
+            # check for attackers in position
             if isinstance(enemy, Unit) and enemy.is_flying:
                 if air_attackers is None:
                     air_attackers = self.bot.all_own_units.filter(lambda u: UnitTypes.can_attack_air(u))
@@ -444,18 +446,14 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 continue
             if isinstance(enemy, Unit):
                 attackers = self.enemy.threats_to(enemy, attackers)
-                if attackers.amount > 1 or attackers.of_type(UnitTypeId.BUNKER):
+                # scan if there is more than a single marine available to attack
+                if attackers.amount > 1 or attackers.exclude_type(UnitTypeId.MARINE).amount > 0:
                     enemies_to_scan.append(enemy)
-            # elif attackers.closer_than(6, enemy).amount > 2:
-            #     # position to scan, don't worry about grouping and just scan it
-            #     LogHelper.add_log(f"Scanning to detect {enemy}")
-            #     orbital_with_energy(AbilityId.SCANNERSWEEP_SCAN, enemy)
-            #     self.last_scan_time = self.bot.time
-            #     return
 
-        # find unit that has most hidden enemies nearby then scan center of the group
+        # drop one scan per step 
         if enemies_to_scan:
             LogHelper.add_log(f"Scanning to detect {enemies_to_scan}")            
             _, grouped_enemies = self.get_most_grouped_unit(enemies_to_scan, self.bot, 13)
-            orbital_with_energy(AbilityId.SCANNERSWEEP_SCAN, Point2(cy_center(grouped_enemies)))
+            scan_position = self.get_midrange_point(grouped_enemies)
+            orbital_with_energy(AbilityId.SCANNERSWEEP_SCAN, scan_position)
             self.last_scan_time = self.bot.time

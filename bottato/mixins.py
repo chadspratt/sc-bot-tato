@@ -280,6 +280,19 @@ class GeometryMixin:
         return (most_nearby_unit, Units(most_nearby_units, bot_object=bot))
     
     @staticmethod
+    def get_midrange_point(units: Units) -> Point2:
+        # get unweighted center of units
+        # e.g. `xxx   |     x` vs Units.center (average) `xxx |       x`
+        assert units, "units list is empty"
+        min_x = min(unit.position.x for unit in units)
+        max_x = max(unit.position.x for unit in units)
+        min_y = min(unit.position.y for unit in units)
+        max_y = max(unit.position.y for unit in units)
+        mid_x = (min_x + max_x) / 2
+        mid_y = (min_y + max_y) / 2
+        return Point2((mid_x, mid_y))
+    
+    @staticmethod
     def position_is_between(point_to_check: Point2, unit_position: Point2, destination: Point2) -> bool:
         """Returns true if point_to_check is between unit_position and destination.
         

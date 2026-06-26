@@ -68,6 +68,8 @@ class Tactics:
         new_value = False
 
         if self.last_updates[tactic] == self.bot.state.game_loop:
+            # this can cause a delay in the tactic state updating
+            # e.g. proxy_barracks is checked at the start of the step and then enemy_builds_detected is updated
             new_value = self.last_values[tactic]
         elif tactic == Tactic.BANSHEE_HARASS:
             new_value = self.bot.time > 120 and self.bot.structures(UnitTypeId.STARPORT).ready.exists 

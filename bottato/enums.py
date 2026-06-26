@@ -64,8 +64,9 @@ class BuildType(enum.Enum):
     WORKER_RUSH = 7
     SPIRE = 8
     MULTIPLE_REAPER = 9
-    EARLY_EXPANSION = 10
-    CANNON_RUSH = 11
+    MULTIPLE_STARPORTS = 10
+    EARLY_EXPANSION = 11
+    CANNON_RUSH = 12s
 
 class BuildOrderChange(enum.Enum):
     RUSH = 0

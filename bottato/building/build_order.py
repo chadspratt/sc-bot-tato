@@ -221,6 +221,7 @@ class BuildOrder():
         self.make_one_time_build_change(self.bot.enemy_race == Race.Terran, BuildOrderChange.BANSHEE_HARASS, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.STARGATE, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.SPIRE, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
+        self.make_one_time_build_change(BuildType.MULTIPLE_STARPORTS, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
         if self.tactics.is_active(Tactic.PROXY_BARRACKS):
             self.make_one_time_build_change(BuildType.EARLY_EXPANSION, BuildOrderChange.PROXY_BARRACKS, detected_enemy_builds)
         no_rush_vs_zerg = (
