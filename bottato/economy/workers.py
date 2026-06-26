@@ -1435,6 +1435,7 @@ class Workers(GeometryMixin):
             assignment = self.assignments_by_worker[worker.tag]
             if assignment.on_attack_break and worker.tag not in defender_tags:
                 assignment.on_attack_break = False
+                self.update_target(worker, assignment.target, assignment.target_position, assignment.build_type)
                 if assignment.target:
                     if assignment.unit.is_carrying_resource and self.bot.townhalls.ready:
                         assignment.unit.smart(
@@ -1497,9 +1498,13 @@ class Workers(GeometryMixin):
                 or assignment.build_type != build_type
                 or assignment.target_position != new_target_position): 
             if worker.orders[0].progress == 0.0:
+                # there's a delay after a build finishes before is_constructing_scv changes to False where it seems like "stop" works better than halt
                 worker(AbilityId.STOP)
             else:
                 worker(AbilityId.HALT)
+        elif assignment.on_attack_break:
+            # don't interrupt attacking with other actions, will still update the assignment
+            pass
         elif new_target:
             if assignment.job_type == WorkerJobType.REPAIR:
                 pass
@@ -1658,7 +1663,7 @@ class Workers(GeometryMixin):
             assignment.unit for assignment in self.assignments_by_job[job_type]
             if assignment.unit_available
                 and assignment.unit.type_id != UnitTypeId.MULE
-                and not (assignment.job_type in (WorkerJobType.MINERALS, WorkerJobType.VESPENE) and assignment.unit.is_carrying_resource)
+                # and not (assignment.job_type in (WorkerJobType.MINERALS, WorkerJobType.VESPENE) and assignment.unit.is_carrying_resource)
                 and not assignment.on_attack_break
                 and (not assignment.unit.is_constructing_scv or self.completed_construction_worker_tags.get(assignment.unit.tag, 0) + 5 > self.bot.time)
         ],
@@ -1766,7 +1771,9 @@ class Workers(GeometryMixin):
                         or assignment.target_position is None \
                         or 0 < self.bot.time - assignment.last_reassign_time < 0.3 \
                         or self.bot.time - assignment.last_swap_time < 5:
-                    # skip scouts, missing positions, and recently reassigned
+                        # or assignment.on_attack_break \
+                        # or self.member_is_closer_than(assignment.unit, self.bot.enemy_units, 3):
+                    # skip scouts, missing positions, recently reassigned
                     unprocessed_workers.remove(assignment.unit)
                     continue
                 if assignment.job_type in (WorkerJobType.MINERALS, WorkerJobType.VESPENE, WorkerJobType.REPAIR):
