@@ -244,6 +244,7 @@ class BaseUnitMicro(GeometryMixin):
         # avoid damaging effects
         effects_to_avoid = []
         # built-in-effects
+        furthest_effect_to_avoid_distance = 0.0
         for effect in self.bot.state.effects:
             if effect.id not in self.damaging_effects:
                 continue
@@ -262,8 +263,11 @@ class BaseUnitMicro(GeometryMixin):
             effect_radius = self.fixed_radius.get(effect.id, effect.radius)
             safe_distance = (effect_radius + unit.radius + MN.AVOID_EFFECT_BUFFER) ** 2
             for position in effect.positions:
-                if unit.position._distance_squared(position) < safe_distance:
+                effect_distance = unit.position._distance_squared(position)
+                if effect_distance < safe_distance:
                     effects_to_avoid.append(position)
+                    if effect_distance > furthest_effect_to_avoid_distance:
+                        furthest_effect_to_avoid_distance = effect_distance
         # custom effects
         i = len(BaseUnitMicro.custom_effects_to_avoid) - 1
         while i >= 0:
@@ -283,17 +287,21 @@ class BaseUnitMicro(GeometryMixin):
             i -= 1
         # avoid all nearby
         if effects_to_avoid:
-            move_away_from_position = self.bot.enemy_start_locations[0]
-            number_of_effects = len(effects_to_avoid)
-            if number_of_effects == 1:
-                if unit.position != effects_to_avoid[0]:
-                    move_away_from_position = effects_to_avoid[0]
+            move_away_from_position = effects_to_avoid[0]
+            if furthest_effect_to_avoid_distance < 1:
+                # near center of effect so can run in any direction, so run away from closest threat if any
+                threats = self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3)
+                if threats:
+                    closest_threat = cy_closest_to(unit.position, self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=3))
+                    move_away_from_position = closest_threat.position
             else:
-                average_x = sum(p.x for p in effects_to_avoid) / number_of_effects
-                average_y = sum(p.y for p in effects_to_avoid) / number_of_effects
-                average_position = Point2((average_x, average_y))
-                if unit.position != average_position:
-                    move_away_from_position = average_position
+                number_of_effects = len(effects_to_avoid)
+                if number_of_effects > 1:
+                    average_x = sum(p.x for p in effects_to_avoid) / number_of_effects
+                    average_y = sum(p.y for p in effects_to_avoid) / number_of_effects
+                    average_position = Point2((average_x, average_y))
+                    if unit.position != average_position:
+                        move_away_from_position = average_position
             new_position = Point2(cy_towards(unit.position, move_away_from_position, -2))
             unit.move(new_position)
             return UnitMicroType.AVOID_EFFECTS
