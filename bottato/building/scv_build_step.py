@@ -155,14 +155,6 @@ class SCVBuildStep(BuildStep):
     def get_position(self) -> Point2 | None:
         return self.position
     
-    def tech_requirements_met(self) -> bool:
-        if self.unit_type_id in TECH_TREE:
-            # check that all tech requirements are met
-            for requirement in TECH_TREE[self.unit_type_id]:
-                if self.bot.structure_type_build_progress(requirement) < 0.8:
-                    return False
-        return True
-    
     def get_readiness_to_build(self) -> float:
         if self.unit_type_id in TECH_TREE:
             readiness = 1.0

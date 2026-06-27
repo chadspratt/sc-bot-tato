@@ -114,14 +114,6 @@ class StructureBuildStep(BuildStep):
             self.is_in_progress = True
         return response
     
-    def tech_requirements_met(self) -> bool:
-        if self.unit_type_id in TECH_TREE:
-            # check that all tech requirements are met
-            for requirement in TECH_TREE[self.unit_type_id]:
-                if self.bot.structure_type_build_progress(requirement) < 0.8:
-                    return False
-        return True
-    
     def get_readiness_to_build(self) -> float:
         production_readiness = self.production.get_readiness_to_build(self.unit_type_id)
         

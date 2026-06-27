@@ -128,6 +128,7 @@ class BuildOrder():
             self.build_queue.clear()
             self.add_to_build_queue(priority_military_queue, queue=self.build_queue)
             self.add_to_build_queue(military_queue, queue=self.build_queue)
+            self.queue_to_spend_bank_on_idle_production(self.only_build_units)
 
             if self.only_build_units:
                 capacity_available = self.production.can_build_any(military_queue)
@@ -716,15 +717,15 @@ class BuildOrder():
             if only_build_units and not build_step.is_unit():
                 continue
 
+            if build_step.is_unit():
+                production_items.append((build_step.get_unit_type_id(), build_step.cost))
+
             remaining_resources.minerals -= build_step.cost.minerals
             remaining_resources.vespene -= build_step.cost.vespene
             if remaining_resources.minerals < 0 or remaining_resources.vespene < 0:
                 break
 
-            if build_step.is_unit():
-                production_items.append((build_step.get_unit_type_id(), build_step.cost))
-
-        extra_production: List[UnitTypeId] = self.production.additional_needed_production(production_items, remaining_resources)
+        extra_production: List[UnitTypeId] = self.production.additional_needed_production(production_items)
         # only add if not already in progress
         extra_production = self.remove_in_progress_from_list(extra_production) # type: ignore
         if extra_production:
@@ -751,18 +752,42 @@ class BuildOrder():
             if idle_capacity > 0 and priority_queue_count == 0:
                 if not self.move_between_queues(UnitTypeId.MARINE, self.static_queue, self.priority_queue):
                     self.add_to_build_queue([UnitTypeId.MARINE], queue=self.priority_queue)
-        elif self.bot.minerals > 500 and self.bot.supply_used < 185:
-            idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS)
-            if idle_capacity > 0:
-                self.add_to_build_queue([UnitTypeId.MARINE] * idle_capacity, queue=self.static_queue)
-            elif self.get_in_progress_count(UnitTypeId.BARRACKS) + self.get_in_progress_count(UnitTypeId.BARRACKSREACTOR) < 3:
-                self.add_to_build_queue([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSREACTOR], queue=self.static_queue)
-        elif only_build_units and self.bot.minerals > 200 and self.bot.supply_left > 5:
-            idle_capacity = self.production.get_build_capacity(UnitTypeId.BARRACKS, tech_lab_excluded=True)
-            priority_queue_count = self.get_queued_count(UnitTypeId.MARINE, self.priority_queue)
-            if idle_capacity > 0 and priority_queue_count == 0:
-                self.add_to_build_queue([UnitTypeId.MARINE] * idle_capacity, queue=self.static_queue)
 
+
+    default_spend_types: Dict[UnitTypeId, Dict[UnitTypeId, UnitTypeId]] = {
+        UnitTypeId.BARRACKS: {
+            UnitTypeId.REACTOR: UnitTypeId.MARINE,
+            UnitTypeId.TECHLAB: UnitTypeId.MARAUDER,
+            UnitTypeId.NOTAUNIT: UnitTypeId.BARRACKSTECHLAB,
+        },
+        UnitTypeId.FACTORY: {
+            UnitTypeId.REACTOR: UnitTypeId.WIDOWMINE,
+            UnitTypeId.TECHLAB: UnitTypeId.SIEGETANK,
+            UnitTypeId.NOTAUNIT: UnitTypeId.FACTORYTECHLAB,
+        },
+        UnitTypeId.STARPORT: {
+            UnitTypeId.REACTOR: UnitTypeId.MEDIVAC,
+            UnitTypeId.TECHLAB: UnitTypeId.BANSHEE,
+            UnitTypeId.NOTAUNIT: UnitTypeId.STARPORTTECHLAB,
+        },
+    }
+    @timed
+    def queue_to_spend_bank_on_idle_production(self, only_build_units: bool) -> None:
+        idle_production = self.production.get_idle_production_counts()
+        to_add: List[UnitTypeId | UpgradeId] = []
+        max_minerals = 200 if only_build_units else 500
+        max_vespene = 160
+        if (self.bot.minerals >= max_minerals and self.bot.vespene >= max_vespene
+                and self.bot.supply_used < 185 and self.bot.supply_left > 5):
+            for facility_type in [UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT]:
+                for addon_type in [UnitTypeId.REACTOR, UnitTypeId.TECHLAB, UnitTypeId.NOTAUNIT]:
+                    idle_addons = idle_production[facility_type][addon_type]
+                    if idle_addons > 0:
+                        to_add.extend([self.default_spend_types[facility_type][addon_type]] * idle_addons)
+            # queue a barracks if no idle production
+            if len(to_add) == 0:
+                to_add.append(UnitTypeId.BARRACKS)
+            self.add_to_build_queue(to_add, queue=self.build_queue)
 
     @timed
     def queue_medivacs(self) -> None:

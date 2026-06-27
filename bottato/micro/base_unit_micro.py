@@ -730,7 +730,7 @@ class BaseUnitMicro(GeometryMixin):
         if healing_shrines and unit.health_percentage < 1.0:
             # if near a shrine, always prefer it
             closest_shrine = cy_closest_to(unit.position, healing_shrines)
-            if cy_distance_to_squared(unit.position, closest_shrine.position) < 400 \
+            if cy_distance_to_squared(unit.position, closest_shrine.position) < 900 \
                     or unit.tag in BaseUnitMicro.harass_tags \
                     or unit.tag in BaseUnitMicro.scout_tags:
                 ultimate_destination = closest_shrine

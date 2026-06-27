@@ -52,16 +52,6 @@ class UpgradeBuildStep(BuildStep):
     def is_upgrade_type(self, upgrade_id: UpgradeId) -> bool:
         return self.upgrade_id == upgrade_id or upgrade_id == UpgradeId.SUNDERINGIMPACT and self.upgrade_id == UpgradeId.INTERFERENCEMATRIX
     
-    def tech_requirements_met(self) -> bool:
-        research_structure_type: UnitTypeId = UPGRADE_RESEARCHED_FROM[self.upgrade_id]
-        research_info = RESEARCH_INFO[research_structure_type][self.upgrade_id]
-        required_tech_building: UnitTypeId | None = research_info.get("required_building", None) # type: ignore
-        requirement_met = (
-            required_tech_building is None or self.bot.structure_type_build_progress(required_tech_building) > 0.9
-        )
-        if not requirement_met:
-            return False
-        return True
 
     def get_readiness_to_build(self) -> float:
         facility_readiness: float = 0.0
@@ -74,7 +64,14 @@ class UpgradeBuildStep(BuildStep):
                     facility_readiness = max(facility_readiness, facility.orders[0].progress)
             else:
                 facility_readiness = max(facility_readiness, facility.build_progress)
-        return facility_readiness
+
+        tech_readiness = 0.0
+        research_structure_type: UnitTypeId = UPGRADE_RESEARCHED_FROM[self.upgrade_id]
+        research_info = RESEARCH_INFO[research_structure_type][self.upgrade_id]
+        required_tech_building: UnitTypeId | None = research_info.get("required_building", None) # type: ignore
+        if required_tech_building:
+            tech_readiness = self.bot.structure_type_build_progress(required_tech_building)
+        return min(facility_readiness, tech_readiness)
     
     async def execute(self, special_locations: SpecialLocations,
                       detected_enemy_builds: Dict[BuildType, float],

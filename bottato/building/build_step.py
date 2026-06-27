@@ -10,7 +10,6 @@ from bottato.building.special_locations import SpecialLocations
 from bottato.economy.production import Production
 from bottato.economy.workers import Workers
 from bottato.enums import BuildResponseCode, BuildType
-from bottato.map.map import Map
 from bottato.mixins import GeometryMixin
 from bottato.tactics import Tactics
 
@@ -85,9 +84,6 @@ class BuildStep(GeometryMixin):
 
     def get_position(self) -> Point2 | None:
         return None
-    
-    def tech_requirements_met(self) -> bool:
-        return True
     
     def get_readiness_to_build(self) -> float:
         return 1.0
