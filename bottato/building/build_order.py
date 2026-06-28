@@ -1196,7 +1196,7 @@ class BuildOrder():
                     remaining_resources = remaining_resources + added_cost
                     LogHelper.add_log(f"skipping {build_step} due to insufficient resources")
                     continue
-                if remaining_resources.vespene < 0:
+                if remaining_resources.vespene < 0 and build_step.cost.vespene > 0:
                     # don't reserve minerals for steps that are short on gas
                     remaining_resources.minerals += build_step.cost.minerals
                 if is_scv_build:
