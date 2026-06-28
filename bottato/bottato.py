@@ -3,6 +3,7 @@ import random
 from loguru import logger
 from typing import Dict
 
+from cython_extensions.units_utils import cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.data import Result
 from sc2.game_data import AbilityData
@@ -15,7 +16,7 @@ from sc2.units import Units
 from bottato.commander import Commander
 from bottato.enums import ActionErrorCode
 from bottato.log_helper import LogHelper
-from bottato.mixins import print_decorator_timers, timed_async
+from bottato.mixins import GeometryMixin, print_decorator_timers, timed_async
 from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 
@@ -96,8 +97,10 @@ class BotTato(BotAI):
                         continue
                     assignment = self.commander.my_workers.assignments_by_worker[unit.tag]
                     if assignment.target_position:
-                        nearby_buildings = self.structures.closer_than(0.1, assignment.target_position)
-                        if not nearby_buildings:
+                        for structure in self.structures:
+                            if GeometryMixin.grid_distance(structure, assignment.target_position) <= 1.0:
+                                break
+                        else:
                             self.commander.tactics.enemy.mark_position_as_needing_detection(assignment.target_position)
             except Exception as e:
                 LogHelper.add_log(f"Error processing action error: {e}")

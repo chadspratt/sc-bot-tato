@@ -93,10 +93,8 @@ class Facility():
                 UnitTypeId.AUTOTURRET
             ))
             for candidate in closest_candidates:
-                # closest_structure_to_addon = cy_closest_to(updated_unit.add_on_position, closest_candidates)
                 grid_distance = GeometryMixin.grid_distance(updated_unit.add_on_position, candidate)
-                building_radius = BUILDING_RADIUS[candidate.type_id]
-                if building_radius >= grid_distance:
+                if grid_distance <= 1.0:
                     logger.debug(f"addon blocked for {updated_unit} by {candidate}")
                     self.addon_blocked = True
                     break

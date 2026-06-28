@@ -13,6 +13,8 @@ from sc2.position import Point2, Point3
 from sc2.unit import Unit
 from sc2.units import Units
 
+from bottato.map.destructibles import BUILDING_RADIUS
+
 # Global timer storage for decorator
 _decorator_timers: Dict[str, float] = {}
 _decorator_timer_counts: Dict[str, int] = {}
@@ -196,11 +198,14 @@ class GeometryMixin:
     @staticmethod
     def grid_distance(unit1: Unit | Point2, unit2: Unit | Point2) -> float:
         # useful for checking if building footprints will overlap
+        footprint_radius = 0.0
         if isinstance(unit1, Unit):
+            footprint_radius += BUILDING_RADIUS[unit1.type_id]
             unit1 = unit1.position
         if isinstance(unit2, Unit):
+            footprint_radius += BUILDING_RADIUS[unit2.type_id]
             unit2 = unit2.position
-        return max(abs(unit1.x - unit2.x), abs(unit1.y - unit2.y))
+        return max(abs(unit1.x - unit2.x), abs(unit1.y - unit2.y)) - footprint_radius
 
     # @staticmethod
     # def closest_distance(unit1: Unit, units: Units) -> float:
