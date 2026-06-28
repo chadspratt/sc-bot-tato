@@ -23,6 +23,7 @@ from bottato.micro.custom_effect import CustomEffect
 from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.tactics import Tactics
+from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 
 
@@ -242,39 +243,43 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 if facility.tag in self.building_destinations:
                     del self.building_destinations[facility.tag]
 
+    ramp_barracks: Unit | None = None
     @timed_async
     async def move_ramp_barracks(self, army_ratio: float):
-        if self.bot.structures(UnitTypeId.BARRACKSREACTOR):
-            # reactor already started, don't move barracks
+        # Check if natural townhall is in position
+        natural_townhalls = cy_closer_than(self.bot.townhalls, 1, self.map.natural_position)
+        if not natural_townhalls:
             return
 
-        barracks = cy_closer_than(self.bot.structures([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING]).ready, 5, self.bot.main_base_ramp.top_center)
-        if len(barracks) == 0:
+        if self.ramp_barracks is None:
+            barracks = cy_closer_than(self.bot.structures([UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING]).ready, 5, self.bot.main_base_ramp.top_center)
+            if barracks:
+                self.ramp_barracks = barracks[0]
+        else:
+            try:
+                self.ramp_barracks = UnitReferenceHelper.get_updated_unit(self.ramp_barracks)
+            except UnitReferenceHelper.UnitNotFound:
+                self.ramp_barracks = None
+            
+        if self.ramp_barracks is None:
             return
-        ramp_barracks = barracks[0]
 
-        if ramp_barracks.tag in self.last_lift_for_unstuck:
+        if self.ramp_barracks.tag in self.last_lift_for_unstuck:
             # barracks was lifted to free units, handled elsewhere
             return
 
-        desired_position = self.building_destinations.get(ramp_barracks.tag)
+        desired_position = self.building_destinations.get(self.ramp_barracks.tag)
         if desired_position is None:
             desired_position = self.bot.main_base_ramp.barracks_correct_placement
-            if desired_position is None:
-                return
-            self.building_destinations[ramp_barracks.tag] = desired_position
+            self.building_destinations[self.ramp_barracks.tag] = desired_position
 
-        is_in_position = ramp_barracks.position == desired_position and not ramp_barracks.is_flying
+        is_in_position = self.ramp_barracks.position == desired_position and not self.ramp_barracks.is_flying
         if not is_in_position:
-            # Check if natural townhall is in position
-            natural_townhalls = cy_closer_than(self.bot.townhalls, 1, self.map.natural_position)
-            if not natural_townhalls:
-                return
-            if cy_closer_than(self.bot.enemy_units, 25, ramp_barracks.position) and not ramp_barracks.is_flying:
+            if cy_closer_than(self.bot.enemy_units, 25, self.ramp_barracks.position) and not self.ramp_barracks.is_flying:
                 # don't lift if enemies are nearby
                 return
             
-            await self.move_structure(ramp_barracks)
+            await self.move_structure(self.ramp_barracks)
 
     async def move_proxy_barracks(self):
         if self.tactics.proxy_barracks:

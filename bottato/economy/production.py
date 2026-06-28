@@ -114,8 +114,7 @@ class Facility():
 
     @property
     def has_capacity(self) -> bool:
-        logger.debug(f"facility has orders {self.unit.orders} + {self.queued_unit_ids} and capacity {self.capacity}")
-        return len(self.unit.orders) + len(self.queued_unit_ids) < self.capacity
+        return self.get_available_capacity() > 0
 
     def set_add_on_type(self, add_on_type: UnitTypeId) -> None:
         self.add_on_type = add_on_type
@@ -259,7 +258,7 @@ class Production():
                         # don't build addon on proxy barracks
                         continue
                     if candidate.addon_blocked or self.bot.time - candidate.addon_destroyed_time < 8:
-                        logger.debug(f"can't build addon {unit_type} at {candidate} - addon_blocked: {candidate.addon_blocked}, time_since_destruction: {self.bot.time - candidate.addon_destroyed_time}")
+                        LogHelper.add_log(f"can't build addon {unit_type} at {candidate} - addon_blocked: {candidate.addon_blocked}, time_since_destruction: {self.bot.time - candidate.addon_destroyed_time}")
                         continue
 
                 if candidate.unit.health_percentage < 0.95 and cy_closer_than(self.bot.enemy_units, 10, candidate.unit.position):
@@ -269,7 +268,7 @@ class Production():
                 if candidate.has_capacity:
                     return candidate
                 else:
-                    logger.debug(f"candidate {candidate.unit} has no capacity - orders: {len(candidate.unit.orders)}, queued: {len(candidate.queued_unit_ids)}, capacity: {candidate.capacity}")
+                    LogHelper.add_log(f"candidate {candidate.unit} has no capacity - orders: {len(candidate.unit.orders)}, queued: {len(candidate.queued_unit_ids)}, capacity: {candidate.capacity}")
 
         return None
 

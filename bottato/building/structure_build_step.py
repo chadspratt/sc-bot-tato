@@ -15,9 +15,15 @@ from bottato.building.build_step import BuildStep
 from bottato.building.special_locations import SpecialLocations
 from bottato.economy.production import Facility, Production
 from bottato.economy.workers import Workers
-from bottato.enums import BuildResponseCode, BuildType
+from bottato.enums import (
+    BuildResponseCode,
+    BuildType,
+    CustomEffectTargetArea,
+    CustomEffectType,
+)
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
+from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import timed, timed_async
 from bottato.tactics import Tactics
 from bottato.tech_tree import TECH_TREE
@@ -143,6 +149,7 @@ class StructureBuildStep(BuildStep):
                         self.unit_in_charge = self.facility = None
                 else:
                     self.position = self.unit_in_charge.add_on_position
+                    BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT, CustomEffectTargetArea.GROUND, self.position, 1, self.bot.time, 5)
         elif self.unit_type_id == UnitTypeId.SCV:
             # scv
             facility_candidates = self.bot.townhalls.filter(lambda x: x.is_ready

@@ -68,7 +68,7 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                 safe_distance = (effect_radius + unit.radius + 1.5) ** 2
                 if unit.distance_to_squared(effect.position) < safe_distance:
                     targets = self.tactics.enemy.get_target_closer_than(unit, max_distance=11)
-                    if not targets:
+                    if targets[0] is None:
                         LogHelper.add_log(f"Unsieging {unit} to avoid building footprint")
                         self.unburrow(unit)
                         return UnitMicroType.USE_ABILITY

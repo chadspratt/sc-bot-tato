@@ -554,6 +554,24 @@ class SCVBuildStep(BuildStep):
                     if grid_distance <= new_build_radius + flying_building_radius:
                         new_build_position = None
                         break
+            # don't build production between townhalls and resources
+            if new_build_position and addon_place:
+                nearest_townhall = cy_closest_to(new_build_position, self.bot.townhalls)
+                addon_position = new_build_position.offset(Point2((2.5, -0.5)))
+                if self.bot.mineral_field:
+                    nearest_minerals = cy_closest_to(new_build_position, self.bot.mineral_field)
+                    minerals_are_near = cy_distance_to_squared(new_build_position, nearest_minerals.position) <= 9 \
+                        or cy_distance_to_squared(addon_position, nearest_minerals.position) <= 9
+                    if minerals_are_near and (self.position_is_between(new_build_position, nearest_townhall.position, nearest_minerals.position) \
+                    or self.position_is_between(addon_position, nearest_minerals.position, nearest_townhall.position)):
+                        new_build_position = None
+                if new_build_position and self.bot.vespene_geyser:
+                    nearest_gas = cy_closest_to(new_build_position, self.bot.vespene_geyser)
+                    gas_is_near = cy_distance_to_squared(new_build_position, nearest_gas.position) <= 9 \
+                        or cy_distance_to_squared(addon_position, nearest_gas.position) <= 9
+                    if gas_is_near and (self.position_is_between(new_build_position, nearest_townhall.position, nearest_gas.position) \
+                    or self.position_is_between(addon_position, nearest_gas.position, nearest_townhall.position)):
+                        new_build_position = None
             if new_build_position is None:
                 max_distance += 1
                 retry_count += 1
