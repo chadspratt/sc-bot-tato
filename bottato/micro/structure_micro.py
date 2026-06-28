@@ -177,7 +177,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     and not self.member_is_closer_than(cc, gas_buildings, 15)
                 if is_mined_out:
                     cc(AbilityId.LIFT)
-                    LogHelper.write_log_to_db("cc move", f"{cc.position}")
+                    LogHelper.log_to_db("cc move", f"{cc.position}")
                     return
                 for expansion_location in self.bot.expansion_locations_list:
                     if cy_distance_to(cc.position, expansion_location) < 5:
@@ -206,10 +206,11 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                             cc(AbilityId.LIFT)
 
     async def move_production_facilities(self):
-        flying_facilities = self.bot.structures((UnitTypeId.BARRACKSFLYING, UnitTypeId.FACTORYFLYING, UnitTypeId.STARPORTFLYING))
-        landed_facilties = self.bot.structures((UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT)).ready
+        flying_facilities = self.bot.structures.filter(lambda s: s.is_flying or s.type_id in (UnitTypeId.BARRACKSFLYING, UnitTypeId.FACTORYFLYING, UnitTypeId.STARPORTFLYING))
+        landed_facilties = self.bot.structures.filter(lambda s: not s.is_flying and s.type_id in (UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT) and s.is_ready)
         no_addon_facilities = landed_facilties.filter(lambda f: not f.has_add_on)
         unclaimed_addons = self.bot.structures((UnitTypeId.REACTOR, UnitTypeId.TECHLAB))
+        LogHelper.add_log(f"unclaimed addons {unclaimed_addons}")
         for unclaimed_addon in unclaimed_addons:
             if flying_facilities:
                 nearest_facility = cy_closest_to(unclaimed_addon.add_on_land_position, flying_facilities)
@@ -400,7 +401,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     # Unit is touching if distance is less than sum of radii
                     distance = cy_distance_to(structure.position, stuck_unit.position)
                     if distance < (structure.radius + stuck_unit.radius + 0.5):
-                        LogHelper.write_log_to_db("debug", f"Lifting {structure} to untrap unit")
+                        LogHelper.log_to_db("debug", f"Lifting {structure} to untrap unit")
                         self.last_lift_for_unstuck[structure.tag] = self.bot.time
                         if structure.has_add_on:
                             self.building_destinations[structure.tag] = structure.position

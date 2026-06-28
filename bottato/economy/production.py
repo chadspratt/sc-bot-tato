@@ -81,6 +81,7 @@ class Facility():
                 self.was_lifted_to_unblock_addon = True
                 self.was_told_to_lift_to_unblock_addon = False
             self.addon_blocked = False
+            LogHelper.add_log(f"cleared addon blocked for {updated_unit}")
             self.set_add_on_type(UnitTypeId.NOTAUNIT)
         elif self.add_on_type == UnitTypeId.NOTAUNIT and not self.unit.has_add_on:
             closest_candidates = self.bot.structures.filter(lambda s: s.tag != updated_unit.tag and not s.is_flying and s.type_id not in (
@@ -95,7 +96,7 @@ class Facility():
             for candidate in closest_candidates:
                 grid_distance = GeometryMixin.grid_distance(updated_unit.add_on_position, candidate)
                 if grid_distance <= 1.0:
-                    logger.debug(f"addon blocked for {updated_unit} by {candidate}")
+                    LogHelper.log_to_db("addon blocked", f"addon blocked for {updated_unit} by {candidate}")
                     self.addon_blocked = True
                     break
 
@@ -105,7 +106,7 @@ class Facility():
             and cy_distance_to(updated_unit.position, self.bot.main_base_ramp.barracks_in_middle) < 3
 
         if self.addon_blocked and not is_ramp_barracks:
-            logger.debug(f"addon blocked for {updated_unit}")
+            LogHelper.add_log(f"addon blocked for {updated_unit}")
             # move facility to an unblocked position
             self.was_told_to_lift_to_unblock_addon = True
             updated_unit(AbilityId.LIFT)

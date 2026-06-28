@@ -193,7 +193,7 @@ class Commander(GeometryMixin):
 
     def update_completed_structure(self, unit: Unit):
         self.build_order.update_completed_structure(unit)
-        LogHelper.write_log_to_db(f'Building', unit.type_id.name)
+        LogHelper.log_to_db(f'Building', unit.type_id.name)
         self.build_order.production.add_builder(unit)
         if unit.type_id == UnitTypeId.BARRACKS and len(self.bot.structures(UnitTypeId.BARRACKS)) == 1:
             # set rally point for first barracks away from ramp
@@ -260,4 +260,4 @@ class Commander(GeometryMixin):
     def add_upgrade(self, upgrade: UpgradeId):
         logger.debug(f"upgrade completed {upgrade}")
         self.build_order.update_completed_upgrade(upgrade)
-        LogHelper.write_log_to_db('Upgrade complete', upgrade.name)
+        LogHelper.log_to_db('Upgrade complete', upgrade.name)

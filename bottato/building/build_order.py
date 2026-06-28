@@ -330,6 +330,8 @@ class BuildOrder():
             if self.bot.structures(UnitTypeId.BUNKER).amount > 0:
                 self.remove_step_from_queue(UnitTypeId.BUNKER, self.static_queue, remove_all=True)
         elif change == BuildOrderChange.ANTI_AIR:
+            if self.bot.structures(UnitTypeId.STARPORT).amount == 0 and self.get_in_progress_count(UnitTypeId.STARPORT) == 0:
+                self.move_between_queues(UnitTypeId.STARPORT, self.static_queue, self.priority_queue)
             self.remove_step_from_queue(UnitTypeId.STARPORTTECHLAB, self.static_queue)
             self.add_to_build_queue([UnitTypeId.STARPORTREACTOR], queue=self.priority_queue)
             self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue, remove_all=True)

@@ -79,7 +79,7 @@ class LogHelper:
         LogHelper.new_messages = []
 
     @staticmethod
-    def write_log_to_db(type: str, message: str, override_time: float | None = None):
+    def log_to_db(type: str, message: str, override_time: float | None = None):
         """Update the match duration in the database if we're in testing mode."""
         LogHelper.add_log(message)
         if LogHelper.test_match_id is None:

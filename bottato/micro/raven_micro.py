@@ -152,7 +152,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
         return self.fire_missile(unit, target, AbilityId.EFFECT_ANTIARMORMISSILE)
 
     def fire_interference_missile(self, unit: Unit, target: Unit) -> UnitMicroType:
-        LogHelper.write_log_to_db("interference_matrix", f'{{"unit": {unit.tag}, "target": {target.tag}}}')
+        LogHelper.log_to_db("interference_matrix", f'{{"unit": {unit.tag}, "target": {target.tag}}}')
         RavenMicro.interference_target_cooldowns[target.tag] = self.bot.time
         return self.fire_missile(unit, target, AbilityId.EFFECT_INTERFERENCEMATRIX)
 

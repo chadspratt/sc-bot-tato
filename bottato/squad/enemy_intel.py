@@ -73,7 +73,7 @@ class EnemyIntel(GeometryMixin):
     def add_type(self, unit: Unit):
         if unit.type_id not in self.type_positions_seen:
             self.type_positions_seen[unit.type_id] = [unit.position]
-            LogHelper.write_log_to_db('Enemy type seen', unit.type_id.name)
+            LogHelper.log_to_db('Enemy type seen', unit.type_id.name)
         elif unit.is_structure and unit.position not in self.type_positions_seen[unit.type_id]:
             # store position for every structure
             self.type_positions_seen[unit.type_id].append(unit.position)
@@ -89,7 +89,7 @@ class EnemyIntel(GeometryMixin):
                 start_time: float = self.get_structure_start_time(unit)
                 self.first_building_time[unit.type_id] = start_time
                 LogHelper.add_log(f"EnemyIntel: first {unit.type_id} started at time {start_time:.1f}")
-                LogHelper.write_log_to_db('Enemy type started', unit.type_id.name, start_time)
+                LogHelper.log_to_db('Enemy type started', unit.type_id.name, start_time)
 
     def get_structure_start_time(self, structure: Unit) -> float:
         return self.bot.time - structure.build_progress * structure._type_data.cost.time / 22.4 # type: ignore
@@ -268,7 +268,7 @@ class EnemyIntel(GeometryMixin):
     def add_detected_build(self, build_type: BuildType, start_time: float | None = None):
         if build_type not in self.enemy_builds_detected:
             self.enemy_builds_detected[build_type] = start_time if start_time is not None else self.bot.time
-            LogHelper.write_log_to_db('Enemy build detected', build_type.name)
+            LogHelper.log_to_db('Enemy build detected', build_type.name)
 
     def proxy_detected(self) -> bool:
         if BuildType.WORKER_RUSH in self.enemy_builds_detected or BuildType.EARLY_EXPANSION in self.enemy_builds_detected:
@@ -315,7 +315,7 @@ class EnemyIntel(GeometryMixin):
                         i -= 1
                     if not already_recorded:
                         self.enemy_drop_locations.append((transport.position, self.bot.time))
-                        LogHelper.write_log_to_db("Enemy drop detected", str(transport.position))
+                        LogHelper.log_to_db("Enemy drop detected", str(transport.position))
 
     def get_recent_drop_locations(self, within_seconds: float) -> List[Point2]:
         recent_drops: List[Point2] = []

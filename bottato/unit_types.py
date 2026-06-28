@@ -453,6 +453,24 @@ class UnitTypes(GeometryMixin):
             }
         
     @staticmethod
+    def get_supply_cost(unit_types: UnitTypeId | List[UnitTypeId] | Unit | Units) -> float:
+        """
+        Get the supply cost for a given unit type ID.
+        """
+        if isinstance(unit_types, UnitTypeId):
+            unit_types = [unit_types]
+        elif isinstance(unit_types, Unit):
+            unit_types = [unit_types.type_id]
+        elif isinstance(unit_types, Units):
+            unit_types = [unit.type_id for unit in unit_types]
+
+        total_supply = 0
+        for unit_type_id in unit_types:
+            unit_info = UnitTypes.get_unit_info(unit_type_id)
+            total_supply += unit_info.get("supply", 0)
+        return total_supply
+        
+    @staticmethod
     def can_attack_air(unit: Unit) -> bool:
         """
         Check if a unit type can attack air units.

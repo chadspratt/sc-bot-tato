@@ -133,7 +133,7 @@ class Map(GeometryMixin):
                 if abs(current_elevation - previous_elevation) > 1:
                     # elevation changed significantly, likely jumped a cliff
                     if reaper.position.rounded not in self.reaper_cliff_positions:
-                        LogHelper.write_log_to_db("Reaper cliff", str(reaper.position.rounded))
+                        LogHelper.log_to_db("Reaper cliff", str(reaper.position.rounded))
                         self.reaper_cliff_positions.add(reaper.position.rounded)
                 self.previous_reaper_elevations[reaper.tag] = current_elevation
 
