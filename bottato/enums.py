@@ -18,17 +18,17 @@ class UnitAttribute(enum.Enum):
     Unit attributes for SC2 units.
     """
 
-    LIGHT = 0
-    BIOLOGICAL = 1
-    PSIONIC = 2
-    MASSIVE = 3
-    MECHANICAL = 4
-    ARMORED = 5
-    HEROIC = 6
-    DETECTOR = 7
-    STRUCTURE = 8
-    AIR = 9
-    GROUND = 10
+    AIR = 0
+    ARMORED = 1
+    BIOLOGICAL = 2
+    DETECTOR = 3
+    GROUND = 4
+    HEROIC = 5
+    LIGHT = 6
+    MASSIVE = 7
+    MECHANICAL = 8
+    PSIONIC = 9
+    STRUCTURE = 10
 
 class WorkerJobType(enum.Enum):
     IDLE = 0
@@ -55,40 +55,42 @@ class ScoutType(enum.Enum):
 
 class BuildType(enum.Enum):
     NONE = 0
-    PROXY = 1
-    RUSH = 2
-    BATTLECRUISER_RUSH = 3
-    STARGATE = 4
+    BATTLECRUISER = 1
+    BATTLECRUISER_RUSH = 2
+    CANNON_RUSH = 3
+    EARLY_EXPANSION = 4
     FLEET_BEACON = 5
-    ZERGLING_RUSH = 6
-    WORKER_RUSH = 7
-    SPIRE = 8
-    MULTIPLE_REAPER = 9
-    MULTIPLE_STARPORTS = 10
-    EARLY_EXPANSION = 11
-    CANNON_RUSH = 12
+    MULTIPLE_REAPER = 6
+    MULTIPLE_STARPORTS = 7
+    PROXY = 8
+    RUSH = 9
+    SPIRE = 10
+    STARGATE = 11
+    WORKER_RUSH = 12
+    ZERGLING_RUSH = 13
 
 class BuildOrderChange(enum.Enum):
-    RUSH = 0
-    BATTLECRUISER = 1
-    REAPER = 2
-    BANSHEE_HARASS = 3
-    ANTI_AIR = 4
-    ZERGLING_RUSH = 5
-    WORKER_RUSH = 6
-    PROXY_BARRACKS = 7
-    CANNON_RUSH = 8
-    ZERG_NO_RUSH = 9
+    ANTI_AIR = 0
+    BANSHEE_HARASS = 1
+    BATTLECRUISER = 2
+    CANNON_RUSH = 3
+    PROXY_BARRACKS = 4
+    REAPER = 5
+    RUSH = 6
+    WORKER_RUSH = 7
+    ZERG_NO_RUSH = 8
+    ZERGLING_RUSH = 9
 
 class Tactic(enum.Enum):
-    BANSHEE_HARASS = 0
-    PROXY_BARRACKS = 1
-    RUSH_DEFENSE = 2
-    MEDIVAC_HARASS = 3
+    ANTI_AIR = 0
+    BANSHEE_HARASS = 1
+    MEDIVAC_HARASS = 2
+    PROXY_BARRACKS = 3
     RAMP_SECURED = 4
-    WORKER_RUSH_DEFENCE = 5
-    WORKER_RUSH_COUNTER_ATTACK = 6
-    WALL_IS_BUILT = 7
+    RUSH_DEFENSE = 5
+    WALL_IS_BUILT = 6
+    WORKER_RUSH_COUNTER_ATTACK = 7
+    WORKER_RUSH_DEFENCE = 8
 
 class ExpansionSelection(enum.Enum):
     CLOSEST = 0

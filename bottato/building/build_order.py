@@ -2,7 +2,11 @@ import math
 import random
 from typing import Dict, List, Set, Tuple
 
-from cython_extensions.geometry import cy_distance_to, cy_towards
+from cython_extensions.geometry import (
+    cy_distance_to,
+    cy_distance_to_squared,
+    cy_towards,
+)
 from cython_extensions.units_utils import cy_closer_than, cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.data import Race
@@ -206,12 +210,8 @@ class BuildOrder():
         if self.bot.time < self.time_to_deviate_from_build_order:
             # wait so the very initial build order is not disrupted
             return
-        # if self.bot.time > 300 or self.bot.townhalls.amount > 2 or BuildType.RUSH not in detected_enemy_builds:
-        #     # not a rush
-        #     return
-        # prioritize blocking ramp
+
         self.make_one_time_build_change(BuildType.WORKER_RUSH, BuildOrderChange.WORKER_RUSH, detected_enemy_builds)
-        self.make_one_time_build_change(BuildType.BATTLECRUISER_RUSH, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.CANNON_RUSH, BuildOrderChange.CANNON_RUSH, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.MULTIPLE_REAPER, BuildOrderChange.REAPER, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.ZERGLING_RUSH, BuildOrderChange.ZERGLING_RUSH, detected_enemy_builds)
@@ -220,9 +220,7 @@ class BuildOrder():
         if specific_rush_types.isdisjoint(detected_enemy_builds.keys()):
             self.make_one_time_build_change(BuildType.RUSH, BuildOrderChange.RUSH, detected_enemy_builds)
         self.make_one_time_build_change(self.bot.enemy_race == Race.Terran, BuildOrderChange.BANSHEE_HARASS, detected_enemy_builds)
-        self.make_one_time_build_change(BuildType.STARGATE, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
-        self.make_one_time_build_change(BuildType.SPIRE, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
-        self.make_one_time_build_change(BuildType.MULTIPLE_STARPORTS, BuildOrderChange.ANTI_AIR, detected_enemy_builds)
+        self.make_one_time_build_change(self.tactics.is_active(Tactic.ANTI_AIR), BuildOrderChange.ANTI_AIR, detected_enemy_builds)
         if self.tactics.is_active(Tactic.PROXY_BARRACKS):
             self.make_one_time_build_change(BuildType.EARLY_EXPANSION, BuildOrderChange.PROXY_BARRACKS, detected_enemy_builds)
         no_rush_vs_zerg = (
@@ -239,13 +237,18 @@ class BuildOrder():
             if BuildType.FLEET_BEACON in detected_enemy_builds or BuildType.BATTLECRUISER_RUSH in detected_enemy_builds:
                 min_vikings = 8
             viking_count = self.bot.units.of_type({UnitTypeId.VIKINGFIGHTER, UnitTypeId.VIKINGASSAULT}).amount + self.get_queued_count(UnitTypeId.VIKINGFIGHTER)
-            if viking_count < min_vikings:
-                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * (min_vikings - viking_count), queue=self.static_queue)
+            viking_deficit = min_vikings - viking_count
+            if viking_deficit > 0:
+                priority_queued_count = self.get_queued_count(UnitTypeId.VIKINGFIGHTER, queue=self.priority_queue)
+                if priority_queued_count == 0:
+                    self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER], position=0, queue=self.priority_queue)
+                    viking_deficit -= 1
+                self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * viking_deficit, queue=self.static_queue)
 
     def make_one_time_build_change(self, enemy_build_type: BuildType | bool, change: BuildOrderChange,
                                 detected_enemy_builds: Dict[BuildType, float]) -> None:
         # make one-time changes to build order
-        if enemy_build_type not in detected_enemy_builds and enemy_build_type != True:
+        if enemy_build_type != True and enemy_build_type not in detected_enemy_builds:
             return
         if change in self.changes_enacted:
             return
@@ -498,7 +501,6 @@ class BuildOrder():
         if UnitTypeId.VIKINGFIGHTER not in ideal_composition:
             # have at least one viking for scouting
             ideal_composition[UnitTypeId.VIKINGFIGHTER] = 0.01
-        # queued_supply = 0
 
         # buildable_percentage = min(1.0, military_cap / ideal_supply) if ideal_supply > 0 else 0
         buildable_percentage = min(3.0, military_cap / ideal_supply) if ideal_supply > 0 else 0
@@ -519,16 +521,16 @@ class BuildOrder():
                     needed_count -= 1
                 queue.extend([unit_type] * needed_count)
         
-        recent_drops = intel.get_recent_drop_locations(within_seconds=120)
-        if len(recent_drops) > 0:
-            widowmines = self.bot.units(UnitTypeId.WIDOWMINE)
-            in_progress_and_queued_widowmines = self.get_queued_count(UnitTypeId.WIDOWMINE, queue=self.started + self.priority_queue + self.static_queue)
-            needed_mine_count = len(recent_drops) - len(widowmines) + in_progress_and_queued_widowmines
-            if needed_mine_count > 0:
-                # need more widowmines for drop defense
-                priority_queue.append(UnitTypeId.WIDOWMINE)
-                if needed_mine_count > 1:
-                    queue.extend([UnitTypeId.WIDOWMINE] * (needed_mine_count - 1))
+        # recent_drops = intel.get_recent_drop_locations(within_seconds=120)
+        # if len(recent_drops) > 0:
+        #     widowmines = self.bot.units(UnitTypeId.WIDOWMINE)
+        #     in_progress_and_queued_widowmines = self.get_queued_count(UnitTypeId.WIDOWMINE, queue=self.started + self.priority_queue + self.static_queue)
+        #     needed_mine_count = len(recent_drops) - len(widowmines) + in_progress_and_queued_widowmines
+        #     if needed_mine_count > 0:
+        #         # need more widowmines for drop defense
+        #         priority_queue.append(UnitTypeId.WIDOWMINE)
+        #         if needed_mine_count > 1:
+        #             queue.extend([UnitTypeId.WIDOWMINE] * (needed_mine_count - 1))
         
         return (queue, priority_queue)
 
@@ -885,33 +887,52 @@ class BuildOrder():
         planetary_count = len(self.bot.structures.of_type(UnitTypeId.PLANETARYFORTRESS)) + self.get_in_progress_count(UnitTypeId.PLANETARYFORTRESS)
         cc_count = len(self.bot.structures.of_type(UnitTypeId.COMMANDCENTER))
         if self.bot.time > 500 and planetary_count < cc_count:
-            self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.PLANETARYFORTRESS))
+            self.add_to_build_queue([UnitTypeId.PLANETARYFORTRESS])
 
     @timed
     def queue_turret(self, intel: EnemyIntel) -> None:
         if intel.enemy_race == Race.Protoss and UnitTypeId.STARGATE not in intel.first_building_time:
             # protoss without stargate likely adepts or zealots, don't build turrets
             return
-        if self.bot.structures(UnitTypeId.ENGINEERINGBAY).ready:
-            turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
-            turret_count = len(turrets.ready)
-            construction_started_count = len(turrets) - turret_count
-            in_progress_count = self.get_in_progress_count(UnitTypeId.MISSILETURRET)
-            construction_pending_count = in_progress_count - construction_started_count
-            if construction_pending_count > 0:
-                # don't queue another until this starts to avoid building two at same base
+        if self.bot.structures(UnitTypeId.ENGINEERINGBAY).ready.amount == 0:
+            return
+        
+        recent_drops = intel.get_recent_drop_locations(within_seconds=120)
+        existing_turrets = self.bot.structures.of_type(UnitTypeId.MISSILETURRET)
+        for drop_location in recent_drops:
+            for turret in existing_turrets:
+                if cy_distance_to_squared(turret.position, drop_location) < 16:
+                    break
+            else:
+                self.add_to_build_queue_with_build_position(UnitTypeId.MISSILETURRET, build_position=drop_location)
                 return
-            base_count = len(self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}))
-            if turret_count + in_progress_count < base_count:
-                self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
-            elif in_progress_count == 0:
-                # add turrets to bases without one in case multiple were built at a different base
-                for townhall in self.bot.townhalls:
-                    for turret in turrets:
-                        if turret.distance_to_squared(townhall) < 100:
-                            break
-                    else:
-                        self.add_to_build_queue(self.production.build_order_with_prereqs(UnitTypeId.MISSILETURRET))
+
+        turret_count = len(existing_turrets.ready)
+        construction_started_count = len(existing_turrets) - turret_count
+        in_progress_count = self.get_in_progress_count(UnitTypeId.MISSILETURRET)
+        construction_pending_count = in_progress_count - construction_started_count
+        if construction_pending_count > 0:
+            # don't queue another until this starts to avoid building two at same base
+            return
+        base_count = len(self.bot.structures.of_type({UnitTypeId.COMMANDCENTER, UnitTypeId.ORBITALCOMMAND, UnitTypeId.PLANETARYFORTRESS}))
+        if turret_count + in_progress_count < base_count:
+            self.add_to_build_queue([UnitTypeId.MISSILETURRET])
+        elif in_progress_count == 0:
+            # add turrets to bases without one in case multiple were built at a different base
+            for townhall in self.bot.townhalls:
+                for turret in existing_turrets:
+                    if turret.distance_to_squared(townhall) < 100:
+                        break
+                else:
+                    self.add_to_build_queue([UnitTypeId.MISSILETURRET])
+
+    def add_to_build_queue_with_build_position(self, unit_type: UnitTypeId | UpgradeId, build_position: Point2, build_queue: List[BuildStep] | None = None) -> None:
+        new_steps = self.add_to_build_queue([unit_type], queue=build_queue)
+        if new_steps:
+            LogHelper.add_log(f"Queuing {unit_type.name} at {build_position}")
+            for step in new_steps:
+                if isinstance(step, SCVBuildStep) and step.unit_type_id == unit_type:
+                    step.set_position(build_position)
     
     @timed_async
     async def queue_bunker(self, main_army_staging_location: Point2) -> None:
@@ -943,12 +964,7 @@ class BuildOrder():
             position_is_valid = await self.bot.can_place_single(UnitTypeId.BUNKER, placement_position)
             
         if position_is_valid:
-            new_steps = self.add_to_build_queue([UnitTypeId.BUNKER], queue=self.static_queue)
-            if new_steps:
-                LogHelper.add_log(f"Queuing bunker at {placement_position} to protect main army")
-                for bunker_step in new_steps:
-                    if isinstance(bunker_step, SCVBuildStep) and bunker_step.unit_type_id == UnitTypeId.BUNKER:
-                        bunker_step.set_position(placement_position)
+            self.add_to_build_queue_with_build_position(UnitTypeId.BUNKER, build_position=placement_position, build_queue=self.static_queue)
 
     def update_completed_unit(self, completed_unit: Unit) -> None:
         for idx, in_progress_step in enumerate(self.started):

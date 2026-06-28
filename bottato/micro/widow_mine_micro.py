@@ -100,37 +100,37 @@ class WidowMineMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.USE_ABILITY
             return UnitMicroType.NONE
 
-        # calculate special positions to burrow to block enemy drops based on recent drop locations
-        if self.last_special_position_update_time != self.bot.time:
-            self.last_special_position_update_time = self.bot.time
-            self.special_positions.clear()
-            all_mines = self.bot.units.of_type({UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED})
-            latest_enemy_drop_locations = self.tactics.intel.get_recent_drop_locations(150)
-            for mine in all_mines:
-                if not latest_enemy_drop_locations:
-                    break
-                if self.current_targets.get(mine.tag, None):
-                    # don't move mines that are already locked on
-                    continue
-                closest_drop_location = min(latest_enemy_drop_locations, key=lambda loc: cy_distance_to_squared(mine.position, loc))
-                self.special_positions[mine.tag] = closest_drop_location
-                latest_enemy_drop_locations.remove(closest_drop_location)
+        # # calculate special positions to burrow to block enemy drops based on recent drop locations
+        # if self.last_special_position_update_time != self.bot.time:
+        #     self.last_special_position_update_time = self.bot.time
+        #     self.special_positions.clear()
+        #     all_mines = self.bot.units.of_type({UnitTypeId.WIDOWMINE, UnitTypeId.WIDOWMINEBURROWED})
+        #     latest_enemy_drop_locations = self.tactics.intel.get_recent_drop_locations(150)
+        #     for mine in all_mines:
+        #         if not latest_enemy_drop_locations:
+        #             break
+        #         if self.current_targets.get(mine.tag, None):
+        #             # don't move mines that are already locked on
+        #             continue
+        #         closest_drop_location = min(latest_enemy_drop_locations, key=lambda loc: cy_distance_to_squared(mine.position, loc))
+        #         self.special_positions[mine.tag] = closest_drop_location
+        #         latest_enemy_drop_locations.remove(closest_drop_location)
 
-        # send mines to special positions to block drops
-        if unit.tag in self.special_positions:
-            special_pos = self.special_positions[unit.tag]
-            if not is_burrowed:
-                if cy_distance_to(unit.position, special_pos) > 2:
-                    unit.move(special_pos)
-                    return UnitMicroType.MOVE
-                else:
-                    self.burrow(unit)
-                    return UnitMicroType.USE_ABILITY
+        # # send mines to special positions to block drops
+        # if unit.tag in self.special_positions:
+        #     special_pos = self.special_positions[unit.tag]
+        #     if not is_burrowed:
+        #         if cy_distance_to(unit.position, special_pos) > 2:
+        #             unit.move(special_pos)
+        #             return UnitMicroType.MOVE
+        #         else:
+        #             self.burrow(unit)
+        #             return UnitMicroType.USE_ABILITY
             
-            if cy_distance_to(unit.position, special_pos) > 5:
-                self.unburrow(unit)
-                return UnitMicroType.USE_ABILITY
-            return UnitMicroType.NONE
+        #     if cy_distance_to(unit.position, special_pos) > 5:
+        #         self.unburrow(unit)
+        #         return UnitMicroType.USE_ABILITY
+        #     return UnitMicroType.NONE
 
         # track lockon status (no data in api for whether it is locked) and update targeting when needed
         if not is_burrowed:

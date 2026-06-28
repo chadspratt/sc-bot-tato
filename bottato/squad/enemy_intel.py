@@ -210,16 +210,19 @@ class EnemyIntel(GeometryMixin):
                 self.add_detected_build(BuildType.SPIRE)
         elif self.enemy_race == Race.Terran:
             # no_expansion = self.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
-            battlecruiser = self.bot.time < 360 and \
+            early_battlecruiser = self.bot.time < 360 and \
                 (self.number_seen(UnitTypeId.FUSIONCORE) > 0 or
                  self.number_seen(UnitTypeId.BATTLECRUISER) > 0)
             multiple_barracks = not self.initial_scout_completed and self.number_seen(UnitTypeId.BARRACKS) > 1
             multiple_reapers = self.bot.enemy_units(UnitTypeId.REAPER).amount >= 2 and self.bot.time < 180
             multiple_starports = self.bot.enemy_structures(UnitTypeId.STARPORT).amount >= 2 and self.bot.time < 300
-            if battlecruiser:
+            if early_battlecruiser:
                 await LogHelper.add_chat("battlecruiser rush detected")
                 self.add_detected_build(BuildType.BATTLECRUISER_RUSH)
                 self.add_detected_build(BuildType.PROXY)
+            if self.number_seen(UnitTypeId.BATTLECRUISER) > 0:
+                await LogHelper.add_chat("battlecruiser detected")
+                self.add_detected_build(BuildType.BATTLECRUISER)
             if multiple_barracks:
                 await LogHelper.add_chat("multiple early barracks detected")
                 self.add_detected_build(BuildType.RUSH)
