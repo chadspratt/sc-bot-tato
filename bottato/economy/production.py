@@ -95,7 +95,7 @@ class Facility():
             ))
             for candidate in closest_candidates:
                 grid_distance = GeometryMixin.grid_distance(updated_unit.add_on_position, candidate)
-                if grid_distance <= 1.0:
+                if grid_distance < 1.0:
                     LogHelper.log_to_db("addon blocked", f"addon blocked for {updated_unit} by {candidate}")
                     self.addon_blocked = True
                     break

@@ -226,7 +226,7 @@ class BuildOrder():
         no_rush_vs_zerg = (
             self.bot.enemy_race == Race.Zerg
             and self.intel.initial_scout_completed
-            and (not {BuildType.ZERGLING_RUSH, BuildType.WORKER_RUSH}.intersection(detected_enemy_builds)
+            and ({BuildType.ZERGLING_RUSH, BuildType.WORKER_RUSH}.isdisjoint(detected_enemy_builds)
             or BuildType.EARLY_EXPANSION in detected_enemy_builds)
         )
         self.make_one_time_build_change(no_rush_vs_zerg, BuildOrderChange.ZERG_NO_RUSH, detected_enemy_builds)

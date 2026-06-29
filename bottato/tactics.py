@@ -67,7 +67,7 @@ class Tactics:
             new_value = self.last_values[tactic]
         elif tactic == Tactic.ANTI_AIR:
             anti_air_builds = {BuildType.BATTLECRUISER, BuildType.BATTLECRUISER_RUSH, BuildType.STARGATE, BuildType.SPIRE, BuildType.MULTIPLE_STARPORTS, BuildType.FLEET_BEACON}
-            new_value = len(anti_air_builds.intersection(self.intel.enemy_builds_detected.keys())) > 0
+            new_value = not anti_air_builds.isdisjoint(self.intel.enemy_builds_detected.keys())
         elif tactic == Tactic.BANSHEE_HARASS:
             new_value = self.bot.time > 120 and self.bot.structures(UnitTypeId.STARPORT).ready.exists 
         elif tactic == Tactic.PROXY_BARRACKS:

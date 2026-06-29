@@ -63,7 +63,7 @@ class RavenMicro(BaseUnitMicro, GeometryMixin):
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
         if not self.interference_researched:
-            self.interference_researched = len(self.interference_patched_ids.intersection(self.bot.state.upgrades)) > 0
+            self.interference_researched = not self.interference_patched_ids.isdisjoint(self.bot.state.upgrades)
         if unit.tag in self.last_missile_launch:
             enemy_unit, last_time, energy_before_launch, launch_detected, ability = self.last_missile_launch[unit.tag]
             if self.bot.time - last_time < 11 and unit.energy < energy_before_launch and not launch_detected:

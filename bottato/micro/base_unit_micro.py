@@ -356,7 +356,7 @@ class BaseUnitMicro(GeometryMixin):
         if self.last_targets_update_time != self.bot.time:
             self.last_targets_update_time = self.bot.time
             self.valid_targets = self.bot.enemy_units.filter(
-                lambda u: self.tactics.enemy.can_be_attacked(u, self.tactics.enemy.get_recent_enemies()) and u.armor < 10 and BuffId.NEURALPARASITE not in u.buffs
+                lambda u: self.tactics.enemy.can_be_attacked(u, self.tactics.enemy.get_recent_enemies()) and u.armor < 10 and u.buffs.isdisjoint({BuffId.NEURALPARASITE, BuffId.TAKENDAMAGE})
                 ) + self.bot.enemy_structures
 
         if not self.valid_targets:
@@ -536,9 +536,10 @@ class BaseUnitMicro(GeometryMixin):
         return force_move
 
     previous_targets: Dict[int, int] = {}
+    buffs_to_ignore: set[BuffId] = {BuffId.NEURALPARASITE, BuffId.TAKENDAMAGE}
     @timed
     def _get_attack_target(self, unit: Unit, nearby_enemies: Units, bonus_distance: float = 0, require_in_range_target: bool = False) -> Unit | None:
-        valid_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack_target(unit, u) and u.type_id not in UnitTypes.NON_TARGETS)
+        valid_targets = nearby_enemies.filter(lambda u: UnitTypes.can_attack_target(unit, u) and u.type_id not in UnitTypes.NON_TARGETS and u.buffs.isdisjoint(self.buffs_to_ignore))
         if require_in_range_target:
             bonus_distance = 0
             if not unit.is_flying:

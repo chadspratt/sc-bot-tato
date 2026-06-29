@@ -424,8 +424,8 @@ class SCVBuildStep(BuildStep):
             # find_placement only supports first 2 bunkers, later bunkers are queued with a position already in mind
             return None
         retry_count = 0
-        # depot grid radius + cc radius: 1 + 2.5 = 3.5
-        while not new_build_position or GeometryMixin.grid_distance(new_build_position, self.map.natural_position) <= 3.5:
+        # bunker grid radius + cc radius: 1.5 + 2.5 = 4
+        while not new_build_position or GeometryMixin.grid_distance(new_build_position, self.map.natural_position) < 4:
             if retry_count > 5:
                 new_build_position = None
                 break
@@ -551,7 +551,7 @@ class SCVBuildStep(BuildStep):
                         continue
                     flying_building_radius = BUILDING_RADIUS[flying_building.type_id]
                     grid_distance = GeometryMixin.grid_distance(new_build_position, destination)
-                    if grid_distance <= new_build_radius + flying_building_radius:
+                    if grid_distance < new_build_radius + flying_building_radius:
                         new_build_position = None
                         break
             # don't build production between townhalls and resources

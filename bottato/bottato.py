@@ -98,7 +98,7 @@ class BotTato(BotAI):
                     assignment = self.commander.my_workers.assignments_by_worker[unit.tag]
                     if assignment.target_position:
                         for structure in self.structures:
-                            if GeometryMixin.grid_distance(structure, assignment.target_position) <= 1.0:
+                            if GeometryMixin.grid_distance(structure, assignment.target_position) < 2.0:
                                 break
                         else:
                             self.commander.tactics.enemy.mark_position_as_needing_detection(assignment.target_position)

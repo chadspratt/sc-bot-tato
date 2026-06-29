@@ -316,7 +316,7 @@ class Enemy(GeometryMixin):
         targets = targets.filter(lambda t: UnitTypes.can_attack_target(unit, t)
                                  and self.can_be_attacked(t, self.get_army())
                                  and t.armor < 10
-                                 and BuffId.NEURALPARASITE not in t.buffs)
+                                 and t.buffs.isdisjoint({BuffId.NEURALPARASITE, BuffId.TAKENDAMAGE}))
 
         for enemy_unit in targets:
             attack_range_squared = self.get_attack_range_with_buffer_squared(unit, enemy_unit, attack_range_buffer)
@@ -380,7 +380,7 @@ class Enemy(GeometryMixin):
                                             and UnitTypes.can_attack_target(friendly_unit, u)
                                             and u.age == 0
                                             and u.armor < 10
-                                            and BuffId.NEURALPARASITE not in u.buffs
+                                            and u.buffs.isdisjoint({BuffId.NEURALPARASITE, BuffId.TAKENDAMAGE})
                                         ))
 
         for enemy_unit in enemies:

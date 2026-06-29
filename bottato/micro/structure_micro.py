@@ -308,7 +308,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 # structure.move(destination)
                 await self.scout(structure, destination)
                 LogHelper.add_log(f"moving {structure.type_id} to {destination}")
-                if distance < 5:
+                if distance < 5 and (structure.tag not in self.last_lift_for_unstuck or self.bot.time - self.last_lift_for_unstuck[structure.tag] > 5):
                     # clear the landing zone
                     BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
                                                     CustomEffectTargetArea.GROUND,
@@ -327,10 +327,11 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     structure(AbilityId.LIFT)
         else:
             if structure.is_flying:
-                BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
-                                                CustomEffectTargetArea.GROUND,
-                                                destination, structure.radius,
-                                                self.bot.time, 0.5)
+                if structure.tag not in self.last_lift_for_unstuck or self.bot.time - self.last_lift_for_unstuck[structure.tag] > 5:
+                    BaseUnitMicro.add_custom_effect(CustomEffectType.BUILDING_FOOTPRINT,
+                                                    CustomEffectTargetArea.GROUND,
+                                                    destination, structure.radius,
+                                                    self.bot.time, 0.5)
                 in_position_time = self.building_in_position_times.get(structure.tag)
                 if in_position_time is None:
                     self.building_in_position_times[structure.tag] = self.bot.time
@@ -392,7 +393,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             # Check if any stuck unit is touching this structure
             if not structure.is_flying:
                 # Don't lift if currently building something
-                if structure.orders:
+                if structure.orders and structure.orders[0].progress > 0.0:
                     continue
                 if cy_closer_than(raised_depots, 3, structure.position):
                     # Don't lift if a raised depot is nearby, as it indicates enemies are nearby
@@ -400,7 +401,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 for stuck_unit in stuck_units:
                     # Unit is touching if distance is less than sum of radii
                     distance = cy_distance_to(structure.position, stuck_unit.position)
-                    if distance < (structure.radius + stuck_unit.radius + 0.5):
+                    if distance < (structure.radius + stuck_unit.radius + 1.0):
                         LogHelper.log_to_db("debug", f"Lifting {structure} to untrap unit")
                         self.last_lift_for_unstuck[structure.tag] = self.bot.time
                         if structure.has_add_on:
