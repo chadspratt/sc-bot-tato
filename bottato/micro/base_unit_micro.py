@@ -692,8 +692,8 @@ class BaseUnitMicro(GeometryMixin):
             desired_distance += target_range + 0.5
         elif target.type_id in UnitTypes.WORKER_TYPES:
             desired_distance += 3.0
-        elif target.type_id == UnitTypeId.SIEGETANKSIEGED:
-            # desired_distance += 0
+        elif target.type_id in (UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED):
+            # dive on tanks
             pass
         else:
             desired_distance += min(unit_range - 0.1, max(unit_range - 1.0, target_range + 0.5))

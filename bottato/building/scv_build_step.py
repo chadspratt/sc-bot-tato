@@ -555,7 +555,7 @@ class SCVBuildStep(BuildStep):
                         new_build_position = None
                         break
             # don't build production between townhalls and resources
-            if new_build_position and addon_place:
+            if new_build_position and addon_place and self.bot.townhalls:
                 nearest_townhall = cy_closest_to(new_build_position, self.bot.townhalls)
                 addon_position = new_build_position.offset(Point2((2.5, -0.5)))
                 if self.bot.mineral_field:
@@ -617,9 +617,19 @@ class SCVBuildStep(BuildStep):
     @timed_async
     async def is_interrupted(self) -> bool:
         interrupted = False
-        if self.unit_in_charge is None or self.position is None:
+        if self.unit_in_charge is None:
+            if self.unit_being_built and self.unit_being_built not in self.bot.structures_without_construction_SCVs:
+                for worker in self.bot.workers:
+                    if worker.is_constructing_scv and worker.orders and worker.orders[0].target == self.unit_being_built.tag:
+                        self.workers.update_assigment(worker, WorkerJobType.BUILD, self.unit_being_built)
+                        self.unit_in_charge = worker
+                        break
+        if self.unit_in_charge is None:
             interrupted = True
-            LogHelper.add_log(f"{self} interrupted due to no worker ({self.unit_in_charge}) or position ({self.position})")
+            LogHelper.add_log(f"{self} interrupted due to no worker")
+        elif self.position is None:
+            interrupted = True
+            LogHelper.add_log(f"{self} interrupted due to no position")
         else:
             if self.unit_in_charge.tag in self.workers.assignments_by_worker \
                     and self.workers.assignments_by_worker[self.unit_in_charge.tag].on_attack_break \
