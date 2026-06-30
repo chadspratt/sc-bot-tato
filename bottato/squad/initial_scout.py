@@ -2,7 +2,11 @@ from loguru import logger
 from typing import List
 
 from cython_extensions.general_utils import cy_in_pathing_grid_burny
-from cython_extensions.geometry import cy_distance_to, cy_towards
+from cython_extensions.geometry import (
+    cy_distance_to,
+    cy_distance_to_squared,
+    cy_towards,
+)
 from cython_extensions.units_utils import cy_closer_than
 from sc2.bot_ai import BotAI
 from sc2.data import Race, race_townhalls
@@ -12,6 +16,7 @@ from sc2.unit import Unit
 
 from bottato.economy.workers import Workers
 from bottato.enums import BuildType
+from bottato.map_specifics import MapSpecifics
 from bottato.mixins import GeometryMixin
 from bottato.squad.squad import Squad
 from bottato.tactics import Tactics
@@ -28,6 +33,7 @@ class InitialScout(Squad, GeometryMixin):
         self.workers = workers
 
         self.unit: Unit | None = None
+        self.midway_point_reached: bool = False
         self.completed: bool = False
         self.enemy_natural_delayed: bool = False
         self.extra_production_detected: bool = False
@@ -172,6 +178,13 @@ class InitialScout(Squad, GeometryMixin):
             
         # for waypoint in self.waypoints:
         #     self.bot.client.debug_box2_out(self.convert_point2_to_3(waypoint))
+        midway_point = MapSpecifics.worker_scout_midway_point(self.bot)
+        if midway_point and not self.midway_point_reached:
+            if cy_distance_to_squared(self.unit.position, midway_point) > 100:
+                self.unit.move(midway_point)
+                return
+            else:
+                self.midway_point_reached = True
             
         # Move to current waypoint
         scouting_position = self.scouting_position()

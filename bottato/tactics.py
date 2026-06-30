@@ -10,6 +10,7 @@ from bottato.enemy import Enemy
 from bottato.enums import ArmyMode, BuildType, Tactic
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
+from bottato.map_specifics import MapSpecifics
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.unit_reference_helper import UnitReferenceHelper
 
@@ -71,15 +72,18 @@ class Tactics:
         elif tactic == Tactic.BANSHEE_HARASS:
             new_value = self.bot.time > 120 and self.bot.structures(UnitTypeId.STARPORT).ready.exists 
         elif tactic == Tactic.PROXY_BARRACKS:
-            if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected and self.intel.enemy_race != Race.Zerg:
-                if self.intel.number_seen(UnitTypeId.BARRACKS) < 4 and not self._enemy_has_marine_counters():
-                    if self.bot.time < 180:
-                        # start the proxy
-                        new_value = True
-                    elif self.last_values[tactic] and self.proxy_barracks:
-                        # keep it going if it's working
-                        required_ratio = 1.1 if self.bot.time < 240 else 3
-                        new_value = self.intel.army_ratio >= required_ratio
+            if MapSpecifics.bad_for_proxy(self.bot) \
+                or self.intel.enemy_race == Race.Zerg \
+                or BuildType.EARLY_EXPANSION not in self.intel.enemy_builds_detected:
+                new_value = False
+            elif self.intel.number_seen(UnitTypeId.BARRACKS) < 4 and not self._enemy_has_marine_counters():
+                if self.bot.time < 180:
+                    # start the proxy
+                    new_value = True
+                elif self.last_values[tactic] and self.proxy_barracks:
+                    # keep it going if it's working
+                    required_ratio = 1.1 if self.bot.time < 240 else 3
+                    new_value = self.intel.army_ratio >= required_ratio
         elif tactic == Tactic.RUSH_DEFENSE:
             new_value = (
                 self.bot.time < 240

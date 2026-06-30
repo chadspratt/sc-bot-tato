@@ -1044,12 +1044,12 @@ class BuildOrder():
                 break
 
     def cancel_damaged_structure(self, unit: Unit, total_damage_amount: float):
-        do_cancel = unit.health_percentage <= 0.05 or total_damage_amount >= unit.health / 2
-        if not do_cancel and self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
-            wall_structure_types = {UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.BARRACKS}
-            wall_structures = self.bot.structures(wall_structure_types).closer_than(4, self.bot.main_base_ramp.top_center)
-            do_cancel = wall_structures.ready.amount == 0
+        if self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) and \
+                cy_distance_to_squared(unit.position, self.bot.main_base_ramp.top_center) <= 16:
+            # don't cancel wall structures during worker rush defense
+            return
 
+        do_cancel = unit.health_percentage <= 0.05 or total_damage_amount >= unit.health / 2
         if do_cancel:
             for idx, build_step in enumerate(self.all_steps):
                 if build_step.is_same_structure(unit):
@@ -1116,12 +1116,19 @@ class BuildOrder():
                         and enemy_threats \
                         and self.bot.townhalls \
                         and not wall_is_built:
+                    # save money for wall
+                    if self.bot.time < 60:
+                        LogHelper.add_log(f"skipping {build_step} to pay for wall")
+                        continue
                     # during worker rush, don't build if enemies nearby unless repositioned to natural
                     closest_enemy = cy_closest_to(self.bot.townhalls.first.position, enemy_threats)
                     closest_enemy_distance = cy_distance_to(self.bot.townhalls.first.position, closest_enemy.position)
                     if closest_enemy_distance < 25 and cy_distance_to(self.bot.townhalls.first.position, self.map.natural_position) > 1:
                         LogHelper.add_log(f"skipping {build_step} due to nearby worker rush")
                         continue
+                if self.bot.structures(UnitTypeId.BARRACKS).ready.idle and self.bot.units(UnitTypeId.MARINE).amount < 3 and self.bot.minerals < 100 and not build_step.is_unit_type(UnitTypeId.MARINE):
+                    LogHelper.add_log(f"skipping {build_step} to build a marine instead")
+                    continue
                 if is_scv_build and not (wall_is_built and build_step.unit_being_built is not None):
                     # during rush only build one barracks when ramp is secured and enemy is far enough away
                     have_depot = self.bot.structures((UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED)).amount > 0

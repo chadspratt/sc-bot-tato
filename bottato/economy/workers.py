@@ -1260,29 +1260,37 @@ class Workers(GeometryMixin):
 
         wall_is_built = self.tactics.is_active(Tactic.WALL_IS_BUILT)
         if wall_is_built:
+            # if wall is built, just focus on building it by positioning extra workers on each building to take over building if builder dies, immediately repair on completion, and keep repaired while getting marines out.
             wall_structures = self.bot.structures(
                     (UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.BARRACKS)
                 ).closer_than(
                     4, self.bot.main_base_ramp.top_center
                 )
-            repair_targets = wall_structures.filter(lambda s: s.health_percentage < 1.0 and s.build_progress > 0.8)
-            repairers = self.bot.workers.filter(lambda w: self.assignments_by_worker[w.tag].job_type != WorkerJobType.BUILD)
-            repairers.sort(key=lambda w: cy_distance_to_squared(w.position, self.bot.main_base_ramp.top_center))
-            repairer_amount = min(5, repair_targets.amount * 2, self.bot.workers.amount - 2)
-            repairers = repairers.take(repairer_amount)
-            while repairers.amount > 0:
-                for repair_target in repair_targets:
-                    if repairers.amount == 0:
-                        break
-                    closest_repairer = repairers.closest_to(repair_target)
-                    if repair_target.build_progress == 1.0:
-                        closest_repairer.repair(repair_target)
-                    else:
-                        closest_repairer.move(repair_target.position)
-                    assignment = self.assignments_by_worker[closest_repairer.tag]
-                    assignment.on_attack_break = True
-                    repairers.remove(closest_repairer)
-            return
+            # wait until depots are raised to prevent workers from getting stuck on the ramp
+            for structure in wall_structures:
+                if structure.type_id == UnitTypeId.SUPPLYDEPOTLOWERED:
+                    break
+            else:
+                # position repairers on every every structure including unbuilt so they will be ready to take over building immediately if a builder is killed
+                repair_targets = wall_structures.filter(lambda s: s.health_percentage < 1.0)
+                repair_targets.sort(key=lambda s: s.health)
+                repairers = self.bot.workers.filter(lambda w: self.assignments_by_worker[w.tag].job_type != WorkerJobType.BUILD)
+                repairers.sort(key=lambda w: cy_distance_to_squared(w.position, self.bot.main_base_ramp.top_center))
+                repairer_amount = min(MN.WORKER_RUSH_WALL_REPAIRER_COUNT, repair_targets.amount * 2, self.bot.workers.amount - 2)
+                repairers = repairers.take(repairer_amount)
+                while repairers.amount > 0:
+                    for repair_target in repair_targets:
+                        if repairers.amount == 0:
+                            break
+                        closest_repairer = repairers.closest_to(repair_target)
+                        if repair_target.build_progress == 1.0:
+                            closest_repairer.repair(repair_target)
+                        else:
+                            closest_repairer.move(repair_target.position)
+                        assignment = self.assignments_by_worker[closest_repairer.tag]
+                        assignment.on_attack_break = True
+                        repairers.remove(closest_repairer)
+                return
 
         enemies_in_base = Units(cy_closer_than(enemy_units, 25, base_location), bot_object=self.bot)
         enemy_count = enemies_in_base.amount
