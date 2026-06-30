@@ -38,6 +38,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
         self.building_in_position_times: Dict[int, float | None] = {}
         self.last_scan_time: float = 0
         self.last_lift_for_unstuck: Dict[int, float] = {}
+        self.recently_lowered_depots: Dict[int, float] = {}
 
 
     @timed_async
@@ -64,6 +65,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             # lower all depots during worker rush to not trap own units
             for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:
                 depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)
+                self.recently_lowered_depots[depot.tag] = self.bot.time
             return
 
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
@@ -90,6 +92,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     break
             else:
                 depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)
+                self.recently_lowered_depots[depot.tag] = self.bot.time
 
     @timed_async
     async def attack_with_structures(self):
@@ -381,7 +384,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             UnitTypeId.STARPORTFLYING
         ]).ready
         
-        raised_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready
+        raised_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready + self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).filter(lambda d: self.recently_lowered_depots.get(d.tag, 0) + 0.5 > self.bot.time)
         for structure in liftable_structures:
             if structure.tag in self.last_lift_for_unstuck:
                 time_since_last_lift = self.bot.time - self.last_lift_for_unstuck[structure.tag]
