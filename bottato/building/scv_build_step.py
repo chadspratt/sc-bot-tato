@@ -646,7 +646,7 @@ class SCVBuildStep(BuildStep):
                     or self.bot.time < 120 and self.tactics.is_active(Tactic.WALL_IS_BUILT) and cy_distance_to_squared(self.unit_being_built.position, self.bot.main_base_ramp.top_center) < 25):
                 danger_distance = self.unit_being_built.radius + 0.5
                 flee_enemies = False
-                if cy_closer_than(self.bot.enemy_units, danger_distance, self.unit_in_charge.position):
+                if not self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) and cy_closer_than(self.bot.enemy_units, danger_distance, self.unit_in_charge.position):
                     LogHelper.add_log(f"{self} interrupted due to wanting to stay inside wall")
                     interrupted = True
             else:

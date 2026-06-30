@@ -206,6 +206,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                             cc(AbilityId.LIFT)
 
     async def move_production_facilities(self):
+        if self.bot.time < 240:
+            return
         flying_facilities = self.bot.structures.filter(lambda s: s.is_flying or s.type_id in (UnitTypeId.BARRACKSFLYING, UnitTypeId.FACTORYFLYING, UnitTypeId.STARPORTFLYING))
         landed_facilties = self.bot.structures.filter(lambda s: not s.is_flying and s.type_id in (UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT) and s.is_ready)
         no_addon_facilities = landed_facilties.filter(lambda f: not f.has_add_on)
@@ -233,7 +235,9 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 await self.move_structure(facility)
 
         for facility in landed_facilties:
-            if facility.health_percentage < 0.8 and self.bot.enemy_units:
+            is_wall_structure = facility.type_id == UnitTypeId.BARRACKS \
+                and cy_distance_to_squared(facility.position, self.bot.main_base_ramp.top_center) < 16
+            if not is_wall_structure and facility.health_percentage < 0.8 and self.bot.enemy_units:
                 if len(facility.orders) > 0 and facility.orders[0].progress > 0.7:
                     continue  # don't lift if building is almost done
                 LogHelper.add_log(f"Health low on {facility}, checking for nearby threats before moving")
@@ -323,7 +327,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     LogHelper.add_log(f"Cancelling structure upgrade to lift {structure}")
                     structure(AbilityId.CANCEL)
                 else:
-                    LogHelper.add_log(f"Lifting {structure} to move to safety")
+                    LogHelper.add_log(f"Lifting {structure} to move to destination")
                     structure(AbilityId.LIFT)
         else:
             if structure.is_flying:

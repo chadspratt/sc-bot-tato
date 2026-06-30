@@ -1127,9 +1127,6 @@ class BuildOrder():
                     have_depot = self.bot.structures((UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED)).amount > 0
                     have_barracks = self.bot.structures((UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING)).amount > 0
                     build_started = build_step.unit_being_built is not None
-                    if not self.tactics.is_active(Tactic.RAMP_SECURED):
-                        LogHelper.add_log(f"skipping {build_step} due to ramp not secured")
-                        continue
                     if not build_started:
                         if not have_depot and not build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT):
                             LogHelper.add_log(f"skipping {build_step} due to not being a supply depot")
@@ -1139,9 +1136,6 @@ class BuildOrder():
                             continue
                         if have_depot and have_barracks and self.bot.units.exclude_type(UnitTypeId.SCV).amount < 3 and self.bot.minerals < 100:
                             LogHelper.add_log(f"skipping {build_step} due to save minerals for units")
-                            continue
-                        if cy_closer_than(enemy_threats, 4, self.bot.main_base_ramp.bottom_center):
-                            LogHelper.add_log(f"skipping {build_step} due to enemies being too close")
                             continue
             if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
                 LogHelper.add_log(f"skipping {build_step} due to no supply")
