@@ -183,7 +183,8 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
 
             destination = self.bot.start_location
             avg_threat_position = Point2(cy_center(threats))
-            if cy_distance_to(unit.position, destination) < cy_distance_to(avg_threat_position, destination) + 2:
+            distance_to_start = cy_distance_to(unit.position, destination)
+            if 30 < distance_to_start < cy_distance_to(avg_threat_position, destination) + 2:
                 # if closer to start or already near enemy, move past them to go home
                 unit.move(destination)
                 return UnitMicroType.RETREAT

@@ -363,7 +363,8 @@ class BuildOrder():
         elif change == BuildOrderChange.ZERG_NO_RUSH:
             # no zergling rush incoming, replace widowmine with siege tank
             self.remove_step_from_queue(UnitTypeId.FACTORYTECHLAB, self.static_queue)
-            self.substitute_steps_in_queue(UnitTypeId.WIDOWMINE, [UnitTypeId.FACTORYTECHLAB, UnitTypeId.SIEGETANK], self.static_queue)
+            self.remove_step_from_queue(UnitTypeId.WIDOWMINE, self.static_queue)
+            self.substitute_steps_in_queue(UnitTypeId.STARPORT, [UnitTypeId.FACTORYTECHLAB, UnitTypeId.STARPORT, UnitTypeId.SIEGETANK], self.static_queue)
     
     def move_between_queues(self, unit_type: UnitTypeId, from_queue: List[BuildStep], to_queue: List[BuildStep], position: int | None = None) -> bool:
         for step in from_queue:
