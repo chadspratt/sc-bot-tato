@@ -343,6 +343,7 @@ class BuildOrder():
                 self.remove_step_from_queue(UnitTypeId.SIEGETANK, self.static_queue, remove_all=True)
                 self.add_to_build_queue([UnitTypeId.STARPORT, UnitTypeId.STARPORTREACTOR], queue=self.static_queue, remove_duplicates=False)
         elif change == BuildOrderChange.BANSHEE_HARASS:
+            self.move_between_queues(UnitTypeId.FACTORYTECHLAB, self.static_queue, self.priority_queue)
             self.move_between_queues(UnitTypeId.STARPORT, self.static_queue, self.priority_queue)
             self.substitute_steps_in_queue(UnitTypeId.VIKINGFIGHTER, [
                 UnitTypeId.STARPORTTECHLAB,
