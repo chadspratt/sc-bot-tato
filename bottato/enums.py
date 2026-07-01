@@ -68,6 +68,7 @@ class BuildType(enum.Enum):
     STARGATE = 11
     WORKER_RUSH = 12
     ZERGLING_RUSH = 13
+    ROACH_RUSH = 14
 
 class BuildOrderChange(enum.Enum):
     ANTI_AIR = 0
@@ -80,6 +81,7 @@ class BuildOrderChange(enum.Enum):
     WORKER_RUSH = 7
     ZERG_NO_RUSH = 8
     ZERGLING_RUSH = 9
+    ROACH_RUSH = 10
 
 class Tactic(enum.Enum):
     ANTI_AIR = 0

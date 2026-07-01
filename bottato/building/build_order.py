@@ -215,8 +215,9 @@ class BuildOrder():
         self.make_one_time_build_change(BuildType.CANNON_RUSH, BuildOrderChange.CANNON_RUSH, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.MULTIPLE_REAPER, BuildOrderChange.REAPER, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.ZERGLING_RUSH, BuildOrderChange.ZERGLING_RUSH, detected_enemy_builds)
+        self.make_one_time_build_change(BuildType.ROACH_RUSH, BuildOrderChange.ROACH_RUSH, detected_enemy_builds)
         specific_rush_types = {BuildType.WORKER_RUSH, BuildType.BATTLECRUISER_RUSH, BuildType.CANNON_RUSH,
-                               BuildType.MULTIPLE_REAPER, BuildType.ZERGLING_RUSH}
+                               BuildType.MULTIPLE_REAPER, BuildType.ZERGLING_RUSH, BuildType.ROACH_RUSH}
         if specific_rush_types.isdisjoint(detected_enemy_builds.keys()):
             self.make_one_time_build_change(BuildType.RUSH, BuildOrderChange.RUSH, detected_enemy_builds)
         self.make_one_time_build_change(self.bot.enemy_race == Race.Terran, BuildOrderChange.BANSHEE_HARASS, detected_enemy_builds)
@@ -329,6 +330,8 @@ class BuildOrder():
             self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue, position=0)
             if self.bot.structures(UnitTypeId.BUNKER).amount > 0:
                 self.remove_step_from_queue(UnitTypeId.BUNKER, self.static_queue, remove_all=True)
+        elif change == BuildOrderChange.ROACH_RUSH:
+            self.add_to_build_queue([UnitTypeId.FACTORYTECHLAB, UnitTypeId.SIEGETANK], queue=self.priority_queue)
         elif change == BuildOrderChange.ANTI_AIR:
             if self.bot.structures(UnitTypeId.STARPORT).amount == 0 and self.get_in_progress_count(UnitTypeId.STARPORT) == 0:
                 self.move_between_queues(UnitTypeId.STARPORT, self.static_queue, self.priority_queue)

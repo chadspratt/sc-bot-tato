@@ -192,6 +192,7 @@ class EnemyIntel(GeometryMixin):
             no_expansion = BuildType.EARLY_EXPANSION not in self.enemy_builds_detected and self.initial_scout_completed and self.bot.time >= 85 and self.number_seen(UnitTypeId.HATCHERY) == 1
             zergling_rush = self.enemy.get_total_count_of_type_seen(UnitTypeId.ZERGLING) >= 8 and self.bot.time < 180
             spire_detected = self.number_seen(UnitTypeId.SPIRE) > 0
+            roach_rush = self.first_building_time.get(UnitTypeId.ROACHWARREN, 9999) < 90
             if early_pool:
                 await LogHelper.add_chat("early pool detected")
                 self.add_detected_build(BuildType.RUSH)
@@ -208,6 +209,9 @@ class EnemyIntel(GeometryMixin):
             if spire_detected:
                 await LogHelper.add_chat("spire detected")
                 self.add_detected_build(BuildType.SPIRE)
+            if roach_rush:
+                await LogHelper.add_chat("roach rush detected")
+                self.add_detected_build(BuildType.ROACH_RUSH)
         elif self.enemy_race == Race.Terran:
             # no_expansion = self.number_seen(UnitTypeId.COMMANDCENTER) == 1 and self.initial_scout.completed
             early_battlecruiser = self.bot.time < 360 and \
