@@ -859,6 +859,12 @@ class BuildOrder():
             next_upgrade = self.upgrades.next_upgrade(facility_type, self.changes_enacted)
             if next_upgrade is None or self.upgrade_is_in_progress(next_upgrade):
                 continue
+            if facility_type == UnitTypeId.FUSIONCORE and not (
+                self.upgrades.already_pending_upgrade(UnitTypeId.ENGINEERINGBAY, UpgradeId.TERRANINFANTRYWEAPONSLEVEL1)
+                and self.upgrades.already_pending_upgrade(UnitTypeId.ENGINEERINGBAY, UpgradeId.TERRANINFANTRYARMORSLEVEL1)
+                and self.upgrades.already_pending_upgrade(UnitTypeId.BARRACKSTECHLAB, UpgradeId.STIMPACK)):
+                # delay caduceus reactor until basic upgrades are started
+                continue
             start_upgrade_time = 300 if self.bot.townhalls.amount > 2 else 360
             if self.bot.structures(facility_type).ready.idle:
                 self.add_to_build_queue([next_upgrade], queue=self.static_queue)

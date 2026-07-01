@@ -174,7 +174,7 @@ class Upgrades:
             return upgrade_type
         return None
     
-    # patched version of python-sc2 which has wrong ability ids for some upgrades
+    # patched version of function from python-sc2 which has wrong ability ids for some upgrades
     def already_pending_upgrade(self, facility_type: UnitTypeId, upgrade_type: UpgradeId) -> float:
         assert isinstance(upgrade_type, UpgradeId), f"{upgrade_type} is no UpgradeId"
         if upgrade_type in self.bot.state.upgrades:
