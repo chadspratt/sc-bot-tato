@@ -1276,7 +1276,8 @@ class Workers(GeometryMixin):
                 repair_targets.sort(key=lambda s: s.health)
                 repairers = self.bot.workers.filter(lambda w: self.assignments_by_worker[w.tag].job_type != WorkerJobType.BUILD)
                 repairers.sort(key=lambda w: cy_distance_to_squared(w.position, self.bot.main_base_ramp.top_center))
-                repairer_amount = min(MN.WORKER_RUSH_WALL_REPAIRER_COUNT, repair_targets.amount * 2, self.bot.workers.amount - 2)
+                missing_wall_health = sum(s.health_max - s.health for s in repair_targets)
+                repairer_amount = min(MN.WORKER_RUSH_WALL_REPAIRER_COUNT, int(missing_wall_health / 50) + 1, repair_targets.amount * 2, self.bot.workers.amount - 2)
                 repairers = repairers.take(repairer_amount)
                 while repairers.amount > 0:
                     for repair_target in repair_targets:
@@ -1913,9 +1914,9 @@ class Workers(GeometryMixin):
 
                 if missing_health > 0 and self.bot.time < MN.WORKER_REPAIR_EARLY_RESPONSE_TIME and structure_is_injured:
                     # early game, just assign a bunch so wall isn't broken by a rush
-                    needed_repairers = max(needed_repairers, MN.WORKER_REPAIR_EARLY_RESPONSE_COUNT)
+                    needed_repairers = max(needed_repairers, min(MN.WORKER_REPAIR_EARLY_RESPONSE_COUNT, int(missing_health / 50) + 1))
                 else:
-                    needed_repairers = math.ceil(missing_health / MN.HEALTH_PER_REPAIRER)
+                    needed_repairers = int(missing_health / MN.HEALTH_PER_REPAIRER) + 1
                     if needed_repairers > max_repairers:
                         needed_repairers = max_repairers
                     else:

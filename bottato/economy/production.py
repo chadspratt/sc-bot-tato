@@ -16,6 +16,7 @@ from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 
+from bottato.enums import Tactic
 from bottato.log_helper import LogHelper
 from bottato.map.destructibles import BUILDING_RADIUS
 from bottato.mixins import GeometryMixin, timed, timed_async
@@ -259,10 +260,11 @@ class Production():
                     if candidate.addon_blocked or self.bot.time - candidate.addon_destroyed_time < 8:
                         LogHelper.add_log(f"can't build addon {unit_type} at {candidate} - addon_blocked: {candidate.addon_blocked}, time_since_destruction: {self.bot.time - candidate.addon_destroyed_time}")
                         continue
-
-                if candidate.unit.health_percentage < 0.95 and cy_closer_than(self.bot.enemy_units, 10, candidate.unit.position):
-                    logger.debug(f"can't build {unit_type} at {candidate} - under attack")
-                    continue
+                
+                if not self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) or self.bot.time > 180:
+                    if candidate.unit.health_percentage < 0.95 and cy_closer_than(self.bot.enemy_units, 10, candidate.unit.position):
+                        LogHelper.add_log(f"can't build {unit_type} at {candidate} - under attack")
+                        continue
 
                 if candidate.has_capacity:
                     return candidate

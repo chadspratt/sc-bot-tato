@@ -56,7 +56,7 @@ class BuildOrder():
     # next_unfinished_step_index: int
     tech_tree: Dict[UnitTypeId, List[UnitTypeId]] = {}
     rush_defense_enacted: bool = False
-    time_to_deviate_from_build_order = 40
+    time_to_deviate_from_build_order = 35
 
     def __init__(self, build_name: str, bot: BotAI, tactics: Tactics, workers: Workers) -> None:
         self.bot = bot
@@ -766,7 +766,7 @@ class BuildOrder():
     default_spend_types: Dict[UnitTypeId, Dict[UnitTypeId, UnitTypeId]] = {
         UnitTypeId.BARRACKS: {
             UnitTypeId.REACTOR: UnitTypeId.MARINE,
-            UnitTypeId.TECHLAB: UnitTypeId.MARAUDER,
+            UnitTypeId.TECHLAB: UnitTypeId.MARINE,
             UnitTypeId.NOTAUNIT: UnitTypeId.BARRACKSTECHLAB,
         },
         UnitTypeId.FACTORY: {
@@ -786,13 +786,14 @@ class BuildOrder():
         to_add: List[UnitTypeId | UpgradeId] = []
         max_minerals = 200 if only_build_units else 500
         max_vespene = 160
-        if (self.bot.minerals >= max_minerals and self.bot.vespene >= max_vespene
-                and self.bot.supply_used < 185 and self.bot.supply_left > 5):
+        if self.bot.minerals >= max_minerals and self.bot.supply_used < 185 and self.bot.supply_left > 5:
             for facility_type in [UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT]:
                 for addon_type in [UnitTypeId.REACTOR, UnitTypeId.TECHLAB, UnitTypeId.NOTAUNIT]:
                     idle_addons = idle_production[facility_type][addon_type]
                     if idle_addons > 0:
-                        to_add.extend([self.default_spend_types[facility_type][addon_type]] * idle_addons)
+                        type_to_add = self.default_spend_types[facility_type][addon_type]
+                        if type_to_add == UnitTypeId.MARINE or self.bot.vespene >= max_vespene:
+                            to_add.extend([type_to_add] * idle_addons)
             # queue a barracks if no idle production
             if len(to_add) == 0:
                 to_add.append(UnitTypeId.BARRACKS)
@@ -1142,17 +1143,17 @@ class BuildOrder():
                     continue
                 if is_scv_build and not (wall_is_built and build_step.unit_being_built is not None):
                     # during rush only build one barracks when ramp is secured and enemy is far enough away
-                    have_depot = self.bot.structures((UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED)).amount > 0
-                    have_barracks = self.bot.structures((UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING)).amount > 0
                     build_started = build_step.unit_being_built is not None
                     if not build_started:
-                        if not have_depot and not build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT):
-                            LogHelper.add_log(f"skipping {build_step} due to not being a supply depot")
-                            continue
-                        if have_depot and not have_barracks and not build_step.is_unit_type(UnitTypeId.BARRACKS):
+                        have_barracks = self.bot.structures((UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING)).amount > 0
+                        if not have_barracks and not build_step.is_unit_type(UnitTypeId.BARRACKS):
                             LogHelper.add_log(f"skipping {build_step} due to not being a barracks")
                             continue
-                        if have_depot and have_barracks and self.bot.units.exclude_type(UnitTypeId.SCV).amount < 3 and self.bot.minerals < 100:
+                        have_depots = self.bot.structures((UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED)).amount > 1
+                        if have_barracks and not have_depots and not build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT):
+                            LogHelper.add_log(f"skipping {build_step} due to not being a supply depot")
+                            continue
+                        if have_barracks and have_depots and self.bot.units.exclude_type(UnitTypeId.SCV).amount < 3 and self.bot.minerals < 100:
                             LogHelper.add_log(f"skipping {build_step} due to save minerals for units")
                             continue
             if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
@@ -1213,15 +1214,16 @@ class BuildOrder():
                 if remaining_resources.vespene < 0 and build_step.cost.vespene > 0:
                     # don't reserve minerals for steps that are short on gas
                     remaining_resources.minerals += build_step.cost.minerals
+                is_worker_rush_wall = worker_rush_active and build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT) and self.bot.time < 60
                 if is_scv_build:
                     is_proxy_barracks = (build_step.is_unit_type(UnitTypeId.BARRACKS)
                             and self.tactics.is_active(Tactic.PROXY_BARRACKS)
                             and self.bot.time < 200)
-                    if is_proxy_barracks or (percent_affordable >= 0.75 and production_readiness == 1.0):
+                    if is_proxy_barracks or is_worker_rush_wall or (percent_affordable >= 0.75 and production_readiness == 1.0):
                         await build_step.position_worker(self.special_locations, detected_enemy_builds, self.floating_building_destinations)
                         # # add to started since the worker controller should start it once there are enough resources
                         # self.started.append(build_queue.pop(execution_index))
-                if remaining_resources.minerals < 50:
+                if remaining_resources.minerals < 50 and not is_worker_rush_wall:
                     break
                 LogHelper.add_log(f"skipping {build_step} due to insufficient resources")
                 continue

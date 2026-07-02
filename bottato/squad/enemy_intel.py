@@ -266,7 +266,9 @@ class EnemyIntel(GeometryMixin):
                 await LogHelper.add_chat("early army detected near base")
                 self.add_detected_build(BuildType.RUSH)
 
-    def number_seen(self, unit_type: UnitTypeId) -> int:
+    def number_seen(self, unit_type: UnitTypeId | List[UnitTypeId]) -> int:
+        if isinstance(unit_type, list):
+            return sum(len(self.type_positions_seen.get(ut, [])) for ut in unit_type)
         return len(self.type_positions_seen.get(unit_type, []))
 
     def add_detected_build(self, build_type: BuildType, start_time: float | None = None):

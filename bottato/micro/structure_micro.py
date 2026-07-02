@@ -60,13 +60,21 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
     def adjust_supply_depots_for_enemies(self):
         # Raise depots when enemies are nearby (unless holding bottom of ramp against a worker rush)
         distance_threshold = 8
-        if self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) and self.bot.structures((UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.BARRACKS)).amount < 3:
-        # if self.tactics.is_active(Tactic.RAMP_SECURED):
-            # lower all depots during worker rush to not trap own units
-            for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:
-                depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)
-                self.recently_lowered_depots[depot.tag] = self.bot.time
-            return
+        if self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
+            # not able to build wall, lower the wall to aid escape
+            if self.bot.structures((UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.BARRACKS)).amount < 3:
+                # lower all depots during worker rush to not trap own units
+                for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOT).ready:
+                    depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)
+                    self.recently_lowered_depots[depot.tag] = self.bot.time
+                return
+            else:
+                # keep raised
+                for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
+                    depot(AbilityId.MORPH_SUPPLYDEPOT_RAISE)
+                    self.recently_lowered_depots[depot.tag] = self.bot.time
+                return
+
 
         for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
             for enemy_unit in self.bot.enemy_units:

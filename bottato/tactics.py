@@ -100,6 +100,7 @@ class Tactics:
                 BuildType.WORKER_RUSH in self.intel.enemy_builds_detected
                 and not self.is_active(Tactic.WORKER_RUSH_DEFENCE)
                 and self.bot.time > 100
+                and self.intel.number_seen([UnitTypeId.STALKER, UnitTypeId.ROACH, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.CYCLONE]) == 0
             )
         elif tactic == Tactic.WALL_IS_BUILT:
             new_value = (
