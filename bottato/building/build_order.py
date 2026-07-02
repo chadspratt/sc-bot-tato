@@ -794,9 +794,10 @@ class BuildOrder():
                         if type_to_add == UnitTypeId.MARINE or self.bot.vespene >= max_vespene:
                             to_add.extend([type_to_add] * idle_addons)
             # queue a barracks if no idle production
-            if len(to_add) == 0:
-                to_add.append(UnitTypeId.BARRACKS)
-            self.add_to_build_queue(to_add, queue=self.build_queue)
+            if len(to_add) > 0:
+                self.add_to_build_queue(to_add, queue=self.build_queue, remove_duplicates=False)
+            else:
+                self.add_to_build_queue([UnitTypeId.BARRACKS], queue=self.build_queue)
 
     @timed
     def queue_medivacs(self) -> None:
