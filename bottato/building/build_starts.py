@@ -49,6 +49,7 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.BARRACKS,
+                UnitTypeId.BARRACKSTECHLAB,
                 # UnitTypeId.MARINE,
                 # UnitTypeId.MARINE,
                 # UnitTypeId.REFINERY,
@@ -86,6 +87,7 @@ class BuildStarts():
                 # UnitTypeId.MARINE,
                 # UnitTypeId.MARINE,
                 UnitTypeId.BARRACKS,
+                UnitTypeId.BARRACKSTECHLAB,
                 # UnitTypeId.MARINE, # supply blocked until depot finishes
                 # UnitTypeId.MARINE,
                 # UnitTypeId.REFINERY,
@@ -122,6 +124,7 @@ class BuildStarts():
                 # UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.BARRACKS,
+                UnitTypeId.BARRACKSTECHLAB,
                 # UnitTypeId.MARINE, # supply blocked until depot finishes
                 # UnitTypeId.MARINE,
                 # UnitTypeId.REFINERY,

@@ -42,4 +42,6 @@ class MapSpecifics:
             if bot.start_location == Point2((175.5, 76.5)):
                 return Point2((132, 126))
             return Point2((115, 122))
+        elif bot.game_info.map_name == "Magannatha AIE":
+            return Point2((63, 63))
         return None
