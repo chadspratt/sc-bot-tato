@@ -258,7 +258,7 @@ class Production():
                         # don't build addon on proxy barracks
                         continue
                     if candidate.addon_blocked or self.bot.time - candidate.addon_destroyed_time < 8:
-                        LogHelper.add_log(f"can't build addon {unit_type} at {candidate} - addon_blocked: {candidate.addon_blocked}, time_since_destruction: {self.bot.time - candidate.addon_destroyed_time}")
+                        LogHelper.add_log(f"can't build addon {unit_type} at {candidate} - addon_blocked: {candidate.addon_blocked}")
                         continue
                 
                 if not self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) or self.bot.time > 180:

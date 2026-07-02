@@ -638,12 +638,13 @@ class UnitTypes(GeometryMixin):
             return {UnitTypeId.ZERGLING, UnitTypeId.BANELING, UnitTypeId.ZEALOT, UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE}
         return UnitTypes.HIGH_PRIORITY_TARGETS
 
+    anti_air_avoid_types = {UnitTypeId.HYDRALISK, UnitTypeId.QUEEN,
+        UnitTypeId.CYCLONE, UnitTypeId.WIDOWMINEBURROWED,
+        UnitTypeId.STALKER}
     @staticmethod
     def get_priority_avoidance_types(unit: Unit) -> Set[UnitTypeId]:
         if unit.type_id == UnitTypeId.BANSHEE:
-            return {UnitTypeId.HYDRALISK, UnitTypeId.QUEEN,
-                    UnitTypeId.CYCLONE, UnitTypeId.WIDOWMINEBURROWED,
-                    UnitTypeId.STALKER, UnitTypeId.HIGHTEMPLAR}
+            return UnitTypes.anti_air_avoid_types.union({UnitTypeId.HIGHTEMPLAR})
         if unit.type_id == UnitTypeId.REAPER:
             return {UnitTypeId.ROACH, UnitTypeId.QUEEN,
                     UnitTypeId.ADEPT, UnitTypeId.STALKER,
@@ -651,6 +652,10 @@ class UnitTypes(GeometryMixin):
                     UnitTypeId.MARAUDER}
         if unit.type_id == UnitTypeId.MARINE:
             return {UnitTypeId.BANELING, UnitTypeId.BROODLING}
+        if unit.type_id == UnitTypeId.VIKINGFIGHTER:
+            return UnitTypes.anti_air_avoid_types
+        if unit.type_id == UnitTypeId.RAVEN:
+            return UnitTypes.anti_air_avoid_types.union({UnitTypeId.VIKINGFIGHTER})
         return set()
 
     type_by_attribute_cache: Dict[Tuple[UnitAttribute, Race], Set[UnitTypeId]] = {}

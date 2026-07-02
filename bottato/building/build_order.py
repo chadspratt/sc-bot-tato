@@ -35,7 +35,7 @@ from bottato.enums import (
 )
 from bottato.log_helper import LogHelper
 from bottato.magic_numbers import MagicNumbers as MN
-from bottato.mixins import timed, timed_async
+from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.squad.enemy_intel import EnemyIntel
 from bottato.tactics import Tactics
 from bottato.unit_reference_helper import UnitReferenceHelper
@@ -703,15 +703,14 @@ class BuildOrder():
 
     @timed
     def queue_refinery(self) -> None:
-        refinery_count = len(self.bot.gas_buildings.ready) + self.get_in_progress_count(UnitTypeId.REFINERY) + self.get_queued_count(UnitTypeId.REFINERY)
-        # build refinery if less than 2 per town hall (function is only called if gas is needed but no room to move workers)
         if self.bot.townhalls.ready:
-            geysirs = self.bot.vespene_geyser.in_distance_of_group(
-                distance=10, other_units=self.bot.townhalls.ready
-            )
-            if refinery_count < len(geysirs):
-                self.add_to_build_queue([UnitTypeId.REFINERY], queue=self.priority_queue)
-        # should also build a new one if current bases run out of resources
+            available_geysers = self.bot.vespene_geyser.filter(lambda g:
+                g.vespene_contents > 0
+                and GeometryMixin.member_is_closer_than(g, self.bot.townhalls.ready, 10)
+                and not GeometryMixin.member_is_closer_than(g, self.bot.gas_buildings, 1))
+            available_geyser_count = len(available_geysers)
+            if available_geyser_count > 0:
+                self.add_to_build_queue([UnitTypeId.REFINERY] * available_geyser_count, queue=self.priority_queue)
 
     @timed
     def queue_production(self, only_build_units: bool):
