@@ -316,6 +316,8 @@ class SiegeTankMicro(BaseUnitMicro, GeometryMixin):
             step = self.early_game_siege_step.get(unit.tag, TankSiegeStep.MOVE_TO_BARRACKS)
             # Step 1: Move toward backside of ramp barracks (away from ramp)
             if step == TankSiegeStep.MOVE_TO_BARRACKS:
+                if self.bot.units((UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED)).amount > 1:
+                    step = TankSiegeStep.MOVE_TO_POSITION
                 ramp_barracks_list = cy_closer_than(
                     self.bot.structures({UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING}).ready,
                     5, ramp_top_center
