@@ -1750,6 +1750,8 @@ class Workers(GeometryMixin):
                     continue
                 if structure.type_id == UnitTypeId.AUTOTURRET:
                     continue
+                if structure.is_flying and cy_distance_to_squared(structure.position, self.bot.main_base_ramp.top_center) > 625:
+                    continue
                 is_ramp_wall_structure = structure.type_id in self.ramp_wall_structers
                 if is_ramp_wall_structure and self.bot.time <= MN.WORKER_REPAIR_RAMP_WALL_TIME \
                     or structure.type_id in self.defensive_structures:

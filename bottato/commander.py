@@ -93,9 +93,6 @@ class Commander(GeometryMixin):
         self.add_custom_effects_to_avoid()
         # very slow, 70% of command time
         await self.military.manage_squads()
-                                        #   self.tactics.intel.get_newest_enemy_base(),
-                                        #   self.tactics.intel.enemy_builds_detected,
-                                        #   self.tactics.intel.proxy_buildings)
 
         await self.my_workers.attack_nearby_enemies(self.tactics.intel.enemy_builds_detected) # ultra fast
         await self.my_workers.redistribute_workers(remaining_resources, self.tactics.intel.enemy_builds_detected)
