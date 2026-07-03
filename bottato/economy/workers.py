@@ -1411,6 +1411,7 @@ class Workers(GeometryMixin):
         await self.update_repairers(enemy_builds_detected)
         await self.distribute_idle()
 
+        # reassign workers to jobs that are closer
         priority_job_order = [
             WorkerJobType.SCOUT,
             WorkerJobType.BUILD,
@@ -1460,7 +1461,8 @@ class Workers(GeometryMixin):
                 if (worker not in unprocessed_workers
                         or assignment.unit not in unprocessed_workers
                         or assignment.job_type != job_type
-                        or assignment.target == worker):
+                        or assignment.target == worker
+                        or assignment.target_position is None):
                     continue
 
                 current_assignment = self.assignments_by_worker[worker.tag]
@@ -1469,7 +1471,7 @@ class Workers(GeometryMixin):
                     unprocessed_workers.remove(worker)
                     continue
 
-                path_distance = self.map.get_distance_by_path(worker.position, assignment.target_position) # type: ignore
+                path_distance = self.map.get_distance_by_path(worker.position, assignment.target_position)
                 if path_distance > 15 and path_distance > (distance_sq ** 0.5) * 2:
                     # straight line distance is unreliably short, don't choose this worker for this assignment
                     continue

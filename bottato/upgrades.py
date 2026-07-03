@@ -19,8 +19,8 @@ for builder_type, upgrades in RESEARCH_INFO.items():
 class Upgrades:
     # subset of UPGRADE_RESEARCHED_FROM
     infantry_types = [UnitTypeId.MARINE, UnitTypeId.REAPER, UnitTypeId.MARAUDER, UnitTypeId.GHOST]
-    vehicle_types = [UnitTypeId.HELLION, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.CYCLONE, UnitTypeId.HELLIONTANK, UnitTypeId.THOR]
-    ship_types = [UnitTypeId.VIKINGFIGHTER, UnitTypeId.BANSHEE, UnitTypeId.LIBERATOR, UnitTypeId.BATTLECRUISER]
+    vehicle_types = [UnitTypeId.CYCLONE, UnitTypeId.HELLION, UnitTypeId.HELLIONTANK, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.THOR, UnitTypeId.THORAP]
+    ship_types = [UnitTypeId.VIKINGFIGHTER, UnitTypeId.VIKINGASSAULT, UnitTypeId.BANSHEE, UnitTypeId.LIBERATOR, UnitTypeId.LIBERATORAG, UnitTypeId.BATTLECRUISER]
 
     affected_unit_types: dict[UpgradeId, List[UnitTypeId]] = {
         # ==barracks techlab==
@@ -34,7 +34,7 @@ class Upgrades:
         UpgradeId.DRILLCLAWS: [UnitTypeId.WIDOWMINE],
         # blue flame
         UpgradeId.HIGHCAPACITYBARRELS: [UnitTypeId.HELLION],
-        UpgradeId.SMARTSERVOS: [UnitTypeId.HELLION, UnitTypeId.HELLIONTANK, UnitTypeId.VIKINGFIGHTER, UnitTypeId.THOR],
+        UpgradeId.SMARTSERVOS: [UnitTypeId.HELLION, UnitTypeId.HELLIONTANK, UnitTypeId.VIKINGFIGHTER, UnitTypeId.VIKINGASSAULT, UnitTypeId.THOR, UnitTypeId.THORAP],
         # ==starport techlab==
         UpgradeId.BANSHEECLOAK: [UnitTypeId.BANSHEE],
         UpgradeId.BANSHEESPEED: [UnitTypeId.BANSHEE],
@@ -129,6 +129,7 @@ class Upgrades:
         UpgradeId.TERRANVEHICLEANDSHIPARMORSLEVEL1: 1,
         UpgradeId.PERSONALCLOAKING: 2,
         UpgradeId.MEDIVACCADUCEUSREACTOR: 2,
+        UpgradeId.CYCLONELOCKONDAMAGEUPGRADE: 2,
     }
 
     prereqs: dict[UpgradeId, UpgradeId] = {
