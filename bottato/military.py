@@ -104,24 +104,21 @@ class Military(GeometryMixin, DebugMixin):
             self.transfer_all(self.stuck_rescue, self.main_army)
 
     @timed_async
-    async def manage_squads(self, iteration: int,
-                            newest_enemy_base: Point2 | None,
-                            detected_enemy_builds: Dict[BuildType, float],
-                            proxy_buildings: Units):
+    async def manage_squads(self):
         self.main_army.draw_debug_box()
 
         await self.manage_special_squads()
 
         self.enemies_in_base = await self.get_enemies_in_base()
-        await self.harass(detected_enemy_builds, self.enemies_in_base)
+        await self.harass(self.enemies_in_base)
         if self.enemies_in_base(UnitTypeId.NYDUSCANAL):
             return  # nydus response handled in get_enemies_in_base, don't conflict with it
-        defend_with_main_army, countered_enemies = await self.counter_enemies_in_base(detected_enemy_builds)
+        defend_with_main_army, countered_enemies = await self.counter_enemies_in_base()
         
         self.intel.army_ratio = self.calculate_army_ratio()
         enemies_in_base_ratio = self.calculate_army_ratio(self.enemies_in_base)
         self.intel.avg_enemy_age = self.enemy.get_average_enemy_age()
-        required_ratio_for_offense = 1.2 + self.intel.avg_enemy_age * 0.01
+        required_ratio_for_offense = 1.2 + self.intel.avg_enemy_age * 0.05
 
         ignore_ratio_threshold = min(185, 160 + self.aborted_attack_count * 5)
         army_is_big_enough = self.intel.army_ratio > required_ratio_for_offense \
@@ -130,7 +127,7 @@ class Military(GeometryMixin, DebugMixin):
         army_is_grouped = self.main_army.is_grouped()
         mount_offense = army_is_big_enough and not defend_with_main_army
 
-        if not self.enemies_in_base and proxy_buildings:
+        if not self.enemies_in_base and self.intel.proxy_buildings:
             # if proxy buildings detected, mount offense even if army is small
             mount_offense = True
         elif self.tactics.is_active(Tactic.WORKER_RUSH_COUNTER_ATTACK):
@@ -201,13 +198,13 @@ class Military(GeometryMixin, DebugMixin):
                     await self.main_army.move(cy_closest_to(self.main_army.position, self.enemies_in_base).position)
                     return
             elif mount_offense:
-                if len(proxy_buildings) > 0 and self.bot.time < 420:
+                if len(self.intel.proxy_buildings) > 0 and self.bot.time < 420:
                     LogHelper.add_log(f"squad {self.main_army.name} clearing proxy buildings")
-                    target_position = cy_closest_to(self.main_army.position, proxy_buildings).position
+                    target_position = cy_closest_to(self.main_army.position, self.intel.proxy_buildings).position
                     await self.main_army.move(target_position)
                     return
                 else:
-                    target_position: Point2 | None = self.get_offense_target_position(newest_enemy_base, countered_enemies)
+                    target_position: Point2 | None = self.get_offense_target_position(countered_enemies)
                     if not army_is_grouped:
                         await self.regroup(target_position)
                         return
@@ -216,7 +213,7 @@ class Military(GeometryMixin, DebugMixin):
                             LogHelper.add_log(f"squad {self.main_army.name} mounting offense")
                             await self.main_army.move(target_position) # slow, 50%+ of command time
                             return
-            await self.move_army_to_staging_location(newest_enemy_base, detected_enemy_builds, self.intel.army_ratio)
+            await self.move_army_to_staging_location()
 
     @timed_async
     async def get_enemies_in_base(self) -> Units:
@@ -250,7 +247,7 @@ class Military(GeometryMixin, DebugMixin):
         return enemies_in_base
     
     @timed_async
-    async def counter_enemies_in_base(self, detected_enemy_builds: Dict[BuildType, float]) -> tuple[bool, Dict[int, FormationSquad]]:
+    async def counter_enemies_in_base(self) -> tuple[bool, Dict[int, FormationSquad]]:
         defend_with_main_army = False
         countered_enemies: Dict[int, FormationSquad] = {}
         # clear existing defense squads
@@ -269,7 +266,7 @@ class Military(GeometryMixin, DebugMixin):
 
         # assign squads to counter enemies that are alone or in small groups
         for enemy in self.enemies_in_base:
-            if BuildType.RUSH in detected_enemy_builds and len(self.main_army.units) < 10:
+            if BuildType.RUSH in self.intel.enemy_builds_detected and len(self.main_army.units) < 10:
                 # don't send out units if getting rushed and army is small
                 defend_with_main_army = True
                 break
@@ -414,8 +411,8 @@ class Military(GeometryMixin, DebugMixin):
         bunker.empty(destination)
 
     @timed_async
-    async def harass(self, detected_enemy_builds: Dict[BuildType, float], enemies_in_base: Units):
-        if BuildType.PROXY in detected_enemy_builds and self.bot.enemy_units(UnitTypeId.REAPER) and self.bot.time < 300:
+    async def harass(self, enemies_in_base: Units):
+        if BuildType.PROXY in self.intel.enemy_builds_detected and self.bot.enemy_units(UnitTypeId.REAPER) and self.bot.time < 300:
             # stop harass during proxy reaper rush
             self.transfer_all(self.reaper_harass, self.main_army)
         elif not self.reaper_harass.units:
@@ -431,7 +428,7 @@ class Military(GeometryMixin, DebugMixin):
         if self.anti_banshee_units or len(enemies_in_base) >= 3 and anti_air_in_base.amount <= 2:
             # defend base instead of harassing, or too dangerous to harass
             self.transfer_all(self.banshee_harass, self.main_army)
-        elif self.banshee_harass.units.amount < 2 and (self.bot.enemy_race != Race.Terran or BuildType.RUSH in detected_enemy_builds):
+        elif self.banshee_harass.units.amount < 2 and (self.bot.enemy_race != Race.Terran or BuildType.RUSH in self.intel.enemy_builds_detected):
             # transfer a banshee from main army to harass squad
             banshees = self.main_army.units(UnitTypeId.BANSHEE)
             if banshees:
@@ -531,7 +528,7 @@ class Military(GeometryMixin, DebugMixin):
                 await hunter_squad.hunt(squad_type.target_types)
 
     @timed
-    def get_offense_target_position(self, newest_enemy_base: Point2 | None, countered_enemies: Dict[int, FormationSquad]) -> Point2:
+    def get_offense_target_position(self, countered_enemies: Dict[int, FormationSquad]) -> Point2:
         army_position = self.main_army.position
         target_position: Point2
         attackable_enemies = self.enemy.enemies_in_view.filter(
@@ -563,24 +560,24 @@ class Military(GeometryMixin, DebugMixin):
             target_position = Point2(cy_center(enemy_army))
         elif closest_structure:
             target_position = closest_structure.position
-        elif newest_enemy_base:
-            target_position = newest_enemy_base
         else:
-            target_position = self.bot.enemy_start_locations[0]
+            newest_enemy_base = self.intel.get_newest_enemy_base()
+            if newest_enemy_base:
+                target_position = newest_enemy_base
+            else:
+                target_position = self.bot.enemy_start_locations[0]
         return target_position
     
     @timed_async
-    async def move_army_to_staging_location(self,
-                                            newest_enemy_base: Point2 | None,
-                                            detected_enemy_builds: Dict[BuildType, float],
-                                            army_ratio: float):
+    async def move_army_to_staging_location(self):
+        newest_enemy_base = self.intel.get_newest_enemy_base()
         # generally a retreat due to being outnumbered
         enemy_position = newest_enemy_base if newest_enemy_base else self.bot.enemy_start_locations[0]
         bunker_staging_location: Point2 | None = None
         if self.tactics.is_active(Tactic.PROXY_BARRACKS):
             self.intel.main_army_staging_location = self.map.enemy_expansion_orders[ExpansionSelection.CLOSEST][2].expansion_position
             LogHelper.add_log(f"squad {self.main_army} staging near proxy barracks")
-        elif BuildType.RUSH in detected_enemy_builds and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
+        elif BuildType.RUSH in self.intel.enemy_builds_detected and len(self.bot.townhalls) < 3 and len(self.main_army.units) < 16:
             ramp_depots = self.bot.structures(UnitTypeId.SUPPLYDEPOT).filter(lambda depot: depot.position.manhattan_distance(self.bot.main_base_ramp.top_center) < 5)
             if len(ramp_depots) >= 2:
                 # depots are raised, crowd around ramp to defend
@@ -589,7 +586,7 @@ class Military(GeometryMixin, DebugMixin):
             else:
                 self.intel.main_army_staging_location = Point2(cy_towards(self.bot.main_base_ramp.top_center, self.bot.start_location, 5))
                 LogHelper.add_log(f"squad {self.main_army} staging near main base ramp with small army")
-        elif BuildType.RUSH in detected_enemy_builds and len(self.bot.townhalls) <= 3 and self.intel.army_ratio < 1.0:
+        elif BuildType.RUSH in self.intel.enemy_builds_detected and len(self.bot.townhalls) <= 3 and self.intel.army_ratio < 1.0:
             self.intel.main_army_staging_location = Point2(cy_towards(self.map.natural_position, self.bot.main_base_ramp.bottom_center, 5))
             LogHelper.add_log(f"squad {self.main_army} staging near natural with smaller army ratio")
         elif len(self.bot.townhalls) > 1:
@@ -609,7 +606,7 @@ class Military(GeometryMixin, DebugMixin):
                 i += 1
 
             bunkers = self.bot.structures(UnitTypeId.BUNKER)
-            if bunkers and army_ratio < 0.8:
+            if bunkers and self.intel.army_ratio < 0.8:
                 closest_bunker = cy_closest_to(self.intel.main_army_staging_location, bunkers)
                 bunker_staging_location = closest_bunker.position
                 LogHelper.add_log(f"squad {self.main_army} staging near bunker")

@@ -1167,6 +1167,7 @@ class BuildOrder():
                 if building_was_skipped or not (
                         build_step.is_unit_type(UnitTypeId.COMMANDCENTER)
                         or build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT)
+                        or build_step.is_unit_type(UnitTypeId.BUNKER)
                         or build_step.is_unit_production_facility()):
                     LogHelper.add_log(f"skipping {build_step} due to only_build_units")
                     continue

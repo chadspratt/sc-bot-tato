@@ -6,7 +6,12 @@ from cython_extensions.geometry import (
     cy_distance_to_squared,
     cy_towards,
 )
-from cython_extensions.units_utils import cy_center, cy_closer_than, cy_closest_to
+from cython_extensions.units_utils import (
+    cy_center,
+    cy_closer_than,
+    cy_closest_to,
+    cy_sorted_by_distance_to,
+)
 from sc2.bot_ai import BotAI
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.unit_typeid import UnitTypeId
@@ -15,7 +20,12 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.enemy import Enemy
-from bottato.enums import BuildType, CustomEffectTargetArea, CustomEffectType, Tactic
+from bottato.enums import (
+    ArmyMode,
+    CustomEffectTargetArea,
+    CustomEffectType,
+    Tactic,
+)
 from bottato.log_helper import LogHelper
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -433,7 +443,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
 
     @timed
     def scan(self):
-        if self.bot.time - self.last_scan_time < 9:
+        time_since_scan = self.bot.time - self.last_scan_time
+        if time_since_scan < 9:
             return
         orbital_with_energy = None
         for orbital in self.bot.structures(UnitTypeId.ORBITALCOMMAND).ready:
@@ -475,9 +486,27 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 if attackers.amount > 1 or attackers.exclude_type(UnitTypeId.MARINE).amount > 0:
                     enemies_to_scan.append(enemy)
 
+        # scan when attacking and enemy is older than 50 seconds and scan is available
+        if self.tactics.army_mode == ArmyMode.ATTACKING and self.tactics.intel.avg_enemy_age > 50 and time_since_scan > 30:
+            LogHelper.add_log(f"Scanning to detect {enemies_to_scan}")
+            visible_army = self.bot.enemy_units.exclude_type(UnitTypes.NON_THREATS)
+            scan_position = None
+            if visible_army:
+                sorted_army = cy_sorted_by_distance_to(visible_army, self.bot.start_location)
+                furthest_enemy = sorted_army[-1]
+                scan_position = furthest_enemy.position.towards(self.bot.start_location, -7)
+            else:
+                hidden_army = self.tactics.enemy.enemies_out_of_view
+                closest_enemy_structure = cy_closest_to(self.bot.start_location, hidden_army)
+                scan_position = closest_enemy_structure.position
+            if scan_position:
+                orbital_with_energy(AbilityId.SCANNERSWEEP_SCAN, scan_position)
+                self.last_scan_time = self.bot.time
+                return
+
         # drop one scan per step 
         if enemies_to_scan:
-            LogHelper.add_log(f"Scanning to detect {enemies_to_scan}")            
+            LogHelper.add_log(f"Scanning to detect {enemies_to_scan}")
             _, grouped_enemies = self.get_most_grouped_unit(enemies_to_scan, self.bot, 13)
             scan_position = self.get_midrange_point(grouped_enemies)
             orbital_with_energy(AbilityId.SCANNERSWEEP_SCAN, scan_position)
