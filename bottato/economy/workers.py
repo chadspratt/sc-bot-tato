@@ -1000,8 +1000,8 @@ class Workers(GeometryMixin):
             )
             is_outnumbered = enemies_in_range.amount > friendlies_in_range.amount
 
-            closest_enemy = cy_closest_to(worker.position, self.bot.enemy_units)
-            if (worker.weapon_cooldown >= 6 or is_outnumbered) and self.bot.enemy_units:
+            closest_enemy = cy_closest_to(worker.position, self.bot.all_enemy_units)
+            if (worker.weapon_cooldown >= 6 or is_outnumbered) and self.bot.all_enemy_units:
                 retreat_target = self.natural_mineral_field
                 if self.mineral_walk_targets:
                     retreat_target = GeometryMixin.get_safest_target(worker, self.mineral_walk_targets, closest_enemy.position)
