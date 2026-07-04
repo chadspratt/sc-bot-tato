@@ -56,6 +56,9 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
         grenade_targets: List[Point2] = []
         if targets and await self.grenade_available(unit):
             for target_unit in targets:
+                if cy_distance_to_squared(target_unit.position, self.bot.main_base_ramp.top_center) < 4:
+                    # don't grenade top of ramp because it will launch enemies over the wall
+                    continue 
                 grenade_targets.append(target_unit.position)
 
         if grenade_targets:

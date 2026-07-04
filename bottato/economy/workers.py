@@ -380,7 +380,6 @@ class Workers(GeometryMixin):
           3. Repair a nearby friendly worker that needs it.
           4. Mineral-walk toward the enemy if obstructed, else move toward them.
         """
-        defender_tags: set[int] = set()
 
         worker_rush_detected = self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE)
         if worker_rush_detected:
@@ -407,6 +406,9 @@ class Workers(GeometryMixin):
                     close_enemies = cy_closer_than(nearby_enemies, MN.WORKER_ATTACK_NEARBY_ENEMY_RANGE, worker.position)
                     if close_enemies:
                         worker.attack(cy_closest_to(worker.position, close_enemies))
+            return
+
+        if self.repair_wall():
             return
 
         # defend vs workers that are short of a full worker rush
@@ -916,7 +918,10 @@ class Workers(GeometryMixin):
                 
     def do_worker_rush_defense(self, base_location: Point2 | None = None) -> None:
         LogHelper.add_log("Executing do_worker_rush_defense")
+        if not self.repair_wall():
+            self.fight_enemies_near_position(base_location, 25)
 
+    def repair_wall(self) -> bool:
         wall_is_built = self.tactics.is_active(Tactic.WALL_IS_BUILT)
         if wall_is_built:
             # if wall is built, just focus on building it by positioning extra workers on each building to take over building if builder dies, immediately repair on completion, and keep repaired while getting marines out.
@@ -950,9 +955,9 @@ class Workers(GeometryMixin):
                         assignment = self.assignments_by_worker[closest_repairer.tag]
                         assignment.on_attack_break = True
                         repairers.remove(closest_repairer)
-                return
+                return True
+        return False
              
-        self.fight_enemies_near_position(base_location, 25)
 
     def fight_enemies_near_position(self, base_location: Point2 | None, radius: float) -> None:
         if base_location is None:
