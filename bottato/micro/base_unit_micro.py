@@ -642,6 +642,10 @@ class BaseUnitMicro(GeometryMixin):
                         else:
                             threats_to_avoid.append(threat)
 
+        # if the only threats are detectors, then they aren't threats
+        if threats_to_avoid.exclude_type(UnitTypes.NON_THREAT_DETECTORS).amount == 0:
+            threats_to_avoid.clear()
+
         targets.sort(key=lambda t: t.health + t.shield)
         bonus_distance = 0.0 if can_attack else 3.0
         target: Unit | None = self._get_attack_target(unit, targets, bonus_distance, require_in_range_target=can_attack)
