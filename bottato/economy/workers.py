@@ -969,7 +969,7 @@ class Workers(GeometryMixin):
 
         enemy_main_position: Point2 = self.bot.enemy_start_locations[0]
         enemies_in_base = Units(cy_closer_than(enemy_units, radius, base_location), bot_object=self.bot)
-        enemy_count = enemies_in_base.amount
+        enemy_count = sum([3 if u.is_structure else 1 for u in enemies_in_base])
         if enemy_count == 0:
             return
         LogHelper.add_log(f"{enemy_count} enemies in base")
