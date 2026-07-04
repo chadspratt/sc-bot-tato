@@ -83,7 +83,8 @@ class CounterUnits():
             UnitTypeId.VIKINGFIGHTER: 2.5,
             UnitTypeId.THOR: 0.75,
             UnitTypeId.BANSHEE: -0.5,
-            UnitTypeId.SIEGETANK: -0.25
+            UnitTypeId.SIEGETANK: -0.25,
+            UnitTypeId.MARAUDER: -1
         },
         UnitTypeId.VOIDRAY: { # 4
             UnitTypeId.VIKINGFIGHTER: 1

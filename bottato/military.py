@@ -127,7 +127,7 @@ class Military(GeometryMixin, DebugMixin):
         army_is_grouped = self.main_army.is_grouped()
         mount_offense = army_is_big_enough and not defend_with_main_army
 
-        if not self.enemies_in_base and self.intel.proxy_buildings:
+        if not self.enemies_in_base and self.intel.proxy_buildings and self.main_army.units.amount > 2:
             # if proxy buildings detected, mount offense even if army is small
             mount_offense = True
         elif self.tactics.is_active(Tactic.WORKER_RUSH_COUNTER_ATTACK):

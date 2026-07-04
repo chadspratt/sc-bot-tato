@@ -499,7 +499,7 @@ class BuildOrder():
         
         queue: List[UnitTypeId | UpgradeId] = []
         priority_queue: List[UnitTypeId | UpgradeId] = []
-        if UnitTypeId.RAVEN not in ideal_composition:
+        if self.tactics.intel.enemy_race != Race.Protoss and UnitTypeId.RAVEN not in ideal_composition:
             # have at least one raven for detection
             ideal_composition[UnitTypeId.RAVEN] = 0.01
             if self.intel.enemy_race == Race.Zerg:
