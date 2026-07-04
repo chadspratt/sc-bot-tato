@@ -56,7 +56,7 @@ class BuildOrder():
     # next_unfinished_step_index: int
     tech_tree: Dict[UnitTypeId, List[UnitTypeId]] = {}
     rush_defense_enacted: bool = False
-    time_to_deviate_from_build_order = 35
+    time_to_deviate_from_build_order = 40
 
     def __init__(self, build_name: str, bot: BotAI, tactics: Tactics, workers: Workers) -> None:
         self.bot = bot
@@ -207,6 +207,8 @@ class BuildOrder():
                         self.interrupted_queue.insert(0, build_step)
 
     def enact_build_changes(self, detected_enemy_builds: Dict[BuildType, float]) -> None:
+        if BuildType.WORKER_RUSH in detected_enemy_builds:
+            self.time_to_deviate_from_build_order = 35
         if self.bot.time < self.time_to_deviate_from_build_order:
             # wait so the very initial build order is not disrupted
             return
