@@ -957,7 +957,7 @@ class Workers(GeometryMixin):
     def fight_enemies_near_position(self, base_location: Point2 | None, radius: float) -> None:
         if base_location is None:
             base_location = self.bot.start_location
-        enemy_units: Units = self.bot.enemy_units.sorted(
+        enemy_units: Units = self.bot.all_enemy_units.sorted(
             lambda unit: (unit.health + unit.shield, unit.distance_to(base_location))
         )
         best_potential_targets: Units = enemy_units.take(3)
