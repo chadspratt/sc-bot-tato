@@ -104,8 +104,10 @@ class Map(GeometryMixin):
                 return location.expansion_position
         return None
     
-    def get_next_enemy_expansion(self, selection: ExpansionSelection = ExpansionSelection.CLOSEST) -> Point2 | None:
+    def get_next_enemy_expansion(self, selection: ExpansionSelection = ExpansionSelection.CLOSEST, excluded_points: list[Point2] = []) -> Point2 | None:
         for location in self.enemy_expansion_orders[selection]:
+            if location.expansion_position in excluded_points:
+                continue
             if not self.member_is_closer_than(location.expansion_position, self.bot.enemy_structures, 5):
                 return location.expansion_position
         return None

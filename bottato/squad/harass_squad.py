@@ -47,9 +47,9 @@ class HarassSquad(Squad, GeometryMixin):
             else:
                 distance_to_harass_location = self.units.closest_distance_to(self.harass_locations[unit.tag])
                 if not self.arrived[unit.tag]:
-                    self.arrived[unit.tag] = distance_to_harass_location < 20
-                elif distance_to_harass_location > 25:
-                    # arrived but got chased away, pick new location
+                    self.arrived[unit.tag] = distance_to_harass_location < 25
+                elif distance_to_harass_location < 1 or distance_to_harass_location > 30:
+                    # arrived but nothing there or got chased away, pick new location
                     self.arrived[unit.tag] = False
                     self.harass_location_blacklist_times[self.harass_locations[unit.tag]] = self.bot.time
                     time_limit = 9999 if unit.type_id == UnitTypeId.REAPER else 45
@@ -60,7 +60,7 @@ class HarassSquad(Squad, GeometryMixin):
                     if other_enemy_bases:
                         self.harass_locations[unit.tag] = random.choice(other_enemy_bases)
                     else:
-                        expansion_location = self.tactics.map.get_next_enemy_expansion()
+                        expansion_location = self.tactics.map.get_next_enemy_expansion(excluded_points=[self.harass_locations[unit.tag]])
                         if expansion_location:
                             self.harass_locations[unit.tag] = expansion_location
                         else:
