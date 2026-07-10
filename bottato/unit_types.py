@@ -594,7 +594,9 @@ class UnitTypes(GeometryMixin):
         if attacker.type_id == UnitTypeId.HIGHTEMPLAR and target.energy > 10:
             return 10 # feedback
         if attacker.type_id == UnitTypeId.CYCLONE and BuffId.LOCKON in target.buffs:
-            return 11 # technically 15 but risk losing vision
+            if attacker.is_mine:
+                return 10.5 # technically 15 but risk losing vision
+            return 15 # retreat distance for friendly units
         if target.is_cloaked and attacker.is_detector:
             return attacker.sight_range # treat detection as a weapon to be avoided
         if target.is_flying:

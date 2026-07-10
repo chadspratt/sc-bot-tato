@@ -410,6 +410,12 @@ class Workers(GeometryMixin):
 
         if self.repair_wall():
             return
+        
+        if self.tactics.is_active(Tactic.WALL_IS_BUILT) \
+                and len(cy_closer_than(self.bot.structures, 10, self.map.natural_position)) == 0 \
+                and len(self.bot.structures(UnitTypeId.SUPPLYDEPOT)) == 0:
+            # if wall is built but isn't raised and natural is empty, don't pull workers to fight
+            return
 
         # defend vs workers that are short of a full worker rush
         targetable_enemies = self.bot.enemy_units.filter(
@@ -827,47 +833,50 @@ class Workers(GeometryMixin):
             elif closest_enemy and cy_distance_to(worker.position, closest_enemy.position) <= 2:
                 # attack anything in range if able
                 worker.attack(closest_enemy.position)
-            elif self.do_worker_repair(worker, 10, 20):
-                pass
-            elif worker.health <= 10:
-                assignment.on_attack_break = False
-            elif not self.enemy_exit_started:
-                # waiting for enemy to exit, stack on ramp, repair up, and ward off any extra enemies that arrive
-                if worker.tag not in self.ramp_guards.tags and closest_enemy:
-                    # attack small worker rush with all workers that aren't guarding the ramp
-                    worker.attack(closest_enemy.position)
-                    continue
-                if enemies_outside_main.amount > 0:
-                    # send a few units to attack new arrivals but don't send all and leave ramp unguarded
-                    closest_enemy = cy_closest_to(worker.position, enemies_outside_main)
-                    if cy_distance_to(closest_enemy.position, self.bot.main_base_ramp.bottom_center) < 5:
-                        closest_defenders = self.bot.workers.closest_n_units(closest_enemy.position, enemies_outside_main.amount + 2)
-                        if worker in closest_defenders:
-                            worker.attack(closest_enemy.position)
-                            continue
-                ramp_center = (self.bot.main_base_ramp.bottom_center + self.bot.main_base_ramp.top_center) / 2
-                self.stack_at_position(worker, ramp_center)
             else:
-                # enemy is trying to escape ramp, all-in attack to secure kills
-                if worker in attackers:
-                    if enemies_outside_main.amount > 0:
-                        attack_target = self.get_worker_attack_target(worker, enemies_outside_main, attackers)
-                        if attack_target:
-                            LogHelper.add_log(f"Attacking escaping enemy {attack_target.tag} with worker {worker.tag}")
-                            worker.attack(attack_target)
-                            continue
-                    if self.bot.enemy_units.amount > 0:
-                        attack_target = self.get_worker_attack_target(worker, self.bot.enemy_units, attackers)
-                        if attack_target:
-                            worker.attack(attack_target)
-                            continue
-                else:
-                    # no enemies left
+                repair_target = self.do_worker_repair(worker, 10, 20)
+                if repair_target:
+                    repair_target_assignment = self.assignments_by_worker[repair_target.tag]
+                    repair_target_assignment.on_attack_break = True
+                elif worker.health <= 10:
                     assignment.on_attack_break = False
-                    if not repositioned_to_natural and self.bot.structures(UnitTypeId.COMMANDCENTER).amount > 0:
-                        # reset back to main base and prepare to repeat
-                        await LogHelper.add_chat("enemies gone 2, resetting to secure ramp again if needed")
-                        self.reset_worker_rush_defense()
+                elif not self.enemy_exit_started:
+                    # waiting for enemy to exit, stack on ramp, repair up, and ward off any extra enemies that arrive
+                    if worker.tag not in self.ramp_guards.tags and closest_enemy:
+                        # attack small worker rush with all workers that aren't guarding the ramp
+                        worker.attack(closest_enemy.position)
+                        continue
+                    if enemies_outside_main.amount > 0:
+                        # send a few units to attack new arrivals but don't send all and leave ramp unguarded
+                        closest_enemy = cy_closest_to(worker.position, enemies_outside_main)
+                        if cy_distance_to(closest_enemy.position, self.bot.main_base_ramp.bottom_center) < 5:
+                            closest_defenders = self.bot.workers.closest_n_units(closest_enemy.position, enemies_outside_main.amount + 2)
+                            if worker in closest_defenders:
+                                worker.attack(closest_enemy.position)
+                                continue
+                    ramp_center = (self.bot.main_base_ramp.bottom_center + self.bot.main_base_ramp.top_center) / 2
+                    self.stack_at_position(worker, ramp_center)
+                else:
+                    # enemy is trying to escape ramp, all-in attack to secure kills
+                    if worker in attackers:
+                        if enemies_outside_main.amount > 0:
+                            attack_target = self.get_worker_attack_target(worker, enemies_outside_main, attackers)
+                            if attack_target:
+                                LogHelper.add_log(f"Attacking escaping enemy {attack_target.tag} with worker {worker.tag}")
+                                worker.attack(attack_target)
+                                continue
+                        if self.bot.enemy_units.amount > 0:
+                            attack_target = self.get_worker_attack_target(worker, self.bot.enemy_units, attackers)
+                            if attack_target:
+                                worker.attack(attack_target)
+                                continue
+                    else:
+                        # no enemies left
+                        assignment.on_attack_break = False
+                        if not repositioned_to_natural and self.bot.structures(UnitTypeId.COMMANDCENTER).amount > 0:
+                            # reset back to main base and prepare to repeat
+                            await LogHelper.add_chat("enemies gone 2, resetting to secure ramp again if needed")
+                            self.reset_worker_rush_defense()
 
     def reset_worker_rush_defense(self):
         self.enemies_have_entered = False
@@ -1013,100 +1022,17 @@ class Workers(GeometryMixin):
                 else:
                     # attack anything in range if able
                     worker.attack(closest_enemy.position)
-            elif self.do_worker_repair(worker, 10, 20):
-                pass
-            elif worker.health <= 10:
-                assignment.on_attack_break = False
             else:
-                worker.attack(best_target.position)
+                repair_target = self.do_worker_repair(worker, 10, 20)
+                if repair_target:
+                    repair_target_assignment = self.assignments_by_worker[repair_target.tag]
+                    repair_target_assignment.on_attack_break = True
+                elif worker.health <= 10:
+                    assignment.on_attack_break = False
+                else:
+                    worker.attack(best_target.position)
 
     # ─── Mineral walking helpers ────────────────────────────────────────
-
-    def _get_mineral_near_base(self) -> Unit | None:
-        """Return a mineral patch near the start location for retreat walks."""
-        if not self.bot.mineral_field:
-            return None
-        home_minerals = Units(
-            cy_closer_than(self.bot.mineral_field, 10, self.bot.start_location),
-            bot_object=self.bot,
-        )
-        if home_minerals:
-            return home_minerals.random
-        return cy_closest_to(self.bot.start_location, self.bot.mineral_field)
-
-    _cached_enemy_natural_mineral: Unit | None = None
-    _cached_enemy_natural_mineral_checked: bool = False
-
-    def _get_enemy_natural_mineral(self) -> Unit | None:
-        """Return a cached mineral patch near the enemy natural expansion."""
-        if self._cached_enemy_natural_mineral_checked:
-            return self._cached_enemy_natural_mineral
-        self._cached_enemy_natural_mineral_checked = True
-        if not self.bot.mineral_field:
-            return None
-        enemy_nat = self.map.enemy_natural_position
-        candidates = Units(
-            cy_closer_than(self.bot.mineral_field, MN.MINERAL_MAX_DISTANCE_FROM_BASE, enemy_nat),
-            bot_object=self.bot,
-        )
-        if candidates:
-            self._cached_enemy_natural_mineral = cy_closest_to(enemy_nat, candidates)
-        return self._cached_enemy_natural_mineral
-
-    def _mineral_walk_retreat(self, worker: Unit) -> None:
-        """Retreat by mineral-walking toward home base minerals."""
-        mineral = self._get_mineral_near_base()
-        if mineral is not None:
-            worker.gather(mineral)
-        elif self.bot.townhalls.ready:
-            worker.move(cy_closest_to(worker.position, self.bot.townhalls.ready).position)
-        else:
-            worker.move(self.bot.start_location)
-
-    def _mineral_walk_toward_enemy(self, worker: Unit, enemy: Unit) -> bool:
-        """Mineral-walk toward the enemy by targeting distant minerals.
-
-        If the enemy is roughly between the worker and the main base ramp,
-        gather the enemy-natural mineral patch — the path toward those
-        distant minerals runs through the ramp area, phasing past friendlies.
-
-        If the enemy is NOT in line with the ramp, reposition the worker so
-        it will be (move perpendicular toward the worker→ramp line) before
-        attempting the mineral walk.
-        """
-        mineral = self._get_enemy_natural_mineral()
-        if mineral is None:
-            worker.attack(enemy)
-            return False
-
-        ramp_top = self.bot.main_base_ramp.top_center
-        # Vector from worker to ramp
-        dx_ramp = ramp_top.x - worker.position.x
-        dy_ramp = ramp_top.y - worker.position.y
-        dist_to_ramp = max((dx_ramp ** 2 + dy_ramp ** 2) ** 0.5, 0.01)
-
-        # Project enemy onto the worker→ramp line to check alignment
-        dx_enemy = enemy.position.x - worker.position.x
-        dy_enemy = enemy.position.y - worker.position.y
-        # Perpendicular distance of enemy from the worker→ramp line
-        cross = abs(dx_ramp * dy_enemy - dy_ramp * dx_enemy) / dist_to_ramp
-        # How far along the worker→ramp line the enemy sits (positive = toward ramp)
-        dot = (dx_ramp * dx_enemy + dy_ramp * dy_enemy) / dist_to_ramp
-
-        enemy_is_inline = cross < 3.0 and dot > 0
-        if enemy_is_inline:
-            # Enemy is between us and the ramp — mineral walk straight through
-            worker.gather(mineral)
-            return True
-        else:
-            return False
-            # # Reposition: move toward a point on the worker→ramp line that is
-            # # level with the enemy (so the enemy ends up between worker and ramp)
-            # reposition = Point2((
-            #     worker.position.x + (dx_ramp / dist_to_ramp) * max(dot, 1.0),
-            #     worker.position.y + (dy_ramp / dist_to_ramp) * max(dot, 1.0),
-            # ))
-            # worker.move(reposition)
 
     def _is_path_obstructed(self, worker: Unit, enemy: Unit) -> bool:
         """Heuristic: path is obstructed if another friendly worker sits
@@ -1128,7 +1054,6 @@ class Workers(GeometryMixin):
     def is_outside_wall(self, unit: Unit) -> bool:
         return cy_distance_to_squared(unit.position, self.bot.main_base_ramp.top_center) < 9 \
                                 or self.bot.get_terrain_height(unit) + 0.1 < self.bot.get_terrain_height(self.bot.main_base_ramp.top_center)
-
 
     def update_assigment(self, worker: Unit, job_type: WorkerJobType, target: Unit | None, target_position: Point2 | None = None, build_type: UnitTypeId | None = None):
         self.update_job(worker, job_type)
@@ -1660,16 +1585,21 @@ class Workers(GeometryMixin):
         if self.bot.minerals >= MN.WORKER_REPAIR_MIN_MINERALS:
             if worker.health <= start_health_threshold and worker.tag not in self.repair_targets:
                 # initiate repairing. find next lowest and repair each other
-                other_injured = self.bot.workers.filter(lambda w: w.tag not in self.repair_targets and w.tag != worker.tag).sorted(lambda w: w.health)
-                if other_injured:
-                    repair_target = other_injured.first
-                    closest_injured = cy_closest_to(worker.position, other_injured)
-                    if cy_distance_to(worker.position, closest_injured.position) + 15 < cy_distance_to(worker.position, repair_target.position):
-                        repair_target = closest_injured
+                other_workers = self.bot.workers.filter(lambda w: w.tag not in self.repair_targets and w.tag != worker.tag).sorted(lambda w: w.health)
+                if other_workers:
+                    # repair lowest unless
+                    repair_target = other_workers.first
+                    # injured_workers = other_workers.filter(lambda w: w.health < 45)
+                    closest_worker = cy_closest_to(worker.position, other_workers)
+                    closest_distance = cy_distance_to(worker.position, closest_worker.position)
+                    if closest_distance + 15 < cy_distance_to(worker.position, repair_target.position):
+                        repair_target = closest_worker
                     if worker.is_constructing_scv:
                         worker(AbilityId.HALT)
-                    else:
+                    elif repair_target.health < 45:
                         worker.repair(repair_target)
+                    else:
+                        worker.move(repair_target.position)
                     self.repair_targets[worker.tag] = repair_target.tag
                     self.repair_targets[repair_target.tag] = worker.tag
                     return repair_target
@@ -1678,11 +1608,14 @@ class Workers(GeometryMixin):
                 target_tag = self.repair_targets[worker.tag]
                 repair_target = self.bot.workers.find_by_tag(target_tag)
                 if repair_target:
+                    stop_health_threshold = min(stop_health_threshold, 45)
                     if worker.health < stop_health_threshold or repair_target.health < stop_health_threshold:
                         if worker.is_constructing_scv:
                             worker(AbilityId.HALT)
-                        else:
+                        elif repair_target.health < 45:
                             worker.repair(repair_target)
+                        elif cy_distance_to_squared(worker.position, repair_target.position) > 4:
+                            worker.move(repair_target.position)
                         return repair_target
                 # healed or dead, remove assignments
                 del self.repair_targets[worker.tag]
