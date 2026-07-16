@@ -502,6 +502,8 @@ class UnitTypes(GeometryMixin):
             return 5.0
         elif unit.type_id in {UnitTypeId.BATTLECRUISER, UnitTypeId.VOIDRAY, UnitTypeId.BUNKER}:
             return 6.0
+        elif unit.type_id == UnitTypeId.LOCUSTMPFLYING:
+            return 5.0
         elif unit.type_id == UnitTypeId.BANELING:
             return 2.2
         elif unit.can_attack_ground:

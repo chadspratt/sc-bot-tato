@@ -1,5 +1,6 @@
 from sc2.position import Point2
 
+
 class ScoutingLocation:
     def __init__(self, expansion_position: Point2, scouting_position: Point2):
         self.expansion_position: Point2 = expansion_position
@@ -9,7 +10,7 @@ class ScoutingLocation:
         self.is_occupied_by_enemy: bool = False
 
     def __repr__(self) -> str:
-        return f"ScoutingLocation({self.expansion_position})"
+        return f"ScoutingLocation({self.expansion_position}, {self.scouting_position})"
 
     def needs_fresh_scouting(self, current_time: float, skip_occupied: bool) -> bool:
         if self.is_occupied_by_enemy:

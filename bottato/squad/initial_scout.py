@@ -90,12 +90,16 @@ class InitialScout(Squad, GeometryMixin):
         if self.bot.time < self.start_time:
             # too early to scout
             return
+        if self.bot.time > self.initial_scout_complete_time + 10:
+            self.completed = True
+
         if self.completed:
             self.intel.mark_initial_scout_complete()
             if self.unit:
                 self.workers.set_as_idle(self.unit)
                 self.unit = None
             return
+        
             
         self.unit = self.workers.get_scout(self.scouting_position())
         if self.unit:
