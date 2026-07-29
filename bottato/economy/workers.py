@@ -63,13 +63,15 @@ class Workers(GeometryMixin):
         self.mineral_walk_targets = self.get_mineral_walk_targets()
 
     def get_mineral_walk_targets(self) -> Units:
-        self.main_mineral_field = self.bot.mineral_field.closest_to(self.bot.start_location)
-        natural_minerals = self.bot.mineral_field.closer_than(15, self.map.natural_position)
-        if natural_minerals:
-            self.natural_mineral_field = natural_minerals.furthest_to(self.bot.start_location)
-        else:
-            self.natural_mineral_field = self.bot.mineral_field.closest_to(self.map.natural_position)
-        return Units([self.main_mineral_field, self.natural_mineral_field], bot_object=self.bot)
+        if self.bot.mineral_field.amount > 0:
+            self.main_mineral_field = self.bot.mineral_field.closest_to(self.bot.start_location)
+            natural_minerals = self.bot.mineral_field.closer_than(15, self.map.natural_position)
+            if natural_minerals:
+                self.natural_mineral_field = natural_minerals.furthest_to(self.bot.start_location)
+            else:
+                self.natural_mineral_field = self.bot.mineral_field.closest_to(self.map.natural_position)
+            return Units([self.main_mineral_field, self.natural_mineral_field], bot_object=self.bot)
+        return Units([], bot_object=self.bot)
 
     @timed
     def update_references(self):
@@ -127,7 +129,7 @@ class Workers(GeometryMixin):
         self.minerals.update_references(self.assignments_by_worker)
         self.vespene.update_references(self.assignments_by_worker)
         self.mineral_walk_targets: Units = UnitReferenceHelper.get_updated_units(self.mineral_walk_targets)
-        if self.mineral_walk_targets.amount < 2:
+        if self.mineral_walk_targets.amount < 2 and self.bot.mineral_field.amount >= 2:
             self.mineral_walk_targets = self.get_mineral_walk_targets()
         logger.debug(f"assignment summary {self.assignments_by_job}")
 
