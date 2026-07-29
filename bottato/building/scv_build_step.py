@@ -322,6 +322,7 @@ class SCVBuildStep(BuildStep):
         # modified from bot_ai get_next_expansion
         sorted_expansions = self.map.expansion_orders[ExpansionSelection.CLOSEST]
         available_expansions: List[Point2] = []
+        mined_out_count = 0
         for location in sorted_expansions:
             def is_near_to_expansion(t: Unit):
                 return cy_distance_to(t.position, location.expansion_position) < self.bot.EXPANSION_GAP_THRESHOLD
@@ -332,6 +333,7 @@ class SCVBuildStep(BuildStep):
 
             has_minerals = self.member_is_closer_than(location.expansion_position, self.bot.mineral_field, 15)
             if not has_minerals:
+                mined_out_count += 1
                 # mined out (and orbital relocated), don't count it as available
                 continue
 
@@ -347,7 +349,7 @@ class SCVBuildStep(BuildStep):
             return None
 
         LogHelper.add_log(f"Expansions to check: {available_expansions}")
-        used_expansion_count = len(self.bot.expansion_locations_list) - len(available_expansions)
+        used_expansion_count = len(self.bot.expansion_locations_list) - len(available_expansions) - mined_out_count
         # skip past spots that are reserved for a cc that is out of position (flying)
         next_expansion_index = self.bot.townhalls.amount - used_expansion_count
         if next_expansion_index >= len(available_expansions):
