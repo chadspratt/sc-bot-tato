@@ -135,7 +135,7 @@ class BuildOrder():
             self.queue_to_spend_bank_on_idle_production(self.only_build_units)
 
             if self.only_build_units:
-                capacity_available = self.production.can_build_any(military_queue)
+                capacity_available: bool = self.production.can_build_any(military_queue)
                 if not capacity_available:
                     self.queue_production(only_build_units = True)
             else:
@@ -718,6 +718,17 @@ class BuildOrder():
     def queue_production(self, only_build_units: bool):
         if not self.bot.structures(UnitTypeId.STARPORT):
             return
+
+        # don't build more production in first 10 minutes if there are idle facilities of any type
+        idle_production = self.production.get_idle_production_counts()
+        if self.bot.time < 600:
+            total_idle = 0
+            for facility_type in [UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT]:
+                for addon_type in [UnitTypeId.REACTOR, UnitTypeId.TECHLAB, UnitTypeId.NOTAUNIT]:
+                    total_idle += idle_production[facility_type][addon_type]
+            if total_idle > 1:
+                return
+
         # add more barracks/factories/starports to handle backlog of pending affordable units
         production_items: List[Tuple[UnitTypeId, Cost]] = []
         remaining_resources: Cost = Cost(self.bot.minerals, self.bot.vespene)
