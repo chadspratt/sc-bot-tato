@@ -392,10 +392,7 @@ class BaseUnitMicro(GeometryMixin):
             if nearby_tanks:
                 nearby_tanks.sort(key=lambda t: t.health + t.shield)
                 nearby_tanks = Units(nearby_tanks, bot_object=self.bot)
-                target: Unit | None = self._get_attack_target(unit, nearby_tanks, bonus_distance=3)
-                if target:
-                    unit.attack(target)
-                    return UnitMicroType.ATTACK
+                return await self._kite(unit, nearby_tanks, force_move=force_move)
 
         # below attack_health: if threats and no target in range, do nothing (retreat)
         if unit.health_percentage < health_threshold:
@@ -720,6 +717,10 @@ class BaseUnitMicro(GeometryMixin):
             pass
         else:
             desired_distance += min(unit_range - 0.1, max(unit_range - 1.0, target_range + 0.5))
+
+        if target.movement_speed > unit.movement_speed:
+            # if target is faster, don't get too close
+            desired_distance += 1.0
 
         return desired_distance
     
