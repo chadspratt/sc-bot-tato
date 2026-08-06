@@ -324,10 +324,15 @@ class BaseUnitMicro(GeometryMixin):
                     unit.move(closest_shrine.position)
                     return UnitMicroType.MOVE
         if unit.tag in BaseUnitMicro.repairers_by_target_prev_frame and unit.health_percentage < 1.0 and self.bot.minerals > 15:
+            # healthy units check for targets nearby and don't waste time getting repaired if there are
             if unit.health_percentage > 0.8:
-                # check for targets nearby and don't waste time getting repaired if there are
                 target = self._get_attack_target(unit, self.bot.enemy_units, bonus_distance=7, require_in_range_target=True)
                 if target:
+                    return UnitMicroType.NONE
+            # infantry prioritize diving enemy siege tanks over getting repaired
+            if unit.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER):
+                enemy_siege_tanks = self.bot.enemy_units(UnitTypeId.SIEGETANKSIEGED)
+                if enemy_siege_tanks and cy_closer_than(enemy_siege_tanks, 6, unit.position):
                     return UnitMicroType.NONE
             repairer_tags = BaseUnitMicro.repairers_by_target_prev_frame[unit.tag]
             repairers = self.bot.workers.filter(lambda w: w.tag in repairer_tags) + await self.get_healing_shrines(unit)
@@ -378,6 +383,19 @@ class BaseUnitMicro(GeometryMixin):
 
         if force_move:
             return UnitMicroType.NONE
+
+        # infantry prioritize attacking nearby enemy siege tanks
+        # better to die attacking than retreating
+        if unit.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER):
+            enemy_siege_tanks = nearby_enemies(UnitTypeId.SIEGETANKSIEGED)
+            nearby_tanks = cy_closer_than(enemy_siege_tanks, 6, unit.position) if enemy_siege_tanks else []
+            if nearby_tanks:
+                nearby_tanks.sort(key=lambda t: t.health + t.shield)
+                nearby_tanks = Units(nearby_tanks, bot_object=self.bot)
+                target: Unit | None = self._get_attack_target(unit, nearby_tanks, bonus_distance=3)
+                if target:
+                    unit.attack(target)
+                    return UnitMicroType.ATTACK
 
         # below attack_health: if threats and no target in range, do nothing (retreat)
         if unit.health_percentage < health_threshold:
@@ -829,13 +847,13 @@ class BaseUnitMicro(GeometryMixin):
         if not self.tactics.enemy.can_be_attacked(unit, self.tactics.enemy.get_recent_enemies()):
             return False
 
+        # poke out at full health to lure enemy. only go if no nearby units are injured to promote grouping up
         if unit.health_percentage >= 0.9:
             injured_friendlies = self.bot.units.filter(lambda u: u.health_percentage < 0.9 and u.type_id in (UnitTypeId.MARINE, UnitTypeId.MARAUDER))
-            # poke out at full health to lure enemy. only go if no nearby units are injured to promote grouping up
             if not self.member_is_closer_than(unit, injured_friendlies, 5):
                 return False
 
-        threats = self.tactics.enemy.threats_to_friendly_unit(unit, 1)
+        threats = self.tactics.enemy.threats_to_friendly_unit(unit, 2)
         if not threats:
             return False
         closest_threat = sorted(threats, key=lambda t: self.tactics.enemy.safe_distance_squared(t, unit) - self.tactics.enemy.get_attack_range_with_buffer_squared(t, unit, 0))[0]
