@@ -13,6 +13,7 @@ from sc2.unit import Unit
 
 from bottato.log_helper import LogHelper
 from bottato.map_specifics import MapSpecifics
+from bottato.mixins import GeometryMixin
 from bottato.unit_types import UnitTypes
 
 
@@ -30,6 +31,7 @@ class InfluenceMaps():
         self.anti_air_grid = self.map_data.get_clean_air_grid(3)
         self.detection_grid = self.map_data.get_clean_air_grid()
         self.last_visible_grid = self.map_data.get_clean_air_grid()
+        self.need_detection_grid = self.map_data.get_clean_air_grid()
 
         # subtract weight for speed zones
         for destructable in self.bot.destructables:
@@ -155,6 +157,12 @@ class InfluenceMaps():
         if path is None:
             return [start, end]
         return path
+    
+    def draw_path(self, path: List[Point2]) -> None:
+        for i in range(len(path) - 1):
+            start = GeometryMixin.convert_point2_to_3(path[i], self.bot)
+            end = GeometryMixin.convert_point2_to_3(path[i + 1], self.bot)
+            self.bot.client.debug_line_out(p0=start, p1=end, color=(255, 0, 0))
     
     def get_path_distance(self, start: Point2, end: Point2, grid: np.ndarray) -> float:
         path = self.get_path(start, end, grid)
