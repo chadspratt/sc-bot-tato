@@ -326,8 +326,9 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 LogHelper.add_log(f"Unable to find placement for {structure.type_id}, skipping move")
                 return False
             self.building_destinations[structure.tag] = destination
+            LogHelper.add_log(f"Found placement for {structure.type_id}, moving to {destination}")
         distance = destination.manhattan_distance(structure.position)
-        if distance > 1:
+        if distance >= 1:
             self.building_in_position_times[structure.tag] = None
             if structure.is_flying:
                 # structure.move(destination)
@@ -360,6 +361,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 in_position_time = self.building_in_position_times.get(structure.tag)
                 if in_position_time is None:
                     self.building_in_position_times[structure.tag] = self.bot.time
+                    LogHelper.add_log(f"{structure} in position at {destination}, waiting to land")
                 elif self.bot.time - in_position_time > 2 and not await self.bot.can_place_single(UnitTypeId.BARRACKS, destination):
                     # unable to land, find new position
                     type_id = structure.unit_alias if structure.unit_alias else structure.type_id
