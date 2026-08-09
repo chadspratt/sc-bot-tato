@@ -175,7 +175,7 @@ class BuildOrder():
             if isinstance(step, UpgradeBuildStep) and self.bot.already_pending_upgrade(step.upgrade_id) > 0:
                 # actually finished
                 continue
-            if isinstance(step, SCVBuildStep) and step.is_unit_type(UnitTypeId.BUNKER) and step.no_position_count > 10:
+            if isinstance(step, SCVBuildStep) and step.is_unit_type(UnitTypeId.BUNKER) and (step.no_position_count > 10 or step.cancel_count > 1):
                 # give up on blocked bunker
                 LogHelper.add_log(f"abandoning bunker build step due to blocked placement")                
                 continue

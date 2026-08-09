@@ -47,6 +47,7 @@ class SCVBuildStep(BuildStep):
     worker_in_position_time: float | None = None
     no_position_count: int = 0
     claimed_geysers: Dict[int, float] = {}
+    cancel_count: int = 0
 
     def __init__(self, unit_type_id: UnitTypeId, bot: BotAI, workers: Workers, production: Production, tactics: Tactics) -> None:
         super().__init__(unit_type_id, bot, workers, production, tactics)
@@ -756,6 +757,7 @@ class SCVBuildStep(BuildStep):
             except UnitReferenceHelper.UnitNotFound:
                 self.unit_being_built = None
         if self.unit_being_built:
+            self.cancel_count += 1
             self.unit_being_built(AbilityId.CANCEL_BUILDINPROGRESS)
             self.unit_being_built = None
         self.last_cancel_time = self.bot.time

@@ -118,7 +118,10 @@ class Military(GeometryMixin, DebugMixin):
         self.intel.army_ratio = self.calculate_army_ratio()
         enemies_in_base_ratio = self.calculate_army_ratio(self.enemies_in_base)
         self.intel.avg_enemy_age = self.enemy.get_average_enemy_age()
-        required_ratio_for_offense = 1.2 + self.intel.avg_enemy_age * 0.05
+        required_ratio_for_offense = 1.2 + self.intel.avg_enemy_age * 0.005
+        # # don't launch an early attack with bad intel
+        # if self.intel.avg_enemy_age > 100 and self.bot.time < 480:
+        #     required_ratio_for_offense = 100
 
         ignore_ratio_threshold = min(185, 160 + self.aborted_attack_count * 5)
         army_is_big_enough = self.intel.army_ratio > required_ratio_for_offense \
@@ -155,12 +158,15 @@ class Military(GeometryMixin, DebugMixin):
             self.aborted_attack_count += 1
         self.offense_started = mount_offense
 
+        previous_mode = self.tactics.army_mode
         if mount_offense:
             self.tactics.army_mode = ArmyMode.ATTACKING
         elif defend_with_main_army:
             self.tactics.army_mode = ArmyMode.DEFENDING
         else:
             self.tactics.army_mode = ArmyMode.STAGING
+        if self.tactics.army_mode != previous_mode:
+            LogHelper.add_log(f"army mode changed from {previous_mode} to {self.tactics.army_mode}\narmy ratio/required {self.intel.army_ratio:.2f}/{required_ratio_for_offense:.2f}, avg enemy age {self.intel.avg_enemy_age:.2f}, enemies in base {self.enemies_in_base.amount}")
     
         self.status_message = f"m{self.bot.minerals}, g{self.bot.vespene}, s{self.bot.supply_used}/{self.bot.supply_cap}, army ratio {self.intel.army_ratio:.2f}, avg enemy age {self.intel.avg_enemy_age:.2f}\nbigger: {army_is_big_enough}, grouped: {army_is_grouped}\nattacking: {mount_offense}\ndefending: {defend_with_main_army}"
         self.bot.client.debug_text_screen(self.status_message, (0.01, 0.01))
