@@ -92,13 +92,13 @@ class BotTato(BotAI):
                                 f"ability={action_error.exact_id}, error={ActionErrorCode(action_error.result)}")
                 if action_error.result in (ActionErrorCode.CantBuildOnThat.value, ActionErrorCode.CouldntReachTarget.value):
                     self.commander.build_order.mark_position_invalid_by_worker_tag(action_error.unit_tag)
-                elif action_error.result == ActionErrorCode.CantBuildLocationInvalid.value:
+                elif action_error.result in (ActionErrorCode.CantBuildLocationInvalid.value, ActionErrorCode.CantLandLocationInvalid.value):
                     if action_error.exact_id == AbilityId.MORPH_SUPPLYDEPOT_RAISE:
                         continue
                     assignment = self.commander.my_workers.assignments_by_worker[unit.tag]
                     if assignment.target_position:
                         for structure in self.structures:
-                            if GeometryMixin.grid_distance(structure, assignment.target_position) < 2.0:
+                            if not structure.is_flying and GeometryMixin.grid_distance(structure, assignment.target_position) < 2.0:
                                 break
                         else:
                             self.commander.tactics.enemy.mark_position_as_needing_detection(assignment.target_position)
