@@ -407,6 +407,7 @@ class Military(GeometryMixin, DebugMixin):
         if not (closest_enemy and self.position_is_between(closest_enemy.position, unit.position, bunker.structure.position)):
             self.transfer(unit, self.main_army, bunker)
             unit.smart(bunker.structure)
+            LogHelper.add_log(f"adding unit {unit} to bunker {bunker.structure}")
             return unit.cargo_size
         return 0    
 

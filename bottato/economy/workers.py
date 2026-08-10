@@ -389,13 +389,15 @@ class Workers(GeometryMixin):
             # don't use cool if we're still in the main and have a wall
             allow_cool = not self.cool_defense_failed and (not self.tactics.is_active(Tactic.WALL_IS_BUILT) or repositioned_to_natural)
             if allow_cool and (self.use_cool_defense or self.bot.enemy_units.closer_than(30, self.bot.start_location).amount >= 5):
-                if not self.use_cool_defense:
+                if not self.use_cool_defense and self.bot.time < 300:
                     await LogHelper.add_chat("Activating cool worker rush defense")
                     self.use_cool_defense = True
-                await self.cool_worker_rush_defense()
+                if self.use_cool_defense:
+                    await self.cool_worker_rush_defense()
+                    return
             else:
                 self.do_worker_rush_defense()
-            return
+                return
 
         # After early game, workers only fight back against very close enemies
         if self.bot.time >= MN.WORKER_ATTACK_PULL_CUTOFF_TIME:

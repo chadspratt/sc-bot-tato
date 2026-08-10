@@ -69,7 +69,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
     @timed
     def adjust_supply_depots_for_enemies(self):
         # Raise depots when enemies are nearby (unless holding bottom of ramp against a worker rush)
-        distance_threshold = 8
+        distance_threshold = 5
         if self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE):
             # not able to build wall, lower the wall to aid escape
             if self.bot.structures((UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED, UnitTypeId.BARRACKS)).amount < 3:

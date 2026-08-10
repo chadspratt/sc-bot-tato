@@ -202,10 +202,12 @@ class Commander(GeometryMixin):
             if not self.military.top_ramp_bunker.structure:
                 distance_to_top_ramp = cy_distance_to(unit.position, self.bot.main_base_ramp.barracks_correct_placement) # type: ignore
                 if distance_to_top_ramp < 6:
+                    LogHelper.add_log('top ramp bunker completed')
                     self.military.top_ramp_bunker.structure = unit
                     return
             if not self.military.natural_bunker.structure:
                 # not top ramp, assume natural
+                LogHelper.add_log('natural bunker completed')
                 self.military.natural_bunker.structure = unit
                 return
             new_bunker = Bunker(self.bot, self.tactics.enemy, len(self.military.bunkers), unit)
