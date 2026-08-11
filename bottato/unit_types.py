@@ -480,9 +480,9 @@ class UnitTypes(GeometryMixin):
     @staticmethod
     def can_attack_ground(unit: Unit) -> bool:
         """
-        Check if a unit type can attack air units.
+        Check if a unit type can attack ground units.
         """
-        return UnitTypes.air_range(unit) > 0
+        return UnitTypes.ground_range(unit) > 0
 
     @staticmethod
     def can_attack(unit: Unit) -> bool:

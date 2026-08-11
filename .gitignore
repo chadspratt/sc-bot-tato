@@ -14,3 +14,4 @@ cython_extensions/*.pyd
 cython_extensions/build
 build
 uv.lock
+/.venv
