@@ -153,8 +153,11 @@ class InitialScout(Squad, GeometryMixin):
         elif self.last_waypoint:
             if cy_distance_to(self.unit.position, self.waypoints[0]) <= 5:
                 if self.waypoints[0] == self.last_waypoint:
-                    if self.intel.enemy_builds_detected and BuildType.EARLY_EXPANSION not in self.intel.enemy_builds_detected:
-                        self.completed = True
+                    if self.intel.enemy_builds_detected:
+                        if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected:
+                            self.do_natural_check = True
+                        else:
+                            self.completed = True
                     elif self.bot.time > self.initial_scout_complete_time:
                         self.do_natural_check = True
 
