@@ -122,7 +122,8 @@ class Military(GeometryMixin, DebugMixin):
         # # don't launch an early attack with bad intel
         # if self.intel.avg_enemy_age > 100 and self.bot.time < 480:
         #     required_ratio_for_offense = 100
-        if BuildType.EARLY_THIRD_BASE in self.intel.enemy_builds_detected and self.bot.time < 300:
+        punish_early_third = BuildType.EARLY_THIRD_BASE in self.intel.enemy_builds_detected and self.bot.time < 300
+        if punish_early_third:
             required_ratio_for_offense = 0.8
 
         ignore_ratio_threshold = min(185, 160 + self.aborted_attack_count * 5)
@@ -139,7 +140,7 @@ class Military(GeometryMixin, DebugMixin):
             await LogHelper.add_chat("counterattacking worker rush")
             # launch a counterattack, probably needs more nuance to not continue suiciding if attack fails
             mount_offense = True
-        elif mount_offense: # previously 600
+        elif mount_offense and not punish_early_third: # previously 600
             military_scouts = self.bot.units([UnitTypeId.REAPER, UnitTypeId.VIKINGFIGHTER])
             reaper_is_alive = military_scouts.of_type(UnitTypeId.REAPER).exists
             enemy_is_one_basing = len(self.intel.enemy_base_built_times) < 2 and self.bot.time < 480

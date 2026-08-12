@@ -227,8 +227,6 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                             cc(AbilityId.LIFT)
 
     async def move_production_facilities(self):
-        if self.bot.time < 240:
-            return
         flying_facilities = self.bot.structures.filter(lambda s: s.is_flying or s.type_id in (UnitTypeId.BARRACKSFLYING, UnitTypeId.FACTORYFLYING, UnitTypeId.STARPORTFLYING))
         landed_facilties = self.bot.structures.filter(lambda s: not s.is_flying and s.type_id in (UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT) and s.is_ready)
         no_addon_facilities = landed_facilties.filter(lambda f: not f.has_add_on)
@@ -255,6 +253,8 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
             if facility.is_flying:
                 await self.move_structure(facility)
 
+        if self.bot.time < 240:
+            return
         for facility in landed_facilties:
             is_wall_structure = facility.type_id == UnitTypeId.BARRACKS \
                 and cy_distance_to_squared(facility.position, self.bot.main_base_ramp.top_center) < 16
@@ -318,6 +318,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
 
     async def move_structure(self, structure: Unit) -> bool:
         if structure.tag in self.bot.unit_tags_received_action:
+            LogHelper.add_log(f"Skipping move for {structure} as it has already received an action this frame")
             return False
         destination = self.building_destinations.get(structure.tag)
         if destination is None:
