@@ -118,7 +118,8 @@ class BuildOrder():
         self.queue_command_center(self.intel, detected_enemy_builds)
         self.queue_upgrade()
         self.only_build_units = self.bot.supply_left > 6 and 0.0 < self.intel.army_ratio < 0.6
-        if BuildType.EARLY_THIRD_BASE in detected_enemy_builds and self.bot.time < 300:
+        do_early_third_response = BuildType.EARLY_THIRD_BASE in detected_enemy_builds and self.bot.time < 300
+        if do_early_third_response:
             self.only_build_units = True
         self.queue_marines(detected_enemy_builds, self.intel.army_ratio, self.only_build_units)
         if len(self.static_queue) < 10 or self.bot.time > 240:
@@ -148,7 +149,7 @@ class BuildOrder():
 
 
         remaining_resources: Cost = await self.execute_pending_builds(self.only_build_units, detected_enemy_builds)
-        if remaining_resources.minerals > 100 and self.only_build_units:
+        if remaining_resources.minerals > 100 and self.only_build_units and not do_early_third_response:
             remaining_resources: Cost = await self.execute_pending_builds(False, detected_enemy_builds, remaining_resources=remaining_resources)
 
         self.bot.client.debug_text_screen(self.get_build_queue_string(), (0.01, 0.1))

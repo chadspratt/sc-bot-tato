@@ -23,7 +23,7 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     def retreat_health(self) -> float:
         if self.bot.units(UnitTypeId.MEDIVAC).amount > 0:
             return 0.5
-        return 0.2
+        return 0.3
 
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
