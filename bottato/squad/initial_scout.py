@@ -16,6 +16,7 @@ from sc2.unit import Unit
 
 from bottato.economy.workers import Workers
 from bottato.enums import BuildType, ExpansionSelection
+from bottato.log_helper import LogHelper
 from bottato.map_specifics import MapSpecifics
 from bottato.mixins import GeometryMixin
 from bottato.squad.squad import Squad
@@ -125,11 +126,19 @@ class InitialScout(Squad, GeometryMixin):
 
     def scouting_position(self) -> Point2:
         if self.do_natural_check:
-            return self.map.enemy_natural_position
+            return self.expansion_check_position()
         elif self.waypoints:
             return self.waypoints[0]
         else:
             return self.bot.enemy_start_locations[0]
+
+    def expansion_check_position(self) -> Point2:
+        if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected:
+            third_position = self.map.get_next_enemy_expansion(excluded_points=[self.map.enemy_natural_position])
+            LogHelper.add_log(f"checking for early third base at {third_position} instead of natural {self.map.enemy_natural_position}")
+            if third_position:
+                return third_position
+        return self.map.enemy_natural_position
     
     async def move_scout(self):
         if not self.unit or self.completed:
@@ -137,11 +146,7 @@ class InitialScout(Squad, GeometryMixin):
         
         if self.unit.health_percentage < 0.7 or self.do_natural_check:
             # self.waypoints = [self.map.enemy_natural_position]  # check natural before leaving
-            base_to_check = self.map.enemy_natural_position
-            if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected:
-                third_position = self.map.get_next_enemy_expansion(excluded_points=[self.map.enemy_natural_position])
-                if third_position:
-                    base_to_check = third_position
+            base_to_check = self.expansion_check_position()
             if cy_distance_to(self.unit.position, base_to_check) < 9:
                 if self.intel.enemy_race == Race.Terran and self.bot.enemy_structures(UnitTypeId.COMMANDCENTER).amount < 2:
                     # terran takes longer to start natural?
