@@ -139,7 +139,7 @@ class InitialScout(Squad, GeometryMixin):
             # self.waypoints = [self.map.enemy_natural_position]  # check natural before leaving
             base_to_check = self.map.enemy_natural_position
             if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected:
-                third_position = self.map.get_next_enemy_expansion(ExpansionSelection.CLOSEST)
+                third_position = self.map.get_next_enemy_expansion(excluded_points=[self.map.enemy_natural_position])
                 if third_position:
                     base_to_check = third_position
             if cy_distance_to(self.unit.position, base_to_check) < 9:

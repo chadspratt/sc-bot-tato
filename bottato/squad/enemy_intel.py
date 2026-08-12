@@ -190,7 +190,7 @@ class EnemyIntel(GeometryMixin):
             number_of_bases = 0
             for th_type in race_townhalls[self.enemy_race]:
                 number_of_bases += self.number_seen(th_type)
-            if number_of_bases >= 3:  # Adjust the number of bases as needed
+            if number_of_bases >= 3 and self.bot.time < 150:  # Adjust the number of bases as needed
                 await LogHelper.add_chat("early third base detected")
                 self.add_detected_build(BuildType.EARLY_THIRD_BASE)
 
