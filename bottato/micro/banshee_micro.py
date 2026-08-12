@@ -19,9 +19,12 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
     attack_health: float = 0.65
     harass_attack_health: float = 0.9
     harass_retreat_health: float = 0.7
-    retreat_health: float = 0.6
     cloak_researched: bool = False
     cloak_energy_threshold: float = 40.0
+
+    @property
+    def retreat_health(self) -> float:
+        return 0.6
 
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:

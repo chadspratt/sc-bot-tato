@@ -15,11 +15,14 @@ from bottato.unit_types import UnitTypes
 
 class MarauderMicro(BaseUnitMicro, GeometryMixin):
     attack_health: float = 0.51
-    retreat_health: float = 0.7
     last_stim_time: dict[int, float] = {}
     stim_researched: bool = False
     attack_range: float = 5.0
     time_in_frames_to_attack: float = 0.3 * 22.4  # 0.3 seconds
+
+    @property
+    def retreat_health(self) -> float:
+        return 0.7
 
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:

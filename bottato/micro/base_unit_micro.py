@@ -40,7 +40,6 @@ from bottato.unit_types import UnitTypes
 class BaseUnitMicro(GeometryMixin):
     # move towards enemies if over attack_health and retreat if under retreat_health
     attack_health: float = 0.7
-    retreat_health: float = 0.5
     # same as above but applied when harassing which prioritizes staying alive
     harass_attack_health: float = 0.8
     harass_retreat_health: float = 0.6
@@ -80,6 +79,10 @@ class BaseUnitMicro(GeometryMixin):
     def __init__(self, tactics: Tactics):
         self.tactics: Tactics = tactics
         self.bot: BotAI = tactics.bot
+
+    @property
+    def retreat_health(self) -> float:
+        return 0.5
 
     @staticmethod
     def reset_tag_sets():

@@ -19,6 +19,12 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
     attack_range: float = 5.0
     time_in_frames_to_attack: float = 0.25 * 22.4
 
+    @property
+    def retreat_health(self) -> float:
+        if self.bot.units(UnitTypeId.MEDIVAC).amount > 0:
+            return 0.5
+        return 0.2
+
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
         if unit.health <= 35:

@@ -1179,10 +1179,11 @@ class BuildOrder():
                 continue
             if only_build_units and not worker_rush_active and not build_step.is_unit() \
                     and not (is_scv_build and build_step.unit_being_built is not None):
+                allow_non_production = self.bot.time > 300 or BuildType.EARLY_THIRD_BASE not in detected_enemy_builds
                 if building_was_skipped or not (
-                        build_step.is_unit_type(UnitTypeId.COMMANDCENTER)
+                        build_step.is_unit_type(UnitTypeId.COMMANDCENTER) and allow_non_production
                         or build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT)
-                        or build_step.is_unit_type(UnitTypeId.BUNKER)
+                        or build_step.is_unit_type(UnitTypeId.BUNKER) and allow_non_production
                         or build_step.is_unit_production_facility()):
                     LogHelper.add_log(f"skipping {build_step} due to only_build_units")
                     continue
