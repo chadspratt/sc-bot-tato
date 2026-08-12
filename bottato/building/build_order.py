@@ -118,6 +118,8 @@ class BuildOrder():
         self.queue_command_center(self.intel, detected_enemy_builds)
         self.queue_upgrade()
         self.only_build_units = self.bot.supply_left > 6 and 0.0 < self.intel.army_ratio < 0.6
+        if BuildType.EARLY_THIRD_BASE in detected_enemy_builds and self.bot.time < 300:
+            self.only_build_units = True
         self.queue_marines(detected_enemy_builds, self.intel.army_ratio, self.only_build_units)
         if len(self.static_queue) < 10 or self.bot.time > 240:
             self.queue_turret(self.intel)

@@ -59,16 +59,17 @@ class BuildType(enum.Enum):
     BATTLECRUISER_RUSH = 2
     CANNON_RUSH = 3
     EARLY_EXPANSION = 4
-    FLEET_BEACON = 5
-    MULTIPLE_REAPER = 6
-    MULTIPLE_STARPORTS = 7
-    PROXY = 8
-    RUSH = 9
-    SPIRE = 10
-    STARGATE = 11
-    WORKER_RUSH = 12
-    ZERGLING_RUSH = 13
-    ROACH_RUSH = 14
+    EARLY_THIRD_BASE = 5
+    FLEET_BEACON = 6
+    MULTIPLE_REAPER = 7
+    MULTIPLE_STARPORTS = 8
+    PROXY = 9
+    RUSH = 10
+    SPIRE = 11
+    STARGATE = 12
+    WORKER_RUSH = 13
+    ZERGLING_RUSH = 14
+    ROACH_RUSH = 15
 
 class BuildOrderChange(enum.Enum):
     ANTI_AIR = 0

@@ -185,6 +185,14 @@ class EnemyIntel(GeometryMixin):
                     await LogHelper.add_chat("early expansion detected")
                     self.add_detected_build(BuildType.EARLY_EXPANSION, start_time)
                     break
+        elif BuildType.EARLY_THIRD_BASE not in self.enemy_builds_detected:
+            # Detect early third base for any race
+            number_of_bases = 0
+            for th_type in race_townhalls[self.enemy_race]:
+                number_of_bases += self.number_seen(th_type)
+            if number_of_bases >= 3:  # Adjust the number of bases as needed
+                await LogHelper.add_chat("early third base detected")
+                self.add_detected_build(BuildType.EARLY_THIRD_BASE)
 
         if self.enemy_race == Race.Zerg:
             early_pool = self.first_building_time.get(UnitTypeId.SPAWNINGPOOL, 9999) < 40

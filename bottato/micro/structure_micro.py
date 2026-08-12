@@ -78,7 +78,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                     depot(AbilityId.MORPH_SUPPLYDEPOT_LOWER)
                     self.recently_lowered_depots[depot.tag] = self.bot.time
                 return
-            else:
+            elif self.bot.enemy_units.amount > 0:
                 # keep raised
                 for depot in self.bot.structures(UnitTypeId.SUPPLYDEPOTLOWERED).ready:
                     depot(AbilityId.MORPH_SUPPLYDEPOT_RAISE)

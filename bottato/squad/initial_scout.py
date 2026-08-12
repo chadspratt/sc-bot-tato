@@ -15,7 +15,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 
 from bottato.economy.workers import Workers
-from bottato.enums import BuildType
+from bottato.enums import BuildType, ExpansionSelection
 from bottato.map_specifics import MapSpecifics
 from bottato.mixins import GeometryMixin
 from bottato.squad.squad import Squad
@@ -90,6 +90,7 @@ class InitialScout(Squad, GeometryMixin):
         if self.bot.time < self.start_time:
             # too early to scout
             return
+
         if self.bot.time > self.initial_scout_complete_time + 10:
             self.completed = True
 
@@ -136,7 +137,12 @@ class InitialScout(Squad, GeometryMixin):
         
         if self.unit.health_percentage < 0.7 or self.do_natural_check:
             # self.waypoints = [self.map.enemy_natural_position]  # check natural before leaving
-            if cy_distance_to(self.unit.position, self.map.enemy_natural_position) < 9:
+            base_to_check = self.map.enemy_natural_position
+            if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected:
+                third_position = self.map.get_next_enemy_expansion(ExpansionSelection.CLOSEST)
+                if third_position:
+                    base_to_check = third_position
+            if cy_distance_to(self.unit.position, base_to_check) < 9:
                 if self.intel.enemy_race == Race.Terran and self.bot.enemy_structures(UnitTypeId.COMMANDCENTER).amount < 2:
                     # terran takes longer to start natural?
                     self.completed = self.bot.time > 150
@@ -147,7 +153,7 @@ class InitialScout(Squad, GeometryMixin):
         elif self.last_waypoint:
             if cy_distance_to(self.unit.position, self.waypoints[0]) <= 5:
                 if self.waypoints[0] == self.last_waypoint:
-                    if self.intel.enemy_builds_detected:
+                    if self.intel.enemy_builds_detected and BuildType.EARLY_EXPANSION not in self.intel.enemy_builds_detected:
                         self.completed = True
                     elif self.bot.time > self.initial_scout_complete_time:
                         self.do_natural_check = True

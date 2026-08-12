@@ -122,6 +122,8 @@ class Military(GeometryMixin, DebugMixin):
         # # don't launch an early attack with bad intel
         # if self.intel.avg_enemy_age > 100 and self.bot.time < 480:
         #     required_ratio_for_offense = 100
+        if BuildType.EARLY_THIRD_BASE in self.intel.enemy_builds_detected and self.bot.time < 300:
+            required_ratio_for_offense = 0.8
 
         ignore_ratio_threshold = min(185, 160 + self.aborted_attack_count * 5)
         army_is_big_enough = self.intel.army_ratio > required_ratio_for_offense \
