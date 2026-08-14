@@ -356,18 +356,19 @@ class Enemy(GeometryMixin):
     def threats_to(self, unit: Unit, attackers: Units, attack_range_buffer=0, first_only: bool = False) -> Units:
         in_range = Units([], self.bot)
 
-        attackers = attackers.filter(lambda u: UnitTypes.can_attack_target(u, unit)
-                                    and (attack_range_buffer > 0 or u.age == 0 or u.type_id in self.unseen_threat_types))
+        if self.can_be_attacked(unit, attackers):
+            attackers = attackers.filter(lambda u: UnitTypes.can_attack_target(u, unit)
+                                        and (attack_range_buffer > 0 or u.age == 0 or u.type_id in self.unseen_threat_types))
 
-        for enemy_unit in attackers:
-            buffer = 1 if enemy_unit.is_structure else attack_range_buffer
-            attack_range_squared = self.get_attack_range_with_buffer_squared(enemy_unit, unit, buffer)
-            distance_squared = self.safe_distance_squared(unit, enemy_unit)
+            for enemy_unit in attackers:
+                buffer = 1 if enemy_unit.is_structure else attack_range_buffer
+                attack_range_squared = self.get_attack_range_with_buffer_squared(enemy_unit, unit, buffer)
+                distance_squared = self.safe_distance_squared(unit, enemy_unit)
 
-            if distance_squared <= attack_range_squared:
-                in_range.append(enemy_unit)
-                if first_only:
-                    break
+                if distance_squared <= attack_range_squared:
+                    in_range.append(enemy_unit)
+                    if first_only:
+                        break
 
         return in_range
 
@@ -648,7 +649,7 @@ class Enemy(GeometryMixin):
         for detector in detectors:
             bonus_detection_distance = 0
             if is_mine:
-                bonus_detection_distance = 0.5 if detector.is_structure else 1
+                bonus_detection_distance = 0.5 if detector.is_structure else 1.5
             if self.safe_distance_squared(detector, unit) <= (detector.sight_range + unit.radius + bonus_detection_distance) ** 2:
                 return True
         for effect in self.bot.state.effects:
