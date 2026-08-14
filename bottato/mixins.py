@@ -257,6 +257,22 @@ class GeometryMixin:
         return closest_unit
 
     @staticmethod
+    def closest_member_to_member(units1: Units, units2: Units) -> tuple[Unit, Unit]:
+        assert units1, "units1 list is empty"
+        assert units2, "units2 list is empty"
+        closest_distance = 9999
+        closest_unit1: Unit = units1[0]
+        closest_unit2: Unit = units2[0]
+        for unit1 in units1:
+            for unit2 in units2:
+                new_distance = GeometryMixin.distance(unit1, unit2)
+                if new_distance < closest_distance:
+                    closest_distance = new_distance
+                    closest_unit1 = unit1
+                    closest_unit2 = unit2
+        return (closest_unit1, closest_unit2)
+
+    @staticmethod
     def get_triangle_point_c(point_a: Point2, point_b: Point2, a_c_distance: float, b_c_distance: float) -> tuple[Point2, Point2] | None:
         a_b_distance = cy_distance_to(point_a, point_b)
         if a_b_distance > a_c_distance + b_c_distance or a_c_distance > a_b_distance + b_c_distance or b_c_distance > a_b_distance + a_c_distance:

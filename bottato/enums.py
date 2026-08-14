@@ -129,6 +129,11 @@ class ArmyMode(enum.Enum):
     ATTACKING = 1
     DEFENDING = 2
 
+class CycloneLockOnState(enum.Enum):
+    AVAILABLE = 0
+    LOCKED = 1
+    ON_COOLDOWN = 2
+
 class ActionErrorCode(enum.Enum):
   Success = 1
   NotSupported = 2

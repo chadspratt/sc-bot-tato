@@ -26,7 +26,6 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     grenade_cooldown = 14.0
     grenade_timer = 1.7
     attack_health = 0.8
-    retreat_health = 0.65
     time_in_frames_to_attack = 0.18 * 22.4
 
     grenade_cooldowns: dict[int, float] = {}
@@ -35,6 +34,10 @@ class ReaperMicro(BaseUnitMicro, GeometryMixin):
     bad_harass_experience_locations: Dict[Point2, Tuple[int, float]] = {}
     previous_elevation: dict[int, float] = {}
     last_hop_down_time: dict[int, float] = {}
+
+    @property
+    def retreat_health(self) -> float:
+        return 0.65
 
     excluded_types = [UnitTypeId.EGG, UnitTypeId.LARVA]
     @timed_async

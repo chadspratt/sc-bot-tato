@@ -243,11 +243,11 @@ class Enemy(GeometryMixin):
         elif sample_count > 2 and recent_positions[-1] == recent_positions[-2] == recent_positions[-3]:
             # last 3 positions were all the same
             return sum
-        start: Point2 = recent_positions[0]
+        start: Point2 | None = recent_positions[0]
         i = 1
         actual_sample_count = 0
         while i < sample_count:
-            end: Point2 = recent_positions[i]
+            end: Point2 | None = recent_positions[i]
             i += 1
             if start is None or end is None:
                 start = end

@@ -25,6 +25,7 @@ from bottato.log_helper import LogHelper
 from bottato.map.destructibles import BUILDING_RADIUS
 from bottato.map.map import Map
 from bottato.micro.base_unit_micro import BaseUnitMicro
+from bottato.micro.cyclone_micro import CycloneMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.micro.structure_micro import StructureMicro
 from bottato.military import Military
@@ -80,6 +81,7 @@ class Commander(GeometryMixin):
         await self.detect_stuck_units(iteration) # fast
 
         BaseUnitMicro.reset_tag_sets()
+        await CycloneMicro.update_lock_on_states(self.bot)
 
         await self.structure_micro.execute(self.tactics.intel.army_ratio, self.stuck_units, iteration) # fast
 

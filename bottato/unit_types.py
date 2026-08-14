@@ -1,5 +1,6 @@
 from typing import Any, Dict, List, Set, Tuple
 
+from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.dicts.unit_unit_alias import UNIT_UNIT_ALIAS
 from sc2.ids.buff_id import BuffId
@@ -8,7 +9,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
-from bottato.enums import UnitAttribute
+from bottato.enums import CycloneLockOnState, UnitAttribute
 from bottato.mixins import GeometryMixin, timed
 
 
@@ -587,7 +588,30 @@ class UnitTypes(GeometryMixin):
             return float('inf')
         actual_distance = (distance ** 0.5) - attacker.radius - target.radius
         return actual_distance - attack_range
-    
+
+    cyclone_lockon_states: Dict[int, CycloneLockOnState] = {}
+    cyclone_lockon_lost_times: Dict[int, float] = {}
+    @staticmethod
+    async def update_cyclone_lockon_state(bot: BotAI, lock_on_targets: Dict[int, int]):
+        """
+        Update the lockon state of all cyclones.
+        """
+        for cyclone_tag in list(UnitTypes.cyclone_lockon_states.keys()):
+            previous_state = UnitTypes.cyclone_lockon_states[cyclone_tag]
+            if previous_state == CycloneLockOnState.LOCKED:
+                # set cooldown if target lost
+                if cyclone_tag not in lock_on_targets:
+                    UnitTypes.cyclone_lockon_states[cyclone_tag] = CycloneLockOnState.ON_COOLDOWN
+                    UnitTypes.cyclone_lockon_lost_times[cyclone_tag] = bot.time
+            elif previous_state == CycloneLockOnState.ON_COOLDOWN:
+                # set available if cooldown expired
+                time_since_lockon = bot.time - UnitTypes.cyclone_lockon_lost_times[cyclone_tag]
+                if time_since_lockon >= 4.3:
+                    UnitTypes.cyclone_lockon_states[cyclone_tag] = CycloneLockOnState.AVAILABLE
+                    del UnitTypes.cyclone_lockon_lost_times[cyclone_tag]
+        for cyclone_tag in list(lock_on_targets.keys()):
+            UnitTypes.cyclone_lockon_states[cyclone_tag] = CycloneLockOnState.LOCKED
+
     @staticmethod
     def range_vs_target(attacker: Unit, target: Unit) -> float:
         """
@@ -595,10 +619,21 @@ class UnitTypes(GeometryMixin):
         """
         if attacker.type_id == UnitTypeId.HIGHTEMPLAR and target.energy > 10:
             return 10 # feedback
-        if attacker.type_id == UnitTypeId.CYCLONE and BuffId.LOCKON in target.buffs:
-            if attacker.is_mine:
-                return 10.5 # technically 15 but risk losing vision
-            return 15 # retreat distance for friendly units
+        if attacker.type_id == UnitTypeId.CYCLONE:
+            if BuffId.LOCKON in target.buffs:
+                if attacker.is_mine:
+                    return 10.5 # technically 15 but risk losing vision
+                return 15 # retreat distance for friendly units
+            else:
+                lock_state = CycloneLockOnState.AVAILABLE
+                if attacker.is_mine:
+                    lock_state = UnitTypes.cyclone_lockon_states.get(attacker.tag, CycloneLockOnState.AVAILABLE)
+                if lock_state == CycloneLockOnState.LOCKED:
+                    return 0.0 # locked on different enemy
+                elif lock_state == CycloneLockOnState.AVAILABLE:
+                    return 7.0 # lock range
+                elif lock_state == CycloneLockOnState.ON_COOLDOWN:
+                    return 8.0 # stay further away while waiting on cooldown
         if target.is_cloaked and attacker.is_detector:
             return attacker.sight_range # treat detection as a weapon to be avoided
         if target.is_flying:

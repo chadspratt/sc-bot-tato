@@ -709,6 +709,13 @@ class BuildOrder():
     @timed
     def queue_refinery(self) -> None:
         if self.bot.townhalls.ready:
+            for refinery in self.bot.gas_buildings:
+                if refinery.is_ready \
+                        and refinery.vespene_contents > 0 \
+                        and refinery.assigned_harvesters < 2 \
+                        and GeometryMixin.member_is_closer_than(refinery, self.bot.townhalls.ready, 10):
+                    # don't queue more if existing capacity isn't being used
+                    return
             available_geysers = self.bot.vespene_geyser.filter(lambda g:
                 g.vespene_contents > 0
                 and GeometryMixin.member_is_closer_than(g, self.bot.townhalls.ready, 10)

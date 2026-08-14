@@ -11,7 +11,7 @@ from sc2.units import Units
 
 from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.mixins import GeometryMixin, timed, timed_async
+from bottato.mixins import GeometryMixin, timed_async
 from bottato.unit_types import UnitTypes
 
 

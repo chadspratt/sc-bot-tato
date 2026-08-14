@@ -6,7 +6,6 @@ from typing import Dict
 from cython_extensions.geometry import cy_distance_to, cy_towards
 from cython_extensions.units_utils import cy_closest_to
 from sc2.bot_ai import BotAI
-from sc2.data import race_townhalls
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
 
@@ -73,19 +72,25 @@ class HarassSquad(Squad, GeometryMixin):
                 lambda structure: structure.is_ready and UnitTypes.can_attack_target(structure, unit)
                     and cy_distance_to(structure.position, unit.position) < UnitTypes.range_vs_target(structure, unit) + 3)
 
-            base_threat_target: Point2 | None = None
-            if self.bot.townhalls:
-                closest_th = cy_closest_to(unit.position, self.bot.townhalls)
-                if cy_distance_to(unit.position, closest_th.position) < 30:
-                    base_threats = self.bot.enemy_units.filter(
-                        lambda u: u.type_id not in UnitTypes.NON_THREATS
-                        and cy_distance_to(u.position, closest_th.position) < 20
-                    )
-                    if base_threats:
-                        base_threat_target = cy_closest_to(closest_th.position, base_threats).position
-
             if not nearby_enemies and not threatening_structures:
-                await micro.harass(unit, base_threat_target or self.harass_locations[unit.tag])
+                base_to_defend: Point2 | None = None
+                if self.bot.townhalls:
+                    enemy_reapers = self.bot.enemy_units(UnitTypeId.REAPER)
+                    if enemy_reapers:
+                        # prioritize defending over harassing if enemy reapers are out. maybe survive deimos for 5m
+                        closest_th_to_reapers = GeometryMixin.closest_member_to_member(self.bot.townhalls, enemy_reapers)
+                        base_to_defend = closest_th_to_reapers[0].position
+                    else:
+                        closest_th = cy_closest_to(unit.position, self.bot.townhalls)
+                        if cy_distance_to(unit.position, closest_th.position) < 30:
+                            base_threats = self.bot.enemy_units.filter(
+                                lambda u: u.type_id not in UnitTypes.NON_THREATS
+                                and cy_distance_to(u.position, closest_th.position) < 20
+                            )
+                            if base_threats:
+                                base_to_defend = cy_closest_to(closest_th.position, base_threats).position
+
+                await micro.harass(unit, base_to_defend or self.harass_locations[unit.tag])
                 continue
 
             nearest_threat = None

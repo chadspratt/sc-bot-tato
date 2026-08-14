@@ -399,17 +399,19 @@ class Workers(GeometryMixin):
                 self.do_worker_rush_defense()
                 return
 
-        # After early game, workers only fight back against very close enemies
+        # attack enemies near worker
+        nearby_enemies = self.bot.enemy_units.filter(
+            lambda u: not u.is_flying
+            and self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies())
+        )
+        for worker in self.bot.workers:
+            if worker.health_percentage > MN.WORKER_ATTACK_NEARBY_RETREAT_HEALTH_PERCENT_THRESHOLD:
+                close_enemies = cy_closer_than(nearby_enemies, MN.WORKER_ATTACK_NEARBY_ENEMY_RANGE, worker.position)
+                if close_enemies:
+                    worker.attack(cy_closest_to(worker.position, close_enemies))
+
+        # After early game, don't pull workers to defend bases
         if self.bot.time >= MN.WORKER_ATTACK_PULL_CUTOFF_TIME:
-            nearby_enemies = self.bot.enemy_units.filter(
-                lambda u: not u.is_flying
-                and self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies())
-            )
-            for worker in self.bot.workers:
-                if worker.health_percentage > MN.WORKER_ATTACK_NEARBY_RETREAT_HEALTH_PERCENT_THRESHOLD:
-                    close_enemies = cy_closer_than(nearby_enemies, MN.WORKER_ATTACK_NEARBY_ENEMY_RANGE, worker.position)
-                    if close_enemies:
-                        worker.attack(cy_closest_to(worker.position, close_enemies))
             return
 
         if self.repair_wall():
@@ -968,6 +970,7 @@ class Workers(GeometryMixin):
                         assignment = self.assignments_by_worker[closest_repairer.tag]
                         assignment.on_attack_break = True
                         repairers.remove(closest_repairer)
+                LogHelper.add_log("repairing wall")
                 return True
         return False
              
