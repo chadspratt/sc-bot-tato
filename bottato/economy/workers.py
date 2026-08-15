@@ -405,6 +405,9 @@ class Workers(GeometryMixin):
             and self.enemy.can_be_attacked(u, self.enemy.get_recent_enemies())
         )
         for worker in self.bot.workers:
+            assignment = self.assignments_by_worker[worker.tag]
+            if assignment.job_type == WorkerJobType.SCOUT:
+                continue
             if worker.health_percentage > MN.WORKER_ATTACK_NEARBY_RETREAT_HEALTH_PERCENT_THRESHOLD:
                 close_enemies = cy_closer_than(nearby_enemies, MN.WORKER_ATTACK_NEARBY_ENEMY_RANGE, worker.position)
                 if close_enemies:
