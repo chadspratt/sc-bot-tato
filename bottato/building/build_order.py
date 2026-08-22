@@ -345,7 +345,7 @@ class BuildOrder():
             self.remove_step_from_queue(UnitTypeId.BANSHEE, self.static_queue, remove_all=True)
             self.remove_step_from_queue(UnitTypeId.MEDIVAC, self.static_queue)
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 2, queue=self.priority_queue)
-            self.add_to_build_queue([UnitTypeId.CYCLONE], queue=self.static_queue)
+            self.substitute_steps_in_queue(UnitTypeId.SIEGETANK, [UnitTypeId.CYCLONE], self.static_queue)
             self.remove_step_from_queue(UpgradeId.BANSHEECLOAK, self.static_queue)
             if enemy_build_type == BuildType.BATTLECRUISER_RUSH:
                 self.remove_step_from_queue(UnitTypeId.SIEGETANK, self.static_queue, remove_all=True)

@@ -67,7 +67,7 @@ class Tactics:
             # e.g. proxy_barracks is checked at the start of the step and then enemy_builds_detected is updated
             new_value = self.last_values[tactic]
         elif tactic == Tactic.ANTI_AIR:
-            anti_air_builds = {BuildType.BATTLECRUISER, BuildType.BATTLECRUISER_RUSH, BuildType.STARGATE, BuildType.SPIRE, BuildType.MULTIPLE_STARPORTS, BuildType.FLEET_BEACON}
+            anti_air_builds = {BuildType.BATTLECRUISER, BuildType.BATTLECRUISER_RUSH, BuildType.STARGATE, BuildType.SPIRE, BuildType.EARLY_STARGATE, BuildType.MULTIPLE_STARPORTS, BuildType.FLEET_BEACON}
             new_value = not anti_air_builds.isdisjoint(self.intel.enemy_builds_detected.keys())
         elif tactic == Tactic.BANSHEE_HARASS:
             new_value = self.bot.time > 120 and self.bot.structures(UnitTypeId.STARPORT).ready.exists 
