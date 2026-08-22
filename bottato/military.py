@@ -767,6 +767,10 @@ class Military(GeometryMixin, DebugMixin):
                             damage_by_type_cache[attacker_type][target_type] = 5.0
                             continue
                     dps = UnitTypes.dps(attacker, target)
+                    if attacker.movement_speed > target.movement_speed:
+                        dps *= 1.1  # bonus for faster units
+                    if UnitTypes.range_vs_target(attacker, target) > UnitTypes.range_vs_target(target, attacker):
+                        dps *= 1.1  # bonus for more range
                     damage_by_type_cache[attacker_type][target_type] = dps
     
     def get_non_passenger_from_list(self, unit_list: List[Unit]) -> Unit | None:
