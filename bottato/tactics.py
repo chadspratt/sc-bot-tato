@@ -61,6 +61,7 @@ class Tactics:
 
     def is_active(self, tactic: Tactic) -> bool:
         new_value = False
+        previous_value = self.last_values.get(tactic, False)
 
         if self.last_updates[tactic] == self.bot.state.game_loop:
             # this can cause a delay in the tactic state updating
@@ -77,7 +78,7 @@ class Tactics:
                 or BuildType.EARLY_EXPANSION not in self.intel.enemy_builds_detected:
                 new_value = False
             elif self.intel.number_seen(UnitTypeId.BARRACKS) < 4 and not self._enemy_has_marine_counters():
-                if self.bot.time < 180:
+                if self.bot.time < 85 or previous_value and self.bot.time < 180:
                     # start the proxy
                     new_value = True
                 elif self.last_values[tactic] and self.proxy_barracks:

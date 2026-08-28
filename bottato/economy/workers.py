@@ -1595,7 +1595,7 @@ class Workers(GeometryMixin):
         if self.bot.minerals >= MN.WORKER_REPAIR_MIN_MINERALS:
             if worker.health <= start_health_threshold and worker.tag not in self.repair_targets:
                 # initiate repairing. find next lowest and repair each other
-                other_workers = self.bot.workers.filter(lambda w: w.tag not in self.repair_targets and w.tag != worker.tag).sorted(lambda w: w.health)
+                other_workers = self.bot.workers.filter(lambda w: w.tag not in self.repair_targets and w.tag != worker.tag and w.health_percentage < 1.0).sorted(lambda w: w.health)
                 if other_workers:
                     # repair lowest unless
                     repair_target = other_workers.first

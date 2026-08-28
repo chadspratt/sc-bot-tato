@@ -21,6 +21,7 @@ from bottato.map_specifics import MapSpecifics
 from bottato.mixins import GeometryMixin
 from bottato.squad.squad import Squad
 from bottato.tactics import Tactics
+from bottato.unit_reference_helper import UnitReferenceHelper
 from bottato.unit_types import UnitTypes
 
 
@@ -101,9 +102,12 @@ class InitialScout(Squad, GeometryMixin):
                 self.workers.set_as_idle(self.unit)
                 self.unit = None
             return
-        
-            
-        self.unit = self.workers.get_scout(self.scouting_position())
+
+        if self.bot.time < self.start_time + 10:
+            self.unit = self.workers.get_scout(self.scouting_position())
+        else:
+            self.unit = UnitReferenceHelper.get_updated_unit(self.unit) if self.unit else None
+
         if self.unit:
             if BuildType.EARLY_EXPANSION in self.intel.enemy_builds_detected and self.intel.enemy_race != Race.Zerg:
                 # stop early to proxy vs protoss and terran

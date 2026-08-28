@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Dict
+
 from cython_extensions.geometry import cy_distance_to
 from cython_extensions.units_utils import cy_center
 from sc2.ids.ability_id import AbilityId
@@ -21,10 +23,11 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
     harass_retreat_health: float = 0.7
     cloak_researched: bool = False
     cloak_energy_threshold: float = 40.0
+    last_cloak_time: Dict[int, float] = {}  # unit tag -> last cloak time
 
     @property
     def retreat_health(self) -> float:
-        return 0.6
+        return 0.45
 
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
@@ -38,8 +41,9 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 lambda u: not u.is_detector)
             if unit.energy >= self.cloak_energy_threshold and self.tactics.enemy.threats_to(unit, threats, 2):
                 unit(AbilityId.BEHAVIOR_CLOAKON_BANSHEE)
+                BansheeMicro.last_cloak_time[unit.tag] = self.bot.time
                 return UnitMicroType.USE_ABILITY
-        else:
+        elif BansheeMicro.last_cloak_time.get(unit.tag, 0) + 5 < self.bot.time:
             if not self.tactics.enemy.threats_to_friendly_unit(unit, attack_range_buffer=10).exists:
                 unit(AbilityId.BEHAVIOR_CLOAKOFF_BANSHEE)
                 return UnitMicroType.USE_ABILITY
