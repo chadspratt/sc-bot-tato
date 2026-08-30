@@ -23,7 +23,7 @@ class HellionMicro(BaseUnitMicro, GeometryMixin):
         if not self.armory_built:
             self.armory_built = self.bot.structures(UnitTypeId.ARMORY).ready.exists
         if self.armory_built and unit.type_id == UnitTypeId.HELLION:
-            enemies = self.tactics.enemy.get_army().filter(lambda u: not u.is_flying)
+            enemies = self.tactics.enemy.get_army().filter(lambda u: u.age == 0 and not u.is_flying)
             if GeometryMixin.member_is_closer_than(unit, enemies, 15):
                 unit(AbilityId.MORPH_HELLBAT)
                 return UnitMicroType.USE_ABILITY
