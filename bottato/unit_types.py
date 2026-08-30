@@ -427,6 +427,24 @@ class UnitTypes(GeometryMixin):
         UnitTypeId.NEXUS,
     }
 
+    ADDONS = {
+        UnitTypeId.BARRACKSTECHLAB,
+        UnitTypeId.BARRACKSREACTOR,
+        UnitTypeId.FACTORYTECHLAB,
+        UnitTypeId.FACTORYREACTOR,
+        UnitTypeId.STARPORTTECHLAB,
+        UnitTypeId.STARPORTREACTOR,
+    }
+
+    ADDON_STRUCTURE_TYPE = {
+        UnitTypeId.BARRACKSREACTOR: UnitTypeId.BARRACKS,
+        UnitTypeId.BARRACKSTECHLAB: UnitTypeId.BARRACKS,
+        UnitTypeId.FACTORYREACTOR: UnitTypeId.FACTORY,
+        UnitTypeId.FACTORYTECHLAB: UnitTypeId.FACTORY,
+        UnitTypeId.STARPORTREACTOR: UnitTypeId.STARPORT,
+        UnitTypeId.STARPORTTECHLAB: UnitTypeId.STARPORT,
+    }
+
     @staticmethod
     def is_worker(unit: Unit) -> bool:
         """

@@ -64,6 +64,7 @@ class Military(GeometryMixin, DebugMixin):
             color=self.random_color(),
             name='main',
         )
+        self.last_defense_time: float = 0.0
         self.top_ramp_bunker = Bunker(self.bot,  self.enemy,  1)
         self.natural_bunker = Bunker(self.bot,  self.enemy,  2)
         self.bunkers = [self.top_ramp_bunker, self.natural_bunker]
@@ -125,6 +126,8 @@ class Military(GeometryMixin, DebugMixin):
         punish_early_third = BuildType.EARLY_THIRD_BASE in self.intel.enemy_builds_detected and self.bot.time < 300
         if punish_early_third:
             required_ratio_for_offense = 0.8
+        elif self.last_defense_time > self.bot.time - 90:
+            required_ratio_for_offense *= 1.2
 
         ignore_ratio_threshold = min(185, 160 + self.aborted_attack_count * 5)
         army_is_big_enough = self.intel.army_ratio > required_ratio_for_offense \
@@ -166,6 +169,7 @@ class Military(GeometryMixin, DebugMixin):
             self.tactics.army_mode = ArmyMode.ATTACKING
         elif defend_with_main_army:
             self.tactics.army_mode = ArmyMode.DEFENDING
+            self.last_defense_time = self.bot.time
         else:
             self.tactics.army_mode = ArmyMode.STAGING
         if self.tactics.army_mode != previous_mode:

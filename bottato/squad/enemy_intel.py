@@ -278,6 +278,10 @@ class EnemyIntel(GeometryMixin):
                 await LogHelper.add_chat("early army detected near base")
                 self.add_detected_build(BuildType.RUSH)
 
+    initial_build_types = set((BuildType.RUSH, BuildType.WORKER_RUSH, BuildType.PROXY, BuildType.CANNON_RUSH, BuildType.ZERGLING_RUSH, BuildType.ROACH_RUSH, BuildType.SPIRE, BuildType.MULTIPLE_STARPORTS, BuildType.BATTLECRUISER_RUSH, BuildType.FLEET_BEACON, BuildType.CANNON_RUSH, BuildType.EARLY_STARGATE))
+    def initial_build_is_detected(self) -> bool:
+        return len(self.initial_build_types.intersection(self.enemy_builds_detected)) > 0
+
     def number_seen(self, unit_type: UnitTypeId | List[UnitTypeId]) -> int:
         if isinstance(unit_type, list):
             return sum(len(self.type_positions_seen.get(ut, [])) for ut in unit_type)

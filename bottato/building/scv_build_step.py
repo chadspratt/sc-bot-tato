@@ -176,7 +176,7 @@ class SCVBuildStep(BuildStep):
         if self.unit_type_id == UnitTypeId.REFINERYRICH:
             self.unit_type_id = UnitTypeId.REFINERY
         if self.unit_being_built:
-            self.position = self.unit_being_built.position
+            self.set_position(self.unit_being_built.position)
             if self.start_time == 0:
                 self.start_time = self.bot.time
         else:
@@ -186,11 +186,11 @@ class SCVBuildStep(BuildStep):
                     self.geysir: Unit | None = self.get_geysir()
                     if self.geysir is None:
                         return BuildResponseCode.NO_LOCATION
-                    self.position = self.geysir.position
+                    self.set_position(self.geysir.position)
             else:
                 find_new_position = self.position is None or self.is_proxy_barracks() or self.build_not_starting()
                 if find_new_position:
-                    self.position = await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds, floating_building_destinations)
+                    self.set_position(await self.find_placement(self.unit_type_id, special_locations, detected_enemy_builds, floating_building_destinations))
 
         if self.position is None:
             self.no_position_count += 1

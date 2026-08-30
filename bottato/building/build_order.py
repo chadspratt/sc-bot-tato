@@ -429,13 +429,24 @@ class BuildOrder():
             if isinstance(unit_type, UpgradeId):
                 continue
             prereqs = self.production.build_order_with_prereqs(unit_type)
+
+            techlabs_needed = set((UnitTypeId.BARRACKSTECHLAB, UnitTypeId.FACTORYTECHLAB, UnitTypeId.STARPORTTECHLAB)).intersection(prereqs)
+            additional_production_needed_types: Set[UnitTypeId] = set()
+            for techlab_needed in techlabs_needed:
+                if techlab_needed == UnitTypeId.BARRACKSTECHLAB:
+                    additional_production_needed_types.add(UnitTypeId.BARRACKS)
+                elif techlab_needed == UnitTypeId.FACTORYTECHLAB:
+                    additional_production_needed_types.add(UnitTypeId.FACTORY)
+                elif techlab_needed == UnitTypeId.STARPORTTECHLAB:
+                    additional_production_needed_types.add(UnitTypeId.STARPORT)
+
             for prereq in prereqs:
                 if isinstance(prereq, UpgradeId) or \
                         prereq == unit_type or \
                         prereq in all_prereqs or \
                         self.get_queued_count(prereq) > 0 or \
                         self.get_in_progress_count(prereq) > 0 or \
-                        self.bot.structures(prereq).amount > 0:
+                        self.bot.structures(prereq).amount > 0 and prereq not in additional_production_needed_types:
                     continue
                 all_prereqs.append(prereq)
         unit_types = all_prereqs + unit_types
@@ -1257,6 +1268,12 @@ class BuildOrder():
                 # reserve resources if production is almost ready
                 failed_types.append(build_step.get_unit_type_id())
                 LogHelper.add_log(f"skipping {build_step} due to no facility")
+                unit_type = build_step.get_unit_type_id()
+                if unit_type in UnitTypes.ADDONS:
+                    facility_type = UnitTypes.ADDON_STRUCTURE_TYPE[unit_type]
+                    if self.get_in_progress_count(facility_type) == 0 and self.get_queued_count(facility_type) == 0:
+                        # queuing additional facility to go with addon
+                        self.substitute_steps_in_queue(unit_type, [facility_type, unit_type], build_queue)
                 continue
 
             # XXX slightly slow

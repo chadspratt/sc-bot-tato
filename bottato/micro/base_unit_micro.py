@@ -490,7 +490,7 @@ class BaseUnitMicro(GeometryMixin):
     # utility behaviors - used by main actions
     ###########################################################################
     async def _get_override_target_for_repair(self, unit: Unit, target: Point2) -> Point2:
-        if unit.health_percentage < 1.0:
+        if unit.health_percentage < 1.0 and not unit.is_structure:
             healing_shrines = await self.get_healing_shrines(unit)
             for shrine in healing_shrines:
                 if cy_distance_to_squared(unit.position, shrine.position) < 100:
@@ -762,7 +762,7 @@ class BaseUnitMicro(GeometryMixin):
             threats = self.tactics.enemy.threats_to(unit, threats, attack_range_buffer=2)
 
         healing_shrines = await self.get_healing_shrines(unit)
-        if healing_shrines and unit.health_percentage < 1.0:
+        if healing_shrines and unit.health_percentage < 1.0 and not unit.is_structure:
             # if near a shrine, always prefer it
             closest_shrine = cy_closest_to(unit.position, healing_shrines)
             if cy_distance_to_squared(unit.position, closest_shrine.position) < 900 \

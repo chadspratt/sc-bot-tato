@@ -39,7 +39,7 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
         if not unit.is_cloaked:
             threats = self.tactics.enemy.get_recent_enemies().filter(
                 lambda u: not u.is_detector)
-            if unit.energy >= self.cloak_energy_threshold and self.tactics.enemy.threats_to(unit, threats, 2):
+            if unit.energy >= self.cloak_energy_threshold and self.tactics.enemy.threats_to(unit, threats, 2).exists:
                 unit(AbilityId.BEHAVIOR_CLOAKON_BANSHEE)
                 BansheeMicro.last_cloak_time[unit.tag] = self.bot.time
                 return UnitMicroType.USE_ABILITY

@@ -91,7 +91,7 @@ class Scouting(Squad, DebugMixin):
                         self.intel.proxy_buildings.append(structure)
                         LogHelper.add_log(f"proxy building detected: {structure}")
 
-        if not self.initial_scan_done and 165 < self.bot.time < 210:
+        if not (self.intel.initial_build_is_detected() or self.initial_scan_done) and 165 < self.bot.time < 210:
             reaper = self.bot.units(UnitTypeId.REAPER)
             if not reaper or cy_distance_to(reaper.first.position, self.enemy_main.scouting_position) > 25:
                 if self.enemy_main.needs_fresh_scouting(self.bot.time, skip_occupied=False):

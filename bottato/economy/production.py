@@ -192,6 +192,14 @@ class Production():
                 UnitTypeId.REACTOR: UnitTypeId.STARPORTREACTOR,
             },
         }
+        self.addon_facility_type_lookup: dict[UnitTypeId, UnitTypeId] = {
+            UnitTypeId.BARRACKSTECHLAB: UnitTypeId.BARRACKS,
+            UnitTypeId.BARRACKSREACTOR: UnitTypeId.BARRACKS,
+            UnitTypeId.FACTORYTECHLAB: UnitTypeId.FACTORY,
+            UnitTypeId.FACTORYREACTOR: UnitTypeId.FACTORY,
+            UnitTypeId.STARPORTTECHLAB: UnitTypeId.STARPORT,
+            UnitTypeId.STARPORTREACTOR: UnitTypeId.STARPORT,
+        }
         self.townhall_tags_with_new_work_this_step: List[int] = []
 
     @timed_async
@@ -552,7 +560,8 @@ class Production():
 
     def build_order_with_prereqs_recurse(self,
                                          unit_type: UnitTypeId | UpgradeId | None,
-                                         previous_types: List[UnitTypeId | UpgradeId] | None= None) -> List[UnitTypeId | UpgradeId]:
+                                         previous_types: List[UnitTypeId | UpgradeId] | None= None,
+                                         no_addon_facility_needed: bool = False) -> List[UnitTypeId | UpgradeId]:
         if unit_type is None:
             return []
         if previous_types is None:
@@ -560,8 +569,11 @@ class Production():
         else:
             if unit_type in previous_types:
                 return []
-            elif isinstance(unit_type, UnitTypeId) and self.bot.structure_type_build_progress(unit_type) > 0:
-                return []
+            elif isinstance(unit_type, UnitTypeId):
+                if no_addon_facility_needed and unit_type in (UnitTypeId.BARRACKS, UnitTypeId.FACTORY, UnitTypeId.STARPORT):
+                    return [unit_type]
+                elif self.bot.structure_type_build_progress(unit_type) > 0:
+                    return []
             elif isinstance(unit_type, UpgradeId) and self.bot.already_pending_upgrade(unit_type):
                 return []
         build_order: List[UnitTypeId | UpgradeId] = [unit_type]
@@ -569,18 +581,19 @@ class Production():
 
         if isinstance(unit_type, UpgradeId):
             requirement = UPGRADE_RESEARCHED_FROM[unit_type]
-            build_order += self.build_order_with_prereqs_recurse(requirement, previous_types)
+            build_order += self.build_order_with_prereqs_recurse(requirement, previous_types, no_addon_facility_needed)
 
             research_structure_type: UnitTypeId = UPGRADE_RESEARCHED_FROM[unit_type]
             required_tech_building: UnitTypeId | None = RESEARCH_INFO[research_structure_type][unit_type].get(
                 "required_building", None
             ) # type: ignore
-            build_order += self.build_order_with_prereqs_recurse(required_tech_building, previous_types)
+            build_order += self.build_order_with_prereqs_recurse(required_tech_building, previous_types, no_addon_facility_needed)
         else:
             if unit_type in TECH_TREE:
                 # check that all tech requirements are met
                 for requirement in TECH_TREE[unit_type]:
-                    build_order += self.build_order_with_prereqs_recurse(requirement, previous_types)
+                    no_addon_facility_needed = unit_type in self.add_on_types
+                    build_order += self.build_order_with_prereqs_recurse(requirement, previous_types, no_addon_facility_needed)
 
             if unit_type in UNIT_TRAINED_FROM:
                 # check that one training facility exists
@@ -594,7 +607,7 @@ class Production():
                 else:
                     # no trainers available
                     for trainer in UNIT_TRAINED_FROM[unit_type]:
-                        requirement_bom = self.build_order_with_prereqs_recurse(trainer, previous_types)
+                        requirement_bom = self.build_order_with_prereqs_recurse(trainer, previous_types, no_addon_facility_needed)
                         if requirement_bom:
                             build_order.extend(requirement_bom)
                             break

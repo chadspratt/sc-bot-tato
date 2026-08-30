@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from cython_extensions.units_utils import cy_closer_than
+from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
+from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
@@ -14,6 +16,18 @@ from bottato.unit_types import UnitTypes
 
 class HellionMicro(BaseUnitMicro, GeometryMixin):
     attack_health: float = 0.4
+    armory_built: bool = False
+
+    @timed_async
+    async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
+        if not self.armory_built:
+            self.armory_built = self.bot.structures(UnitTypeId.ARMORY).ready.exists
+        if self.armory_built and unit.type_id == UnitTypeId.HELLION:
+            enemies = self.tactics.enemy.get_army().filter(lambda u: not u.is_flying)
+            if GeometryMixin.member_is_closer_than(unit, enemies, 15):
+                unit(AbilityId.MORPH_HELLBAT)
+                return UnitMicroType.USE_ABILITY
+        return UnitMicroType.NONE
 
     @timed_async
     async def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
