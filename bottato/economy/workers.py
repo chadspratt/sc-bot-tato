@@ -143,10 +143,10 @@ class Workers(GeometryMixin):
                 self.aged_mules.append(worker)
                 minerals_with_capacity = self.minerals.nodes_with_mule_capacity()
                 if not minerals_with_capacity:
-                    self.update_assigment(worker, WorkerJobType.IDLE, None)
+                    self.update_assignment(worker, WorkerJobType.IDLE, None)
                 else:
                     closest_minerals: Unit = self.closest_unit_to_unit(worker, minerals_with_capacity)
-                    self.update_assigment(worker, WorkerJobType.MINERALS, closest_minerals)
+                    self.update_assignment(worker, WorkerJobType.MINERALS, closest_minerals)
                     self.minerals.add_mule(worker, closest_minerals)
                     logger.debug(f"added mule {worker.tag}({worker.position}) to minerals {closest_minerals}({closest_minerals.position})")
             return True
@@ -162,7 +162,7 @@ class Workers(GeometryMixin):
                     if not updated_mule.is_carrying_resource:
                         updated_mule.move(self.bot.enemy_start_locations[0])
                         self.remove_mule(mule)
-                        self.update_assigment(updated_mule, WorkerJobType.IDLE, None)
+                        self.update_assignment(updated_mule, WorkerJobType.IDLE, None)
                 except KeyError:
                     self.remove_mule(mule)
 
@@ -1065,7 +1065,7 @@ class Workers(GeometryMixin):
         return cy_distance_to_squared(unit.position, self.bot.main_base_ramp.top_center) < 9 \
                                 or self.bot.get_terrain_height(unit) + 0.1 < self.bot.get_terrain_height(self.bot.main_base_ramp.top_center)
 
-    def update_assigment(self, worker: Unit, job_type: WorkerJobType, target: Unit | None, target_position: Point2 | None = None, build_type: UnitTypeId | None = None):
+    def update_assignment(self, worker: Unit, job_type: WorkerJobType, target: Unit | None, target_position: Point2 | None = None, build_type: UnitTypeId | None = None):
         self.update_job(worker, job_type)
         if not self.update_target(worker, target, target_position, build_type):
             self.update_job(worker, WorkerJobType.REPAIR)
@@ -1232,7 +1232,7 @@ class Workers(GeometryMixin):
 
         if builder is not None:
             logger.debug(f"found builder {builder}")
-            self.update_assigment(builder, WorkerJobType.BUILD, target_unit, building_position, build_type)
+            self.update_assignment(builder, WorkerJobType.BUILD, target_unit, building_position, build_type)
 
         return builder
 
@@ -1255,7 +1255,7 @@ class Workers(GeometryMixin):
             scout = cy_closest_to(position, healthy_candidates) if healthy_candidates else cy_closest_to(position, candidates)
             if scout is not None:
                 logger.debug(f"found scout {scout}")
-                self.update_assigment(scout, WorkerJobType.SCOUT, None, position)
+                self.update_assignment(scout, WorkerJobType.SCOUT, None, position)
 
         return scout
 
@@ -1274,13 +1274,13 @@ class Workers(GeometryMixin):
         if worker.is_constructing_scv:
             worker(AbilityId.HALT)
         if worker.tag in self.assignments_by_worker:
-            self.update_assigment(worker, WorkerJobType.IDLE, None)
+            self.update_assignment(worker, WorkerJobType.IDLE, None)
 
     def set_construction_complete(self, worker: Unit):
         if worker.is_constructing_scv:
             self.completed_construction_worker_tags[worker.tag] = self.bot.time
         if worker.tag in self.assignments_by_worker:
-            self.update_assigment(worker, WorkerJobType.IDLE, None)
+            self.update_assignment(worker, WorkerJobType.IDLE, None)
 
     builder_idle_time: dict[int, float] = {}
     @timed_async
@@ -1320,19 +1320,19 @@ class Workers(GeometryMixin):
             for worker in idle_workers:
                 if self.minerals.has_unused_capacity:
                     logger.debug(f"adding {worker.tag} to minerals")
-                    self.update_assigment(worker, WorkerJobType.MINERALS, None)
+                    self.update_assignment(worker, WorkerJobType.MINERALS, None)
                     reassigned_count += 1
                     continue
 
                 if self.vespene.has_unused_capacity:
                     logger.debug(f"adding {worker.tag} to gas")
-                    self.update_assigment(worker, WorkerJobType.VESPENE, None)
+                    self.update_assignment(worker, WorkerJobType.VESPENE, None)
                     reassigned_count += 1
                     continue
 
                 if await self.minerals.add_long_distance_minerals((idle_count - reassigned_count)) > 0:
                     LogHelper.add_log(f"adding {worker.tag} to long-distance")
-                    self.update_assigment(worker, WorkerJobType.MINERALS, None)
+                    self.update_assignment(worker, WorkerJobType.MINERALS, None)
                 else:
                     # nothing to do, just send them home
                     worker.move(self.bot.start_location)
@@ -1422,8 +1422,8 @@ class Workers(GeometryMixin):
                 new_target_position = assignment.target_position
                 new_build_type = assignment.build_type
                 LogHelper.add_log(f"swapping {current_assignment} and {assignment}")
-                self.update_assigment(assignment.unit, current_assignment.job_type, current_assignment.target, current_assignment.target_position, current_assignment.build_type)
-                self.update_assigment(worker, job_type, new_target, new_target_position, new_build_type)
+                self.update_assignment(assignment.unit, current_assignment.job_type, current_assignment.target, current_assignment.target_position, current_assignment.build_type)
+                self.update_assignment(worker, job_type, new_target, new_target_position, new_build_type)
                 assignment.last_swap_time = self.bot.time
 
         remaining_cooldown = MN.WORKER_REDISTRIBUTE_COOLDOWN - (self.bot.time - self.last_worker_stop)
@@ -1527,9 +1527,9 @@ class Workers(GeometryMixin):
                 else:
                     retiring_repairer = inactive_repairers.furthest_to(injured_units.random)
                 if self.vespene.has_unused_capacity:
-                    self.update_assigment(retiring_repairer, WorkerJobType.VESPENE, None)
+                    self.update_assignment(retiring_repairer, WorkerJobType.VESPENE, None)
                 elif self.minerals.has_unused_capacity:
-                    self.update_assigment(retiring_repairer, WorkerJobType.MINERALS, None)
+                    self.update_assignment(retiring_repairer, WorkerJobType.MINERALS, None)
                 else:
                     self.set_as_idle(retiring_repairer)
                 inactive_repairers.remove(retiring_repairer)
@@ -1544,7 +1544,7 @@ class Workers(GeometryMixin):
                 repairer(AbilityId.HALT)
                 continue
             repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
-            self.update_assigment(repairer, WorkerJobType.REPAIR, repair_target)
+            self.update_assignment(repairer, WorkerJobType.REPAIR, repair_target)
             if repair_target:
                 await self.worker_micro.repair(repairer, repair_target)
 
@@ -1578,7 +1578,7 @@ class Workers(GeometryMixin):
 
                 candidates.remove(repairer)
                 repair_target = self.get_repair_target(repairer, injured_units, units_with_no_repairer)
-                self.update_assigment(repairer, WorkerJobType.REPAIR, repair_target)
+                self.update_assignment(repairer, WorkerJobType.REPAIR, repair_target)
                 if repair_target:
                     await self.worker_micro.repair(repairer, repair_target)
         
@@ -1589,7 +1589,7 @@ class Workers(GeometryMixin):
             for worker in injured_workers:
                 repair_target = self.do_worker_repair(worker, 20, 45)
                 if repair_target:
-                    self.update_assigment(worker, WorkerJobType.REPAIR, repair_target)
+                    self.update_assignment(worker, WorkerJobType.REPAIR, repair_target)
 
     def do_worker_repair(self, worker: Unit, start_health_threshold: int, stop_health_threshold: int) -> Unit | None:
         if self.bot.minerals >= MN.WORKER_REPAIR_MIN_MINERALS:
@@ -1638,7 +1638,7 @@ class Workers(GeometryMixin):
         assigned_count = 0
         for repairer in repairers:
             candidates.remove(repairer)
-            self.update_assigment(repairer, WorkerJobType.REPAIR, injured_structure)
+            self.update_assignment(repairer, WorkerJobType.REPAIR, injured_structure)
             if await self.worker_micro.repair(repairer, injured_structure) == UnitMicroType.REPAIR:
                 assigned_count += 1
         # LogHelper.add_log(f"assigned {assigned_count} of {repairers} to repair {injured_structure}")
@@ -1734,7 +1734,7 @@ class Workers(GeometryMixin):
             next_node: ResourceNode = resource_nodes[0]
             worker = cy_closest_to(next_node.node.position, candidates)
             candidates.remove(worker)
-            self.update_assigment(worker, target_job, next_node.node)
+            self.update_assignment(worker, target_job, next_node.node)
             moved_count += 1
             resource_nodes = target.nodes_with_capacity()
 

@@ -216,7 +216,7 @@ class CounterUnits():
             UnitTypeId.RAVEN: 0.05
         },
         UnitTypeId.SPINECRAWLER: { # 1
-            UnitTypeId.SIEGETANK: 0.5,
+            UnitTypeId.SIEGETANK: 0.2,
         },
         UnitTypeId.SPIRE: { # 1
             UnitTypeId.WIDOWMINE: 1,
@@ -233,9 +233,9 @@ class CounterUnits():
             UnitTypeId.VIKINGFIGHTER: 1.5
         },
         UnitTypeId.ZERGLING: {
-            UnitTypeId.WIDOWMINE: 0.08, # 0.4
-            UnitTypeId.MARINE: 0.25, # 0.25
-            UnitTypeId.SIEGETANK: -0.05, # 0.45
+            UnitTypeId.WIDOWMINE: 0.08, 
+            UnitTypeId.MARINE: 0.25,
+            UnitTypeId.SIEGETANK: -0.05,
             UnitTypeId.HELLION: 0.15,
             UnitTypeId.BATTLECRUISER: 0.02
         },

@@ -33,7 +33,7 @@ class Upgrades:
         UpgradeId.CYCLONELOCKONDAMAGEUPGRADE: [UnitTypeId.CYCLONE],
         UpgradeId.DRILLCLAWS: [UnitTypeId.WIDOWMINE],
         # blue flame
-        UpgradeId.HIGHCAPACITYBARRELS: [UnitTypeId.HELLION],
+        UpgradeId.HIGHCAPACITYBARRELS: [UnitTypeId.HELLION, UnitTypeId.HELLIONTANK],
         UpgradeId.SMARTSERVOS: [UnitTypeId.HELLION, UnitTypeId.HELLIONTANK, UnitTypeId.VIKINGFIGHTER, UnitTypeId.VIKINGASSAULT, UnitTypeId.THOR, UnitTypeId.THORAP],
         # ==starport techlab==
         UpgradeId.BANSHEECLOAK: [UnitTypeId.BANSHEE],
@@ -130,6 +130,7 @@ class Upgrades:
         UpgradeId.PERSONALCLOAKING: 2,
         UpgradeId.MEDIVACCADUCEUSREACTOR: 2,
         UpgradeId.CYCLONELOCKONDAMAGEUPGRADE: 2,
+        UpgradeId.HIGHCAPACITYBARRELS: 2,
     }
 
     prereqs: dict[UpgradeId, UpgradeId] = {

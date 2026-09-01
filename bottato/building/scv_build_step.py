@@ -624,7 +624,7 @@ class SCVBuildStep(BuildStep):
             if self.unit_being_built and self.unit_being_built not in self.bot.structures_without_construction_SCVs:
                 for worker in self.bot.workers:
                     if worker.is_constructing_scv and worker.orders and worker.orders[0].target == self.unit_being_built.tag:
-                        self.workers.update_assigment(worker, WorkerJobType.BUILD, self.unit_being_built)
+                        self.workers.update_assignment(worker, WorkerJobType.BUILD, self.unit_being_built)
                         self.unit_in_charge = worker
                         break
         if self.unit_in_charge is None:
@@ -665,7 +665,7 @@ class SCVBuildStep(BuildStep):
                     for worker in self.bot.workers:
                         # fix worker assignments if a different worker is building this
                         if worker.is_constructing_scv and worker.orders and worker.orders[0].target == self.unit_being_built.tag:
-                            self.workers.update_assigment(worker, WorkerJobType.BUILD, self.unit_being_built)
+                            self.workers.update_assignment(worker, WorkerJobType.BUILD, self.unit_being_built)
                             self.workers.set_as_idle(self.unit_in_charge)
                             self.unit_in_charge = worker
                             break
@@ -762,7 +762,7 @@ class SCVBuildStep(BuildStep):
             self.unit_being_built = None
         self.last_cancel_time = self.bot.time
         if self.unit_in_charge:
-            self.workers.update_assigment(self.unit_in_charge, WorkerJobType.IDLE, None)
+            self.workers.update_assignment(self.unit_in_charge, WorkerJobType.IDLE, None)
             self.unit_in_charge = None
         self.set_position(None)
         self.geysir = None

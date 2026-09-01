@@ -1035,7 +1035,20 @@ class BuildOrder():
         self.complete.append(build_step)
 
     def update_started_structure(self, started_structure: Unit) -> None:
-        for in_progress_step in self.started:
+        queue_order = [self.started, self.interrupted_queue, self.priority_queue, self.static_queue, self.build_queue]
+        for queue in queue_order:
+            if self.update_started_in_queue(started_structure, queue):
+                break
+
+        # see if this is a ramp blocker
+        ramp_blocker: SpecialLocation
+        for ramp_blocker in self.special_locations.ramp_blockers:
+            if ramp_blocker == started_structure:
+                ramp_blocker.unit_tag = started_structure.tag
+                ramp_blocker.is_started = True
+
+    def update_started_in_queue(self, started_structure: Unit, queue: List[BuildStep]) -> bool:
+        for in_progress_step in queue:
             # skip upgrades and steps that already have a structure assigned
             if isinstance(in_progress_step, UpgradeId) or in_progress_step.get_structure_being_built():
                 continue
@@ -1048,15 +1061,10 @@ class BuildOrder():
                     if not in_progress_step.unit_in_charge.is_constructing_scv:
                         # wrong worker
                         continue
-                    self.workers.update_assigment(in_progress_step.unit_in_charge, WorkerJobType.BUILD, started_structure)
+                    self.workers.update_assignment(in_progress_step.unit_in_charge, WorkerJobType.BUILD, started_structure)
                 in_progress_step.set_unit_being_built(started_structure)
-                break
-        # see if this is a ramp blocker
-        ramp_blocker: SpecialLocation
-        for ramp_blocker in self.special_locations.ramp_blockers:
-            if ramp_blocker == started_structure:
-                ramp_blocker.unit_tag = started_structure.tag
-                ramp_blocker.is_started = True
+                return True
+        return False
 
     def update_completed_structure(self, completed_structure: Unit) -> None:
         if completed_structure.type_id == UnitTypeId.AUTOTURRET:
@@ -1070,7 +1078,7 @@ class BuildOrder():
                     try:
                         builder = UnitReferenceHelper.get_updated_unit(builder)
                         if in_progress_step.is_unit_type(UnitTypeId.REFINERY):
-                            self.workers.update_assigment(builder, WorkerJobType.VESPENE, completed_structure)
+                            self.workers.update_assignment(builder, WorkerJobType.VESPENE, completed_structure)
                         else:
                             self.workers.set_construction_complete(builder)
                     except UnitReferenceHelper.UnitNotFound:

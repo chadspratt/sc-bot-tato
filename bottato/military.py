@@ -127,7 +127,7 @@ class Military(GeometryMixin, DebugMixin):
         if punish_early_third:
             required_ratio_for_offense = 0.8
         elif self.last_defense_time > self.bot.time - 90:
-            required_ratio_for_offense *= 1.2
+            required_ratio_for_offense *= 2.0
 
         ignore_ratio_threshold = min(185, 160 + self.aborted_attack_count * 5)
         army_is_big_enough = self.intel.army_ratio > required_ratio_for_offense \
