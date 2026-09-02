@@ -50,10 +50,6 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.BARRACKS,
                 UnitTypeId.BARRACKSTECHLAB,
-                # UnitTypeId.MARINE,
-                # UnitTypeId.MARINE,
-                # UnitTypeId.REFINERY,
-                # UnitTypeId.MEDIVAC,
             ]
         elif build_name == "pig_b2gm protoss":
             return [
@@ -84,14 +80,8 @@ class BuildStarts():
                 UnitTypeId.MARINE,
                 UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
-                # UnitTypeId.MARINE,
-                # UnitTypeId.MARINE,
                 UnitTypeId.BARRACKS,
                 UnitTypeId.BARRACKSTECHLAB,
-                # UnitTypeId.MARINE, # supply blocked until depot finishes
-                # UnitTypeId.MARINE,
-                # UnitTypeId.REFINERY,
-                # UnitTypeId.VIKINGFIGHTER, 
             ]
         elif build_name == "pig_b2gm zerg":
             return [
@@ -100,7 +90,6 @@ class BuildStarts():
                 UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,
                 UnitTypeId.REFINERY,
                 UnitTypeId.BARRACKS,
-                # UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
@@ -119,16 +108,9 @@ class BuildStarts():
                 UnitTypeId.FACTORYTECHLAB,
                 UnitTypeId.BANSHEE,
                 UnitTypeId.RAVEN,
-# from here, keep SCV and MULE production constant until ~45 workers (author logic)
-                # UnitTypeId.MARINE,
-                # UnitTypeId.MARINE,
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.BARRACKS,
                 UnitTypeId.BARRACKSTECHLAB,
-                # UnitTypeId.MARINE, # supply blocked until depot finishes
-                # UnitTypeId.MARINE,
-                # UnitTypeId.REFINERY,
-                # UnitTypeId.VIKINGFIGHTER,
             ]
         elif build_name == "tvt1":
             # https://lotv.spawningtool.com/build/171779/

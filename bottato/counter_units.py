@@ -19,7 +19,7 @@ class CounterUnits():
             UnitTypeId.MARINE: 2
         },
         UnitTypeId.ARCHON: { # 4
-            UnitTypeId.THOR: 0.4,
+            UnitTypeId.THOR: 0.3,
             UnitTypeId.GHOST: 0.6,
             UnitTypeId.SIEGETANK: 0.2
         },
@@ -256,6 +256,9 @@ class CounterUnits():
                         counter_units[counter_type] += needed
                     else:
                         counter_units[counter_type] = needed
+
+        for counter_type in list(counter_units.keys()):
+            counter_units[counter_type] = math.floor(counter_units[counter_type] + 0.35)
         return counter_units
 
     # def get_counter(self, enemy_unit: Unit) -> dict[UnitTypeId, float]:
