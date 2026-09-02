@@ -71,8 +71,8 @@ class CounterUnits():
         UnitTypeId.STALKER: { # 2
             UnitTypeId.MARAUDER: 0.5,
             # UnitTypeId.MARINE: 1.5,
-            UnitTypeId.SIEGETANK: 0.1,
-            UnitTypeId.CYCLONE: 0.4,
+            UnitTypeId.SIEGETANK: 0.2,
+            UnitTypeId.CYCLONE: 0.2,
             UnitTypeId.VIKINGFIGHTER: -0.25,
             UnitTypeId.BANSHEE: -0.25
         },
