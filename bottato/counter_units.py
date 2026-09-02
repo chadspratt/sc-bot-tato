@@ -235,7 +235,7 @@ class CounterUnits():
         UnitTypeId.ZERGLING: {
             UnitTypeId.WIDOWMINE: 0.08, 
             UnitTypeId.MARINE: 0.25,
-            UnitTypeId.SIEGETANK: -0.05,
+            UnitTypeId.SIEGETANK: -0.03,
             UnitTypeId.HELLION: 0.15,
             UnitTypeId.BATTLECRUISER: 0.02
         },

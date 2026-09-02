@@ -12,6 +12,7 @@ from cython_extensions.units_utils import cy_closest_to
 from sc2.bot_ai import BotAI
 from sc2.game_data import Cost
 from sc2.ids.ability_id import AbilityId
+from sc2.ids.buff_id import BuffId
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
@@ -138,6 +139,14 @@ class Commander(GeometryMixin):
                                             radius=UnitTypes.air_range(anti_air_structure),
                                             start_time=self.bot.time,
                                             duration=0.1)
+        for unit in self.bot.units:
+            if unit.is_flying and unit.has_buff(BuffId.PARASITICBOMB):
+                BaseUnitMicro.add_custom_effect(CustomEffectType.ENEMY_EFFECT,
+                                                CustomEffectTargetArea.AIR,
+                                                position=unit,
+                                                radius=3.5,
+                                                start_time=self.bot.time,
+                                                duration=0.5)
         # for baneling in self.bot.enemy_units.of_type(UnitTypeId.BANELING):
         #     BaseUnitMicro.add_custom_effect(CustomEffectType.ENEMY,
         #                                     CustomEffectTargetArea.GROUND,

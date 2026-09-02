@@ -282,6 +282,10 @@ class BaseUnitMicro(GeometryMixin):
                     or effect.target_area == CustomEffectTargetArea.GROUND and unit.is_flying):
                     i -= 1
                     continue
+                if effect.type == CustomEffectType.ENEMY_EFFECT and effect.position == unit:
+                    # enemy effect is attached to this unit so can't avoid it
+                    i -= 1
+                    continue
                 effect_position = effect.position.position
                 safe_distance = (effect.radius + unit.radius + MN.AVOID_EFFECT_BUFFER) ** 2
                 unit_distance = unit.position._distance_squared(effect_position)
