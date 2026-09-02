@@ -30,8 +30,8 @@ class BuildStarts():
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
-                UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.COMMANDCENTER,
+                UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.MARINE,
@@ -65,8 +65,8 @@ class BuildStarts():
                 UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.REAPER,
                 UnitTypeId.MARINE,
-                UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.COMMANDCENTER,
+                UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.REFINERY,                    # 2ND GAS,
                 UnitTypeId.MARINE,

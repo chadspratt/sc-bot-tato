@@ -801,7 +801,7 @@ class BaseUnitMicro(GeometryMixin):
                         if ultimate_destination.position.manhattan_distance(unit.position) < 1:
                             ultimate_destination = self.tactics.map.get_pathable_position(ultimate_destination.position, unit)
             else:
-                healers = self.bot.units.of_type(UnitTypeId.MEDIVAC).filter(lambda m: m.energy > 5) + healing_shrines
+                healers = self.bot.units.of_type(UnitTypeId.MEDIVAC).filter(lambda m: m.energy > 25) + healing_shrines
                 if healers:
                     ultimate_destination = cy_closest_to(unit.position, healers)
 

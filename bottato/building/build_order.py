@@ -293,6 +293,9 @@ class BuildOrder():
         elif change == BuildOrderChange.RUSH:
             # prioritize bunker and first tank
             self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
+            # move CC after factory
+            self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.static_queue)
+            self.substitute_steps_in_queue(UnitTypeId.FACTORY, [UnitTypeId.FACTORY, UnitTypeId.COMMANDCENTER], self.static_queue)
             in_progress_depots = self.get_in_progress_count(UnitTypeId.SUPPLYDEPOT)
             if BuildType.PROXY in detected_enemy_builds:
                 if self.bot.structures([UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED]).amount + in_progress_depots< 2:

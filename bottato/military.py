@@ -708,10 +708,9 @@ class Military(GeometryMixin, DebugMixin):
         enemy_damage: float = self.calculate_total_damage(enemies, friendlies, self.damage_by_type_cache_enemy)
         
         friendly_health: float = sum([unit.health for unit in friendlies])
+        medivac_energy = sum([unit.energy for unit in medivacs if unit.energy > 15])
+        friendly_health += medivac_energy * 4
         enemy_health: float = sum([unit.health + unit.shield * 0.95 for unit in enemies])
-        for carrier in friendlies.of_type([UnitTypeId.BUNKER, UnitTypeId.MEDIVAC]):
-            for passenger in carrier.passengers:
-                friendly_health += passenger.health
 
         enemy_strength: float = enemy_damage / max(friendly_health, 1)
         friendly_strength: float = friendly_damage / max(enemy_health, 1)
