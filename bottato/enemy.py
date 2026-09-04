@@ -464,8 +464,8 @@ class Enemy(GeometryMixin):
     }
 
     army_cache: Dict[float, Units] = {}
-    def get_army(self, include_scouts: bool = False, seconds_since_killed: float = 0) -> Units:
-        use_cache = seconds_since_killed == 0 and not include_scouts
+    def get_army(self, include_scouts: bool = False, max_seconds_since_killed: float = 0) -> Units:
+        use_cache = max_seconds_since_killed == 0 and not include_scouts
         if use_cache and self.bot.time in self.army_cache:
             return self.army_cache[self.bot.time]
                 
@@ -473,9 +473,9 @@ class Enemy(GeometryMixin):
         rebuild_cutoff_time = self.bot.time - rebuild_time
         excluded_types = self.non_army_non_scout_unit_types if include_scouts else self.non_army_unit_types
         enemies = (self.enemies_in_view + self.enemies_out_of_view).filter(lambda unit: not unit.is_structure and unit.type_id not in excluded_types)
-        if seconds_since_killed > rebuild_time:
+        if max_seconds_since_killed > rebuild_time:
             killed_types: Dict[UnitTypeId, int] = {}
-            cutoff_time = self.bot.time - seconds_since_killed
+            cutoff_time = self.bot.time - max_seconds_since_killed
             killed_units = Units([], self.bot)
             for i in range(len(self.enemies_killed)-1, -1, -1):
                 enemy_unit, death_time = self.enemies_killed[i]
@@ -494,6 +494,13 @@ class Enemy(GeometryMixin):
             self.army_cache.clear()
             self.army_cache[self.bot.time] = enemies
         return enemies
+
+    def last_enemy_killed_time(self, military_only: bool) -> float:
+        if military_only:
+            for enemy_unit, death_time in reversed(self.enemies_killed):
+                if enemy_unit.type_id not in UnitTypes.NON_THREATS:
+                    return death_time
+        return 0.0
 
     @timed
     def get_closest_target(self, friendly_unit: Unit, distance_limit=999999,

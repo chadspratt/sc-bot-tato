@@ -684,7 +684,9 @@ class Military(GeometryMixin, DebugMixin):
         enemies = enemies_in_base
         if enemies is None:
             # seconds_since_killed = min(60, 60 - (self.bot.time - 270) // 2)
-            enemies = self.enemy.get_army(seconds_since_killed=60).filter(lambda unit: not unit.is_structure)
+            last_enemy_killed_time = self.enemy.last_enemy_killed_time(military_only=True)
+            max_seconds_since_killed = self.bot.time - last_enemy_killed_time + 60
+            enemies = self.enemy.get_army(max_seconds_since_killed=max_seconds_since_killed).filter(lambda unit: not unit.is_structure)
         friendlies = self.main_army.units.copy()
         for friendly in friendlies + self.top_ramp_bunker.units + self.natural_bunker.units:
             if hasattr(friendly, "build_progress"):
