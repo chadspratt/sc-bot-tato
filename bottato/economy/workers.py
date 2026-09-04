@@ -387,7 +387,8 @@ class Workers(GeometryMixin):
         if worker_rush_detected:
             repositioned_to_natural = len(cy_closer_than(self.bot.townhalls, 5, self.map.natural_position)) > 0
             # don't use cool if we're still in the main and have a wall
-            allow_cool = not self.cool_defense_failed and (not self.tactics.is_active(Tactic.WALL_IS_BUILT) or repositioned_to_natural)
+            # allow_cool = not self.cool_defense_failed and (not self.tactics.is_active(Tactic.WALL_IS_BUILT) or repositioned_to_natural)
+            allow_cool = False
             if allow_cool and (self.use_cool_defense or self.bot.enemy_units.closer_than(30, self.bot.start_location).amount >= 5):
                 if not self.use_cool_defense and self.bot.time < 300:
                     await LogHelper.add_chat("Activating cool worker rush defense")
