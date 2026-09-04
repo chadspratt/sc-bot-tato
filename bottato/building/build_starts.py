@@ -27,10 +27,10 @@ class BuildStarts():
                 UnitTypeId.REFINERY,
                 UnitTypeId.BARRACKS,
                 # UnitTypeId.REFINERY,                    # 2ND GAS,
-                UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.REAPER,
-                UnitTypeId.MARINE,
                 UnitTypeId.COMMANDCENTER,
+                UnitTypeId.MARINE,
+                UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.REFINERY,                    # 2ND GAS,
@@ -58,10 +58,10 @@ class BuildStarts():
                 UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,
                 UnitTypeId.REFINERY,
                 UnitTypeId.BARRACKS,
-                UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.REAPER,
-                UnitTypeId.MARINE,
                 UnitTypeId.COMMANDCENTER,
+                UnitTypeId.MARINE,
+                UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.REFINERY,                    # 2ND GAS,
@@ -90,10 +90,10 @@ class BuildStarts():
                 UnitTypeId.SUPPLYDEPOT,                 # wall at ramp or main edge,
                 UnitTypeId.REFINERY,
                 UnitTypeId.BARRACKS,
-                UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.REAPER,
-                UnitTypeId.MARINE,
                 UnitTypeId.COMMANDCENTER,
+                UnitTypeId.MARINE,
+                UnitTypeId.SUPPLYDEPOT,
                 UnitTypeId.FACTORY, # XXX after reactor if getting cheesed
                 UnitTypeId.BARRACKSREACTOR, # XXX before factory if getting cheesed
                 UnitTypeId.REFINERY,                    # 2ND GAS,
