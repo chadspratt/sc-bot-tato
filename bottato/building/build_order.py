@@ -913,7 +913,7 @@ class BuildOrder():
             start_upgrade_time = 300 if self.bot.townhalls.amount > 2 else 360
             if self.bot.structures(facility_type).ready.idle:
                 self.add_to_build_queue([next_upgrade], queue=self.static_queue)
-            elif self.bot.time > start_upgrade_time and self.get_in_progress_count(facility_type) == 0:
+            elif self.bot.time > start_upgrade_time and self.get_in_progress_count(facility_type) == 0 and self.intel.army_ratio >= 0.8:
                 facilities = self.bot.structures(facility_type)
                 if not facilities or self.bot.minerals > 500 and self.bot.vespene > 250 \
                         and len(facilities) < self.max_facilities.get(facility_type, 1):
