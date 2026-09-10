@@ -168,7 +168,7 @@ class Workers(GeometryMixin):
 
         reserve_for_scan = 0 if self.bot.units(UnitTypeId.RAVEN) else MN.SCAN_RESERVE_ENERGY
         available_energy = 0
-        for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND):
+        for orbital in self.bot.townhalls(UnitTypeId.ORBITALCOMMAND).ready:
             available_energy += orbital.energy
             if available_energy - reserve_for_scan < MN.MULE_ENERGY_COST:
                 continue
@@ -387,18 +387,20 @@ class Workers(GeometryMixin):
         if worker_rush_detected:
             repositioned_to_natural = len(cy_closer_than(self.bot.townhalls, 5, self.map.natural_position)) > 0
             # don't use cool if we're still in the main and have a wall
-            # allow_cool = not self.cool_defense_failed and (not self.tactics.is_active(Tactic.WALL_IS_BUILT) or repositioned_to_natural)
-            allow_cool = False
-            if allow_cool and (self.use_cool_defense or self.bot.enemy_units.closer_than(30, self.bot.start_location).amount >= 5):
-                if not self.use_cool_defense and self.bot.time < 300:
+            allow_cool = not self.cool_defense_failed and (not self.tactics.is_active(Tactic.WALL_IS_BUILT) or repositioned_to_natural)
+            # allow_cool = False
+            if allow_cool and (self.use_cool_defense or self.bot.enemy_units.closer_than(50, self.bot.start_location).amount >= 5):
+                if not self.use_cool_defense and self.bot.time < 39:
                     await LogHelper.add_chat("Activating cool worker rush defense")
                     self.use_cool_defense = True
                 if self.use_cool_defense:
                     await self.cool_worker_rush_defense()
                     return
-            else:
-                self.do_worker_rush_defense()
-                return
+
+            self.tactics.set_active(Tactic.ABORT_ALL_BUILDS, False)
+            
+            self.do_worker_rush_defense()
+            return
 
         # attack enemies near worker
         nearby_enemies = self.bot.enemy_units.filter(
@@ -509,6 +511,8 @@ class Workers(GeometryMixin):
         if wall_is_built and self.bot.units.exclude_type(UnitTypeId.SCV).amount > 2:
             # default behavior
             return
+
+        self.tactics.set_active(Tactic.ABORT_ALL_BUILDS, True)
         
         if not self.enemies_have_entered:
             for e in self.bot.enemy_units:

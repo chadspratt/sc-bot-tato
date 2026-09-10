@@ -107,7 +107,7 @@ class BuildOrder():
                 UnitTypeId.TEMPEST, UnitTypeId.BATTLECRUISER, UnitTypeId.CARRIER,
                 UnitTypeId.WIDOWMINE, UnitTypeId.SWARMHOSTMP)) \
                     or self.map.natural_position and len(cy_closer_than(self.bot.enemy_units, 25, self.map.natural_position)) >= 10):
-            # abort static build order if we need a specialized response
+            # trim static build order if we need a specialized response
             self.static_queue = self.static_queue[:10]
 
         self.only_build_units = False
@@ -147,6 +147,8 @@ class BuildOrder():
 
             self.queue_refinery()
 
+        if self.tactics.is_active(Tactic.ABORT_ALL_BUILDS):
+            return Cost(0, 0)
 
         remaining_resources: Cost = await self.execute_pending_builds(self.only_build_units, detected_enemy_builds)
         if remaining_resources.minerals > 100 and self.only_build_units and not do_early_third_response:
@@ -217,6 +219,7 @@ class BuildOrder():
             return
 
         self.make_one_time_build_change(BuildType.WORKER_RUSH, BuildOrderChange.WORKER_RUSH, detected_enemy_builds)
+        self.make_one_time_build_change(self.tactics.is_active(Tactic.ABORT_ALL_BUILDS), BuildOrderChange.ABORT_ALL_BUILDS, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.CANNON_RUSH, BuildOrderChange.CANNON_RUSH, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.MULTIPLE_REAPER, BuildOrderChange.REAPER, detected_enemy_builds)
         self.make_one_time_build_change(BuildType.ZERGLING_RUSH, BuildOrderChange.ZERGLING_RUSH, detected_enemy_builds)
@@ -270,6 +273,10 @@ class BuildOrder():
                 self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue, position=0)
             for step in self.started:
                 if isinstance(step, SCVBuildStep) and step.is_unit_type(UnitTypeId.REFINERY):
+                    step.cancel_construction()
+        elif change == BuildOrderChange.ABORT_ALL_BUILDS:
+            for step in self.started + self.interrupted_queue:
+                if isinstance(step, SCVBuildStep):
                     step.cancel_construction()
         elif change == BuildOrderChange.CANNON_RUSH:
             # continue with reaper to do counter-damage

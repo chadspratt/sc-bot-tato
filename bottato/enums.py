@@ -73,28 +73,30 @@ class BuildType(enum.Enum):
     ROACH_RUSH = 16
 
 class BuildOrderChange(enum.Enum):
-    ANTI_AIR = 0
-    BANSHEE_HARASS = 1
-    BATTLECRUISER = 2
-    CANNON_RUSH = 3
-    PROXY_BARRACKS = 4
-    REAPER = 5
-    RUSH = 6
-    WORKER_RUSH = 7
-    ZERG_NO_RUSH = 8
-    ZERGLING_RUSH = 9
-    ROACH_RUSH = 10
+    ABORT_ALL_BUILDS = 0
+    ANTI_AIR = 1
+    BANSHEE_HARASS = 2
+    BATTLECRUISER = 3
+    CANNON_RUSH = 4
+    PROXY_BARRACKS = 5
+    REAPER = 6
+    RUSH = 7
+    WORKER_RUSH = 8
+    ZERG_NO_RUSH = 9
+    ZERGLING_RUSH = 10
+    ROACH_RUSH = 11
 
 class Tactic(enum.Enum):
-    ANTI_AIR = 0
-    BANSHEE_HARASS = 1
-    MEDIVAC_HARASS = 2
-    PROXY_BARRACKS = 3
-    RAMP_SECURED = 4
-    RUSH_DEFENSE = 5
-    WALL_IS_BUILT = 6
-    WORKER_RUSH_COUNTER_ATTACK = 7
-    WORKER_RUSH_DEFENCE = 8
+    ABORT_ALL_BUILDS = 0
+    ANTI_AIR = 1
+    BANSHEE_HARASS = 2
+    MEDIVAC_HARASS = 3
+    PROXY_BARRACKS = 4
+    RAMP_SECURED = 5
+    RUSH_DEFENSE = 6
+    WALL_IS_BUILT = 7
+    WORKER_RUSH_COUNTER_ATTACK = 8
+    WORKER_RUSH_DEFENCE = 9
 
 class ExpansionSelection(enum.Enum):
     CLOSEST = 0

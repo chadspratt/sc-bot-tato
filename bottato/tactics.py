@@ -25,17 +25,7 @@ class Tactics:
 
         self.army_mode = ArmyMode.STAGING
 
-        self.last_values: Dict[Tactic, bool] = {
-            Tactic.BANSHEE_HARASS: False,
-            Tactic.PROXY_BARRACKS: False,
-            Tactic.RUSH_DEFENSE: False,
-            Tactic.MEDIVAC_HARASS: False,
-            Tactic.RAMP_SECURED: False,
-            Tactic.WORKER_RUSH_DEFENCE: False,
-            Tactic.WORKER_RUSH_COUNTER_ATTACK: False,
-            Tactic.WALL_IS_BUILT: False,
-            Tactic.ANTI_AIR: False,
-        }
+        self.last_values: Dict[Tactic, bool] = {tactic: False for tactic in Tactic}
         self.last_updates: Dict[Tactic, int] = {}
         for tactic in self.last_values.keys():
             self.last_updates[tactic] = 0
@@ -91,6 +81,8 @@ class Tactics:
                 and BuildType.RUSH in self.intel.enemy_builds_detected
                 and BuildType.CANNON_RUSH not in self.intel.enemy_builds_detected
             )
+        elif tactic == Tactic.ABORT_ALL_BUILDS:
+            new_value = previous_value and self.bot.time < 150
         elif tactic == Tactic.WORKER_RUSH_DEFENCE:
             new_value = (
                 BuildType.WORKER_RUSH in self.intel.enemy_builds_detected
@@ -112,7 +104,7 @@ class Tactics:
                 ).amount >= 3
             )
         else:
-            new_value = self.last_values[tactic]
+            new_value = previous_value
 
         if not new_value and self.last_values[tactic]:
             LogHelper.add_log(f"ending tactic {tactic}")
