@@ -387,9 +387,11 @@ class Workers(GeometryMixin):
         if worker_rush_detected:
             repositioned_to_natural = len(cy_closer_than(self.bot.townhalls, 5, self.map.natural_position)) > 0
             # don't use cool if we're still in the main and have a wall
-            allow_cool = not self.cool_defense_failed and (not self.tactics.is_active(Tactic.WALL_IS_BUILT) or repositioned_to_natural)
+            allow_cool = not self.cool_defense_failed and (not self.tactics.is_active(Tactic.WALL_IS_BUILT) or repositioned_to_natural) and self.bot.time < 300
             # allow_cool = False
-            if allow_cool and (self.use_cool_defense or self.bot.enemy_units.closer_than(50, self.bot.start_location).amount >= 5):
+            attacking_worker_count = self.bot.enemy_units.closer_than(45, self.bot.start_location).amount
+            await LogHelper.add_chat(f"Attacking worker count: {attacking_worker_count}")
+            if allow_cool and (self.use_cool_defense or attacking_worker_count >= 4):
                 if not self.use_cool_defense and self.bot.time < 39:
                     await LogHelper.add_chat("Activating cool worker rush defense")
                     self.use_cool_defense = True
@@ -528,6 +530,12 @@ class Workers(GeometryMixin):
                     worker(AbilityId.HALT)
                 assignment = self.assignments_by_worker[worker.tag]
                 assignment.on_attack_break = False
+
+            # wait at top of ramp with worker furthest from start position, to kite
+            if self.bot.workers.amount > 0:
+                furthest_worker = max(self.bot.workers, key=lambda w: w.position.distance_to(self.bot.start_location))
+                await LogHelper.add_chat(f"Worker {furthest_worker.tag} waiting at ramp to kite")
+                furthest_worker.move(self.bot.main_base_ramp.top_center)
         else:
             # fly base to natural if enough enemies to warrant moving base
             if len(self.trapped_enemy_tags) > 6 and self.kiting_started:
@@ -544,11 +552,13 @@ class Workers(GeometryMixin):
                         main_base(AbilityId.LIFT)
                         
             # detect units exiting to trigger full attack
+            exiting_count = 0
             if len(self.in_position_guard_tags) > 0:
                 for u in self.bot.enemy_units:
                     if u.tag in self.trapped_enemy_tags and cy_distance_to_squared(u.position, self.bot.main_base_ramp.top_center) < 4:
                         self.escaped_enemy_tags.add(u.tag)
-                        if not self.enemy_exit_started:
+                        exiting_count += 1
+                        if not self.enemy_exit_started and exiting_count > 2:
                             self.enemy_exit_started = True
                             await LogHelper.add_chat("enemy exit started")
                             break
@@ -584,7 +594,7 @@ class Workers(GeometryMixin):
 
             if self.kiter_near_enemy_time == 0.0 and len(self.kiters_near_enemy_tags) == self.kiters_needed:
                 self.kiter_near_enemy_time = self.bot.time
-            elif not self.kiting_started and self.kiter_near_enemy_time != 0.0 and self.bot.time - self.kiter_near_enemy_time > 3.0:
+            elif not self.kiting_started and self.kiter_near_enemy_time != 0.0 and self.bot.time - self.kiter_near_enemy_time > 5.0:
                 self.cool_defense_failed = True
                 await LogHelper.add_chat("Enemy workers are not engaging with kiters, changing tactics to standard defense")
                 return
@@ -616,44 +626,46 @@ class Workers(GeometryMixin):
                     await LogHelper.add_chat(f"Worker {worker.tag} is constructing, halting to secure ramp")
                     worker(AbilityId.HALT)
                 elif worker in self.ramp_guards and worker.tag in self.worker_track_progress:
-                    enemies_in_range: Units = self.bot.enemy_units.in_attack_range_of(worker, 0.1).sorted(lambda unit: (unit.health + unit.shield))
-                    if enemies_in_range and worker.weapon_cooldown < 6:
-                        # attack anything in range if able
-                        worker.attack(enemies_in_range.first)
-                    else:
-                        current_index = self.worker_track_progress[worker.tag]
-                        if worker.tag not in self.in_position_guard_tags:
-                            if cy_distance_to_squared(worker.position, self.bot.main_base_ramp.bottom_center) < 16:
-                                LogHelper.add_log(f"guard {worker.tag} is securing the ramp")
-                                self.in_position_guard_tags.add(worker.tag)
-                                # set this to catch returing scouts that don't need to circle the main
-                                current_index = self.first_position_index
-                        if current_index == self.first_position_index:
-                            if worker.tag in self.in_position_guard_tags and closest_enemy and cy_distance_to_squared(worker.position, closest_enemy.position) < 4:
-                                worker.attack(closest_enemy)
-                            else:
-                                ramp_center = (self.bot.main_base_ramp.bottom_center + self.bot.main_base_ramp.top_center) / 2
-                                self.stack_at_position(worker, ramp_center)
+                    is_kiting_worker = worker in self.kiting_workers
+                    if not is_kiting_worker:
+                        enemies_in_range: Units = self.bot.enemy_units.in_attack_range_of(worker, 0.1).sorted(lambda unit: (unit.health + unit.shield))
+                        if enemies_in_range and worker.weapon_cooldown < 6:
+                            # attack anything in range if able
+                            worker.attack(enemies_in_range.first)
+                            continue
+                    current_index = self.worker_track_progress[worker.tag]
+                    if worker.tag not in self.in_position_guard_tags:
+                        if cy_distance_to_squared(worker.position, self.bot.main_base_ramp.bottom_center) < 16:
+                            LogHelper.add_log(f"guard {worker.tag} is securing the ramp")
+                            self.in_position_guard_tags.add(worker.tag)
+                            # set this to catch returing scouts that don't need to circle the main
+                            current_index = self.first_position_index
+                    if current_index == self.first_position_index:
+                        if worker.tag in self.in_position_guard_tags and closest_enemy and cy_distance_to_squared(worker.position, closest_enemy.position) < 4:
+                            worker.attack(closest_enemy)
                         else:
-                            if worker in self.kiting_workers:
-                                if current_index == self.furthest_from_ramp_index:
-                                    await LogHelper.add_chat("kiting worker has reached the furthest point from the ramp")
-                                    self.furthest_point_reached = True
-                                if worker.tag in self.kiters_near_enemy_tags and cy_distance_to(worker.position, self.bot.main_base_ramp.top_center) > 10:
-                                    await LogHelper.add_chat("kiting has started")
-                                    self.kiting_started = True
-                                if closest_enemy and cy_distance_to_squared(worker.position, closest_enemy.position) > 14:
-                                    # move toward enemy to try to aggro them
-                                    worker.move(closest_enemy.position)
-                                    continue
-                                else:
-                                    self.kiters_near_enemy_tags.add(worker.tag)
+                            stack_position = self.bot.main_base_ramp.bottom_center + (self.bot.main_base_ramp.top_center - self.bot.main_base_ramp.bottom_center) / 3
+                            self.stack_at_position(worker, stack_position)
+                    else:
+                        if worker in self.kiting_workers:
+                            if current_index == self.furthest_from_ramp_index:
+                                await LogHelper.add_chat("kiting worker has reached the furthest point from the ramp")
+                                self.furthest_point_reached = True
+                            if worker.tag in self.kiters_near_enemy_tags and cy_distance_to(worker.position, self.bot.main_base_ramp.top_center) > 5:
+                                await LogHelper.add_chat("kiting has started")
+                                self.kiting_started = True
+                            if closest_enemy and cy_distance_to_squared(worker.position, closest_enemy.position) > 14:
+                                # move toward enemy to try to aggro them
+                                worker.move(closest_enemy.position)
+                                continue
+                            else:
+                                self.kiters_near_enemy_tags.add(worker.tag)
+                        next_position = self.circle_positions[current_index]
+                        if worker.distance_to(next_position) < 2:
+                            current_index = (current_index + self.circle_increment) % len(self.circle_positions)
+                            self.worker_track_progress[worker.tag] = current_index
                             next_position = self.circle_positions[current_index]
-                            if worker.distance_to(next_position) < 2:
-                                current_index = (current_index + self.circle_increment) % len(self.circle_positions)
-                                self.worker_track_progress[worker.tag] = current_index
-                                next_position = self.circle_positions[current_index]
-                            worker.move(next_position)
+                        worker.move(next_position)
                 else:
                     # assign initial starting positions for circling around
                     if worker in self.kiting_workers:
@@ -696,7 +708,7 @@ class Workers(GeometryMixin):
     last_distance_and_target: Dict[int, tuple[float, int, Unit]] = {}
     def stack_at_position(self, worker: Unit, position: Point2):
         current_distance = cy_distance_to_squared(worker.position, position)
-        if self.main_mineral_field is None or self.natural_mineral_field is None or current_distance > 12:
+        if self.main_mineral_field is None or self.natural_mineral_field is None or current_distance > 5:
             worker.move(position)
             return
         if worker.tag not in self.last_distance_and_target:
@@ -790,6 +802,9 @@ class Workers(GeometryMixin):
                 # reset back to main base and prepare to repeat
                 await LogHelper.add_chat("enemies gone, resetting to secure ramp again if needed")
                 self.reset_worker_rush_defense()
+            else:
+                # no enemies nearby, repositioned to natural, allow building again
+                self.tactics.set_active(Tactic.ABORT_ALL_BUILDS, False)
             return
         
         new_enemy_tags = enemies_outside_main.tags - self.trapped_enemy_tags
@@ -840,8 +855,8 @@ class Workers(GeometryMixin):
                     # clear assignment once it reaches the ramp
                     self.kiting_workers.remove(worker)
                 else:
-                    ramp_center = (self.bot.main_base_ramp.bottom_center + self.bot.main_base_ramp.top_center) / 2
-                    self.stack_at_position(worker, ramp_center)
+                    stack_position = self.bot.main_base_ramp.bottom_center + (self.bot.main_base_ramp.top_center - self.bot.main_base_ramp.bottom_center) / 3
+                    self.stack_at_position(worker, stack_position)
             elif worker == self.shenanigan_scout:
                 pass
             elif closest_enemy and cy_distance_to(worker.position, closest_enemy.position) <= 2:
@@ -868,8 +883,8 @@ class Workers(GeometryMixin):
                             if worker in closest_defenders:
                                 worker.attack(closest_enemy.position)
                                 continue
-                    ramp_center = (self.bot.main_base_ramp.bottom_center + self.bot.main_base_ramp.top_center) / 2
-                    self.stack_at_position(worker, ramp_center)
+                    stack_position = self.bot.main_base_ramp.bottom_center + (self.bot.main_base_ramp.top_center - self.bot.main_base_ramp.bottom_center) / 3
+                    self.stack_at_position(worker, stack_position)
                 else:
                     # enemy is trying to escape ramp, all-in attack to secure kills
                     if worker in attackers:
@@ -1214,15 +1229,16 @@ class Workers(GeometryMixin):
                     target_unit: Unit | None = None) -> Unit | None:
         builder = None
 
+        ignore_attack_break = self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE)
         # search for current builder by position
         for assignment in self.assignments_by_job[WorkerJobType.BUILD]:
-            if assignment.target_position == building_position and assignment.unit_available and not assignment.on_attack_break:
+            if assignment.target_position == building_position and assignment.unit_available and (ignore_attack_break or not assignment.on_attack_break):
                 return assignment.unit
 
         candidates: Units = (
-            self.availiable_workers_on_job(WorkerJobType.IDLE)
-            + self.availiable_workers_on_job(WorkerJobType.VESPENE)
-            + self.availiable_workers_on_job(WorkerJobType.MINERALS)
+            self.availiable_workers_on_job(WorkerJobType.IDLE, ignore_attack_break=ignore_attack_break)
+            + self.availiable_workers_on_job(WorkerJobType.VESPENE, ignore_attack_break=ignore_attack_break)
+            + self.availiable_workers_on_job(WorkerJobType.MINERALS, ignore_attack_break=ignore_attack_break)
             # + self.availiable_workers_on_job(JobType.REPAIR)
         )
 
@@ -1264,13 +1280,13 @@ class Workers(GeometryMixin):
 
         return scout
 
-    def availiable_workers_on_job(self, job_type: WorkerJobType) -> Units:
+    def availiable_workers_on_job(self, job_type: WorkerJobType, ignore_attack_break: bool = False) -> Units:
         return Units([
             assignment.unit for assignment in self.assignments_by_job[job_type]
             if assignment.unit_available
                 and assignment.unit.type_id != UnitTypeId.MULE
                 # and not (assignment.job_type in (WorkerJobType.MINERALS, WorkerJobType.VESPENE) and assignment.unit.is_carrying_resource)
-                and not assignment.on_attack_break
+                and (ignore_attack_break or not assignment.on_attack_break)
                 and (not assignment.unit.is_constructing_scv or self.completed_construction_worker_tags.get(assignment.unit.tag, 0) + 5 > self.bot.time)
         ],
             bot_object=self.bot)
@@ -1356,6 +1372,26 @@ class Workers(GeometryMixin):
         await self.update_repairers(enemy_builds_detected)
         await self.distribute_idle()
 
+        if not self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) or self.tactics.is_active(Tactic.WALL_IS_BUILT):
+            self.swap_worker_assignments()
+
+        remaining_cooldown = MN.WORKER_REDISTRIBUTE_COOLDOWN - (self.bot.time - self.last_worker_stop)
+        if remaining_cooldown > 0:
+            logger.debug(f"Distribute workers is on cooldown for {remaining_cooldown}")
+            return -1
+
+        worker_rush_active = self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE)
+        max_workers_to_move = MN.WORKER_REDISTRIBUTE_MAX_COUNT
+        if remaining_resources.vespene < MN.WORKER_REDISTRIBUTE_VESPENE_BANK_TARGET and not worker_rush_active:
+            logger.debug("saturate vespene")
+            return self.move_workers_to_vespene(max_workers_to_move)
+        if remaining_resources.minerals < MN.WORKER_REDISTRIBUTE_MINERAL_BANK_TARGET or worker_rush_active:
+            logger.debug("saturate minerals")
+            return self.move_workers_to_minerals(max_workers_to_move)
+
+        return 0
+
+    def swap_worker_assignments(self) -> None:
         # reassign workers to jobs that are closer
         priority_job_order = [
             WorkerJobType.SCOUT,
@@ -1430,22 +1466,6 @@ class Workers(GeometryMixin):
                 self.update_assignment(assignment.unit, current_assignment.job_type, current_assignment.target, current_assignment.target_position, current_assignment.build_type)
                 self.update_assignment(worker, job_type, new_target, new_target_position, new_build_type)
                 assignment.last_swap_time = self.bot.time
-
-        remaining_cooldown = MN.WORKER_REDISTRIBUTE_COOLDOWN - (self.bot.time - self.last_worker_stop)
-        if remaining_cooldown > 0:
-            logger.debug(f"Distribute workers is on cooldown for {remaining_cooldown}")
-            return -1
-
-        worker_rush_active = self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE)
-        max_workers_to_move = MN.WORKER_REDISTRIBUTE_MAX_COUNT
-        if remaining_resources.vespene < MN.WORKER_REDISTRIBUTE_VESPENE_BANK_TARGET and not worker_rush_active:
-            logger.debug("saturate vespene")
-            return self.move_workers_to_vespene(max_workers_to_move)
-        if remaining_resources.minerals < MN.WORKER_REDISTRIBUTE_MINERAL_BANK_TARGET or worker_rush_active:
-            logger.debug("saturate minerals")
-            return self.move_workers_to_minerals(max_workers_to_move)
-
-        return 0
 
     @timed_async
     async def update_repairers(self, enemy_builds_detected: Dict[BuildType, float]) -> None:

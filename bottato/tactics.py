@@ -56,7 +56,7 @@ class Tactics:
         if self.last_updates[tactic] == self.bot.state.game_loop:
             # this can cause a delay in the tactic state updating
             # e.g. proxy_barracks is checked at the start of the step and then enemy_builds_detected is updated
-            new_value = self.last_values[tactic]
+            new_value = previous_value
         elif tactic == Tactic.ANTI_AIR:
             anti_air_builds = {BuildType.BATTLECRUISER, BuildType.BATTLECRUISER_RUSH, BuildType.STARGATE, BuildType.SPIRE, BuildType.EARLY_STARGATE, BuildType.MULTIPLE_STARPORTS, BuildType.FLEET_BEACON}
             new_value = not anti_air_builds.isdisjoint(self.intel.enemy_builds_detected.keys())
@@ -71,7 +71,7 @@ class Tactics:
                 if self.bot.time < 85 or previous_value and self.bot.time < 180:
                     # start the proxy
                     new_value = True
-                elif self.last_values[tactic] and self.proxy_barracks:
+                elif previous_value and self.proxy_barracks:
                     # keep it going if it's working
                     required_ratio = 1.1 if self.bot.time < 240 else 3
                     new_value = self.intel.army_ratio >= required_ratio
@@ -102,11 +102,11 @@ class Tactics:
                 ).closer_than(
                     4, self.bot.main_base_ramp.top_center
                 ).amount >= 3
-            )
+            ) or self.bot.time > 240
         else:
             new_value = previous_value
 
-        if not new_value and self.last_values[tactic]:
+        if not new_value and previous_value:
             LogHelper.add_log(f"ending tactic {tactic}")
 
         self.last_values[tactic] = new_value

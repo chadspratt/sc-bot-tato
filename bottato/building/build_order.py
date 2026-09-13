@@ -148,6 +148,7 @@ class BuildOrder():
             self.queue_refinery()
 
         if self.tactics.is_active(Tactic.ABORT_ALL_BUILDS):
+            LogHelper.add_log("Aborting all builds")
             return Cost(0, 0)
 
         remaining_resources: Cost = await self.execute_pending_builds(self.only_build_units, detected_enemy_builds)
@@ -265,15 +266,20 @@ class BuildOrder():
         LogHelper.add_log(f"Enacting build order change: {change.name}")
         
         if change == BuildOrderChange.WORKER_RUSH:
+            self.tactics.set_active(Tactic.WORKER_RUSH_DEFENCE, True)
             self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.static_queue)
             self.remove_step_from_queue(UnitTypeId.REFINERY, self.static_queue, remove_all=True)
             self.remove_step_from_queue(UnitTypeId.REAPER, self.static_queue)
             self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue, position=0)
             if self.get_in_progress_count(UnitTypeId.BARRACKS) + self.bot.structures(UnitTypeId.BARRACKS).amount < 2:
                 self.move_between_queues(UnitTypeId.BARRACKS, self.static_queue, self.priority_queue, position=0)
+            wall_is_built = self.tactics.is_active(Tactic.WALL_IS_BUILT)
             for step in self.started:
-                if isinstance(step, SCVBuildStep) and step.is_unit_type(UnitTypeId.REFINERY):
-                    step.cancel_construction()
+                if isinstance(step, SCVBuildStep):
+                    if step.is_unit_type(UnitTypeId.REFINERY):
+                        step.cancel_construction()
+                    elif not wall_is_built and step.is_unit_type(UnitTypeId.BARRACKS):
+                        step.set_interrupted()
         elif change == BuildOrderChange.ABORT_ALL_BUILDS:
             for step in self.started + self.interrupted_queue:
                 if isinstance(step, SCVBuildStep):
@@ -1197,24 +1203,21 @@ class BuildOrder():
                     if closest_enemy_distance < 25 and cy_distance_to(self.bot.townhalls.first.position, self.map.natural_position) > 1:
                         LogHelper.add_log(f"skipping {build_step} due to nearby worker rush")
                         continue
-                if self.bot.structures(UnitTypeId.BARRACKS).ready.idle and self.bot.units(UnitTypeId.MARINE).amount < 3 and self.bot.minerals < 100 and not build_step.is_unit_type(UnitTypeId.MARINE):
-                    LogHelper.add_log(f"skipping {build_step} to build a marine instead")
-                    continue
-                if is_scv_build and not (wall_is_built and build_step.unit_being_built is not None):
+                if is_scv_build and not wall_is_built:
                     # during rush only build one barracks when ramp is secured and enemy is far enough away
                     build_started = build_step.unit_being_built is not None
                     if not build_started:
                         have_barracks = self.bot.structures((UnitTypeId.BARRACKS, UnitTypeId.BARRACKSFLYING)).amount > 0
-                        if not have_barracks and not build_step.is_unit_type(UnitTypeId.BARRACKS):
-                            LogHelper.add_log(f"skipping {build_step} due to not being a barracks")
+                        have_depots = self.bot.structures((UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED)).amount >= 2
+                        allow_build = not have_barracks and build_step.is_unit_type(UnitTypeId.BARRACKS) \
+                            or not have_depots and build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT)
+                        if not allow_build:
+                            LogHelper.add_log(f"skipping {build_step} due to needing depots or barracks")
                             continue
-                        have_depots = self.bot.structures((UnitTypeId.SUPPLYDEPOT, UnitTypeId.SUPPLYDEPOTLOWERED)).amount > 1
-                        if have_barracks and not have_depots and not build_step.is_unit_type(UnitTypeId.SUPPLYDEPOT):
-                            LogHelper.add_log(f"skipping {build_step} due to not being a supply depot")
-                            continue
-                        if have_barracks and have_depots and self.bot.units.exclude_type(UnitTypeId.SCV).amount < 3 and self.bot.minerals < 100:
-                            LogHelper.add_log(f"skipping {build_step} due to save minerals for units")
-                            continue
+                else:
+                    if self.bot.units.exclude_type(UnitTypeId.SCV).amount < 3 and self.bot.minerals < 100 and not build_step.is_unit_type(UnitTypeId.MARINE) and not (is_scv_build and build_step.unit_being_built is not None):
+                        LogHelper.add_log(f"skipping {build_step} due to save minerals for marines")
+                        continue
             if self.bot.supply_left < build_step.supply_cost and build_step.supply_cost > 0:
                 LogHelper.add_log(f"skipping {build_step} due to no supply")
                 if not allow_skip:
