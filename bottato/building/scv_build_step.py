@@ -358,7 +358,8 @@ class SCVBuildStep(BuildStep):
             return None
         new_build_position = available_expansions[next_expansion_index]
 
-        if self.bot.structures(UnitTypeId.BUNKER).closest_distance_to(new_build_position) < 10:
+        bunkers = self.bot.structures(UnitTypeId.BUNKER)
+        if bunkers and bunkers.closest_distance_to(new_build_position) < 10:
             # build on-site if there is already a bunker nearby
             pass
         else:
