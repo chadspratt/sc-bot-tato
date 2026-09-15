@@ -86,7 +86,7 @@ class Tactics:
         elif tactic == Tactic.WORKER_RUSH_DEFENCE:
             new_value = (
                 BuildType.WORKER_RUSH in self.intel.enemy_builds_detected
-                and (self.bot.time < 150 or self.bot.units.exclude_type(UnitTypeId.SCV).amount < 3)
+                and (self.bot.time < 150 or self.bot.units.exclude_type(UnitTypeId.SCV).amount < 3 or self.bot.units(UnitTypeId.SCV).amount == 0)
             )
         elif tactic == Tactic.WORKER_RUSH_COUNTER_ATTACK:
             new_value = (
@@ -94,6 +94,7 @@ class Tactics:
                 and not self.is_active(Tactic.WORKER_RUSH_DEFENCE)
                 and self.bot.time > 100
                 and self.intel.number_seen([UnitTypeId.STALKER, UnitTypeId.ROACH, UnitTypeId.SIEGETANK, UnitTypeId.SIEGETANKSIEGED, UnitTypeId.CYCLONE]) == 0
+                and self.enemy.get_total_count_of_type_seen([UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE]) >= 10
             )
         elif tactic == Tactic.WALL_IS_BUILT:
             new_value = (

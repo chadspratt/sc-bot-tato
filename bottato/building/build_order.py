@@ -268,7 +268,7 @@ class BuildOrder():
         if change == BuildOrderChange.WORKER_RUSH:
             self.tactics.set_active(Tactic.WORKER_RUSH_DEFENCE, True)
             self.remove_step_from_queue(UnitTypeId.COMMANDCENTER, self.static_queue)
-            self.remove_step_from_queue(UnitTypeId.REFINERY, self.static_queue, remove_all=True)
+            # self.remove_step_from_queue(UnitTypeId.REFINERY, self.static_queue, remove_all=True)
             self.remove_step_from_queue(UnitTypeId.REAPER, self.static_queue)
             self.move_between_queues(UnitTypeId.SUPPLYDEPOT, self.static_queue, self.priority_queue, position=0)
             if self.get_in_progress_count(UnitTypeId.BARRACKS) + self.bot.structures(UnitTypeId.BARRACKS).amount < 2:
@@ -1214,6 +1214,9 @@ class BuildOrder():
                         if not allow_build:
                             LogHelper.add_log(f"skipping {build_step} due to needing depots or barracks")
                             continue
+                    else:
+                        # don't resume builds until full wall is started to avoid reassigning the worker back to the barracks
+                        continue
                 else:
                     if self.bot.units.exclude_type(UnitTypeId.SCV).amount < 3 and self.bot.minerals < 100 and not build_step.is_unit_type(UnitTypeId.MARINE) and not (is_scv_build and build_step.unit_being_built is not None):
                         LogHelper.add_log(f"skipping {build_step} due to save minerals for marines")

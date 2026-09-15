@@ -389,9 +389,10 @@ class Workers(GeometryMixin):
             # don't use cool if we're still in the main and have a wall
             allow_cool = not self.cool_defense_failed and (not self.tactics.is_active(Tactic.WALL_IS_BUILT) or repositioned_to_natural) and self.bot.time < 300
             # allow_cool = False
-            attacking_worker_count = self.bot.enemy_units.closer_than(45, self.bot.start_location).amount
+            attacking_worker_count = self.bot.enemy_units.closer_than(40, self.bot.start_location).amount
             await LogHelper.add_chat(f"Attacking worker count: {attacking_worker_count}")
-            if allow_cool and (self.use_cool_defense or attacking_worker_count >= 4):
+            enemy_workers_seen = self.enemy.get_total_count_of_type_seen([UnitTypeId.SCV, UnitTypeId.PROBE, UnitTypeId.DRONE])
+            if allow_cool and (self.use_cool_defense or (attacking_worker_count > 0 and enemy_workers_seen >= 4)):
                 if not self.use_cool_defense and self.bot.time < 39:
                     await LogHelper.add_chat("Activating cool worker rush defense")
                     self.use_cool_defense = True
@@ -957,7 +958,7 @@ class Workers(GeometryMixin):
     def do_worker_rush_defense(self, base_location: Point2 | None = None) -> None:
         LogHelper.add_log("Executing do_worker_rush_defense")
         if not self.repair_wall():
-            self.fight_enemies_near_position(base_location, 25)
+            self.fight_enemies_near_position(base_location, 15)
 
     def repair_wall(self) -> bool:
         wall_is_built = self.tactics.is_active(Tactic.WALL_IS_BUILT)
@@ -1151,11 +1152,7 @@ class Workers(GeometryMixin):
                     return False
             elif assignment.job_type == WorkerJobType.BUILD:
                 if new_target.is_vespene_geyser and not new_target.is_mine:
-                    if build_type and self.bot.can_afford(build_type):
-                        worker.build_gas(new_target)
-                    else:
-                        # preposition builder
-                        worker.move(new_target.position)
+                    worker.move(new_target.position)
                 else:
                     # resume building
                     worker.smart(new_target)            
@@ -1192,11 +1189,8 @@ class Workers(GeometryMixin):
                     # must have a geyser target
                     return False
                 if build_type and new_target_position:
-                    if self.bot.can_afford(build_type):
-                        worker.build(build_type, new_target_position)
-                    else:
-                        # preposition builder
-                        worker.move(new_target_position)
+                    # preposition builder
+                    worker.move(new_target_position)
         if assignment.target != new_target:
             assignment.initial_gather_complete = False
         assignment.target = new_target
@@ -1372,8 +1366,7 @@ class Workers(GeometryMixin):
         await self.update_repairers(enemy_builds_detected)
         await self.distribute_idle()
 
-        if not self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) or self.tactics.is_active(Tactic.WALL_IS_BUILT):
-            self.swap_worker_assignments()
+        self.swap_worker_assignments()
 
         remaining_cooldown = MN.WORKER_REDISTRIBUTE_COOLDOWN - (self.bot.time - self.last_worker_stop)
         if remaining_cooldown > 0:

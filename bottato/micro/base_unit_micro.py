@@ -17,6 +17,7 @@ from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.ids.effect_id import EffectId
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.ids.upgrade_id import UpgradeId
 from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
@@ -569,6 +570,9 @@ class BaseUnitMicro(GeometryMixin):
                 valid_targets = valid_targets.filter(
                     lambda u: self.bot.get_terrain_height(u.position) <= unit_height or self.bot.is_visible(u)
                 )
+        # don't chase stalkers with marines without stimpack
+        if unit.type_id == UnitTypeId.MARINE and self.tactics.intel.enemy_race == Race.Protoss and UpgradeId.STIMPACK not in self.bot.state.upgrades:
+            valid_targets = valid_targets.filter(lambda u: u.type_id != UnitTypeId.STALKER or self.bot.structures.closest_distance_to(u) < 10)
         if not valid_targets:
             return None
 

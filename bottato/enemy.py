@@ -761,7 +761,9 @@ class Enemy(GeometryMixin):
                 self.out_of_view_cache["structures"] = (out_of_view_structures, self.bot.time)
             return out_of_view_structures
     
-    def get_total_count_of_type_seen(self, unit_type: UnitTypeId) -> int:
+    def get_total_count_of_type_seen(self, unit_type: UnitTypeId | List[UnitTypeId]) -> int:
+        if isinstance(unit_type, list):
+            return sum(len(self.all_seen.get(ut, set())) for ut in unit_type)
         return len(self.all_seen.get(unit_type, set()))
 
     @timed
