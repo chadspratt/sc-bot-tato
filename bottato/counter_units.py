@@ -81,7 +81,7 @@ class CounterUnits():
         },
         UnitTypeId.TEMPEST: { # 4
             UnitTypeId.VIKINGFIGHTER: 2.5,
-            UnitTypeId.THOR: 0.75,
+            UnitTypeId.CYCLONE: 1.5,
             UnitTypeId.BANSHEE: -0.5,
             UnitTypeId.SIEGETANK: -0.25,
             UnitTypeId.MARAUDER: -1

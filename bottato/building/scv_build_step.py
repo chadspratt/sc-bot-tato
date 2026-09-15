@@ -358,46 +358,53 @@ class SCVBuildStep(BuildStep):
             return None
         new_build_position = available_expansions[next_expansion_index]
 
-        # build at nearest occupied expansion
-        nearest_occupied_expansion = cy_closest_to(new_build_position, self.bot.townhalls) if self.bot.townhalls else None
-        if nearest_occupied_expansion and new_build_position:
-            nearest_occupied_position = nearest_occupied_expansion.position
-            # check along three vectors, one directly toward new_build_position and two that are angled away from it
-            candidates = [nearest_occupied_position, nearest_occupied_position, nearest_occupied_position]
-            perpendicular_offsets = [0, 0.5, -0.5]
+        if self.bot.structures(UnitTypeId.BUNKER).closest_distance_to(new_build_position) < 10:
+            # build on-site if there is already a bunker nearby
+            pass
+        else:
+            # build at nearest occupied expansion
+            nearest_occupied_expansion = cy_closest_to(new_build_position, self.bot.townhalls) if self.bot.townhalls else None
+            if nearest_occupied_expansion and new_build_position:
+                nearest_occupied_position = nearest_occupied_expansion.position
+                # check along three vectors, one directly toward new_build_position and two that are angled away from it
+                candidates = [nearest_occupied_position, nearest_occupied_position, nearest_occupied_position]
+                perpendicular_offsets = [0, 0.5, -0.5]
 
-            vector = (new_build_position - nearest_occupied_position).normalized
-            perpendicular_vector = Point2((-vector.y, vector.x))
+                vector = (new_build_position - nearest_occupied_position).normalized
+                perpendicular_vector = Point2((-vector.y, vector.x))
 
-            start_terrain_height = self.bot.get_terrain_height(nearest_occupied_position)
-            unchecked_remain = True
-            while unchecked_remain:
-                unchecked_remain = False
-                for i in range(3):
-                    candidate = candidates[i]
-                    if abs(self.bot.get_terrain_height(candidate) - start_terrain_height) <= 0.1:
-                        unchecked_remain = True
-                        candidate = candidates[i] + vector + perpendicular_vector * perpendicular_offsets[i]
-                        candidates[i] = candidate
-            sorted_candidates = sorted(candidates, key=lambda p: cy_distance_to_squared(p, new_build_position)) # type: ignore
+                start_terrain_height = self.bot.get_terrain_height(nearest_occupied_position)
+                unchecked_remain = True
+                max_steps = 20
+                steps_taken = 0
+                while unchecked_remain and steps_taken < max_steps:
+                    unchecked_remain = False
+                    steps_taken += 1
+                    for i in range(3):
+                        candidate = candidates[i]
+                        if abs(self.bot.get_terrain_height(candidate) - start_terrain_height) <= 0.1:
+                            unchecked_remain = True
+                            candidate = candidates[i] + vector + perpendicular_vector * perpendicular_offsets[i]
+                            candidates[i] = candidate
+                sorted_candidates = sorted(candidates, key=lambda p: cy_distance_to_squared(p, new_build_position)) # type: ignore
 
-            for candidate in sorted_candidates:
-                # back up so it won't select a spot on other side of gap
-                candidate = Point2(cy_towards(candidate, nearest_occupied_position, distance=2))
-                building_placement = await self.bot.find_placement(
-                    UnitTypeId.COMMANDCENTER,
-                    near=candidate,
-                    max_distance=5,
-                    placement_step=1,
-                )
-                if building_placement:
-                    new_build_position = building_placement
-                    break
-            else:
-                LogHelper.add_log(f"Could not find CC placement near existing base at {new_build_position}, trying generic placement")
-                building_placement = await self.find_generic_placement(UnitTypeId.COMMANDCENTER, special_locations, flying_building_destinations)
-                if building_placement:
-                    new_build_position = building_placement
+                for candidate in sorted_candidates:
+                    # back up so it won't select a spot on other side of gap
+                    candidate = Point2(cy_towards(candidate, nearest_occupied_position, distance=2))
+                    building_placement = await self.bot.find_placement(
+                        UnitTypeId.COMMANDCENTER,
+                        near=candidate,
+                        max_distance=5,
+                        placement_step=1,
+                    )
+                    if building_placement:
+                        new_build_position = building_placement
+                        break
+                else:
+                    LogHelper.add_log(f"Could not find CC placement near existing base at {new_build_position}, trying generic placement")
+                    building_placement = await self.find_generic_placement(UnitTypeId.COMMANDCENTER, special_locations, flying_building_destinations)
+                    if building_placement:
+                        new_build_position = building_placement
         return new_build_position
     
     @timed_async

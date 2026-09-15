@@ -36,13 +36,19 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
     # @timed_async
     # async def _use_ability(self, unit: Unit, target: Point2, health_threshold: float, force_move: bool = False) -> UnitMicroType:
         
-    async def _attack_something(self, unit: Unit, health_threshold: float, move_position: Point2, force_move: bool = False) -> UnitMicroType:
+    async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
+        is_harassing = self.bot.time - self.harassing_medivacs.get(unit.tag, 0) < 5
+        if not is_harassing and unit.cargo_used > 0 and unit.distance_to_squared(target) < 225 and self.closest_distance_squared(unit, self.bot.enemy_units) > 25:
+            unit(AbilityId.UNLOADALLAT, unit)
+            return UnitMicroType.USE_ABILITY
+
         threats = self.tactics.enemy.threats_to_friendly_unit(unit, 4)
         closest_threat = self.tactics.enemy.closest_unit_to_unit(unit, threats) if threats else None
         if closest_threat and unit.health_percentage < 0.8:
             safe_distance = UnitTypes.air_range(closest_threat) + closest_threat.radius + unit.radius + 1
             if cy_distance_to(unit.position, closest_threat.position) < safe_distance:
                 return UnitMicroType.NONE
+
         if unit.health_percentage < self.health_threshold_for_healing:
             if threats:
                 if not self.use_booster(unit) and unit.cargo_used > 0 and unit.health_percentage < 0.3:
@@ -50,8 +56,8 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.NONE
             elif force_move:
                 return UnitMicroType.NONE
-        target_distance_to_start = cy_distance_to_squared(move_position, self.bot.start_location)
-        enemy_distance_to_target = self.closest_distance_squared(move_position, self.bot.enemy_units) if self.bot.enemy_units else 999999
+
+        enemy_distance_to_target = self.closest_distance_squared(target, self.bot.enemy_units) if self.bot.enemy_units else 999999
         # only ferry units on retreat
         if force_move and self.bot.time > 300 and unit.cargo_left > 0 and enemy_distance_to_target > 400:
             if self.units_to_pick_up_last_update != self.bot._total_steps_iterations:
@@ -61,7 +67,8 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                     if u.type_id == UnitTypeId.SIEGETANKSIEGED or u.is_flying or u.movement_speed >= unit.movement_speed:
                         continue
                     u_distance_to_start = cy_distance_to_squared(u.position, self.bot.start_location)
-                    u_distance_to_target = cy_distance_to_squared(u.position, move_position)
+                    u_distance_to_target = cy_distance_to_squared(u.position, target)
+                    target_distance_to_start = cy_distance_to_squared(target, self.bot.start_location)
                     if 225 < u_distance_to_target < u_distance_to_start and target_distance_to_start < u_distance_to_start:
                         self.units_to_pick_up.append(u)
                 self.units_to_pick_up_potential_damage.clear()
@@ -81,7 +88,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                 # prioritize slower units, tiebreak with further from home
                 self.units_to_pick_up.sort(key=lambda u: u.movement_speed * 10000 - cy_distance_to_squared(u.position, self.bot.start_location))
             for passenger in self.units_to_pick_up:
-                if cy_distance_to_squared(passenger.position, move_position) < cy_distance_to_squared(unit.position, move_position):
+                if cy_distance_to_squared(passenger.position, target) < cy_distance_to_squared(unit.position, target):
                     # skip units that are already closer to the move_position
                     continue
                 if passenger.cargo_size <= unit.cargo_left and self.units_to_pick_up_potential_damage.get(passenger.tag, 0) < unit.health:
@@ -89,10 +96,7 @@ class MedivacMicro(BaseUnitMicro, GeometryMixin):
                     passenger.move(unit.position) # possible passenger already received an order, but shouldn't hurt
                     self.units_to_pick_up.remove(passenger)
                     return UnitMicroType.USE_ABILITY
-        is_harassing = self.bot.time - self.harassing_medivacs.get(unit.tag, 0) < 5
-        if not is_harassing and unit.cargo_used > 0 and unit.distance_to_squared(move_position) < 100 and self.closest_distance_squared(unit, self.bot.enemy_units) > 25:
-            unit(AbilityId.UNLOADALLAT, unit)
-            return UnitMicroType.USE_ABILITY
+
         if not self.heal_available(unit):
             return UnitMicroType.NONE
         if force_move and threats:

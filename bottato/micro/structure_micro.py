@@ -498,10 +498,7 @@ class StructureMicro(BaseUnitMicro, GeometryMixin):
                 sorted_army = cy_sorted_by_distance_to(visible_army, self.bot.start_location)
                 furthest_enemy = sorted_army[-1]
                 scan_position = furthest_enemy.position.towards(self.bot.start_location, -7)
-            else:
-                hidden_army = self.tactics.enemy.enemies_out_of_view
-                closest_enemy_structure = cy_closest_to(self.bot.start_location, hidden_army)
-                scan_position = closest_enemy_structure.position
+
             if scan_position:
                 orbital_with_energy(AbilityId.SCANNERSWEEP_SCAN, scan_position)
                 self.last_scan_time = self.bot.time
