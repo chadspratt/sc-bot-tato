@@ -146,8 +146,9 @@ class Military(GeometryMixin, DebugMixin):
         elif mount_offense and not punish_early_third: # previously 600
             military_scouts = self.bot.units([UnitTypeId.REAPER, UnitTypeId.VIKINGFIGHTER])
             reaper_is_alive = military_scouts.of_type(UnitTypeId.REAPER).exists
+            military_size = self.bot.units.exclude_type([UnitTypeId.SCV, UnitTypeId.MULE]).amount
             enemy_is_one_basing = len(self.intel.enemy_base_built_times) < 2 and self.bot.time < 480
-            if military_scouts.amount == 0 and self.bot.time < 420:
+            if (military_scouts.amount == 0 or military_size < 10) and self.bot.time < 420:
                 # wait for a scout to attack
                 mount_offense = False
             elif self.bot.supply_used < 50 and not reaper_is_alive or enemy_is_one_basing: # previously 110
