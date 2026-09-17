@@ -249,7 +249,7 @@ class EnemyIntel(GeometryMixin):
         else:
             # Protoss
             lots_of_gateways = not self.initial_scout_completed and self.number_seen(UnitTypeId.GATEWAY) > 2
-            no_expansion = BuildType.EARLY_EXPANSION not in self.enemy_builds_detected and self.initial_scout_completed and self.bot.time > 85 and self.number_seen(UnitTypeId.NEXUS) == 1
+            no_expansion = BuildType.EARLY_EXPANSION not in self.enemy_builds_detected and self.initial_scout_completed and self.bot.time > 125 and self.number_seen(UnitTypeId.NEXUS) == 1
             stargate_detected = self.number_seen(UnitTypeId.STARGATE) > 0
             fleet_beacon = self.number_seen(UnitTypeId.FLEETBEACON) > 0
             early_forge = self.first_building_time.get(UnitTypeId.FORGE, 9999) < 45
