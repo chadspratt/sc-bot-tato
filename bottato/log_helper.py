@@ -156,8 +156,12 @@ class LogHelper:
                 del data[type_to_exclude]
         if len(data) == 0 or LogHelper.enemy_race is None:
             return
-        
-        conn = sqlite3.connect(LogHelper.scouting_db)
+
+        try:
+            conn = sqlite3.connect(LogHelper.scouting_db)
+        except sqlite3.OperationalError:
+            LogHelper.scouting_db = f'/root/replays/{LogHelper.test_match_id}.db'
+            conn = sqlite3.connect(LogHelper.scouting_db)
         if LogHelper.init_sqlite_table("scouting", conn, LogHelper.enemy_race):
             table = "scouting_" + LogHelper.enemy_race.name.lower()
             cursor = conn.cursor()
