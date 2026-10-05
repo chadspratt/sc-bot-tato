@@ -14,6 +14,7 @@ from sc2.position import Point2
 from sc2.unit import Unit
 from sc2.units import Units
 
+from bottato.log_helper import LogHelper
 from bottato.mixins import GeometryMixin, timed, timed_async
 from bottato.squad.enemy_squad import EnemySquad
 from bottato.unit_reference_helper import UnitReferenceHelper
@@ -61,8 +62,6 @@ class Enemy(GeometryMixin):
         self.unit_distance_squared_cache.clear()
 
         new_visible_enemies: Units = self.bot.enemy_units + self.bot.enemy_structures
-        if self.enemy_race == Race.Random and new_visible_enemies:
-            self.enemy_race = new_visible_enemies[0].race
         self.detect_suddenly_seen_units(new_visible_enemies)
         self.update_out_of_view()
         self.set_last_seen_for_visible(new_visible_enemies)
@@ -148,14 +147,8 @@ class Enemy(GeometryMixin):
         for enemy_unit in self.enemies_in_view:
             if enemy_unit.tag not in UnitReferenceHelper.units_by_tag:
                 if enemy_unit.type_id not in (UnitTypeId.LARVA, UnitTypeId.EGG):
-                    added = False
-                    if enemy_unit.is_structure:
-                        for out_of_view_unit in self.enemies_out_of_view:
-                            if out_of_view_unit.type_id == enemy_unit.type_id and out_of_view_unit.position == enemy_unit.position:
-                                added = True
-                                # tags aren't consistent so check position to avoid duplicates
-                                break
-                    if not added:
+                    # skip structures since they remain listed in bot.enemy_structures when out of view
+                    if not enemy_unit.is_structure:
                         self.enemies_out_of_view.append(enemy_unit)
                         self.predicted_positions[enemy_unit.tag] = self.get_predicted_position(enemy_unit, 0)
                         self.last_seen_positions[enemy_unit.tag].append(None)
@@ -743,7 +736,7 @@ class Enemy(GeometryMixin):
         out_of_view, cache_time = self.out_of_view_cache["all"]
         if out_of_view is None or cache_time != self.bot.time:
             out_of_view = self.enemies_out_of_view.filter(
-                lambda enemy_unit: self.bot.time - self.last_seen[enemy_unit.tag] < Enemy.unit_probably_moved_seconds)
+                lambda enemy_unit: not enemy_unit.is_structure and self.bot.time - self.last_seen[enemy_unit.tag] < Enemy.unit_probably_moved_seconds)
             self.out_of_view_cache["all"] = (out_of_view, self.bot.time)
         if include_units and include_structures:
             return out_of_view
@@ -858,3 +851,10 @@ class Enemy(GeometryMixin):
         age_limit = 180 if self.enemy_race == Race.Zerg else 240
         total_age = sum(min(age_limit, enemy.age) for enemy in enemy_army)
         return total_age / enemy_army.amount
+
+    def log_scouted_enemies(self):
+        # log scouting every 10s
+        if self.bot.time - LogHelper.last_scouting_log >= 10:
+            scouted_enemies = self.get_recent_enemies()
+            enemy_counts = UnitTypes.count_units_by_type(scouted_enemies)
+            LogHelper.log_scouting_to_sqlite(self.bot.time, enemy_counts)

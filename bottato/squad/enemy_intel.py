@@ -67,8 +67,12 @@ class EnemyIntel(GeometryMixin):
             self.add_type(unit)
         
         # Detect race if not already confirmed
-        if self.enemy_race == Race.Random and self.bot.all_enemy_units:
-            self.enemy_race = self.bot.all_enemy_units[0].race
+        if self.enemy_race == Race.Random:
+            if self.bot.all_enemy_units:
+                self.enemy_race = self.bot.all_enemy_units[0].race
+        elif LogHelper.enemy_race is None:
+            self.enemy.enemy_race = self.enemy_race
+            LogHelper.enemy_race = self.enemy_race
 
     def add_type(self, unit: Unit):
         if unit.type_id not in self.type_positions_seen:

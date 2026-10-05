@@ -49,6 +49,7 @@ class Scouting(Squad, DebugMixin):
     def update_visibility(self):
         scout_units = [u for u in (self.friendly_territory.unit, self.enemy_territory.unit) if u]
         self.intel.update_location_visibility(scout_units)
+        self.enemy.log_scouted_enemies()
 
     @timed_async
     async def scout(self, new_damage_taken: dict[int, float]):
