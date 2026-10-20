@@ -1,5 +1,5 @@
 import math
-from typing import List
+from typing import Dict, List
 
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.unit import Unit
@@ -243,10 +243,8 @@ class CounterUnits():
     }
 
     @staticmethod
-    def get_counters(enemy_units: Units) -> dict[UnitTypeId, float]:
+    def get_counters(enemy_counts: Dict[UnitTypeId, int]) -> dict[UnitTypeId, float]:
         """Count the number of each unit type in the given units."""
-        enemy_counts = UnitTypes.count_units_by_type(enemy_units)
-
         counter_units: dict[UnitTypeId, float] = {}
         for enemy_type, enemy_count in enemy_counts.items():
             if enemy_type in CounterUnits.counters:
@@ -270,5 +268,6 @@ class CounterUnits():
 
     @staticmethod
     def get_counter_list(enemy_units: Units) -> List[UnitTypeId]:
-        counter_units = CounterUnits.get_counters(enemy_units)
+        enemy_counts = UnitTypes.count_units_by_type(enemy_units)
+        counter_units = CounterUnits.get_counters(enemy_counts)
         return [unit for unit, count in counter_units.items() for _ in range(math.ceil(count))]

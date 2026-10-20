@@ -303,7 +303,7 @@ class BuildOrder():
                     self.static_queue.remove(step)
                     self.add_to_build_queue([UnitTypeId.BARRACKSTECHLAB, UnitTypeId.MARAUDER], position=0, queue=self.priority_queue)
                     break
-        elif change == BuildOrderChange.RUSH:
+        elif change == BuildOrderChange.RUSH and BuildOrderChange.ANTI_AIR not in self.changes_enacted:
             # prioritize bunker and first tank
             self.move_between_queues(UnitTypeId.REAPER, self.static_queue, self.priority_queue)
             # move CC after factory
@@ -369,6 +369,7 @@ class BuildOrder():
             self.remove_step_from_queue(UnitTypeId.MEDIVAC, self.static_queue)
             self.add_to_build_queue([UnitTypeId.VIKINGFIGHTER] * 2, queue=self.priority_queue)
             self.substitute_steps_in_queue(UnitTypeId.SIEGETANK, [UnitTypeId.CYCLONE], self.static_queue)
+            self.remove_step_from_queue(UnitTypeId.SIEGETANK, self.static_queue, remove_all=True)
             self.remove_step_from_queue(UpgradeId.BANSHEECLOAK, self.static_queue)
             if enemy_build_type == BuildType.BATTLECRUISER_RUSH:
                 self.remove_step_from_queue(UnitTypeId.SIEGETANK, self.static_queue, remove_all=True)
@@ -522,7 +523,9 @@ class BuildOrder():
         worker_supply_cap = min(MN.MAX_WORKERS_GLOBAL, self.bot.workers.amount * 1.15)
         military_cap = self.bot.supply_cap - worker_supply_cap
         enemy_army = enemy.get_army(include_scouts=True, max_seconds_since_killed=60)
-        ideal_composition = CounterUnits.get_counters(enemy_army)
+        enemy_counts = UnitTypes.count_units_by_type(enemy_army)
+        ideal_composition = CounterUnits.get_counters(enemy_counts)
+        # LogHelper.add_log(f"countering {enemy_counts} with {ideal_composition}")
         current_composition = UnitTypes.count_units_by_type(self.bot.units)
         if not ideal_composition:
             # if no enemy units, current army is doing pretty well?

@@ -166,7 +166,7 @@ class LogHelper:
             try:
                 conn = sqlite3.connect(LogHelper.scouting_db)
             except sqlite3.OperationalError:
-                LogHelper.scouting_db = f'./logs/match_data.db'
+                LogHelper.scouting_db = './logs/match_data.db'
                 LogHelper.add_log(f"logging to sqlite at {LogHelper.scouting_db}")
                 conn = sqlite3.connect(LogHelper.scouting_db)
         if LogHelper.init_sqlite_table("scouting", conn, LogHelper.enemy_race):
@@ -328,5 +328,6 @@ class LogHelper:
             UnitTypeId.EVOLUTIONCHAMBER,
             UnitTypeId.SPINECRAWLER,
             UnitTypeId.SPORECRAWLER,
+            UnitTypeId.NYDUSCANAL,
         ],
     }
