@@ -132,30 +132,17 @@ class LogHelper:
         conn.commit()
         conn.close()
 
-    excluded_types = [
-        UnitTypeId.AUTOTURRET,
-        UnitTypeId.REACTOR,
-        UnitTypeId.TECHLAB,
-        UnitTypeId.EGG,
-        UnitTypeId.CREEPTUMOR,
-        UnitTypeId.CREEPTUMORBURROWED,
-        UnitTypeId.CREEPTUMORQUEEN,
-        UnitTypeId.BANELINGCOCOON,
-        UnitTypeId.RAVAGERCOCOON,
-        UnitTypeId.OVERLORDCOCOON,
-        UnitTypeId.TRANSPORTOVERLORDCOCOON,
-        UnitTypeId.BROODLORDCOCOON,
-        UnitTypeId.CHANGELING,
-        UnitTypeId.BROODLING,
-        UnitTypeId.INTERCEPTOR
-    ]
     @staticmethod
     def log_scouting_to_sqlite(timestamp: float, data: Dict[UnitTypeId, int]):
-        for type_to_exclude in LogHelper.excluded_types:
-            if type_to_exclude in data:
-                del data[type_to_exclude]
         if len(data) == 0 or LogHelper.enemy_race is None:
             return
+
+        # filter data to whitelist of types to log
+        types_to_log = LogHelper.scouting_row_order[LogHelper.enemy_race]
+        submitted_types = [key for key in data]
+        for type_to_check in submitted_types:
+            if type_to_check not in types_to_log:
+                del data[type_to_check]
 
         try:
             LogHelper.add_log(f"logging to sqlite at {LogHelper.scouting_db}")
