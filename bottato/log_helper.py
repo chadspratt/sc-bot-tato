@@ -134,7 +134,7 @@ class LogHelper:
 
     @staticmethod
     def log_scouting_to_sqlite(timestamp: float, data: Dict[UnitTypeId, int]):
-        if len(data) == 0 or LogHelper.enemy_race is None:
+        if LogHelper.enemy_race is None:
             return
 
         # filter data to whitelist of types to log
@@ -143,6 +143,9 @@ class LogHelper:
         for type_to_check in submitted_types:
             if type_to_check not in types_to_log:
                 del data[type_to_check]
+
+        if len(data) == 0:
+            return
 
         try:
             # LogHelper.add_log(f"logging to sqlite at {LogHelper.scouting_db}")
@@ -161,10 +164,14 @@ class LogHelper:
             cursor = conn.cursor()
             columns = 'game_timestamp, ' + ', '.join([key.name.lower() for key in data.keys()])
             placeholders = ', '.join('?' for _ in data)
-            cursor.execute(f'''
+            base_query = f'''
                 INSERT INTO {table} ({columns})
                 VALUES (?, {placeholders})
-            ''', (timestamp, *data.values()))
+            '''
+            try:
+                cursor.execute(base_query, (timestamp, *data.values()))
+            except:
+                LogHelper.add_log(f"error executing query {base_query}")
             conn.commit()
             # LogHelper.add_log("logged to sqlite")
             LogHelper.last_scouting_log = timestamp
