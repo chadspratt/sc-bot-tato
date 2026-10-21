@@ -678,7 +678,7 @@ class BuildOrder():
                 return
             if (intel.army_ratio < 1.0 or intel.avg_enemy_age > 60) and self.bot.time < 480:
                 return
-        if BuildType.RUSH in detected_enemy_builds and self.bot.time < 160:
+        if BuildType.RUSH in detected_enemy_builds and self.bot.time < 130:
             # don't expand too early during rush
             return
         if len(detected_enemy_builds) == 0 and self.bot.structures(UnitTypeId.STARPORT).amount == 0:

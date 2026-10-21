@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # import math
 from loguru import logger
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 from cython_extensions.general_utils import cy_in_pathing_grid_burny
 from cython_extensions.geometry import (
@@ -851,6 +851,8 @@ class BaseUnitMicro(GeometryMixin):
             return UnitMicroType.NONE
         return UnitMicroType.RETREAT
 
+    flying_counters: Set[UnitTypeId] = set([UnitTypeId.VIKINGFIGHTER, UnitTypeId.BUNKER, UnitTypeId.WIDOWMINEBURROWED, UnitTypeId.MISSILETURRET])
+    ground_counters: Set[UnitTypeId] = set([UnitTypeId.SIEGETANKSIEGED, UnitTypeId.BUNKER, UnitTypeId.WIDOWMINEBURROWED, UnitTypeId.PLANETARYFORTRESS])
     @timed
     def _retreat_to_better_unit(self, unit: Unit, can_attack: bool) -> bool:
         if unit.movement_speed == 0:
@@ -868,6 +870,7 @@ class BaseUnitMicro(GeometryMixin):
         threats = self.tactics.enemy.threats_to_friendly_unit(unit, 2)
         if not threats:
             return False
+        
         closest_threat = sorted(threats, key=lambda t: self.tactics.enemy.safe_distance_squared(t, unit) - self.tactics.enemy.get_attack_range_with_buffer_squared(t, unit, 0))[0]
         closest_threat_distance_sq = self.tactics.enemy.safe_distance_squared(closest_threat, unit)
         if closest_threat_distance_sq > 225:
@@ -876,13 +879,15 @@ class BaseUnitMicro(GeometryMixin):
             # if enemy tank is close, dive on it instead of retreating
             return False
 
-        types_to_retreat_to = {UnitTypeId.SIEGETANKSIEGED, UnitTypeId.BUNKER, UnitTypeId.WIDOWMINEBURROWED, UnitTypeId.PLANETARYFORTRESS}
-        if closest_threat.is_flying:
-            # vikings shouldn't retreat to each other
-            # if unit.type_id == UnitTypeId.VIKINGFIGHTER:
-            #     types_to_retreat_to = {UnitTypeId.MARINE, UnitTypeId.MISSILETURRET, UnitTypeId.BUNKER, UnitTypeId.WIDOWMINEBURROWED}
-            # else:
-            types_to_retreat_to = {UnitTypeId.VIKINGFIGHTER, UnitTypeId.BUNKER, UnitTypeId.WIDOWMINEBURROWED, UnitTypeId.MISSILETURRET}
+        types_to_retreat_to: Set[UnitTypeId] = set()
+        for t in threats:
+            if t.is_flying:
+                types_to_retreat_to = types_to_retreat_to.union(BaseUnitMicro.flying_counters)
+                break
+        for t in threats:
+            if not t.is_flying:
+                types_to_retreat_to = types_to_retreat_to.union(BaseUnitMicro.ground_counters)
+                break
         units_to_retreat_to = self.bot.units.of_type(types_to_retreat_to)
         if not units_to_retreat_to and types_to_retreat_to == {UnitTypeId.SIEGETANKSIEGED}:
             # prefer sieged

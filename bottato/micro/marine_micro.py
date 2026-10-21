@@ -27,6 +27,11 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
 
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+        if self._retreat_to_better_unit(unit, can_attack):
+            # don't stim if retreating
+            return UnitMicroType.RETREAT
+
         if unit.health <= 35:
             return UnitMicroType.NONE
         if not self.stim_researched:
@@ -36,11 +41,6 @@ class MarineMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.NONE
         if self.is_stimmed(unit):
             return UnitMicroType.NONE
-
-        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
-        if self._retreat_to_better_unit(unit, can_attack):
-            # don't stim if retreating
-            return UnitMicroType.RETREAT
         
         closest_enemy, closest_distance = self.tactics.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=UnitTypes.WORKER_TYPES)
         if closest_enemy:

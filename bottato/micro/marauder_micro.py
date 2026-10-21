@@ -8,7 +8,6 @@ from sc2.unit import Unit
 
 from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
-from bottato.micro.marine_micro import MarineMicro
 from bottato.mixins import GeometryMixin, timed_async
 from bottato.unit_types import UnitTypes
 
@@ -27,6 +26,11 @@ class MarauderMicro(BaseUnitMicro, GeometryMixin):
     @timed_async
     async def _use_ability(self, unit: Unit, target: Point2, force_move: bool = False) -> UnitMicroType:
         # copied from MarineMicro
+        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
+        if self._retreat_to_better_unit(unit, can_attack):
+            # don't stim if retreating
+            return UnitMicroType.RETREAT
+        
         if unit.health <= 35:
             return UnitMicroType.NONE
         if not self.stim_researched:
@@ -36,11 +40,6 @@ class MarauderMicro(BaseUnitMicro, GeometryMixin):
                 return UnitMicroType.NONE
         if self.is_stimmed(unit):
             return UnitMicroType.NONE
-
-        can_attack = unit.weapon_cooldown <= self.time_in_frames_to_attack
-        if self._retreat_to_better_unit(unit, can_attack):
-            # don't stim if retreating
-            return UnitMicroType.RETREAT
         
         closest_enemy, closest_distance = self.tactics.enemy.get_closest_target(unit, include_structures=False, include_destructables=False, excluded_types=UnitTypes.WORKER_TYPES)
         if closest_enemy:
