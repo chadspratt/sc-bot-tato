@@ -654,7 +654,7 @@ class SCVBuildStep(BuildStep):
             flee_enemies = True
             if self.unit_being_built and (self.unit_being_built.build_progress > 0.6 and 
                     self.unit_type_id in self.unit_types_to_finish_despite_enemies
-                    or self.bot.time < 120 and self.tactics.is_active(Tactic.WALL_IS_BUILT) and cy_distance_to_squared(self.unit_being_built.position, self.bot.main_base_ramp.top_center) < 25):
+                    or self.bot.time < 105 and self.tactics.is_active(Tactic.WALL_IS_BUILT) and cy_distance_to_squared(self.unit_being_built.position, self.bot.main_base_ramp.top_center) < 25):
                 danger_distance = self.unit_being_built.radius + 0.5
                 flee_enemies = False
                 if not self.tactics.is_active(Tactic.WORKER_RUSH_DEFENCE) and cy_closer_than(self.bot.enemy_units, danger_distance, self.unit_in_charge.position):

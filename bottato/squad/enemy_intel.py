@@ -372,6 +372,9 @@ class EnemyIntel(GeometryMixin):
                     if structure.type_id == proxy_structure.type_id and structure.position.manhattan_distance(proxy_structure.position) < 1:
                         break
                 else:
-                    if structure.type_id not in (UnitTypeId.PYLON, UnitTypeId.PHOTONCANNON, UnitTypeId.PLANETARYFORTRESS, UnitTypeId.BUNKER):
+                    if structure.type_id in (UnitTypeId.PYLON, UnitTypeId.PHOTONCANNON) and cy_distance_to_squared(structure.position, self.bot.start_location) < 225:
+                        # cannon rush, don't flag as a "proxy"
+                        continue
+                    if structure.type_id not in (UnitTypeId.PLANETARYFORTRESS, UnitTypeId.BUNKER):
                         self.proxy_buildings.append(structure)
                         LogHelper.add_log(f"proxy building detected: {structure}")
