@@ -9,6 +9,7 @@ from sc2.bot_ai import BotAI
 from sc2.ids.unit_typeid import UnitTypeId
 from sc2.position import Point2, Point3
 
+from bottato.log_helper import LogHelper
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.micro.micro_factory import MicroFactory
 from bottato.mixins import GeometryMixin, timed
@@ -65,21 +66,25 @@ class HarassSquad(Squad, GeometryMixin):
                         else:
                             # every expansion has been taken
                             self.harass_locations[unit.tag] = self.bot.enemy_start_locations[0]
+                    
+                    LogHelper.add_log(f"{self.name} harass target changed to {self.harass_locations[unit.tag]}")
 
             micro: BaseUnitMicro = MicroFactory.get_unit_micro(unit)
             nearby_enemies = self.bot.enemy_units.filter(lambda u: UnitTypes.can_attack_target(u, unit) and u.distance_to_squared(unit) < 225)
             threatening_structures = self.bot.enemy_structures.filter(
                 lambda structure: structure.is_ready and UnitTypes.can_attack_target(structure, unit)
                     and cy_distance_to(structure.position, unit.position) < UnitTypes.range_vs_target(structure, unit) + 3)
+            nearby_threats = nearby_enemies + threatening_structures
 
-            if not nearby_enemies and not threatening_structures:
+            if not nearby_threats:
                 base_to_defend: Point2 | None = None
                 if self.bot.townhalls:
                     enemy_reapers = self.bot.enemy_units(UnitTypeId.REAPER)
-                    if enemy_reapers:
+                    if enemy_reapers.amount > 1:
                         # prioritize defending over harassing if enemy reapers are out. maybe survive deimos for 5m
                         closest_th_to_reapers = GeometryMixin.closest_member_to_member(self.bot.townhalls, enemy_reapers)
                         base_to_defend = closest_th_to_reapers[0].position
+                        LogHelper.add_log(f"{self.name} defending from reapers at {base_to_defend}")
                     else:
                         closest_th = cy_closest_to(unit.position, self.bot.townhalls)
                         if cy_distance_to(unit.position, closest_th.position) < 30:
@@ -89,13 +94,14 @@ class HarassSquad(Squad, GeometryMixin):
                             )
                             if base_threats:
                                 base_to_defend = cy_closest_to(closest_th.position, base_threats).position
+                                LogHelper.add_log(f"{self.name} defending from enemies at {base_to_defend}")
 
                 await micro.harass(unit, base_to_defend or self.harass_locations[unit.tag])
                 continue
 
             nearest_threat = None
             nearest_distance = 99999
-            for threat in nearby_enemies + threatening_structures:
+            for threat in nearby_threats:
                 distance = UnitTypes.get_range_buffer_vs_target(threat, unit)
                 if distance < nearest_distance:
                     nearest_distance = distance

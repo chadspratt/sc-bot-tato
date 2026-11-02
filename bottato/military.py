@@ -440,13 +440,18 @@ class Military(GeometryMixin, DebugMixin):
             # keep stale units once we detect them so we don't lose the flag to not harass
             self.anti_banshee_units = self.bot.enemy_units((UnitTypeId.VIKINGFIGHTER, UnitTypeId.PHOENIX, UnitTypeId.MUTALISK))
         anti_air_in_base = enemies_in_base.filter(lambda u: UnitTypes.can_attack_air(u))
-        if self.anti_banshee_units or len(enemies_in_base) >= 3 and anti_air_in_base.amount <= 2:
+        if self.anti_banshee_units:
+            LogHelper.add_log("moving banshee to main squad due to counter units7")
+            self.transfer_all(self.banshee_harass, self.main_army)
+        elif len(enemies_in_base) >= 3 and anti_air_in_base.amount <= 2:
             # defend base instead of harassing, or too dangerous to harass
+            LogHelper.add_log("moving banshee to main squad due to enemies in base")
             self.transfer_all(self.banshee_harass, self.main_army)
         elif self.banshee_harass.units.amount < 2 and (self.bot.enemy_race != Race.Terran or BuildType.RUSH in self.intel.enemy_builds_detected):
             # transfer a banshee from main army to harass squad
             banshees = self.main_army.units(UnitTypeId.BANSHEE)
             if banshees:
+                LogHelper.add_log("moving banshee to harass squad")
                 self.transfer(banshees[0], self.main_army, self.banshee_harass)
             
         await self.reaper_harass.harass(self.intel)
