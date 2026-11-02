@@ -346,7 +346,7 @@ class Enemy(GeometryMixin):
         UnitTypeId.LURKERMPBURROWED
     ))
     @timed
-    def threats_to(self, unit: Unit, attackers: Units, attack_range_buffer=0, first_only: bool = False) -> Units:
+    def threats_to(self, unit: Unit, attackers: Units, attack_range_buffer: float = 0, first_only: bool = False) -> Units:
         in_range = Units([], self.bot)
 
         if self.can_be_attacked(unit, attackers):

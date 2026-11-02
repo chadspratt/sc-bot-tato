@@ -1,10 +1,9 @@
-from typing import Dict, Tuple
+from typing import Dict
 
 import sc2.position
 from sc2.ids.ability_id import AbilityId
 from sc2.ids.buff_id import BuffId
 from sc2.unit import Unit
-from sc2.units import Units
 
 from bottato.enums import UnitMicroType
 from bottato.micro.base_unit_micro import BaseUnitMicro
@@ -19,6 +18,7 @@ class CycloneMicro(BaseUnitMicro):
         super().__init__(bot)
 
     @staticmethod
+    @timed_async
     async def update_lock_on_states(bot):
         await UnitTypes.update_cyclone_lockon_state(bot, CycloneMicro.lock_on_targets)
         

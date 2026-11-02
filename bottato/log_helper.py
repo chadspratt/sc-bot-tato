@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 from sc2.bot_ai import BotAI
 from sc2.data import Race
 from sc2.ids.unit_typeid import UnitTypeId
+from sc2.unit import Unit
 
 # Try to import pymysql - it will be available in local testing, not on server
 try:
@@ -147,18 +148,7 @@ class LogHelper:
         if len(data) == 0:
             return
 
-        try:
-            # LogHelper.add_log(f"logging to sqlite at {LogHelper.scouting_db}")
-            conn = sqlite3.connect(LogHelper.scouting_db)
-        except sqlite3.OperationalError:
-            LogHelper.scouting_db = f'/root/replays/{LogHelper.test_match_id}.db'
-            # LogHelper.add_log(f"logging to sqlite at {LogHelper.scouting_db}")
-            try:
-                conn = sqlite3.connect(LogHelper.scouting_db)
-            except sqlite3.OperationalError:
-                LogHelper.scouting_db = './logs/match_data.db'
-                # LogHelper.add_log(f"logging to sqlite at {LogHelper.scouting_db}")
-                conn = sqlite3.connect(LogHelper.scouting_db)
+        conn = LogHelper.get_sqlite_connection()
         if LogHelper.init_sqlite_table("scouting", conn, LogHelper.enemy_race):
             table = "scouting_" + LogHelper.enemy_race.name.lower()
             cursor = conn.cursor()
@@ -177,6 +167,27 @@ class LogHelper:
             LogHelper.last_scouting_log = timestamp
         conn.close()
 
+    @staticmethod
+    def get_sqlite_connection():
+        conn = None
+        try:
+            # LogHelper.add_log(f"logging to sqlite at {LogHelper.scouting_db}")
+            conn = sqlite3.connect(LogHelper.scouting_db)
+        except sqlite3.OperationalError:
+            LogHelper.scouting_db = f'/root/replays/{LogHelper.test_match_id}.db'
+            # LogHelper.add_log(f"logging to sqlite at {LogHelper.scouting_db}")
+            try:
+                conn = sqlite3.connect(LogHelper.scouting_db)
+            except sqlite3.OperationalError:
+                LogHelper.scouting_db = './logs/match_data.db'
+                # LogHelper.add_log(f"logging to sqlite at {LogHelper.scouting_db}")
+                conn = sqlite3.connect(LogHelper.scouting_db)
+        return conn
+
+    @staticmethod
+    def log_banshee_harass_to_sqlite(timestamp: float, unit: Unit):
+        pass
+
     initialized_tables: set[str] = set()
     @staticmethod
     def init_sqlite_table(table: str, conn: sqlite3.Connection, race: Race) -> bool:
@@ -185,6 +196,8 @@ class LogHelper:
         if table == "scouting":
             LogHelper.initialize_scouting_table(conn, race)
             return True
+        if table == "banshee_harass":
+            LogHelper.initialize_banshee_harass_table(conn)
         return False
 
     @staticmethod
@@ -202,6 +215,23 @@ class LogHelper:
                 match_id INTEGER DEFAULT 0,
                 game_timestamp REAL,
                 {unit_columns}
+            )
+        ''')
+        LogHelper.initialized_tables.add("scouting")
+
+    @staticmethod
+    def initialize_banshee_harass_table(conn: sqlite3.Connection):
+        cursor = conn.cursor()
+        LogHelper.add_log(f"initializing sqlite table banshee_harass")
+        cursor.execute(f'''
+            DROP TABLE IF EXISTS banshee_harass
+        ''')
+        cursor.execute(f'''
+            CREATE TABLE banshee_harass (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                match_id INTEGER DEFAULT 0,
+                game_timestamp REAL,
+                unit_id INTEGER
             )
         ''')
         LogHelper.initialized_tables.add("scouting")

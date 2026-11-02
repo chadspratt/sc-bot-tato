@@ -229,6 +229,7 @@ class BaseUnitMicro(GeometryMixin):
         EffectId.PSISTORMPERSISTENT: 2,
         EffectId.GUARDIANSHIELDPERSISTENT: 4.5,
         EffectId.SCANNERSWEEP: 13,
+        EffectId.NUKEPERSISTENT: 13,
     }
     @staticmethod
     def add_custom_effect(type: CustomEffectType,

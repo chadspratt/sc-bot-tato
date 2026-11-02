@@ -92,14 +92,14 @@ class Commander(GeometryMixin):
         # XXX slow, 17% of command time
         remaining_resources: Cost = await self.build_order.execute(self.structure_micro.get_building_destinations())
 
-
         self.add_custom_effects_to_avoid()
         # very slow, 70% of command time
         await self.military.manage_squads()
 
         await self.my_workers.attack_nearby_enemies(self.tactics.intel.enemy_builds_detected) # ultra fast
         await self.my_workers.redistribute_workers(remaining_resources, self.tactics.intel.enemy_builds_detected)
-        await self.my_workers.speed_mine() # slow, 15% of command time
+        # slow, 15% of command time
+        await self.my_workers.speed_mine()
         # if self.bot.time > 240:
         #     logger.debug(f"minerals gathered: {self.bot.state.score.collected_minerals}")
         self.my_workers.drop_mules() # fast

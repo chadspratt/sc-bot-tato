@@ -12,6 +12,7 @@ from sc2.unit import Unit
 from sc2.units import Units
 
 from bottato.enums import UnitMicroType
+from bottato.log_helper import LogHelper
 from bottato.micro.base_unit_micro import BaseUnitMicro
 from bottato.mixins import GeometryMixin, timed_async
 from bottato.unit_types import UnitTypes
@@ -37,25 +38,36 @@ class BansheeMicro(BaseUnitMicro, GeometryMixin):
                 self.cloak_researched = True
             else:
                 return UnitMicroType.NONE
-        threats = self.tactics.enemy.get_recent_enemies().filter(
+
+        enemies = self.tactics.enemy.get_recent_enemies()
+        threats = enemies.filter(
             lambda u: not u.is_detector)
+        detectors = enemies.filter(lambda u: u.is_detector)
         if not unit.is_cloaked:
             BansheeMicro.last_decloak_time[unit.tag] = 0
-            if unit.energy >= self.cloak_energy_threshold and self.tactics.enemy.threats_to(unit, threats, 2).exists:
+            if unit.energy >= self.cloak_energy_threshold \
+                    and self.tactics.enemy.threats_to(unit, threats, 2).exists \
+                    and not self.tactics.enemy.threats_to(unit, detectors, 0.5).exists:
                 unit(AbilityId.BEHAVIOR_CLOAKON_BANSHEE)
                 BansheeMicro.last_cloak_time[unit.tag] = self.bot.time
                 return UnitMicroType.USE_ABILITY
-        elif BansheeMicro.last_decloak_time.get(unit.tag, 0) != 0:
-            # already said to decloak, check again and cancel if still threatened
-            if self.tactics.enemy.threats_to(unit, threats, 10).exists:
-                BansheeMicro.last_decloak_time[unit.tag] = 0
+        else:
+            nearby_threats = self.tactics.enemy.threats_to(unit, threats, 10)
+            decloak_time: float = BansheeMicro.last_decloak_time[unit.tag]
+            if nearby_threats.exists:
+                if decloak_time > 0:
+                    LogHelper.add_log(f"canceling decloak timer for banshee {unit.tag}")
+                    BansheeMicro.last_decloak_time[unit.tag] = 0
                 return UnitMicroType.NONE
-            elif BansheeMicro.last_decloak_time.get(unit.tag, 0) + 1.0 < self.bot.time:
-                # only uncloak if the signal stays consistent
-                unit(AbilityId.BEHAVIOR_CLOAKOFF_BANSHEE)
-                return UnitMicroType.USE_ABILITY
-        elif not self.tactics.enemy.threats_to(unit, threats, 10).exists:
-            BansheeMicro.last_decloak_time[unit.tag] = self.bot.time
+            else:
+                if decloak_time == 0:
+                    LogHelper.add_log(f"starting decloak timer for banshee {unit.tag}")
+                    BansheeMicro.last_decloak_time[unit.tag] = self.bot.time
+                elif decloak_time + 2.0 < self.bot.time:
+                    # only uncloak if the signal stays consistent
+                    LogHelper.add_log(f"decloaking banshee {unit.tag}")
+                    unit(AbilityId.BEHAVIOR_CLOAKOFF_BANSHEE)
+                    return UnitMicroType.USE_ABILITY
         return UnitMicroType.NONE
     
     @timed_async
